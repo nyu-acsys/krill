@@ -9,14 +9,11 @@
 #include "cola/util.hpp"
 #include "cola/transform.hpp"
 
-// #include "types/preprocess.hpp"
-// #include "types/rmraces.hpp"
-// #include "types/check.hpp"
-// #include "types/cave.hpp"
+#include "plankton/verify.hpp"
 
 using namespace TCLAP;
 using namespace cola;
-// using namespace prtypes;
+using namespace plankton;
 
 
 //
@@ -129,6 +126,7 @@ static void read_input() {
 }
 
 static void print_program() {
+	return; // TODO: reenable
 	// print program
 	std::cout << std::endl << std::endl;
 	cola::print(*config.program, std::cout);
@@ -140,6 +138,8 @@ static void print_program() {
 // VERIFICATION
 //
 static void verify() {
+	assert(config.program);
+	plankton::check_linearizability(*config.program);
 	throw std::logic_error("not yet implement (verify)");
 }
 

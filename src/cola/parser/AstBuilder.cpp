@@ -257,23 +257,15 @@ antlrcpp::Any AstBuilder::visitProgram(cola::CoLaParser::ProgramContext* context
 	return nullptr;
 }
 
-antlrcpp::Any AstBuilder::visitFunction(cola::CoLaParser::FunctionContext* context) {
-	std::string name = context->name->getText();
-	auto returnTypes = context->returnType()->accept(this).as<std::vector<std::reference_wrapper<const Type>>>();
+antlrcpp::Any AstBuilder::visitFunctionInterface(CoLaParser::FunctionInterfaceContext* context) {
+	return handleFunction(Function::Kind::INTERFACE, context->name->getText(), context->args, context->rets, context->body);
+}
+antlrcpp::Any AstBuilder::visitFunctionMacro(CoLaParser::FunctionMacroContext* context) {
+	return handleFunction(Function::Kind::MACRO, context->name->getText(), context->args, context->rets, context->body);
+}
 
-	Function::Kind kind = Function::INTERFACE;
-	if (context->Inline()) {
-		kind = Function::MACRO;
-	}
-
-	if (name == INIT_NAME) {
-		if (kind != Function::INTERFACE) {
-			throw ParseError("initializer function '" + name + "' must not have a modifier.");
-		}
-		if (returnTypes.size() != 1 || returnTypes.at(0).get() != Type::void_type()) {
-			throw ParseError("initializer function '" + name + "' must have 'void' return type.");
-		}
-	}
+antlrcpp::Any AstBuilder::handleFunction(Function::Kind kind, std::string name, CoLaParser::ArgDeclListContext* argsContext, 
+		CoLaParser::RetDeclContext* retsContext, CoLaParser::ScopeContext* bodyContext){
 
 	auto dummyBody = std::make_unique<Scope>(std::make_unique<Skip>()); // we need to create the function here, but have no body yet
 	auto function = std::make_unique<Function>(name, kind, std::move(dummyBody));
@@ -286,81 +278,87 @@ antlrcpp::Any AstBuilder::visitFunction(cola::CoLaParser::FunctionContext* conte
 		_functions.insert({{ name, *function }});
 	}
 
-	// add return types
-	function->return_types = std::move(returnTypes);
+	// helpers to handle argument/return variables
+	auto createVarDecls = [&](const ArgDeclList& list) {
+		std::vector<std::string> result;
+		for (auto [varName, varTypeName] : list) {
+			const Type& varType = _types.at(varTypeName);
+			auto decl = std::make_unique<VariableDeclaration>(varName, varType, false);
+			addVariable(std::move(decl));
 
-	// add arguments
+			if (varType.sort == Sort::VOID) {
+				throw ParseError("Type 'void' not supported for argument/return declaration '" + varName + "'.");
+			}
+			if (kind == Function::INTERFACE && varType.sort == Sort::PTR) {
+				throw ParseError("Argument/returns with name '" + varName + "' of pointer sort not supported for interface functions.");
+			}
+
+			result.push_back(varName);
+		}
+		return result;
+	};
+	auto retrieveSortedDeclList = [&](std::vector<std::unique_ptr<VariableDeclaration>>& scope, const std::vector<std::string>& names) {
+		std::vector<std::unique_ptr<VariableDeclaration>> result;
+		for (const auto& name : names) {
+			for (auto& decl : scope) {
+				if (decl && decl->name == name) {
+					result.push_back(std::move(decl));
+					break;
+				}
+			}
+		}
+		return result;
+	};
+
+	// add arguments and returns
 	pushScope();
-	auto arglist = context->args->accept(this).as<ArgDeclList*>();
-	function->args.reserve(arglist->size());
-	std::vector<std::string> argnames_list;
-	for (auto& pair : *arglist) {
-		std::string argname = pair.first;
-		argnames_list.push_back(argname);
-		const Type& argtype = _types.at(pair.second);
-		auto decl = std::make_unique<VariableDeclaration>(argname, argtype, false);
-		addVariable(std::move(decl));
-
-		if (argtype.sort == Sort::VOID) {
-			throw ParseError("Argument type 'void' not supported for argument '" + argname + "'.");
-		}
-		if (kind == Function::INTERFACE && argtype.sort == Sort::PTR) {
-			throw ParseError("Argument with name '" + argname + "' of pointer sort not supported for interface functions.");
-		}
-	}
+	auto arglistRaw = argsContext->accept(this).as<ArgDeclList*>();
+	auto retlistRaw = retsContext->accept(this).as<ArgDeclList*>();
+	auto arglist = createVarDecls(*arglistRaw);
+	auto retlist = createVarDecls(*retlistRaw);
 
 	// handle body
-	assert(context->body);
-	auto body = context->body->accept(this).as<Scope*>();
+	assert(bodyContext);
+	auto body = bodyContext->accept(this).as<Scope*>();
 	function->body = std::unique_ptr<Scope>(body);
 
-	// get variable decls; enforce right order
-	std::vector<std::unique_ptr<VariableDeclaration>> scope = popScope();
-	assert(scope.size() == argnames_list.size());
-	for (const auto& name : argnames_list) {
-		bool found = false;
-		for (auto& decl : scope) {
-			if (!decl) {
-				continue;
-			}
-			if (decl->name == name) {
-				function->args.push_back(std::move(decl));
-				found = true;
-				break;
-			}
-		}
-		if (!found) {
-			throw ParseError("Parsing went terribly wrong... I lost some variables.");
-		}
-	}
+	// extraact var delcs
+	auto scope = popScope();
+	auto argdecls = retrieveSortedDeclList(scope, arglist);
+	auto retdecls = retrieveSortedDeclList(scope, retlist);
 	scope.clear();
+
+	// add decls to function
+	function->args.insert(function->args.end(), std::make_move_iterator(argdecls.begin()), std::make_move_iterator(argdecls.end()));
+	function->returns.insert(function->returns.end(), std::make_move_iterator(retdecls.begin()), std::make_move_iterator(retdecls.end()));
 
 	// transfer ownershp
 	if (name == INIT_NAME) {
+		if (kind != Function::INTERFACE) {
+			throw ParseError("initializer function '" + name + "' must not be defined as macro.");
+		}
+		if (function->returns.size() != 0) {
+			throw ParseError("initializer function '" + name + "' must not return values.");
+		}
+		if (_program->initializer) {
+			throw ParseError("initializer function '" + name + "' declared multiple times.");
+		}
 		_program->initializer = std::move(function);
+
 	} else {
 		_program->functions.push_back(std::move(function));
 	}
 
-	// TODO: check if every path returns
-
+	// TODO: check if every path returns?
 	return nullptr;
 }
 
-antlrcpp::Any AstBuilder::visitReturnTypeSingle(CoLaParser::ReturnTypeSingleContext *context) {
-	const Type& returnType = lookupType(context->type()->accept(this).as<std::string>());
-	std::vector<std::reference_wrapper<const Type>> res;
-	res.push_back(returnType);
-	return res;
+antlrcpp::Any AstBuilder::visitRetDeclVoid(CoLaParser::RetDeclVoidContext* /*context*/) {
+	return new ArgDeclList();
 }
 
-antlrcpp::Any AstBuilder::visitReturnTypeList(CoLaParser::ReturnTypeListContext *context) {
-	std::vector<std::reference_wrapper<const Type>> res;
-	for (const auto& type : context->types) {
-		const Type& returnType = lookupType(type->accept(this).as<std::string>());
-		res.push_back(returnType);
-	}
-	return res;
+antlrcpp::Any AstBuilder::visitRetDeclList(CoLaParser::RetDeclListContext* context) {
+	return context->rets->accept(this);
 }
 
 antlrcpp::Any AstBuilder::visitArgDeclList(cola::CoLaParser::ArgDeclListContext* context) {
@@ -774,7 +772,6 @@ antlrcpp::Any AstBuilder::visitCmdCall(cola::CoLaParser::CmdCallContext* context
 		}
 	}
 
-	// TODO: lhs might be optional
 	// get lhs
 	std::vector<std::reference_wrapper<const VariableDeclaration>> lhs;
 	if (context->lhs) {
@@ -786,12 +783,12 @@ antlrcpp::Any AstBuilder::visitCmdCall(cola::CoLaParser::CmdCallContext* context
 	}
 
 	// check lhs number
-	if (lhs.size() != 0 && function.return_types.size() != lhs.size()) {
+	if (lhs.size() != 0 && function.returns.size() != lhs.size()) {
 		throw ParseError("Coult not unpack return values of function '" + function.name + "', number of values missmatchs.");
 	}
 
 	for (std::size_t i = 0; i < lhs.size(); ++i) {
-		auto type_is = function.return_types.at(i).get();
+		auto type_is = function.returns.at(i)->type;
 		auto type_required = lhs.at(i).get().type;
 		if (!assignable(type_required, type_is)) {
 			std::stringstream msg;
@@ -832,12 +829,12 @@ antlrcpp::Any AstBuilder::visitCmdBreak(cola::CoLaParser::CmdBreakContext* /*con
 
 static Statement* make_return(const Function& func, std::vector<std::unique_ptr<Expression>> expressions) {
 	auto result = new Return();
-	if (expressions.size() != func.return_types.size()) {
+	if (expressions.size() != func.returns.size()) {
 		throw ParseError("Number of return values does not match return type in function '" + func.name + "'.");
 	}
 	for (std::size_t i = 0; i < expressions.size(); ++i) {
 		auto type_is = expressions.at(i)->type();
-		auto type_required = func.return_types.at(i).get();
+		auto type_required = func.returns.at(i)->type;
 		if (!assignable(type_required, type_is)) {
 			std::stringstream msg;
 			msg << "The " << i << "th return value of '" << func.name << "' must be of type " << type_required.name << "', ";

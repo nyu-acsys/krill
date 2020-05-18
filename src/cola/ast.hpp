@@ -92,7 +92,7 @@ namespace cola {
 		std::string name;
 		Kind kind;
 		std::vector<std::unique_ptr<VariableDeclaration>> args;
-		std::vector<std::reference_wrapper<const Type>> return_types;
+		std::vector<std::unique_ptr<VariableDeclaration>> returns;
 		std::unique_ptr<Scope> body;
 		Function(std::string name_, Kind kind_, std::unique_ptr<Scope> body_) : name(name_), kind(kind_), body(std::move(body_)) {
 			assert(body);

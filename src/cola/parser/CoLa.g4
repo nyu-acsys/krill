@@ -26,18 +26,15 @@ var_decl : type name=Identifier '@root' ';'                     #varDeclRoot
          | type names+=Identifier (',' names+=Identifier)* ';'  #varDeclList
          ;
 
-/* Type check for inline function calls:
- *   - start function call with empty type environment (maybe retain locals if not passed)
- *   - end of function call takes type of returned pointer(s) from function environment (+ maybe retained locals)
- */
+function : 'proc' name=Identifier args=argDeclList rets=retDecl body=scope (';')?   #functionInterface
+         | 'macro' name=Identifier args=argDeclList rets=retDecl body=scope (';')?  #functionMacro
+         ;
 
-returnType : type                                    #returnTypeSingle
-           | '(' types+=type (',' types+=type)+ ')'  #returnTypeList
-           ;
+argDeclList : '(' (argTypes+=type argNames+=Identifier (',' argTypes+=type argNames+=Identifier)*)? ')' ;
 
-function : (modifier=Inline)? returnType name=Identifier '(' args=argDeclList ')' body=scope (';')? ;
-
-argDeclList : (argTypes+=type argNames+=Identifier (',' argTypes+=type argNames+=Identifier)*)? ;
+retDecl : ('returns' 'void')?             #retDeclVoid
+        | 'returns' rets=argDeclList  #retDeclList
+        ;
 
 block : statement  #blockStmt
       | scope      #blockScope

@@ -16,7 +16,7 @@ target_include_directories(TCLAP INTERFACE ${TCLAP_INCLUDE_DIRS})
 ################################
 
 add_executable(${TOOL_NAME} Main.cpp)
-target_link_libraries(${TOOL_NAME} CoLa TCLAP)
+target_link_libraries(${TOOL_NAME} CoLa Plankton TCLAP)
 
 
 ################################

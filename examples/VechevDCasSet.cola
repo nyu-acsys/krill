@@ -20,7 +20,7 @@ Node* Head;
 Node* Tail;
 
 
-void init() {
+proc init() {
 	Tail = malloc;
 	Tail->next = NULL;
 	Tail->val = MAX_VAL;
@@ -30,10 +30,7 @@ void init() {
 }
 
 
-inline (Node*, Node*, data_t) locate(data_t key) {
-	Node* pred, curr;
-	data_t k;
-
+macro locate(data_t key) returns (Node* pred, Node* curr, data_t k) {
 	curr = Head;
 
 	do {
@@ -47,21 +44,19 @@ inline (Node*, Node*, data_t) locate(data_t key) {
 			k = MIN_VAL;
 		}
 	} while (k < key);
-
-	return (pred, curr, k);
 }
 
 
-bool contains(data_t key) {
+proc contains(data_t key) returns (bool result) {
 	Node* pred, curr;
 	data_t k;
 
 	(pred, curr, k) = locate(key);
-	return k == key;
+	result = k == key;
 }
 
 
-bool add(data_t key) {
+proc add(data_t key) returns (bool result) {
 	Node* entry;
 
 	entry = malloc;
@@ -74,23 +69,23 @@ bool add(data_t key) {
 		(pred, curr, k) = locate(key);
 
 		if (k == key) {
-			return false;
+			result = false;
+			return;
 
 		} else {
 			entry->next = curr;
 			if (CAS(pred->next, curr, entry)) {
-				return true;
+				result = true;
+				return;
 			}
 		}
 	}
 }
 
 
-bool remove(data_t key) {
+proc remove(data_t key) returns (bool result) {
 	Node* tmpNode;
 	bool tmpBool;
-	bool result;
-
 
 	while (true) {
 		Node* pred, curr, next;
@@ -99,12 +94,14 @@ bool remove(data_t key) {
 		(pred, curr, k) = locate(key);
 
 		if (k > key) {
-			return false;
+			result = false;
+			return;
 
 		} else {
 			next = curr->next;
 			if (CAS((pred->next, curr->next), (curr, next), (next, NULL))) {
-				return true;
+				result = true;
+				return;
 			}
 		}
 	}

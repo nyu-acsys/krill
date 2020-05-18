@@ -40,6 +40,8 @@ namespace cola {
 			std::vector<std::unique_ptr<Expression>> mk_expr_from_list(std::vector<cola::CoLaParser::ExpressionContext*> exprs);
 			Statement* as_command(Statement* stmt);
 			Expression* mk_binary_expr(CoLaParser::ExpressionContext* lhs, BinaryExpression::Operator op, CoLaParser::ExpressionContext* rhs);
+			antlrcpp::Any handleFunction(Function::Kind kind, std::string name, CoLaParser::ArgDeclListContext* args,
+				CoLaParser::RetDeclContext* rets, CoLaParser::ScopeContext* body);
 
 		public:
 			static std::shared_ptr<Program> buildFrom(cola::CoLaParser::ProgramContext* parseTree);
@@ -56,14 +58,15 @@ namespace cola {
 			antlrcpp::Any visitField_decl(cola::CoLaParser::Field_declContext* context) override;
 			antlrcpp::Any visitVarDeclRoot(CoLaParser::VarDeclRootContext* context) override;
 			antlrcpp::Any visitVarDeclList(CoLaParser::VarDeclListContext* context) override;
-			antlrcpp::Any visitReturnTypeSingle(CoLaParser::ReturnTypeSingleContext* context) override;
-			antlrcpp::Any visitReturnTypeList(CoLaParser::ReturnTypeListContext* context) override;
-			antlrcpp::Any visitFunction(cola::CoLaParser::FunctionContext* context) override;
-			antlrcpp::Any visitArgDeclList(cola::CoLaParser::ArgDeclListContext *context) override;
+			antlrcpp::Any visitFunctionInterface(CoLaParser::FunctionInterfaceContext* context) override;
+			antlrcpp::Any visitFunctionMacro(CoLaParser::FunctionMacroContext* context) override;
+			antlrcpp::Any visitArgDeclList(cola::CoLaParser::ArgDeclListContext* context) override;
+			antlrcpp::Any visitRetDeclVoid(CoLaParser::RetDeclVoidContext* context) override;
+			antlrcpp::Any visitRetDeclList(CoLaParser::RetDeclListContext* context) override;
 
 			antlrcpp::Any visitBlockStmt(cola::CoLaParser::BlockStmtContext* context) override;
 			antlrcpp::Any visitBlockScope(cola::CoLaParser::BlockScopeContext* context) override;
-	    	antlrcpp::Any visitScope(cola::CoLaParser::ScopeContext* context) override;
+			antlrcpp::Any visitScope(cola::CoLaParser::ScopeContext* context) override;
 			antlrcpp::Any visitStmtIf(cola::CoLaParser::StmtIfContext* context) override;
 			antlrcpp::Any visitStmtWhile(cola::CoLaParser::StmtWhileContext* context) override;
 			antlrcpp::Any visitStmtDo(cola::CoLaParser::StmtDoContext* context) override;
@@ -107,7 +110,7 @@ namespace cola {
 			antlrcpp::Any visitExprIdentifier(cola::CoLaParser::ExprIdentifierContext* context) override;
 			antlrcpp::Any visitExprParens(cola::CoLaParser::ExprParensContext* context) override;
 			antlrcpp::Any visitExprDeref(cola::CoLaParser::ExprDerefContext* context) override;
-	    	antlrcpp::Any visitExprCas(cola::CoLaParser::ExprCasContext* context) override;
+			antlrcpp::Any visitExprCas(cola::CoLaParser::ExprCasContext* context) override;
 			antlrcpp::Any visitExprNegation(cola::CoLaParser::ExprNegationContext* context) override;
 
 			antlrcpp::Any visitOption(cola::CoLaParser::OptionContext* context) override;

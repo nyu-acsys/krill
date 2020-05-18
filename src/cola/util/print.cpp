@@ -216,33 +216,30 @@ struct PrintVisitor final : public BaseVisitor {
 	}
 
 	void visit(const Function& function) {
-		std::string modifier;
+		stream << std::endl;
 
-		// print modifier
+		// print kind
 		switch (function.kind) {
-			case Function::INTERFACE: modifier = ""; break;
-			case Function::MACRO: modifier = "inline "; break;
+			case Function::INTERFACE: stream << "proc "; break;
+			case Function::MACRO: stream << "macro "; break;
 		}
-		stream << std::endl << modifier;
-
-		// print return type
-		print_elem_or_tuple(function.return_types, [](auto& type){ return type.get().name; }, true, "void");
 
 		// print name
-		stream << " " << function.name << "(";
+		stream << function.name;
 
-		// print arguments
-		if (function.args.size() > 0) {
-			function.args.at(0)->accept(*this);
-			for (std::size_t i = 1; i < function.args.size(); i++) {
-				stream << ", ";
-				function.args.at(i)->accept(*this);
-			}
+		// print args
+		stream << "(";
+		print_elem_or_tuple(function.args, [&](auto& decl){ decl->accept(*this); return ""; }, false);
+		stream << ") ";
+
+		// print returns
+		if (!function.returns.empty()) {
+			stream << " returns (";
+			print_elem_or_tuple(function.returns, [&](auto& decl){ decl->accept(*this); return ""; }, false);
+			stream << ") ";
 		}
-		stream << ")";
 
 		// print body
-		stream << " ";
 		print_scope(*function.body);
 		stream << std::endl;
 	}

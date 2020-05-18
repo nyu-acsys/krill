@@ -96,7 +96,7 @@ struct RemoveConditionalsVisitor final : public BaseNonConstVisitor {
 			replacement = std::make_unique<While>(std::make_unique<BooleanValue>(true), std::move(dwhl.body));
 		} else {
 			auto body = std::make_unique<Sequence>(std::move(dwhl.body->body), makeBreak(std::move(dwhl.expr)));
-			replacement = std::make_unique<While>(std::make_unique<BooleanValue>(true), std::make_unique<Scope>(std::move(body)));
+			replacement = std::make_unique<DoWhile>(std::make_unique<BooleanValue>(true), std::make_unique<Scope>(std::move(body)));
 		}
 	}
 
