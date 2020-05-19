@@ -263,9 +263,6 @@ void Verifier::visit(const Macro& cmd) {
 		assert(!has_effect(lhs));
 		handle_assignment(lhs, rhs);
 	}
-
-	// TODO: ensure there are no name clashes in current scope and (entire!) macro
-	throw std::logic_error("not yet implemented (Verifier::Macro");
 }
 
 void Verifier::visit(const CompareAndSwap& /*cmd*/) {
