@@ -31,6 +31,10 @@ namespace cola {
 	  */
 	void remove_cas(Program& program);
 
+	/** Renames variables to avoid name clashes through macro calls.
+	  */
+	void rename_variables(Program& program);
+
 	/** Rewrites program to CoLa Light.
 	  */
 	inline void simplify(Program& program) {
@@ -38,6 +42,7 @@ namespace cola {
 		remove_conditional_loops(program);
 		remove_cas(program);
 		remove_useless_scopes(program);
+		rename_variables(program);
 	}
 
 } // namespace cola

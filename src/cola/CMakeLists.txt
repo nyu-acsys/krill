@@ -62,6 +62,7 @@ set(SOURCES
 	parser/parse.cpp
 
 	# transform
+	transform/renameVars.cpp
 	transform/rmCAS.cpp
 	transform/rmConditionalLoops.cpp
 	transform/rmUselessScopes.cpp
