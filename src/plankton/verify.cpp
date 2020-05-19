@@ -1,6 +1,7 @@
 #include "plankton/verify.hpp"
 
 #include <sstream>
+#include <iostream> // TODO: delete
 #include "cola/util.hpp"
 
 using namespace cola;
@@ -65,6 +66,16 @@ bool Verifier::has_effect(const Expression& assignee) {
 	EffectSearcher searcher;
 	assignee.accept(searcher);
 	return searcher.result;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+void Verifier::extend_current_annotation(std::unique_ptr<Expression> /*expr*/) {
+	// current_annotation.add_conjuncts(std::move(expr));
+	throw std::logic_error("not yet implemented (extend_current_annotation)");
 }
 
 
@@ -201,9 +212,7 @@ void Verifier::visit(const Continue& /*cmd*/) {
 }
 
 void Verifier::visit(const Assume& cmd) {
-	current_annotation.add_conjuncts(cola::copy(*cmd.expr));
-	// TODO: deduce everything you can
-	throw std::logic_error("not yet implemented (Verifier::Assume)");
+	extend_current_annotation(cola::copy(*cmd.expr));
 }
 
 void Verifier::visit(const Assert& cmd) {
@@ -219,11 +228,13 @@ void Verifier::visit(const Return& /*cmd*/) {
 
 void Verifier::visit(const Malloc& /*cmd*/) {
 	// TODO: extend interference?
+	// TODO: extend_current_annotation(... knowledge about all members of new object, flow...)
 	throw std::logic_error("not yet implemented (Verifier::Malloc)");
 }
 
-void Verifier::handle_assignment(const Expression& /*lhs*/, const Expression& /*rhs*/) {
-	throw std::logic_error("not yet implemented (Verifier::handle_assignment)");
+void Verifier::handle_assignment(const Expression& lhs, const Expression& rhs) {
+	auto expr = std::make_unique<BinaryExpression>(BinaryExpression::Operator::EQ, cola::copy(lhs), cola::copy(rhs));
+	extend_current_annotation(std::move(expr));
 }
 
 void Verifier::visit(const Assignment& cmd) {
@@ -248,7 +259,7 @@ void Verifier::visit_macro_function(const Function& function) {
 void Verifier::visit(const Macro& cmd) {
 	// pass arguments to function (treated as assignments)
 	for (std::size_t i = 0; i < cmd.args.size(); ++i) {
-		VariableExpression expr(*cmd.decl.returns.at(i));
+		VariableExpression expr(*cmd.decl.args.at(i));
 		assert(!has_effect(expr));
 		handle_assignment(expr, *cmd.args.at(i));
 	}

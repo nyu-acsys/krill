@@ -72,6 +72,8 @@ namespace plankton {
 			void extend_interference(Effect effect); // adds given effect to interference; updates is_interference_saturated
 			void apply_interference(); // weakens current_annotation according to interference
 			bool has_effect(const cola::Expression& assignee);
+			
+			void extend_current_annotation(std::unique_ptr<cola::Expression> expr); // adds new knolwedge (+ deduction)
 	};
 
 
