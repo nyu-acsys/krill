@@ -1,94 +1,78 @@
 #include "plankton/verify.hpp"
 
 #include <deque>
-#include "cola/visitors.hpp"
 #include "cola/util.hpp"
 
 using namespace cola;
 using namespace plankton;
 
 
-struct ConjunctionExtractor : public BaseNonConstVisitor {
-	std::vector<std::unique_ptr<Expression>> conjunctions;
+struct CopyVisitor : public FormulaVisitor {
+	std::unique_ptr<Formula> result;
 
-	void visit(BooleanValue& /*node*/) { /* do nothing */ }
-	void visit(VariableExpression& /*node*/) { /* do nothing */ }
-	void visit(NegatedExpression& /*node*/) { /* do nothing */ }
-	void visit(Dereference& /*node*/) { /* do nothing */ }
-
-	void visit(BinaryExpression& expr) {
-		if (expr.op == BinaryExpression::Operator::AND) {
-			conjunctions.push_back(std::move(expr.lhs));
-			conjunctions.push_back(std::move(expr.rhs));
+	std::unique_ptr<BasicFormula> result_as_basic_formula() {
+		auto formula = dynamic_cast<BasicFormula*>(result.get());
+		if (!formula) {
+			throw std::logic_error("Could not copy formula.");
 		}
+		result.release();
+		return std::unique_ptr<BasicFormula>(formula);
 	}
 
-	std::vector<std::unique_ptr<Expression>> extract(Expression& expr) {
-		conjunctions.clear();
-		expr.accept(*this);
-		return std::move(conjunctions);
+	void visit(const ConjunctionFormula& formula) override {
+		auto copy = std::make_unique<ConjunctionFormula>();
+		for (const auto& conjunct : formula.conjuncts) {
+			conjunct->accept(*this);
+			copy->conjuncts.push_back(std::move(result));
+		}
+		result = std::move(copy);
 	}
+
+	void visit(const BasicConjunctionFormula& formula) override {
+		auto copy = std::make_unique<BasicConjunctionFormula>();
+		for (const auto& conjunct : formula.conjuncts) {
+			conjunct->accept(*this);
+			copy->conjuncts.push_back(result_as_basic_formula());
+		}
+		result = std::move(copy);
+	}
+
+	void visit(const ExpressionFormula& formula) override {
+		result = std::make_unique<ExpressionFormula>(cola::copy(*formula.expr));
+	}
+
+	void visit(const HistoryFormula& formula) override {
+		formula.condition->accept(*this);
+		auto cond = result_as_basic_formula();
+		formula.expression->accept(*this);
+		auto expr = result_as_basic_formula();
+		result = std::make_unique<HistoryFormula>(std::move(cond), std::move(expr));
+	}
+
+	void visit(const FutureFormula& formula) override {
+		formula.condition->accept(*this);
+		auto cond = result_as_basic_formula();
+		result = std::make_unique<FutureFormula>(std::move(cond), formula.command);
+	}
+
 };
 
-std::vector<std::unique_ptr<Expression>> extract_conjunts(std::unique_ptr<Expression> expression) {
-	std::vector<std::unique_ptr<Expression>> result;
-	ConjunctionExtractor extractor;
-	
-	std::deque<std::unique_ptr<Expression>> worklist;
-	worklist.push_back(std::move(expression));
-	while (!worklist.empty()) {
-		std::unique_ptr<Expression> expr = std::move(worklist.front());
-		worklist.pop_front();
-
-		auto subexprs = extractor.extract(*expr);
-		if (subexprs.empty()) {
-			result.push_back(std::move(expr));
-		} else {
-			worklist.insert(worklist.end(), std::make_move_iterator(subexprs.begin()), std::make_move_iterator(subexprs.end()));
-		}
-	}
-
-	return result;
+std::unique_ptr<Formula> plankton::copy(const Formula& formula) {
+	CopyVisitor visitor;
+	formula.accept(visitor);
+	return std::move(visitor.result);
 }
 
-
-void Formula::add_conjuncts(std::unique_ptr<Expression> expression) {
-	auto conjuncts = extract_conjunts(std::move(expression));
-	present.insert(present.end(), std::make_move_iterator(conjuncts.begin()), std::make_move_iterator(conjuncts.end()));
+inline std::unique_ptr<Formula> mk_bool(bool value) {
+	return std::make_unique<ExpressionFormula>(std::make_unique<BooleanValue>(value));
 }
 
-Formula Formula::copy() const {
-	Formula result;
-	for (const auto& elem : present) {
-		result.present.push_back(cola::copy(*elem));
-	}
-	for (const auto& elem : history) {
-		result.history.emplace_back(cola::copy(*elem.condition), cola::copy(*elem.expression));
-	}
-	for (const auto& elem : future) {
-		result.future.emplace_back(cola::copy(*elem.condition), elem.command);
-	}
-	return result;
-}
-
-inline Formula mk_bool(bool value) {
-	Formula result;
-	result.present.push_back(std::make_unique<BooleanValue>(value));
-	return result;
-}
-
-Formula Formula::make_true() {
+std::unique_ptr<Formula> plankton::make_true() {
 	return mk_bool(true);
 }
 
-Formula Formula::make_false() {
+std::unique_ptr<Formula> plankton::make_false() {
 	return mk_bool(false);
-}
-
-Formula Formula::make_from_expression(const Expression& expression) {
-	Formula result;
-	result.present.push_back(cola::copy(expression));
-	return result;
 }
 
 
@@ -104,12 +88,12 @@ bool plankton::is_equal(const Formula& /*formula*/, const Formula& /*other*/) {
 	throw std::logic_error("not yet implemented (plankton::is_equal)");
 }
 
-Formula plankton::unify(const Formula& /*formula*/, const Formula& /*other*/) {
+std::unique_ptr<Formula> plankton::unify(const Formula& /*formula*/, const Formula& /*other*/) {
 	// creates a formula that implies the passed formulas
 	throw std::logic_error("not yet implemented (plankton::unify)");
 }
 
-Formula plankton::unify(const std::vector<Formula>& /*formulas*/) {
+std::unique_ptr<Formula> plankton::unify(const std::vector<std::unique_ptr<Formula>>& /*formulas*/) {
 	// creates a formula that implies the passed formulas
 	throw std::logic_error("not yet implemented (plankton::unify)");
 } 

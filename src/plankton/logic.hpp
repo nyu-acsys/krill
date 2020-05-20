@@ -10,49 +10,113 @@
 
 namespace plankton {
 
-	struct HistoryExpression final {
-		std::unique_ptr<cola::Expression> condition;
-		std::unique_ptr<cola::Expression> expression;
+	struct ConjunctionFormula;
+	struct BasicConjunctionFormula;
+	struct ExpressionFormula;
+	struct HistoryFormula;
+	struct FutureFormula;
+
+	struct FormulaVisitor {
+		virtual void visit(const ConjunctionFormula& formula) = 0;
+		virtual void visit(const BasicConjunctionFormula& formula) = 0;
+		virtual void visit(const ExpressionFormula& formula) = 0;
+		virtual void visit(const HistoryFormula& formula) = 0;
+		virtual void visit(const FutureFormula& formula) = 0;
+	};
+
+	struct FormulaNonConstVisitor {
+		virtual void visit(ConjunctionFormula& formula) = 0;
+		virtual void visit(BasicConjunctionFormula& formula) = 0;
+		virtual void visit(ExpressionFormula& formula) = 0;
+		virtual void visit(HistoryFormula& formula) = 0;
+		virtual void visit(FutureFormula& formula) = 0;
+	};
+
+	struct Formula {
+		Formula(const Formula& other) = delete;
+		virtual ~Formula() = default;
+		virtual void accept(FormulaVisitor& visitor) const = 0;
+		virtual void accept(FormulaNonConstVisitor& visitor) = 0;
+		protected: Formula() {}
+	};
+
+	struct ConjunctionFormula : public Formula {
+		std::vector<std::unique_ptr<Formula>> conjuncts;
+		virtual void accept(FormulaVisitor& visitor) const override { visitor.visit(*this); }
+		virtual void accept(FormulaNonConstVisitor& visitor) override { visitor.visit(*this); }
+	};
+
+	struct BasicFormula : public Formula {
+		protected: BasicFormula() {}
+	};
+
+	struct BasicConjunctionFormula : public BasicFormula {
+		std::vector<std::unique_ptr<BasicFormula>> conjuncts;
+		virtual void accept(FormulaVisitor& visitor) const override { visitor.visit(*this); }
+		virtual void accept(FormulaNonConstVisitor& visitor) override { visitor.visit(*this); }
+	};
+
+	struct ExpressionFormula : public BasicFormula {
+		std::unique_ptr<cola::Expression> expr;
+		ExpressionFormula(std::unique_ptr<cola::Expression> expr_) : expr(std::move(expr_)) {
+			assert(expr->type() == cola::Type::bool_type());
+		}
+		virtual void accept(FormulaVisitor& visitor) const override { visitor.visit(*this); }
+		virtual void accept(FormulaNonConstVisitor& visitor) override { visitor.visit(*this); }
+	};
+
+	// TODO: implement flow formulas, key in/notin DS formulas --> should be BasicFormula subclasses
+
+	struct HistoryFormula : public Formula {
+		std::unique_ptr<BasicFormula> condition;
+		std::unique_ptr<BasicFormula> expression;
 		
-		HistoryExpression(std::unique_ptr<cola::Expression> cond, std::unique_ptr<cola::Expression> expr) : condition(std::move(cond)), expression(std::move(expr)) {
+		HistoryFormula(std::unique_ptr<BasicFormula> cond, std::unique_ptr<BasicFormula> expr) : condition(std::move(cond)), expression(std::move(expr)) {
 			assert(condition);
 			assert(expression);
 		}
+		virtual void accept(FormulaVisitor& visitor) const override { visitor.visit(*this); }
+		virtual void accept(FormulaNonConstVisitor& visitor) override { visitor.visit(*this); }
 	};
 
-	struct FutureExpression final {
-		std::unique_ptr<cola::Expression> condition;
+	struct FutureFormula : public Formula {
+		std::unique_ptr<BasicFormula> condition;
 		const cola::Command& command;
 		
-		FutureExpression(std::unique_ptr<cola::Expression> cond, const cola::Command& cmd) : condition(std::move(cond)), command(cmd) {
+		FutureFormula(std::unique_ptr<BasicFormula> cond, const cola::Command& cmd) : condition(std::move(cond)), command(cmd) {
 			assert(condition);
 		}
+		virtual void accept(FormulaVisitor& visitor) const override { visitor.visit(*this); }
+		virtual void accept(FormulaNonConstVisitor& visitor) override { visitor.visit(*this); }
 	};
 
 
-	template<typename T>
-	using Conjunction = std::vector<T>;
+	std::unique_ptr<Formula> make_true();
+	std::unique_ptr<Formula> make_false();
+	std::unique_ptr<Formula> copy(const Formula& formula);
 
-
-	struct Formula {
-		Conjunction<std::unique_ptr<cola::Expression>> present;
-		Conjunction<HistoryExpression> history;
-		Conjunction<FutureExpression> future;
-		
-		void add_conjuncts(std::unique_ptr<cola::Expression> expression);
-		Formula copy() const;
-
-		static Formula make_true();
-		static Formula make_false();
-		static Formula make_from_expression(const cola::Expression& expression);
-	};
-
-
+	
+	/** Returns true if 'formula ==> implied' is a tautology.
+	  */
 	bool implies(const Formula& formula, const cola::Expression& implied);
+
+	/** Returns true if 'formula ==> implied' is a tautology.
+	  */
 	bool implies(const Formula& formula, const Formula& implied);
+
+	/** Returns true if 'formula <==> implied' is a tautology.
+	  */
 	bool is_equal(const Formula& formula, const Formula& other);
-	Formula unify(const Formula& formula, const Formula& other); // creates a formula that implies the passed formulas
-	Formula unify(const std::vector<Formula>& formulas); // creates a formula that implies the passed formulas
+
+	/** Returns a formula F such that the formulas 'formula ==> F' and 'other ==> F' are tautologies.
+	  * Opts for the strongest such formula F.
+	  */
+	std::unique_ptr<Formula> unify(const Formula& formula, const Formula& other);
+
+	/** Returns a formula F such that the formula 'H ==> F' is a tautology for all H in formulas.
+	  * Opts for the strongest such formula F.
+	  */
+	std::unique_ptr<Formula> unify(const std::vector<std::unique_ptr<Formula>>& formulas);
 
 } // namespace plankton
 

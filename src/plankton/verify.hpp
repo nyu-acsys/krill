@@ -3,6 +3,8 @@
 #define PLANKTON_VERIFY
 
 
+#include <deque>
+#include <vector>
 #include <memory>
 #include <exception>
 #include "cola/ast.hpp"
@@ -27,12 +29,17 @@ namespace plankton {
 
 
 	struct Effect {
-		std::unique_ptr<cola::Expression> precondition;
+		std::unique_ptr<BasicFormula> precondition;
 		const cola::Command& command;
-		Effect(std::unique_ptr<cola::Expression> pre, const cola::Command& cmd) : precondition(std::move(pre)), command(cmd) {}
+		Effect(std::unique_ptr<BasicFormula> pre, const cola::Command& cmd) : precondition(std::move(pre)), command(cmd) {}
 	};
 
-	using Interference = std::vector<Effect>;
+	struct RenamingInfo {
+		std::vector<std::unique_ptr<cola::VariableDeclaration>> renamed_variables;
+		std::map<const cola::VariableDeclaration*, const cola::VariableDeclaration*> variable2renamed;
+		RenamingInfo() = default;
+		RenamingInfo(const RenamingInfo& other) = delete;
+	};
 
 
 	class Verifier final : public cola::BaseVisitor {
@@ -58,22 +65,26 @@ namespace plankton {
 			void visit(const cola::Program& node) override;
 
 		private:
-			Formula current_annotation;
-			Interference interference; // interference for current proof
+			std::unique_ptr<Formula> current_annotation;
+			std::deque<std::unique_ptr<Effect>> interference; // interference for current proof, with local variables renamed
+			RenamingInfo interference_renaming_info;
 			bool is_interference_saturated; // indicates whether a fixed point wrt. to the found interference is reached
-			std::vector<Formula> breaking_annotations; // collects annotations breaking out of loops
-			std::vector<Formula> returning_annotations; // collects annotations breaking out of loops
+			std::vector<std::unique_ptr<Formula>> breaking_annotations; // collects annotations breaking out of loops
+			std::vector<std::unique_ptr<Formula>> returning_annotations; // collects annotations breaking out of loops
+			bool inside_atomic;
 
 			void visit_interface_function(const cola::Function& function); // performs proof for given interface function
 			void visit_macro_function(const cola::Function& function); // performs subproof for given macro function
 			void handle_loop(const cola::ConditionalLoop& loop, bool peelFirst=false); // uniformly handles While/DoWhile
 			void handle_assignment(const cola::Expression& lhs, const cola::Expression& rhs); // does not deal with interference
 			
-			void extend_interference(Effect effect); // adds given effect to interference; updates is_interference_saturated
+			void extend_interference(const cola::Command& command); // adds effect (current_annotation, command) to interference; updates is_interference_saturated
 			void apply_interference(); // weakens current_annotation according to interference
+			bool is_interference_free(const BasicFormula& formula);
 			bool has_effect(const cola::Expression& assignee);
 			
-			void extend_current_annotation(std::unique_ptr<cola::Expression> expr); // adds new knolwedge (+ deduction)
+			void check_invariant_stability(const cola::Assignment& command);
+			void extend_current_annotation(std::unique_ptr<cola::Expression> expr); // adds (and deduced) new knolwedge; guarantees interference freedom ouside atomic blocks
 	};
 
 

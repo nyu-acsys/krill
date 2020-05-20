@@ -40,6 +40,14 @@ bool contains_cas(const Expression& expr) {
 	return visitor.containsCAS;
 }
 
+bool are_syntactically_equal(const Expression& expr, const Expression& other) {
+	// TODO: implement a more robust solution
+	std::stringstream exprStr, otherStr;
+	cola::print(expr, exprStr);
+	cola::print(other, otherStr);
+	return exprStr.str() == otherStr.str();
+}
+
 std::unique_ptr<Expression> make_cas_condition(const CompareAndSwap& cas) {
 	static const BinaryExpression::Operator opEQ = BinaryExpression::Operator::EQ;
 	static const BinaryExpression::Operator opAND = BinaryExpression::Operator::AND;
@@ -56,10 +64,12 @@ std::unique_ptr<Expression> make_cas_condition(const CompareAndSwap& cas) {
 std::unique_ptr<Statement> make_cas_updates(const CompareAndSwap& cas) {
 	std::unique_ptr<Statement> result;
 	for (const auto& elem : cas.elems) {
+		if (are_syntactically_equal(*elem.cmp, *elem.src)) continue;
 		auto assign = std::make_unique<Assignment>(cola::copy(*elem.dst), cola::copy(*elem.src));
 		if (result) result = std::make_unique<Sequence>(std::move(result), std::move(assign));
 		else result = std::move(assign);
 	}
+	if (!result) result = std::make_unique<Skip>();
 	return result;
 }
 

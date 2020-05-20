@@ -14,8 +14,10 @@ include_directories(${Z3_INCLUDE})
 ################################
 
 set(SOURCES
+	config.cpp
 	logic.cpp
 	verify.cpp
+	verify_interference.cpp
 )
 
 add_library(Plankton ${SOURCES})

@@ -1,8 +1,8 @@
 #include "plankton/verify.hpp"
 
 #include <sstream>
-#include <iostream> // TODO: delete
 #include "cola/util.hpp"
+#include "plankton/config.hpp"
 
 using namespace cola;
 using namespace plankton;
@@ -36,48 +36,22 @@ AssertionError::AssertionError(const Assert& cmd) : VerificationError(mk_assert_
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-void Verifier::extend_interference(Effect /*effect*/) {
-	// TODO: set is_interference_saturated to false if interference is changed
-	throw std::logic_error("not yet implemented (extend_interference)");
-}
+void Verifier::extend_current_annotation(std::unique_ptr<Expression> expr) {
+	// skip interference within atomic blocks or for both-movers // TODO: correct implementation of both-mover check?
+	bool skip_interference = inside_atomic || (plankton::config.interference_mover_optimization && !has_effect(*expr));
 
-void Verifier::apply_interference() {
-	throw std::logic_error("not yet implemented (apply_interference)");
-}
-
-struct EffectSearcher : public BaseVisitor {
-	bool result = false;
-
-	void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
-	void visit(const NullValue& /*node*/) override { /* do nothing */ }
-	void visit(const EmptyValue& /*node*/) override { /* do nothing */ }
-	void visit(const MaxValue& /*node*/) override { /* do nothing */ }
-	void visit(const MinValue& /*node*/) override { /* do nothing */ }
-	void visit(const NDetValue& /*node*/) override { /* do nothing */ }
-
-	void visit(const VariableExpression& node) override { result |= node.decl.is_shared; }
-	void visit(const Dereference& /*node*/) override { result = true; }
-	void visit(const NegatedExpression& node) override { node.expr->accept(*this); }
-	void visit(const BinaryExpression& node) override { node.lhs->accept(*this); node.rhs->accept(*this); }
-};
-
-bool Verifier::has_effect(const Expression& assignee) {
-	// TODO: filter out assignments that do not change the assignee valuation?
-	EffectSearcher searcher;
-	assignee.accept(searcher);
-	return searcher.result;
-}
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-void Verifier::extend_current_annotation(std::unique_ptr<Expression> /*expr*/) {
+	// adds (and deduced) new knolwedge; guarantees interference freedom ouside atomic blocks
 	// current_annotation.add_conjuncts(std::move(expr));
+
+	if (!skip_interference) {
+		apply_interference();
+	}
 	throw std::logic_error("not yet implemented (extend_current_annotation)");
 }
 
+void Verifier::check_invariant_stability(const cola::Assignment& /*command*/) {
+	throw std::logic_error("not yet implemented (apply_interference)");
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -98,11 +72,18 @@ void Verifier::visit(const Program& program) {
 	throw std::logic_error("not yet implemented (Verifier::Program)");
 }
 
+std::unique_ptr<Formula> get_init_annotation() {
+	// TODO: how to initialize annotation??
+	return plankton::make_true();
+}
+
 void Verifier::visit_interface_function(const Function& function) {
 	assert(function.kind == Function::Kind::INTERFACE);
+	inside_atomic = false;
 
 	// TODO: get method specification and remember it?
 	// TODO: add restrictions on parameters (like -inf<k<inf)? from specification?
+	current_annotation = get_init_annotation();
 	function.body->accept(*this);
 	// TODO: check post condition entails linearizability
 
@@ -124,16 +105,19 @@ void Verifier::visit(const Scope& stmt) {
 }
 
 void Verifier::visit(const Atomic& stmt) {
+	bool old_inside_atomic = inside_atomic;
+	inside_atomic = true;
 	stmt.body->accept(*this);
+	inside_atomic = old_inside_atomic;
 	apply_interference();
 }
 
 void Verifier::visit(const Choice& stmt) {
-	Formula pre_condition = std::move(current_annotation);
-	std::vector<Formula> post_conditions;
+	auto pre_condition = std::move(current_annotation);
+	std::vector<std::unique_ptr<Formula>> post_conditions;
 
 	for (const auto& branch : stmt.branches) {
-		current_annotation = pre_condition.copy();
+		current_annotation = plankton::copy(*pre_condition);
 		branch->accept(*this);
 		post_conditions.push_back(std::move(current_annotation));
 	}
@@ -142,13 +126,13 @@ void Verifier::visit(const Choice& stmt) {
 }
 
 void Verifier::visit(const IfThenElse& stmt) {
-	Formula pre_condition = current_annotation.copy();
+	auto pre_condition = plankton::copy(*current_annotation);
 
 	// if branch
 	Assume dummyIf(cola::copy(*stmt.expr));
 	dummyIf.accept(*this);
 	stmt.ifBranch->accept(*this);
-	Formula postIf = std::move(current_annotation);
+	auto postIf = std::move(current_annotation);
 
 	// else branch
 	current_annotation = std::move(pre_condition);
@@ -156,7 +140,7 @@ void Verifier::visit(const IfThenElse& stmt) {
 	dummyElse.accept(*this);
 	stmt.elseBranch->accept(*this);
 
-	current_annotation = unify(current_annotation, postIf);
+	current_annotation = unify(*current_annotation, *postIf);
 }
 
 void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { // consider peelFirst a suggestion
@@ -164,17 +148,16 @@ void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { //
 		throw UnsupportedConstructError("while/do-while loop with condition other than 'true'");
 	}
 
-	std::vector<Formula> outer_breaking_annotations = std::move(breaking_annotations);
-	breaking_annotations.clear();
+	auto outer_breaking_annotations = std::move(breaking_annotations);
 
 	while (true) {
-		Formula previous_annotatoin = current_annotation.copy();
+		breaking_annotations.clear();
+		auto previous_annotation = plankton::copy(*current_annotation);
 		stmt.body->accept(*this);
-		if (plankton::is_equal(previous_annotatoin, current_annotation)) {
+		if (plankton::is_equal(*previous_annotation, *current_annotation)) {
 			break;
 		}
-		current_annotation = unify(current_annotation, previous_annotatoin);
-		breaking_annotations.clear();
+		current_annotation = unify(*current_annotation, *previous_annotation);
 	}
 
 	current_annotation = unify(breaking_annotations);
@@ -204,7 +187,7 @@ void Verifier::visit(const Skip& /*cmd*/) {
 
 void Verifier::visit(const Break& /*cmd*/) {
 	breaking_annotations.push_back(std::move(current_annotation));
-	current_annotation = Formula::make_false();
+	current_annotation = plankton::make_false();
 }
 
 void Verifier::visit(const Continue& /*cmd*/) {
@@ -216,14 +199,14 @@ void Verifier::visit(const Assume& cmd) {
 }
 
 void Verifier::visit(const Assert& cmd) {
-	if (!plankton::implies(current_annotation, *cmd.expr)) {
+	if (!plankton::implies(*current_annotation, *cmd.expr)) {
 		throw AssertionError(cmd);
 	}
 }
 
 void Verifier::visit(const Return& /*cmd*/) {
 	breaking_annotations.push_back(std::move(current_annotation));
-	current_annotation = Formula::make_false();
+	current_annotation = plankton::make_false();
 }
 
 void Verifier::visit(const Malloc& /*cmd*/) {
@@ -239,14 +222,15 @@ void Verifier::handle_assignment(const Expression& lhs, const Expression& rhs) {
 
 void Verifier::visit(const Assignment& cmd) {
 	if (has_effect(*cmd.lhs)) {
-		extend_interference({ cola::copy(*cmd.lhs), cmd });
+		extend_interference(cmd);
+		check_invariant_stability(cmd);
 	}
 	handle_assignment(*cmd.lhs, *cmd.rhs);
 }
 
 void Verifier::visit_macro_function(const Function& function) {
-	std::vector<Formula> outer_breaking_annotations = std::move(breaking_annotations);
-	std::vector<Formula> outer_returning_annotations = std::move(returning_annotations);
+	auto outer_breaking_annotations = std::move(breaking_annotations);
+	auto outer_returning_annotations = std::move(returning_annotations);
 	breaking_annotations.clear();
 	returning_annotations.clear();
 	
