@@ -31,7 +31,7 @@ namespace plankton {
 	struct Effect {
 		std::unique_ptr<Formula> precondition;
 		std::unique_ptr<cola::Assignment> command;
-		Effect(std::unique_ptr<Formula> pre, std::unique_ptr<cola::Command> cmd) : precondition(std::move(pre)), command(std::move(cmd)) {}
+		Effect(std::unique_ptr<Formula> pre, std::unique_ptr<cola::Assignment> cmd) : precondition(std::move(pre)), command(std::move(cmd)) {}
 	};
 
 	struct RenamingInfo {
@@ -78,7 +78,7 @@ namespace plankton {
 			void visit_macro_function(const cola::Function& function); // performs subproof for given macro function
 			void handle_loop(const cola::ConditionalLoop& loop, bool peelFirst=false); // uniformly handles While/DoWhile
 			
-			void extend_interference(const cola::Command& command); // calls extend_interferenceadds with renamed (current_annotation, command)
+			void extend_interference(const cola::Assignment& command); // calls extend_interferenceadds with renamed (current_annotation, command)
 			void extend_interference(std::unique_ptr<Effect> effect); // adds effect to interference; updates is_interference_saturated
 			void apply_interference(); // weakens current_annotation according to interference
 			bool is_interference_free(const Formula& formula);

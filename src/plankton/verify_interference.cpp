@@ -80,87 +80,6 @@ struct InterferneceExpressionRenamer : public BaseNonConstVisitor {
 	void visit(NDetValue& /*expr*/) override { /* do nothing */ }
 };
 
-struct InterferneceCommandRenamer : public BaseVisitor {
-	RenamingInfo& info;
-	InterferneceExpressionRenamer expr_renamer;
-	std::unique_ptr<Command> result;
-
-	InterferneceCommandRenamer(RenamingInfo& info_) : info(info_), expr_renamer(info_) {}
-
-	void visit(const Assume& node) override {
-		auto expr = cola::copy(*node.expr);
-		expr_renamer.handle_expression(expr);
-		result = std::make_unique<Assume>(std::move(expr));
-	};
-
-	void visit(const Assert& node) override {
-		auto expr = cola::copy(*node.expr);
-		expr_renamer.handle_expression(expr);
-		result = std::make_unique<Assert>(std::move(expr));
-	};
-
-	void visit(const Malloc& node) override {
-		result = std::make_unique<Malloc>(info.rename(node.lhs));
-	};
-
-	void visit(const Assignment& node) override {
-		auto lhs = cola::copy(*node.lhs);
-		expr_renamer.handle_expression(lhs);
-		auto rhs = cola::copy(*node.rhs);
-		expr_renamer.handle_expression(rhs);
-		result = std::make_unique<Assignment>(std::move(lhs), std::move(rhs));
-	};
-
-	void visit(const Macro& node) override {
-		auto copy = std::make_unique<Macro>(node.decl);
-		for (const auto& expr : node.args) {
-			auto arg = cola::copy(*expr);
-			expr_renamer.handle_expression(arg);
-			copy->args.push_back(std::move(arg));
-		}
-		for (const auto& decl : node.lhs) {
-			copy->lhs.push_back(info.rename(decl));
-		}
-		result = std::move(copy);
-	};
-
-	void visit(const CompareAndSwap& node) override {
-		auto copy = std::make_unique<CompareAndSwap>();
-		for (const auto& elem : node.elems) {
-			auto dst = cola::copy(*elem.dst);
-			auto cmp = cola::copy(*elem.cmp);
-			auto src = cola::copy(*elem.src);
-			expr_renamer.handle_expression(dst);
-			expr_renamer.handle_expression(cmp);
-			expr_renamer.handle_expression(src);
-			copy->elems.emplace_back(std::move(dst), std::move(cmp), std::move(src));
-		}
-		result = std::move(copy);
-	};
-
-	void visit(const Return& node) override {
-		auto copy = std::make_unique<Return>();
-		for (const auto& expr : node.expressions) {
-			auto renamed = cola::copy(*expr);
-			expr_renamer.handle_expression(renamed);
-			copy->expressions.push_back(std::move(renamed));
-		}
-		result = std::move(copy);
-	};
-
-	void visit(const Skip& node) override {
-		result = cola::copy(node);
-	};
-
-	void visit(const Break& node) override {
-		result = cola::copy(node);
-	};
-
-	void visit(const Continue& node) override {
-		result = cola::copy(node);
-	};
-};
-
 struct InterferenceFormulaRenamer : LogicVisitor {
 	RenamingInfo& info;
 	InterferneceExpressionRenamer expr_renamer;
@@ -188,13 +107,14 @@ struct InterferenceFormulaRenamer : LogicVisitor {
 	void visit(const Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: InterferenceFormulaRenamer::visit(const Annotation&)"); }
 };
 
-void Verifier::extend_interference(const cola::Command& command) {
+void Verifier::extend_interference(const cola::Assignment& command) {
 	// make effect: (rename(current_annotation.now), rename(command)) where rename(x) renames the local variables in x
-	InterferneceCommandRenamer crenamer(interference_renaming_info);
-	command.accept(crenamer);
-	InterferenceFormulaRenamer frenamer(interference_renaming_info);
-	current_annotation->now->accept(frenamer);
-	auto effect = std::make_unique<Effect>(std::move(frenamer.result), std::move(crenamer.result));
+	InterferenceFormulaRenamer renamer(interference_renaming_info);
+	current_annotation->now->accept(renamer);
+	auto cmd = std::make_unique<Assignment>(cola::copy(*command.lhs), cola::copy(*command.rhs));
+	renamer.expr_renamer.handle_expression(cmd->lhs);
+	renamer.expr_renamer.handle_expression(cmd->rhs);
+	auto effect = std::make_unique<Effect>(std::move(renamer.result), std::move(cmd));
 
 	// extend interference
 	extend_interference(std::move(effect));
@@ -304,7 +224,6 @@ bool Verifier::is_interference_free(const Formula& formula){
 		auto pre = std::make_unique<Annotation>();
 		pre->now->conjuncts.push_back(plankton::copy(formula));
 		pre->now->conjuncts.push_back(plankton::copy(*effect->precondition));
-		auto cmd = dynamic_cast<const Command*>()
 
 		// TODO: have a light-weight check first?
 		auto post = plankton::post(std::move(pre), *effect->command);
