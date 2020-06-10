@@ -16,6 +16,7 @@ include_directories(${Z3_INCLUDE})
 set(SOURCES
 	config.cpp
 	logic.cpp
+	post.cpp
 	verify.cpp
 	verify_interference.cpp
 )

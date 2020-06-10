@@ -1,8 +1,10 @@
 #include "plankton/verify.hpp"
 
+#include <set>
 #include <sstream>
 #include "cola/util.hpp"
 #include "plankton/config.hpp"
+#include "plankton/post.hpp"
 
 using namespace cola;
 using namespace plankton;
@@ -14,10 +16,6 @@ bool plankton::check_linearizability(const Program& program) {
 	return true;
 }
 
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
 
 UnsupportedConstructError::UnsupportedConstructError(std::string construct) : VerificationError(
 	"Unsupported construct: " + std::move(construct) + ".") {}
@@ -32,21 +30,85 @@ inline std::string mk_assert_msg(const Assert& cmd) {
 AssertionError::AssertionError(const Assert& cmd) : VerificationError(mk_assert_msg(cmd)) {}
 
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-void Verifier::extend_current_annotation(std::unique_ptr<Expression> expr) {
-	// skip interference within atomic blocks or for both-movers // TODO: correct implementation of both-mover check?
-	bool skip_interference = inside_atomic || (plankton::config.interference_mover_optimization && !has_effect(*expr));
-
-	// adds (and deduced) new knolwedge; guarantees interference freedom ouside atomic blocks
-	// current_annotation.add_conjuncts(std::move(expr));
-
-	if (!skip_interference) {
-		apply_interference();
+inline bool contains_name(std::string name, RenamingInfo& info) {
+	for (const auto& decl : info.renamed_variables) {
+		if (decl->name == name) {
+			return true;
+		}
 	}
-	throw std::logic_error("not yet implemented (extend_current_annotation)");
+	return false;
+}
+
+inline std::string find_renaming(std::string name, RenamingInfo& info) {
+	std::size_t counter = 0;
+	std::string result;
+	do {
+		counter++;
+		result = std::to_string(counter) + "#" + name;
+	} while (contains_name(result, info));
+	return result;
+}
+
+const VariableDeclaration& RenamingInfo::rename(const VariableDeclaration& decl) {
+	// renames non-shared variables
+	if (decl.is_shared) return decl;
+	const VariableDeclaration* replacement;
+
+	auto find = variable2renamed.find(&decl);
+	if (find != variable2renamed.end()) {
+		// use existing replacement
+		replacement = find->second;
+
+	} else {
+		// create new replacement
+		auto newName = find_renaming(decl.name, *this);
+		auto newDecl = std::make_unique<VariableDeclaration>(newName, decl.type, decl.is_shared);
+		variable2renamed[&decl] = newDecl.get();
+		replacement = newDecl.get();
+		renamed_variables.push_back(std::move(newDecl));
+	}
+
+	return *replacement;
+}
+
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct VariableCollector : BaseVisitor {
+	std::set<const Expression*> exprs;
+
+	void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
+	void visit(const NullValue& /*node*/) override { /* do nothing */ }
+	void visit(const EmptyValue& /*node*/) override { /* do nothing */ }
+	void visit(const MaxValue& /*node*/) override { /* do nothing */ }
+	void visit(const MinValue& /*node*/) override { /* do nothing */ }
+	void visit(const NDetValue& /*node*/) override { /* do nothing */ }
+	void visit(const VariableExpression& /*node*/) override { /* do nothing */ }
+
+	void visit(const NegatedExpression& node) override { node.expr->accept(*this); }
+	void visit(const BinaryExpression& node) override { node.lhs->accept(*this); node.rhs->accept(*this); }
+
+	void visit(const Dereference& node) override {
+		exprs.insert(node.expr.get());
+		node.expr->accept(*this);
+	}
+};
+
+void Verifier::check_pointer_accesses(const cola::Expression& expr) {
+	VariableCollector collector;
+	expr.accept(collector);
+	for (const Expression* expr : collector.exprs) {
+		if (!plankton::implies_nonnull(*current_annotation->now, *expr)) {
+			std::stringstream msg;
+			msg << "Unsafe dereference: '";
+			cola::print(*expr, msg);
+			msg << "' might be 'NULL'";
+			throw VerificationError(msg.str());
+		}
+	}
 }
 
 void Verifier::check_invariant_stability(const cola::Assignment& /*command*/) {
@@ -73,7 +135,7 @@ void Verifier::visit(const Program& program) {
 	throw std::logic_error("not yet implemented (Verifier::Program)");
 }
 
-std::unique_ptr<Formula> get_init_annotation() {
+std::unique_ptr<Annotation> get_init_annotation() {
 	// TODO: how to initialize annotation??
 	return plankton::make_true();
 }
@@ -115,7 +177,7 @@ void Verifier::visit(const Atomic& stmt) {
 
 void Verifier::visit(const Choice& stmt) {
 	auto pre_condition = std::move(current_annotation);
-	std::vector<std::unique_ptr<Formula>> post_conditions;
+	std::vector<std::unique_ptr<Annotation>> post_conditions;
 
 	for (const auto& branch : stmt.branches) {
 		current_annotation = plankton::copy(*pre_condition);
@@ -123,7 +185,7 @@ void Verifier::visit(const Choice& stmt) {
 		post_conditions.push_back(std::move(current_annotation));
 	}
 	
-	current_annotation = unify(post_conditions);
+	current_annotation = plankton::unify(post_conditions);
 }
 
 void Verifier::visit(const IfThenElse& stmt) {
@@ -141,11 +203,12 @@ void Verifier::visit(const IfThenElse& stmt) {
 	dummyElse.accept(*this);
 	stmt.elseBranch->accept(*this);
 
-	current_annotation = unify(*current_annotation, *postIf);
+	current_annotation = plankton::unify(*current_annotation, *postIf);
 }
 
 void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { // consider peelFirst a suggestion
 	if (dynamic_cast<const BooleanValue*>(stmt.expr.get()) == nullptr || !dynamic_cast<const BooleanValue*>(stmt.expr.get())->value) {
+		// TODO: make check semantic --> if (!plankton::implies(current_annotation, stmt.expr)) 
 		throw UnsupportedConstructError("while/do-while loop with condition other than 'true'");
 	}
 
@@ -158,10 +221,10 @@ void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { //
 		if (plankton::is_equal(*previous_annotation, *current_annotation)) {
 			break;
 		}
-		current_annotation = unify(*current_annotation, *previous_annotation);
+		current_annotation = plankton::unify(*current_annotation, *previous_annotation);
 	}
 
-	current_annotation = unify(breaking_annotations);
+	current_annotation = plankton::unify(breaking_annotations);
 	breaking_annotations = std::move(outer_breaking_annotations);
 }
 
@@ -182,6 +245,8 @@ void Verifier::visit(const DoWhile& stmt) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+// TODO: whenever a next field is accessed, ensure that the dereference is safe (not null)
+
 void Verifier::visit(const Skip& /*cmd*/) {
 	/* do nothing */
 }
@@ -196,37 +261,48 @@ void Verifier::visit(const Continue& /*cmd*/) {
 }
 
 void Verifier::visit(const Assume& cmd) {
-	extend_current_annotation(cola::copy(*cmd.expr));
+	check_pointer_accesses(*cmd.expr);
+	current_annotation = plankton::post(std::move(current_annotation), cmd);
+	if (has_effect(*cmd.expr)) apply_interference();
 }
 
 void Verifier::visit(const Assert& cmd) {
-	if (!plankton::implies(*current_annotation, *cmd.expr)) {
+	check_pointer_accesses(*cmd.expr);
+	if (!plankton::implies(*current_annotation->now, *cmd.expr)) {
 		throw AssertionError(cmd);
 	}
 }
 
-void Verifier::visit(const Return& /*cmd*/) {
-	breaking_annotations.push_back(std::move(current_annotation));
+void Verifier::visit(const Return& cmd) {
+	// TODO: extend breaking_annotations?
+	for (const auto& expr : cmd.expressions) {
+		check_pointer_accesses(*expr);
+	}
+	returning_annotations.push_back(std::move(current_annotation));
 	current_annotation = plankton::make_false();
 }
 
-void Verifier::visit(const Malloc& /*cmd*/) {
+void Verifier::visit(const Malloc& cmd) {
 	// TODO: extend interference?
-	// TODO: extend_current_annotation(... knowledge about all members of new object, flow...)
-	throw std::logic_error("not yet implemented (Verifier::Malloc)");
-}
-
-void Verifier::handle_assignment(const Expression& lhs, const Expression& rhs) {
-	auto expr = std::make_unique<BinaryExpression>(BinaryExpression::Operator::EQ, cola::copy(lhs), cola::copy(rhs));
-	extend_current_annotation(std::move(expr));
+	if (cmd.lhs.is_shared) {
+		throw VerificationError("Allocation must not target shared variable '" + cmd.lhs.name + "'.");
+	}
+	current_annotation = plankton::post(std::move(current_annotation), cmd);
 }
 
 void Verifier::visit(const Assignment& cmd) {
+	check_pointer_accesses(*cmd.lhs);
+	check_pointer_accesses(*cmd.rhs);
+
+	// check invariant and extend interference for effectful commands
 	if (has_effect(*cmd.lhs)) {
 		extend_interference(cmd);
 		check_invariant_stability(cmd);
 	}
-	handle_assignment(*cmd.lhs, *cmd.rhs);
+
+	// compute post annotation
+	current_annotation = plankton::post(std::move(current_annotation), cmd);
+	if (has_effect(*cmd.lhs) || has_effect(*cmd.rhs)) apply_interference();
 }
 
 void Verifier::visit_macro_function(const Function& function) {
@@ -244,9 +320,11 @@ void Verifier::visit_macro_function(const Function& function) {
 void Verifier::visit(const Macro& cmd) {
 	// pass arguments to function (treated as assignments)
 	for (std::size_t i = 0; i < cmd.args.size(); ++i) {
-		VariableExpression expr(*cmd.decl.args.at(i));
-		assert(!has_effect(expr));
-		handle_assignment(expr, *cmd.args.at(i));
+		auto dummy = std::make_unique<Assignment>(
+			std::make_unique<VariableExpression>(*cmd.decl.args.at(i)), cola::copy(*cmd.args.at(i))
+		);
+		assert(!has_effect(*dummy->lhs));
+		dummy->accept(*this);
 	}
 
 	// descend into function call
@@ -254,10 +332,11 @@ void Verifier::visit(const Macro& cmd) {
 
 	// get returned values (treated as assignments)
 	for (std::size_t i = 0; i < cmd.lhs.size(); ++i) {
-		VariableExpression lhs(cmd.lhs.at(i).get());
-		VariableExpression rhs(*cmd.decl.returns.at(i));
-		assert(!has_effect(lhs));
-		handle_assignment(lhs, rhs);
+		auto dummy = std::make_unique<Assignment>(
+			std::make_unique<VariableExpression>(cmd.lhs.at(i).get()), std::make_unique<VariableExpression>(*cmd.decl.returns.at(i))
+		);
+		assert(!has_effect(*dummy->lhs));
+		dummy->accept(*this);
 	}
 }
 

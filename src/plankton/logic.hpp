@@ -11,94 +11,108 @@
 namespace plankton {
 
 	struct ConjunctionFormula;
-	struct BasicConjunctionFormula;
 	struct ExpressionFormula;
-	struct HistoryFormula;
-	struct FutureFormula;
+	struct PastPredicate;
+	struct FuturePredicate;
+	struct Annotation;
 
-	struct FormulaVisitor {
+	struct LogicVisitor {
 		virtual void visit(const ConjunctionFormula& formula) = 0;
-		virtual void visit(const BasicConjunctionFormula& formula) = 0;
 		virtual void visit(const ExpressionFormula& formula) = 0;
-		virtual void visit(const HistoryFormula& formula) = 0;
-		virtual void visit(const FutureFormula& formula) = 0;
+		virtual void visit(const PastPredicate& formula) = 0;
+		virtual void visit(const FuturePredicate& formula) = 0;
+		virtual void visit(const Annotation& formula) = 0;
 	};
 
-	struct FormulaNonConstVisitor {
+	struct LogicNonConstVisitor {
 		virtual void visit(ConjunctionFormula& formula) = 0;
-		virtual void visit(BasicConjunctionFormula& formula) = 0;
 		virtual void visit(ExpressionFormula& formula) = 0;
-		virtual void visit(HistoryFormula& formula) = 0;
-		virtual void visit(FutureFormula& formula) = 0;
+		virtual void visit(PastPredicate& formula) = 0;
+		virtual void visit(FuturePredicate& formula) = 0;
+		virtual void visit(Annotation& formula) = 0;
 	};
 
 	struct Formula {
 		Formula(const Formula& other) = delete;
 		virtual ~Formula() = default;
-		virtual void accept(FormulaVisitor& visitor) const = 0;
-		virtual void accept(FormulaNonConstVisitor& visitor) = 0;
+		virtual void accept(LogicVisitor& visitor) const = 0;
+		virtual void accept(LogicNonConstVisitor& visitor) = 0;
 		protected: Formula() {}
 	};
 
 	struct ConjunctionFormula : public Formula {
 		std::vector<std::unique_ptr<Formula>> conjuncts;
-		virtual void accept(FormulaVisitor& visitor) const override { visitor.visit(*this); }
-		virtual void accept(FormulaNonConstVisitor& visitor) override { visitor.visit(*this); }
+		virtual void accept(LogicVisitor& visitor) const override { visitor.visit(*this); }
+		virtual void accept(LogicNonConstVisitor& visitor) override { visitor.visit(*this); }
 	};
 
-	struct BasicFormula : public Formula {
-		protected: BasicFormula() {}
-	};
-
-	struct BasicConjunctionFormula : public BasicFormula {
-		std::vector<std::unique_ptr<BasicFormula>> conjuncts;
-		virtual void accept(FormulaVisitor& visitor) const override { visitor.visit(*this); }
-		virtual void accept(FormulaNonConstVisitor& visitor) override { visitor.visit(*this); }
-	};
-
-	struct ExpressionFormula : public BasicFormula {
+	struct ExpressionFormula : public Formula {
 		std::unique_ptr<cola::Expression> expr;
 		ExpressionFormula(std::unique_ptr<cola::Expression> expr_) : expr(std::move(expr_)) {
 			assert(expr->type() == cola::Type::bool_type());
 		}
-		virtual void accept(FormulaVisitor& visitor) const override { visitor.visit(*this); }
-		virtual void accept(FormulaNonConstVisitor& visitor) override { visitor.visit(*this); }
+		virtual void accept(LogicVisitor& visitor) const override { visitor.visit(*this); }
+		virtual void accept(LogicNonConstVisitor& visitor) override { visitor.visit(*this); }
 	};
 
-	// TODO: implement flow formulas, key in/notin DS formulas --> should be BasicFormula subclasses
+	// TODO: implement flow formulas, key in/notin DS formulas
 
-	struct HistoryFormula : public Formula {
-		std::unique_ptr<BasicFormula> condition;
-		std::unique_ptr<BasicFormula> expression;
+	struct PastPredicate {
+		std::unique_ptr<Formula> formula;
 		
-		HistoryFormula(std::unique_ptr<BasicFormula> cond, std::unique_ptr<BasicFormula> expr) : condition(std::move(cond)), expression(std::move(expr)) {
-			assert(condition);
-			assert(expression);
+		PastPredicate(std::unique_ptr<Formula> formula_) : formula(std::move(formula_)) {
+			assert(formula);
 		}
-		virtual void accept(FormulaVisitor& visitor) const override { visitor.visit(*this); }
-		virtual void accept(FormulaNonConstVisitor& visitor) override { visitor.visit(*this); }
+		void accept(LogicVisitor& visitor) const { visitor.visit(*this); }
+		void accept(LogicNonConstVisitor& visitor) { visitor.visit(*this); }
 	};
 
-	struct FutureFormula : public Formula {
-		std::unique_ptr<BasicFormula> condition;
-		const cola::Command& command;
-		
-		FutureFormula(std::unique_ptr<BasicFormula> cond, const cola::Command& cmd) : condition(std::move(cond)), command(cmd) {
-			assert(condition);
+	struct FuturePredicate {
+		std::unique_ptr<Formula> pre;
+		std::unique_ptr<cola::Command> command;
+		std::unique_ptr<Formula> post;
+
+		FuturePredicate(std::unique_ptr<Formula> pre_, std::unique_ptr<cola::Command> cmd_, std::unique_ptr<Formula> post_)
+			: pre(std::move(pre_)), command(std::move(cmd_)), post(std::move(post_)) {
+				assert(pre);
+				assert(command);
+				assert(post);
+			}
+		void accept(LogicVisitor& visitor) const { visitor.visit(*this); }
+		void accept(LogicNonConstVisitor& visitor) { visitor.visit(*this); }
+	};
+
+	struct Annotation {
+		std::unique_ptr<ConjunctionFormula> now;
+		std::vector<PastPredicate> past;
+		std::vector<FuturePredicate> future;
+
+		Annotation(std::unique_ptr<ConjunctionFormula> now_) : now(std::move(now_)) {
+			assert(now);
 		}
-		virtual void accept(FormulaVisitor& visitor) const override { visitor.visit(*this); }
-		virtual void accept(FormulaNonConstVisitor& visitor) override { visitor.visit(*this); }
+		Annotation() : now(std::make_unique<ConjunctionFormula>()) {}
+		void accept(LogicVisitor& visitor) const { visitor.visit(*this); }
+		void accept(LogicNonConstVisitor& visitor) { visitor.visit(*this); }
 	};
 
 
-	std::unique_ptr<Formula> make_true();
-	std::unique_ptr<Formula> make_false();
 	std::unique_ptr<Formula> copy(const Formula& formula);
+	PastPredicate copy(const PastPredicate& predicate);
+	FuturePredicate copy(const FuturePredicate& predicate);
+	std::unique_ptr<Annotation> copy(const Annotation& annotation);
+
+
+	std::unique_ptr<Annotation> make_true();
+	std::unique_ptr<Annotation> make_false();
 
 	
-	/** Returns true if 'formula ==> implied' is a tautology.
+	/** Returns true if 'formula ==> (expr != NULL)' is a tautology.
 	  */
-	bool implies(const Formula& formula, const cola::Expression& implied);
+	bool implies_nonnull(const Formula& formula, const cola::Expression& expr);
+	
+	/** Returns true if 'formula ==> condition' is a tautology.
+	  */
+	bool implies(const Formula& formula, const cola::Expression& condition);
 
 	/** Returns true if 'formula ==> implied' is a tautology.
 	  */
@@ -106,17 +120,17 @@ namespace plankton {
 
 	/** Returns true if 'formula <==> implied' is a tautology.
 	  */
-	bool is_equal(const Formula& formula, const Formula& other);
+	bool is_equal(const Annotation& annotation, const Annotation& other);
 
 	/** Returns a formula F such that the formulas 'formula ==> F' and 'other ==> F' are tautologies.
 	  * Opts for the strongest such formula F.
 	  */
-	std::unique_ptr<Formula> unify(const Formula& formula, const Formula& other);
+	std::unique_ptr<Annotation> unify(const Annotation& annotation, const Annotation& other);
 
 	/** Returns a formula F such that the formula 'H ==> F' is a tautology for all H in formulas.
 	  * Opts for the strongest such formula F.
 	  */
-	std::unique_ptr<Formula> unify(const std::vector<std::unique_ptr<Formula>>& formulas);
+	std::unique_ptr<Annotation> unify(const std::vector<std::unique_ptr<Annotation>>& annotations);
 
 } // namespace plankton
 

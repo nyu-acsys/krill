@@ -29,9 +29,9 @@ namespace plankton {
 
 
 	struct Effect {
-		std::unique_ptr<BasicFormula> precondition;
-		const cola::Command& command;
-		Effect(std::unique_ptr<BasicFormula> pre, const cola::Command& cmd) : precondition(std::move(pre)), command(cmd) {}
+		std::unique_ptr<Formula> precondition;
+		std::unique_ptr<cola::Assignment> command;
+		Effect(std::unique_ptr<Formula> pre, std::unique_ptr<cola::Command> cmd) : precondition(std::move(pre)), command(std::move(cmd)) {}
 	};
 
 	struct RenamingInfo {
@@ -39,6 +39,7 @@ namespace plankton {
 		std::map<const cola::VariableDeclaration*, const cola::VariableDeclaration*> variable2renamed;
 		RenamingInfo() = default;
 		RenamingInfo(const RenamingInfo& other) = delete;
+		const cola::VariableDeclaration& rename(const cola::VariableDeclaration& decl);
 	};
 
 
@@ -65,26 +66,28 @@ namespace plankton {
 			void visit(const cola::Program& node) override;
 
 		private:
-			std::unique_ptr<Formula> current_annotation;
+			std::unique_ptr<Annotation> current_annotation;
 			std::deque<std::unique_ptr<Effect>> interference; // interference for current proof, with local variables renamed
 			RenamingInfo interference_renaming_info;
 			bool is_interference_saturated; // indicates whether a fixed point wrt. to the found interference is reached
-			std::vector<std::unique_ptr<Formula>> breaking_annotations; // collects annotations breaking out of loops
-			std::vector<std::unique_ptr<Formula>> returning_annotations; // collects annotations breaking out of loops
+			std::vector<std::unique_ptr<Annotation>> breaking_annotations; // collects annotations breaking out of loops
+			std::vector<std::unique_ptr<Annotation>> returning_annotations; // collects annotations breaking out of loops
 			bool inside_atomic;
 
 			void visit_interface_function(const cola::Function& function); // performs proof for given interface function
 			void visit_macro_function(const cola::Function& function); // performs subproof for given macro function
 			void handle_loop(const cola::ConditionalLoop& loop, bool peelFirst=false); // uniformly handles While/DoWhile
-			void handle_assignment(const cola::Expression& lhs, const cola::Expression& rhs); // does not deal with interference
 			
-			void extend_interference(const cola::Command& command); // adds effect (current_annotation, command) to interference; updates is_interference_saturated
+			void extend_interference(const cola::Command& command); // calls extend_interferenceadds with renamed (current_annotation, command)
+			void extend_interference(std::unique_ptr<Effect> effect); // adds effect to interference; updates is_interference_saturated
 			void apply_interference(); // weakens current_annotation according to interference
-			bool is_interference_free(const BasicFormula& formula);
+			bool is_interference_free(const Formula& formula);
 			bool has_effect(const cola::Expression& assignee);
 			
 			void check_invariant_stability(const cola::Assignment& command);
-			void extend_current_annotation(std::unique_ptr<cola::Expression> expr); // adds (and deduced) new knolwedge; guarantees interference freedom ouside atomic blocks
+			void check_pointer_accesses(const cola::Expression& expr);
+			// void extend_current_annotation(std::unique_ptr<cola::Expression> expr); // adds (and deduced) new knowlwedge; guarantees interference freedom ouside atomic blocks
+			// void prune_current_annotation(const Expression& expr); // removes knowlwedge involving the given expr
 	};
 
 
