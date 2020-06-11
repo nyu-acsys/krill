@@ -115,6 +115,14 @@ struct InterferenceFormulaRenamer : LogicNonConstVisitor {
 		expr_renamer.handle_expression(formula.expr);
 	}
 
+	void visit(ObligationFormula& /*formula*/) override {
+		throw std::logic_error("not yet implemented: InterferenceFormulaRenamer::visit(ObligationFormula&)");
+	}
+
+	void visit(FulfillmentFormula& /*formula*/) override {
+		throw std::logic_error("not yet implemented: InterferenceFormulaRenamer::visit(FulfillmentFormula&)");
+	}
+
 	void visit(PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: InterferenceFormulaRenamer::visit(const PastPredicate&)"); }
 	void visit(FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: InterferenceFormulaRenamer::visit(const FuturePredicate&)"); }
 	void visit(Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: InterferenceFormulaRenamer::visit(const Annotation&)"); }
@@ -244,14 +252,9 @@ inline std::unique_ptr<Annotation> merge_for_interference(const ConjunctionFormu
 
 bool Verifier::is_interference_free(const ConjunctionFormula& formula){
 	for (const auto& effect : interference) {
-		auto pre = merge_for_interference(formula, *effect->precondition);
-
-		// TODO: have a light-weight check first?
-		auto post = plankton::post(std::move(pre), *effect->command);
-		if (!plankton::implies(*post->now, formula)) {
+		if (!post_maintains_formula(*effect->precondition, formula, *effect->command)) {
 			return false;
 		}
 	}
-
 	return true;
 }

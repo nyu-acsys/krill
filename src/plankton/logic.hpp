@@ -3,9 +3,11 @@
 #define PLANKTON_LOGIC
 
 
+#include <vector>
 #include <deque>
 #include <memory>
 #include <cassert>
+#include <ostream>
 #include <type_traits>
 #include "cola/ast.hpp"
 #include "plankton/flow.hpp"
@@ -19,6 +21,8 @@ namespace plankton {
 	struct OwnershipFormula;
 	struct LogicallyContainedFormula;
 	struct FlowFormula;
+	struct ObligationFormula;
+	struct FulfillmentFormula;
 	struct PastPredicate;
 	struct FuturePredicate;
 	struct Annotation;
@@ -30,6 +34,8 @@ namespace plankton {
 		virtual void visit(const OwnershipFormula& formula) = 0;
 		virtual void visit(const LogicallyContainedFormula& formula) = 0;
 		virtual void visit(const FlowFormula& formula) = 0;
+		virtual void visit(const ObligationFormula& formula) = 0;
+		virtual void visit(const FulfillmentFormula& formula) = 0;
 		virtual void visit(const PastPredicate& formula) = 0;
 		virtual void visit(const FuturePredicate& formula) = 0;
 		virtual void visit(const Annotation& formula) = 0;
@@ -42,6 +48,8 @@ namespace plankton {
 		virtual void visit(OwnershipFormula& formula) = 0;
 		virtual void visit(LogicallyContainedFormula& formula) = 0;
 		virtual void visit(FlowFormula& formula) = 0;
+		virtual void visit(ObligationFormula& formula) = 0;
+		virtual void visit(FulfillmentFormula& formula) = 0;
 		virtual void visit(PastPredicate& formula) = 0;
 		virtual void visit(FuturePredicate& formula) = 0;
 		virtual void visit(Annotation& formula) = 0;
@@ -113,6 +121,16 @@ namespace plankton {
 		ACCEPT_FORMULA_VISITOR
 	};
 
+	struct ObligationFormula : BasicFormula {
+		// TODO: fill
+		ACCEPT_FORMULA_VISITOR
+	};
+
+	struct FulfillmentFormula : BasicFormula {
+		// TODO: fill
+		ACCEPT_FORMULA_VISITOR
+	};
+
 	struct PastPredicate {
 		std::unique_ptr<Formula> formula;
 		
@@ -125,10 +143,10 @@ namespace plankton {
 
 	struct FuturePredicate {
 		std::unique_ptr<Formula> pre;
-		std::unique_ptr<cola::Command> command;
+		std::unique_ptr<cola::Assignment> command;
 		std::unique_ptr<Formula> post;
 
-		FuturePredicate(std::unique_ptr<Formula> pre_, std::unique_ptr<cola::Command> cmd_, std::unique_ptr<Formula> post_)
+		FuturePredicate(std::unique_ptr<Formula> pre_, std::unique_ptr<cola::Assignment> cmd_, std::unique_ptr<Formula> post_)
 			: pre(std::move(pre_)), command(std::move(cmd_)), post(std::move(post_)) {
 				assert(pre);
 				assert(command);
@@ -140,8 +158,8 @@ namespace plankton {
 
 	struct Annotation {
 		std::unique_ptr<ConjunctionFormula> now;
-		std::vector<PastPredicate> past;
-		std::vector<FuturePredicate> future;
+		std::deque<PastPredicate> past;
+		std::deque<FuturePredicate> future;
 
 		Annotation(std::unique_ptr<ConjunctionFormula> now_) : now(std::move(now_)) {
 			assert(now);
@@ -150,6 +168,12 @@ namespace plankton {
 		void accept(LogicVisitor& visitor) const { visitor.visit(*this); }
 		void accept(LogicNonConstVisitor& visitor) { visitor.visit(*this); }
 	};
+
+
+	void print(const Formula& formula, std::ostream& stream);
+	void print(const PastPredicate& predicate, std::ostream& stream);
+	void print(const FuturePredicate& predicate, std::ostream& stream);
+	void print(const Annotation& annotation, std::ostream& stream);
 
 
 	template<typename T, typename = std::enable_if<std::is_base_of<Formula, T>::value>>

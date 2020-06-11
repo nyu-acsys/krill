@@ -7,6 +7,112 @@ using namespace cola;
 using namespace plankton;
 
 
+const std::string AND_STR = "  ∧  ";
+const std::string EMPTY_STR = "true";
+
+template<typename T, typename U>
+void print_elems(std::ostream& stream, const T& elems, U printer, std::string delim=AND_STR, std::string empty=EMPTY_STR) {
+	if (elems.empty()) {
+		stream << empty;
+	} else {
+		bool first = true;
+		for (const auto& elem : elems) {
+			if (first) {
+				first = false;
+			} else {
+				stream << delim;
+			}
+			printer(elem);
+		}
+	}
+}
+
+struct FormulaPrinter : public LogicVisitor {
+	std::ostream& stream;
+	FormulaPrinter(std::ostream& stream_) : stream(stream_) {}
+
+	void visit(const ConjunctionFormula& formula) override {
+		print_elems(stream, formula.conjuncts, [this](const auto& e){ plankton::print(*e, this->stream); });
+	}
+
+	void visit(const ExpressionFormula& formula) override {
+		cola::print(*formula.expr, stream);
+	}
+
+	void visit(const NegatedFormula& formula) override {
+		stream << "¬[";
+		plankton::print(*formula.formula, stream);
+		stream << "]";
+	}
+
+	void visit(const OwnershipFormula& formula) override {
+		stream << "@owned(";
+		cola::print(*formula.expr, stream);
+		stream << ")";
+	}
+
+	void visit(const LogicallyContainedFormula& formula) override {
+		stream << "@contained(";
+		cola::print(*formula.expr, stream);
+		stream << ")";
+	}
+
+	void visit(const FlowFormula& formula) override {
+		stream << "@flow(";
+		cola::print(*formula.expr, stream);
+		stream << ") = ";
+		plankton::print(formula.flow, stream);
+	}
+
+	void visit(const ObligationFormula& /*formula*/) override {
+		stream << "@OBL";
+	}
+
+	void visit(const FulfillmentFormula& /*formula*/) override {
+		stream << "@FUL";
+	}
+
+	void visit(const PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: FormulaPrinter::visit(const PastPredicate&)"); }
+	void visit(const FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: FormulaPrinter::visit(const FuturePredicate&)"); }
+	void visit(const Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: FormulaPrinter::visit(const Annotation&)"); }
+};
+
+void plankton::print(const Formula& formula, std::ostream& stream) {
+	FormulaPrinter printer(stream);
+	formula.accept(printer);
+}
+
+void plankton::print(const PastPredicate& predicate, std::ostream& stream) {
+	stream << "PAST<< ";
+	plankton::print(*predicate.formula, stream);
+	stream << " >>";
+}
+
+void plankton::print(const FuturePredicate& predicate, std::ostream& stream) {
+	stream << "FUT<< ";
+	plankton::print(*predicate.pre, stream);
+	stream << " >> ";
+	cola::print(*predicate.command, stream);
+	stream << " << ";
+	plankton::print(*predicate.post, stream);
+	stream << " >>";
+}
+
+void plankton::print(const Annotation& annotation, std::ostream& stream) {
+	stream << "{" << std::endl << "    " ;
+	plankton::print(*annotation.now, stream);
+	stream << std::endl << "  " + AND_STR << std::endl << "    ";
+	print_elems(stream, annotation.past, [&stream](const auto& e){ plankton::print(e, stream); });
+	stream << std::endl << "  " + AND_STR << std::endl << "    ";
+	print_elems(stream, annotation.future, [&stream](const auto& e){ plankton::print(e, stream); });
+	stream << std::endl << "}";
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 inline std::unique_ptr<BasicFormula> copy_basic_formula(const BasicFormula& formula);
 
 template<>
@@ -40,6 +146,16 @@ std::unique_ptr<FlowFormula> plankton::copy<FlowFormula>(const FlowFormula& form
 }
 
 template<>
+std::unique_ptr<ObligationFormula> plankton::copy<ObligationFormula>(const ObligationFormula& /*formula*/) {
+	throw std::logic_error("not yet implemented: plankton::copy<ObligationFormula>(const ObligationFormula&)");
+}
+
+template<>
+std::unique_ptr<FulfillmentFormula> plankton::copy<FulfillmentFormula>(const FulfillmentFormula& /*formula*/) {
+	throw std::logic_error("not yet implemented: plankton::copy<FulfillmentFormula>(const FulfillmentFormula&)");
+}
+
+template<>
 std::unique_ptr<ConjunctionFormula> plankton::copy<ConjunctionFormula>(const ConjunctionFormula& formula) {
 	auto copy = std::make_unique<ConjunctionFormula>();
 	for (const auto& conjunct : formula.conjuncts) {
@@ -55,6 +171,8 @@ struct CopyBasicFormulaVisitor : public LogicVisitor {
 	void visit(const OwnershipFormula& formula) override { result = plankton::copy(formula); }
 	void visit(const LogicallyContainedFormula& formula) override { result = plankton::copy(formula); }
 	void visit(const FlowFormula& formula) override { result = plankton::copy(formula); }
+	void visit(const ObligationFormula& formula) override { result = plankton::copy(formula); }
+	void visit(const FulfillmentFormula& formula) override { result = plankton::copy(formula); }
 	void visit(const ConjunctionFormula& /*formula*/) override { throw std::logic_error("Unexpected invocation: CopyBasicFormulaVisitor::visit(const ConjunctionFormula&)"); }
 	void visit(const PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: CopyBasicFormulaVisitor::visit(const PastPredicate&)"); }
 	void visit(const FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: CopyBasicFormulaVisitor::visit(const FuturePredicate&)"); }
@@ -75,6 +193,8 @@ struct CopyFormulaVisitor : public LogicVisitor {
 	void visit(const OwnershipFormula& formula) override { result = plankton::copy(formula); }
 	void visit(const LogicallyContainedFormula& formula) override { result = plankton::copy(formula); }
 	void visit(const FlowFormula& formula) override { result = plankton::copy(formula); }
+	void visit(const ObligationFormula& formula) override { result = plankton::copy(formula); }
+	void visit(const FulfillmentFormula& formula) override { result = plankton::copy(formula); }
 	void visit(const PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: CopyFormulaVisitor::visit(const PastPredicate&)"); }
 	void visit(const FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: CopyFormulaVisitor::visit(const FuturePredicate&)"); }
 	void visit(const Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: CopyFormulaVisitor::visit(const Annotation&)"); }
@@ -92,9 +212,8 @@ PastPredicate plankton::copy(const PastPredicate& predicate) {
 }
 
 FuturePredicate plankton::copy(const FuturePredicate& predicate) {
-	return FuturePredicate(
-		plankton::copy(*predicate.pre), cola::copy(*predicate.command), plankton::copy(*predicate.post)
-	);
+	auto assign = std::make_unique<Assignment>(cola::copy(*predicate.command->lhs), cola::copy(*predicate.command->rhs));
+	return FuturePredicate(plankton::copy(*predicate.pre), std::move(assign), plankton::copy(*predicate.post));
 }
 
 std::unique_ptr<Annotation> plankton::copy(const Annotation& annotation) {
@@ -128,6 +247,9 @@ std::unique_ptr<Annotation> plankton::make_false() {
 }
 
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool plankton::implies_nonnull(const Formula& formula, const cola::Expression& expr) {
 	// TODO: avoid copying expr (super ugly solution: create a unique_ptr from its raw pointer and release the unique_ptr afterwards)

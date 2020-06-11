@@ -15,6 +15,7 @@ include_directories(${Z3_INCLUDE})
 
 set(SOURCES
 	config.cpp
+	error.cpp
 	logic.cpp
 	post.cpp
 	verify.cpp

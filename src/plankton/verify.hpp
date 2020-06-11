@@ -8,25 +8,11 @@
 #include <memory>
 #include <exception>
 #include "cola/ast.hpp"
+#include "plankton/error.hpp"
 #include "plankton/logic.hpp"
 
 
 namespace plankton {
-
-	struct VerificationError : public std::exception {
-		const std::string cause;
-		VerificationError(std::string cause_) : cause(std::move(cause_)) {}
-		virtual const char* what() const noexcept { return cause.c_str(); }
-	};
-
-	struct UnsupportedConstructError : public VerificationError {
-		UnsupportedConstructError(std::string construct);
-	};
-
-	struct AssertionError : public VerificationError {
-		AssertionError(const cola::Assert& cmd);
-	};
-
 
 	struct Effect {
 		std::unique_ptr<ConjunctionFormula> precondition;
@@ -77,17 +63,14 @@ namespace plankton {
 			void visit_interface_function(const cola::Function& function); // performs proof for given interface function
 			void visit_macro_function(const cola::Function& function); // performs subproof for given macro function
 			void handle_loop(const cola::ConditionalLoop& loop, bool peelFirst=false); // uniformly handles While/DoWhile
+			void check_pointer_accesses(const cola::Expression& expr); // ensures null is not dereferenced in expr
+			void check_invariant_stability(const cola::Assignment& command);
 			
 			void extend_interference(const cola::Assignment& command); // calls extend_interferenceadds with renamed (current_annotation, command)
 			void extend_interference(std::unique_ptr<Effect> effect); // adds effect to interference; updates is_interference_saturated
 			void apply_interference(); // weakens current_annotation according to interference
 			bool is_interference_free(const ConjunctionFormula& formula);
 			bool has_effect(const cola::Expression& assignee);
-			
-			void check_invariant_stability(const cola::Assignment& command);
-			void check_pointer_accesses(const cola::Expression& expr);
-			// void extend_current_annotation(std::unique_ptr<cola::Expression> expr); // adds (and deduced) new knowlwedge; guarantees interference freedom ouside atomic blocks
-			// void prune_current_annotation(const Expression& expr); // removes knowlwedge involving the given expr
 	};
 
 

@@ -17,19 +17,6 @@ bool plankton::check_linearizability(const Program& program) {
 }
 
 
-UnsupportedConstructError::UnsupportedConstructError(std::string construct) : VerificationError(
-	"Unsupported construct: " + std::move(construct) + ".") {}
-
-inline std::string mk_assert_msg(const Assert& cmd) {
-	std::stringstream msg;
-	msg << "Assertion error: ";
-	cola::print(cmd, msg);
-	return msg.str();
-}
-
-AssertionError::AssertionError(const Assert& cmd) : VerificationError(mk_assert_msg(cmd)) {}
-
-
 inline bool contains_name(std::string name, RenamingInfo& info) {
 	for (const auto& decl : info.renamed_variables) {
 		if (decl->name == name) {
@@ -97,7 +84,7 @@ struct VariableCollector : BaseVisitor {
 	}
 };
 
-void Verifier::check_pointer_accesses(const cola::Expression& expr) {
+void Verifier::check_pointer_accesses(const Expression& expr) {
 	VariableCollector collector;
 	expr.accept(collector);
 	for (const Expression* expr : collector.exprs) {
@@ -111,8 +98,16 @@ void Verifier::check_pointer_accesses(const cola::Expression& expr) {
 	}
 }
 
-void Verifier::check_invariant_stability(const cola::Assignment& /*command*/) {
-	throw std::logic_error("not yet implemented (apply_interference)");
+void Verifier::check_invariant_stability(const Assignment& /*command*/) {
+	// TODO: get invariant from somewhere
+	throw std::logic_error("not yet implemented (Verifier::check_invariant_stability)");
+	// if (!post_maintains_invariant(*current_annotation, <invariant>, command)) {
+	// 	std::stringstream msg;
+	// 	msg << "Invariant violated by '";
+	// 	cola::print(command, msg);
+	// 	msg << "'.";
+	// 	throw VerificationError(msg.str());
+	// }
 }
 
 
@@ -262,7 +257,7 @@ void Verifier::visit(const Continue& /*cmd*/) {
 
 void Verifier::visit(const Assume& cmd) {
 	check_pointer_accesses(*cmd.expr);
-	current_annotation = plankton::post(std::move(current_annotation), cmd);
+	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
 	if (has_effect(*cmd.expr)) apply_interference();
 }
 
@@ -287,7 +282,7 @@ void Verifier::visit(const Malloc& cmd) {
 	if (cmd.lhs.is_shared) {
 		throw UnsupportedConstructError("allocation targeting shared variable '" + cmd.lhs.name + "'");
 	}
-	current_annotation = plankton::post(std::move(current_annotation), cmd);
+	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
 }
 
 void Verifier::visit(const Assignment& cmd) {
@@ -296,12 +291,12 @@ void Verifier::visit(const Assignment& cmd) {
 
 	// check invariant and extend interference for effectful commands
 	if (has_effect(*cmd.lhs)) {
-		extend_interference(cmd);
 		check_invariant_stability(cmd);
+		extend_interference(cmd);
 	}
 
 	// compute post annotation
-	current_annotation = plankton::post(std::move(current_annotation), cmd);
+	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
 	if (has_effect(*cmd.lhs) || has_effect(*cmd.rhs)) apply_interference();
 }
 

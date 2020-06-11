@@ -10,13 +10,26 @@
 
 namespace plankton {
 
-	std::unique_ptr<Annotation> post(std::unique_ptr<Annotation> pre, const cola::Assume& cmd);
-	std::unique_ptr<Annotation> post(std::unique_ptr<Annotation> pre, const cola::Malloc& cmd);
-	std::unique_ptr<Annotation> post(std::unique_ptr<Annotation> pre, const cola::Assignment& cmd);
+	/** Computes a strongest post annotation for executing 'cmd' under 'pre'.
+	  */
+	std::unique_ptr<Annotation> post_full(std::unique_ptr<Annotation> pre, const cola::Assume& cmd);
+	
+	/** Computes a strongest post annotation for executing 'cmd' under 'pre'.
+	  */
+	std::unique_ptr<Annotation> post_full(std::unique_ptr<Annotation> pre, const cola::Malloc& cmd);
 
-	inline std::unique_ptr<Annotation> post(const Annotation& pre, const cola::Assume& cmd) { return post(copy(pre), cmd); }
-	inline std::unique_ptr<Annotation> post(const Annotation& pre, const cola::Malloc& cmd) { return post(copy(pre), cmd); }
-	inline std::unique_ptr<Annotation> post(const Annotation& pre, const cola::Assignment& cmd) { return post(copy(pre), cmd); }
+	/** Computes a strongest post annotation for executing 'cmd' under 'pre'.
+	  */
+	std::unique_ptr<Annotation> post_full(std::unique_ptr<Annotation> pre, const cola::Assignment& cmd);
+
+
+	/** Tests whether 'cmd' maintains 'maintained' under 'pre & maintained'.
+	  */
+	bool post_maintains_formula(const ConjunctionFormula& pre, const ConjunctionFormula& maintained, const cola::Assignment& cmd);
+
+	/** Tests whether 'cmd' maintains 'forall n. invariant(n)' under 'pre & (forall n. invariant(n))'.
+	  */
+	bool post_maintains_invariant(const Annotation& pre, const ConjunctionFormula& invariant, const cola::Assignment& cmd);
 
 } // namespace plankton
 
