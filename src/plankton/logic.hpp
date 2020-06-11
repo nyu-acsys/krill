@@ -3,15 +3,22 @@
 #define PLANKTON_LOGIC
 
 
+#include <deque>
 #include <memory>
 #include <cassert>
+#include <type_traits>
 #include "cola/ast.hpp"
+#include "plankton/flow.hpp"
 
 
 namespace plankton {
 
 	struct ConjunctionFormula;
 	struct ExpressionFormula;
+	struct NegatedFormula;
+	struct OwnershipFormula;
+	struct LogicallyContainedFormula;
+	struct FlowFormula;
 	struct PastPredicate;
 	struct FuturePredicate;
 	struct Annotation;
@@ -19,6 +26,10 @@ namespace plankton {
 	struct LogicVisitor {
 		virtual void visit(const ConjunctionFormula& formula) = 0;
 		virtual void visit(const ExpressionFormula& formula) = 0;
+		virtual void visit(const NegatedFormula& formula) = 0;
+		virtual void visit(const OwnershipFormula& formula) = 0;
+		virtual void visit(const LogicallyContainedFormula& formula) = 0;
+		virtual void visit(const FlowFormula& formula) = 0;
 		virtual void visit(const PastPredicate& formula) = 0;
 		virtual void visit(const FuturePredicate& formula) = 0;
 		virtual void visit(const Annotation& formula) = 0;
@@ -27,10 +38,18 @@ namespace plankton {
 	struct LogicNonConstVisitor {
 		virtual void visit(ConjunctionFormula& formula) = 0;
 		virtual void visit(ExpressionFormula& formula) = 0;
+		virtual void visit(NegatedFormula& formula) = 0;
+		virtual void visit(OwnershipFormula& formula) = 0;
+		virtual void visit(LogicallyContainedFormula& formula) = 0;
+		virtual void visit(FlowFormula& formula) = 0;
 		virtual void visit(PastPredicate& formula) = 0;
 		virtual void visit(FuturePredicate& formula) = 0;
 		virtual void visit(Annotation& formula) = 0;
 	};
+
+	#define ACCEPT_FORMULA_VISITOR \
+		virtual void accept(LogicNonConstVisitor& visitor) override { visitor.visit(*this); } \
+		virtual void accept(LogicVisitor& visitor) const override { visitor.visit(*this); }
 
 	struct Formula {
 		Formula(const Formula& other) = delete;
@@ -40,22 +59,59 @@ namespace plankton {
 		protected: Formula() {}
 	};
 
-	struct ConjunctionFormula : public Formula {
-		std::vector<std::unique_ptr<Formula>> conjuncts;
-		virtual void accept(LogicVisitor& visitor) const override { visitor.visit(*this); }
-		virtual void accept(LogicNonConstVisitor& visitor) override { visitor.visit(*this); }
+	struct BasicFormula : public Formula {
 	};
 
-	struct ExpressionFormula : public Formula {
+	struct ConjunctionFormula : public Formula {
+		std::deque<std::unique_ptr<BasicFormula>> conjuncts; // TODO: use list (interference freedom checks merge conjunctions frequently)?
+		ACCEPT_FORMULA_VISITOR
+	};
+
+	struct ExpressionFormula : public BasicFormula {
 		std::unique_ptr<cola::Expression> expr;
 		ExpressionFormula(std::unique_ptr<cola::Expression> expr_) : expr(std::move(expr_)) {
+			assert(expr);
 			assert(expr->type() == cola::Type::bool_type());
 		}
-		virtual void accept(LogicVisitor& visitor) const override { visitor.visit(*this); }
-		virtual void accept(LogicNonConstVisitor& visitor) override { visitor.visit(*this); }
+		ACCEPT_FORMULA_VISITOR
 	};
 
-	// TODO: implement flow formulas, key in/notin DS formulas
+	struct NegatedFormula : BasicFormula {
+		std::unique_ptr<BasicFormula> formula;
+		NegatedFormula(std::unique_ptr<BasicFormula> formula_) : formula(std::move(formula_)) {
+			assert(formula);
+		}
+		ACCEPT_FORMULA_VISITOR
+	};
+
+	struct OwnershipFormula : public BasicFormula {
+		std::unique_ptr<cola::VariableExpression> expr;
+		OwnershipFormula(std::unique_ptr<cola::VariableExpression> expr_) : expr(std::move(expr_)) {
+			assert(expr);
+			assert(!expr->decl.is_shared);
+			assert(expr->decl.type.sort == cola::Sort::PTR);
+		}
+		ACCEPT_FORMULA_VISITOR
+	};
+
+	struct LogicallyContainedFormula : public BasicFormula {
+		std::unique_ptr<cola::Expression> expr;
+		LogicallyContainedFormula(std::unique_ptr<cola::Expression> expr_) : expr(std::move(expr_)) {
+			assert(expr);
+			assert(expr->sort() == cola::Sort::DATA);
+		}
+		ACCEPT_FORMULA_VISITOR
+	};
+
+	struct FlowFormula : BasicFormula {
+		std::unique_ptr<cola::Expression> expr;
+		FlowValue flow;
+		FlowFormula(std::unique_ptr<cola::Expression> expr_, FlowValue flow_) : expr(std::move(expr_)), flow(flow_) {
+			assert(expr);
+			assert(expr->sort() == cola::Sort::PTR);
+		}
+		ACCEPT_FORMULA_VISITOR
+	};
 
 	struct PastPredicate {
 		std::unique_ptr<Formula> formula;
@@ -96,7 +152,8 @@ namespace plankton {
 	};
 
 
-	std::unique_ptr<Formula> copy(const Formula& formula);
+	template<typename T, typename = std::enable_if<std::is_base_of<Formula, T>::value>>
+	std::unique_ptr<T> copy(const T& formula);
 	PastPredicate copy(const PastPredicate& predicate);
 	FuturePredicate copy(const FuturePredicate& predicate);
 	std::unique_ptr<Annotation> copy(const Annotation& annotation);

@@ -29,9 +29,9 @@ namespace plankton {
 
 
 	struct Effect {
-		std::unique_ptr<Formula> precondition;
+		std::unique_ptr<ConjunctionFormula> precondition;
 		std::unique_ptr<cola::Assignment> command;
-		Effect(std::unique_ptr<Formula> pre, std::unique_ptr<cola::Assignment> cmd) : precondition(std::move(pre)), command(std::move(cmd)) {}
+		Effect(std::unique_ptr<ConjunctionFormula> pre, std::unique_ptr<cola::Assignment> cmd) : precondition(std::move(pre)), command(std::move(cmd)) {}
 	};
 
 	struct RenamingInfo {
@@ -81,7 +81,7 @@ namespace plankton {
 			void extend_interference(const cola::Assignment& command); // calls extend_interferenceadds with renamed (current_annotation, command)
 			void extend_interference(std::unique_ptr<Effect> effect); // adds effect to interference; updates is_interference_saturated
 			void apply_interference(); // weakens current_annotation according to interference
-			bool is_interference_free(const Formula& formula);
+			bool is_interference_free(const ConjunctionFormula& formula);
 			bool has_effect(const cola::Expression& assignee);
 			
 			void check_invariant_stability(const cola::Assignment& command);

@@ -105,7 +105,7 @@ void Verifier::check_pointer_accesses(const cola::Expression& expr) {
 			std::stringstream msg;
 			msg << "Unsafe dereference: '";
 			cola::print(*expr, msg);
-			msg << "' might be 'NULL'";
+			msg << "' might be 'NULL'.";
 			throw VerificationError(msg.str());
 		}
 	}
@@ -285,7 +285,7 @@ void Verifier::visit(const Return& cmd) {
 void Verifier::visit(const Malloc& cmd) {
 	// TODO: extend interference?
 	if (cmd.lhs.is_shared) {
-		throw VerificationError("Allocation must not target shared variable '" + cmd.lhs.name + "'.");
+		throw UnsupportedConstructError("allocation targeting shared variable '" + cmd.lhs.name + "'");
 	}
 	current_annotation = plankton::post(std::move(current_annotation), cmd);
 }

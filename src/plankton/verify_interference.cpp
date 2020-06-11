@@ -53,10 +53,14 @@ struct InterferneceExpressionRenamer : public BaseNonConstVisitor {
 		expr->accept(*this);
 	}
 
+	std::unique_ptr<VariableExpression> handle_variable(VariableExpression& expr) {
+		return std::make_unique<VariableExpression>(info.rename(expr.decl));
+	}
+
 	void visit(VariableExpression& expr) override {
 		assert(current_owner);
 		assert(current_owner->get() == &expr);
-		*current_owner = std::make_unique<VariableExpression>(info.rename(expr.decl));
+		*current_owner = handle_variable(expr);
 	}
 	
 	void visit(Dereference& expr) override {
@@ -80,41 +84,51 @@ struct InterferneceExpressionRenamer : public BaseNonConstVisitor {
 	void visit(NDetValue& /*expr*/) override { /* do nothing */ }
 };
 
-struct InterferenceFormulaRenamer : LogicVisitor {
-	RenamingInfo& info;
+struct InterferenceFormulaRenamer : LogicNonConstVisitor {
 	InterferneceExpressionRenamer expr_renamer;
-	std::unique_ptr<Formula> result;
 
-	InterferenceFormulaRenamer(RenamingInfo& info_) : info(info_), expr_renamer(info_) {}
+	InterferenceFormulaRenamer(RenamingInfo& info_) : expr_renamer(info_) {}
 
-	void visit(const ConjunctionFormula& formula) override {
-		auto copy = std::make_unique<ConjunctionFormula>();
-		for (const auto& conjunct : formula.conjuncts) {
+	void visit(ConjunctionFormula& formula) override {
+		for (auto& conjunct : formula.conjuncts) {
 			conjunct->accept(*this);
-			copy->conjuncts.push_back(std::move(result));
 		}
-		result = std::move(copy);
 	}
 
-	void visit(const ExpressionFormula& formula) override {
-		auto expr = cola::copy(*formula.expr);
-		expr_renamer.handle_expression(expr);
-		result = std::make_unique<ExpressionFormula>(std::move(expr));
+	void visit(ExpressionFormula& formula) override {
+		expr_renamer.handle_expression(formula.expr);
 	}
 
-	void visit(const PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: InterferenceFormulaRenamer::visit(const PastPredicate&)"); }
-	void visit(const FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: InterferenceFormulaRenamer::visit(const FuturePredicate&)"); }
-	void visit(const Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: InterferenceFormulaRenamer::visit(const Annotation&)"); }
+	void visit(NegatedFormula& formula) override {
+		formula.formula->accept(*this);
+	}
+
+	void visit(OwnershipFormula& formula) override {
+		formula.expr = expr_renamer.handle_variable(*formula.expr);
+	}
+
+	void visit(LogicallyContainedFormula& formula) override {
+		expr_renamer.handle_expression(formula.expr);
+	}
+
+	void visit(FlowFormula& formula) override {
+		expr_renamer.handle_expression(formula.expr);
+	}
+
+	void visit(PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: InterferenceFormulaRenamer::visit(const PastPredicate&)"); }
+	void visit(FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: InterferenceFormulaRenamer::visit(const FuturePredicate&)"); }
+	void visit(Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: InterferenceFormulaRenamer::visit(const Annotation&)"); }
 };
 
 void Verifier::extend_interference(const cola::Assignment& command) {
 	// make effect: (rename(current_annotation.now), rename(command)) where rename(x) renames the local variables in x
 	InterferenceFormulaRenamer renamer(interference_renaming_info);
-	current_annotation->now->accept(renamer);
+	auto pre = plankton::copy(*current_annotation->now);
+	pre->accept(renamer);
 	auto cmd = std::make_unique<Assignment>(cola::copy(*command.lhs), cola::copy(*command.rhs));
 	renamer.expr_renamer.handle_expression(cmd->lhs);
 	renamer.expr_renamer.handle_expression(cmd->rhs);
-	auto effect = std::make_unique<Effect>(std::move(renamer.result), std::move(cmd));
+	auto effect = std::make_unique<Effect>(std::move(pre), std::move(cmd));
 
 	// extend interference
 	extend_interference(std::move(effect));
@@ -138,8 +152,6 @@ bool commands_equal(const Command& cmd, const Command& other) {
 		lookup[key] = result;
 		return result;
 	}
-
-	throw std::logic_error("not yet implemented");
 }
 
 void Verifier::extend_interference(std::unique_ptr<Effect> effect) {
@@ -219,11 +231,20 @@ void Verifier::apply_interference() {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool Verifier::is_interference_free(const Formula& formula){
+inline std::unique_ptr<Annotation> merge_for_interference(const ConjunctionFormula& formula, const ConjunctionFormula& other) {
+	auto annotation = std::make_unique<Annotation>(plankton::copy(formula));
+	auto remaining = plankton::copy(other);
+	annotation->now->conjuncts.insert(
+		annotation->now->conjuncts.end(),
+		std::make_move_iterator(remaining->conjuncts.begin()),
+		std::make_move_iterator(remaining->conjuncts.end())
+	);
+	return annotation;
+}
+
+bool Verifier::is_interference_free(const ConjunctionFormula& formula){
 	for (const auto& effect : interference) {
-		auto pre = std::make_unique<Annotation>();
-		pre->now->conjuncts.push_back(plankton::copy(formula));
-		pre->now->conjuncts.push_back(plankton::copy(*effect->precondition));
+		auto pre = merge_for_interference(formula, *effect->precondition);
 
 		// TODO: have a light-weight check first?
 		auto post = plankton::post(std::move(pre), *effect->command);

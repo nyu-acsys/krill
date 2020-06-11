@@ -7,28 +7,81 @@ using namespace cola;
 using namespace plankton;
 
 
+inline std::unique_ptr<BasicFormula> copy_basic_formula(const BasicFormula& formula);
+
+template<>
+std::unique_ptr<BasicFormula> plankton::copy<BasicFormula>(const BasicFormula& formula) {
+	return copy_basic_formula(formula);
+}
+
+template<>
+std::unique_ptr<ExpressionFormula> plankton::copy<ExpressionFormula>(const ExpressionFormula& formula) {
+	return std::make_unique<ExpressionFormula>(cola::copy(*formula.expr));
+}
+
+template<>
+std::unique_ptr<NegatedFormula> plankton::copy<NegatedFormula>(const NegatedFormula& formula) {
+	return std::make_unique<NegatedFormula>(plankton::copy(*formula.formula));
+}
+
+template<>
+std::unique_ptr<OwnershipFormula> plankton::copy<OwnershipFormula>(const OwnershipFormula& formula) {
+	return std::make_unique<OwnershipFormula>(std::make_unique<VariableExpression>(formula.expr->decl));
+}
+
+template<>
+std::unique_ptr<LogicallyContainedFormula> plankton::copy<LogicallyContainedFormula>(const LogicallyContainedFormula& formula) {
+	return std::make_unique<LogicallyContainedFormula>(cola::copy(*formula.expr));
+}
+
+template<>
+std::unique_ptr<FlowFormula> plankton::copy<FlowFormula>(const FlowFormula& formula) {
+	return std::make_unique<FlowFormula>(cola::copy(*formula.expr), formula.flow);
+}
+
+template<>
+std::unique_ptr<ConjunctionFormula> plankton::copy<ConjunctionFormula>(const ConjunctionFormula& formula) {
+	auto copy = std::make_unique<ConjunctionFormula>();
+	for (const auto& conjunct : formula.conjuncts) {
+		copy->conjuncts.push_back(plankton::copy(*conjunct));
+	}
+	return copy;
+}
+
+struct CopyBasicFormulaVisitor : public LogicVisitor {
+	std::unique_ptr<BasicFormula> result;
+	void visit(const ExpressionFormula& formula) override { result = plankton::copy(formula); }
+	void visit(const NegatedFormula& formula) override { result = plankton::copy(formula); }
+	void visit(const OwnershipFormula& formula) override { result = plankton::copy(formula); }
+	void visit(const LogicallyContainedFormula& formula) override { result = plankton::copy(formula); }
+	void visit(const FlowFormula& formula) override { result = plankton::copy(formula); }
+	void visit(const ConjunctionFormula& /*formula*/) override { throw std::logic_error("Unexpected invocation: CopyBasicFormulaVisitor::visit(const ConjunctionFormula&)"); }
+	void visit(const PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: CopyBasicFormulaVisitor::visit(const PastPredicate&)"); }
+	void visit(const FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: CopyBasicFormulaVisitor::visit(const FuturePredicate&)"); }
+	void visit(const Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: CopyBasicFormulaVisitor::visit(const Annotation&)"); }
+};
+
+inline std::unique_ptr<BasicFormula> copy_basic_formula(const BasicFormula& formula) {
+	CopyBasicFormulaVisitor visitor;
+	formula.accept(visitor);
+	return std::move(visitor.result);
+}
+
 struct CopyFormulaVisitor : public LogicVisitor {
 	std::unique_ptr<Formula> result;
-
-	void visit(const ConjunctionFormula& formula) override {
-		auto copy = std::make_unique<ConjunctionFormula>();
-		for (const auto& conjunct : formula.conjuncts) {
-			conjunct->accept(*this);
-			copy->conjuncts.push_back(std::move(result));
-		}
-		result = std::move(copy);
-	}
-
-	void visit(const ExpressionFormula& formula) override {
-		result = std::make_unique<ExpressionFormula>(cola::copy(*formula.expr));
-	}
-
+	void visit(const ConjunctionFormula& formula) override { result = plankton::copy(formula); }
+	void visit(const ExpressionFormula& formula) override { result = plankton::copy(formula); }
+	void visit(const NegatedFormula& formula) override { result = plankton::copy(formula); }
+	void visit(const OwnershipFormula& formula) override { result = plankton::copy(formula); }
+	void visit(const LogicallyContainedFormula& formula) override { result = plankton::copy(formula); }
+	void visit(const FlowFormula& formula) override { result = plankton::copy(formula); }
 	void visit(const PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: CopyFormulaVisitor::visit(const PastPredicate&)"); }
 	void visit(const FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: CopyFormulaVisitor::visit(const FuturePredicate&)"); }
 	void visit(const Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: CopyFormulaVisitor::visit(const Annotation&)"); }
 };
 
-std::unique_ptr<Formula> plankton::copy(const Formula& formula) {
+template<>
+std::unique_ptr<Formula> plankton::copy<Formula>(const Formula& formula) {
 	CopyFormulaVisitor visitor;
 	formula.accept(visitor);
 	return std::move(visitor.result);
