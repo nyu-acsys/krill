@@ -228,26 +228,59 @@ std::unique_ptr<Annotation> plankton::copy(const Annotation& annotation) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-// struct FlattenVisitor : public LogicNonConstVisitor {
-// 	std::unique_ptr<ConjunctionFormula> result;
-// 	FlattenVisitor() : result(std::make_unique<ConjunctionFormula>()) {}
+struct FlattenVisitor : public LogicNonConstVisitor {
+	std::unique_ptr<ConjunctionFormula> result;
+	bool drop_child = false;
+	FlattenVisitor() : result(std::make_unique<ConjunctionFormula>()) {}
 
-// 	virtual void visit(ConjunctionFormula& formula) = 0;
-// 	virtual void visit(ImplicationFormula& formula) = 0;
-// 	virtual void visit(ExpressionFormula& formula) = 0;
-// 	virtual void visit(NegatedFormula& formula) = 0;
-// 	virtual void visit(OwnershipFormula& formula) = 0;
-// 	virtual void visit(LogicallyContainedFormula& formula) = 0;
-// 	virtual void visit(FlowFormula& formula) = 0;
-// 	virtual void visit(ObligationFormula& formula) = 0;
-// 	virtual void visit(FulfillmentFormula& formula) = 0;
-// 	virtual void visit(PastPredicate& formula) = 0;
-// 	virtual void visit(FuturePredicate& formula) = 0;
-// 	virtual void visit(Annotation& formula) = 0;
-// };
+	void visit(ConjunctionFormula& formula) override {
+		for (auto& conjunct : formula.conjuncts) {
+			drop_child = false;
+			conjunct->accept(*this);
+			if (!drop_child) {
+				result->conjuncts.push_back(std::move(conjunct));
+			}
+		}
+		drop_child = true;
+	}
 
-std::unique_ptr<ConjunctionFormula> plankton::flatten(std::unique_ptr<Formula> /*formula*/) {
-	throw std::logic_error("not yet implemented (plankton::flatten)");
+	void visit(NegatedFormula& formula) override {
+		Formula* raw = formula.formula.get();
+		ImplicationFormula* cast = dynamic_cast<ImplicationFormula*>(raw);
+		if (cast) {
+			auto premise = plankton::flatten(std::move(cast->premise));
+			result->conjuncts.insert(result->conjuncts.end(), std::make_move_iterator(premise->conjuncts.begin()), std::make_move_iterator(premise->conjuncts.end()));
+			auto conclusion = std::move(cast->conclusion);
+			result->conjuncts.push_back(std::make_unique<NegatedFormula>(std::move(conclusion)));
+			drop_child = true;
+
+		} else {
+			/* do nothing */
+		}
+	}
+
+	void visit(ImplicationFormula& /*formula*/) override { /* do nothing */ }
+	void visit(ExpressionFormula& /*formula*/) override { /* do nothing */ }
+	void visit(OwnershipFormula& /*formula*/) override { /* do nothing */ }
+	void visit(LogicallyContainedFormula& /*formula*/) override { /* do nothing */ }
+	void visit(FlowFormula& /*formula*/) override { /* do nothing */ }
+	void visit(ObligationFormula& /*formula*/) override { /* do nothing */ }
+	void visit(FulfillmentFormula& /*formula*/) override { /* do nothing */ }
+	
+	void visit(PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: FlattenVisitor::visit(PastPredicate&)"); }
+	void visit(FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: FlattenVisitor::visit(FuturePredicate&)"); }
+	void visit(Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: FlattenVisitor::visit(Annotation&)"); }
+};
+
+std::unique_ptr<ConjunctionFormula> plankton::flatten(std::unique_ptr<Formula> formula) {
+	 // we need a conjunction formula at top level, create a dummy one
+	auto dummy = std::make_unique<ConjunctionFormula>();
+	dummy->conjuncts.push_back(std::move(formula));
+
+	// flatten the dummy
+	FlattenVisitor visitor;
+	dummy->accept(visitor);
+	return std::move(visitor.result);
 }
 
 std::unique_ptr<ConjunctionFormula> plankton::flatten(const Formula& formula) {
