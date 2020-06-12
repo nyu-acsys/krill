@@ -58,6 +58,10 @@ const VariableDeclaration& RenamingInfo::rename(const VariableDeclaration& decl)
 	return *replacement;
 }
 
+transformer_t RenamingInfo::as_transformer() {
+	throw std::logic_error("not yet implemented: RenamingInfo::as_transformer()");
+}
+
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

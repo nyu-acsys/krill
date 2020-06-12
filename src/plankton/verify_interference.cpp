@@ -1,7 +1,6 @@
 #include "plankton/verify.hpp"
 
 #include <map>
-#include <sstream>
 #include "cola/util.hpp"
 #include "cola/visitors.hpp"
 #include "plankton/config.hpp"
@@ -10,10 +9,6 @@
 using namespace cola;
 using namespace plankton;
 
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct EffectSearcher : public BaseVisitor {
 	bool result = false;
@@ -38,125 +33,18 @@ bool Verifier::has_effect(const Expression& assignee) {
 }
 
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-struct InterferneceExpressionRenamer : public BaseNonConstVisitor {
-	RenamingInfo& info;
-	std::unique_ptr<Expression>* current_owner = nullptr;
-
-	InterferneceExpressionRenamer(RenamingInfo& info_) : info(info_) {}
-
-	void handle_expression(std::unique_ptr<Expression>& expr) {
-		current_owner = &expr;
-		expr->accept(*this);
-	}
-
-	std::unique_ptr<VariableExpression> handle_variable(VariableExpression& expr) {
-		return std::make_unique<VariableExpression>(info.rename(expr.decl));
-	}
-
-	void visit(VariableExpression& expr) override {
-		assert(current_owner);
-		assert(current_owner->get() == &expr);
-		*current_owner = handle_variable(expr);
-	}
-	
-	void visit(Dereference& expr) override {
-		handle_expression(expr.expr);
-	}
-	
-	void visit(NegatedExpression& expr) override {
-		handle_expression(expr.expr);
-	}
-
-	void visit(BinaryExpression& expr) override {
-		handle_expression(expr.lhs);
-		handle_expression(expr.rhs);
-	}
-
-	void visit(BooleanValue& /*expr*/) override { /* do nothing */ }
-	void visit(NullValue& /*expr*/) override { /* do nothing */ }
-	void visit(EmptyValue& /*expr*/) override { /* do nothing */ }
-	void visit(MaxValue& /*expr*/) override { /* do nothing */ }
-	void visit(MinValue& /*expr*/) override { /* do nothing */ }
-	void visit(NDetValue& /*expr*/) override { /* do nothing */ }
-};
-
-struct InterferenceFormulaRenamer : LogicNonConstVisitor {
-	InterferneceExpressionRenamer expr_renamer;
-
-	InterferenceFormulaRenamer(RenamingInfo& info_) : expr_renamer(info_) {}
-
-	void visit(ConjunctionFormula& formula) override {
-		for (auto& conjunct : formula.conjuncts) {
-			conjunct->accept(*this);
-		}
-	}
-
-	void visit(ExpressionFormula& formula) override {
-		expr_renamer.handle_expression(formula.expr);
-	}
-
-	void visit(NegatedFormula& formula) override {
-		formula.formula->accept(*this);
-	}
-
-	void visit(OwnershipFormula& formula) override {
-		formula.expr = expr_renamer.handle_variable(*formula.expr);
-	}
-
-	void visit(LogicallyContainedFormula& formula) override {
-		expr_renamer.handle_expression(formula.expr);
-	}
-
-	void visit(FlowFormula& formula) override {
-		expr_renamer.handle_expression(formula.expr);
-	}
-
-	void visit(ObligationFormula& /*formula*/) override {
-		throw std::logic_error("not yet implemented: InterferenceFormulaRenamer::visit(ObligationFormula&)");
-	}
-
-	void visit(FulfillmentFormula& /*formula*/) override {
-		throw std::logic_error("not yet implemented: InterferenceFormulaRenamer::visit(FulfillmentFormula&)");
-	}
-
-	void visit(PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: InterferenceFormulaRenamer::visit(const PastPredicate&)"); }
-	void visit(FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: InterferenceFormulaRenamer::visit(const FuturePredicate&)"); }
-	void visit(Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: InterferenceFormulaRenamer::visit(const Annotation&)"); }
-};
-
-void Verifier::extend_interference(const cola::Assignment& command) {
-	// make effect: (rename(current_annotation.now), rename(command)) where rename(x) renames the local variables in x
-	InterferenceFormulaRenamer renamer(interference_renaming_info);
-	auto pre = plankton::copy(*current_annotation->now);
-	pre->accept(renamer);
-	auto cmd = std::make_unique<Assignment>(cola::copy(*command.lhs), cola::copy(*command.rhs));
-	renamer.expr_renamer.handle_expression(cmd->lhs);
-	renamer.expr_renamer.handle_expression(cmd->rhs);
-	auto effect = std::make_unique<Effect>(std::move(pre), std::move(cmd));
-
-	// extend interference
-	extend_interference(std::move(effect));
-}
-
-bool commands_equal(const Command& cmd, const Command& other) {
+bool commands_equal(const Assignment& cmd, const Assignment& other) {
 	static std::map<std::pair<std::size_t, std::size_t>, bool> lookup;
 
 	std::pair<std::size_t, std::size_t> key;
 	key = cmd.id <= other.id ? std::make_pair(cmd.id, other.id) : std::make_pair(other.id, cmd.id);
+
 	auto find = lookup.find(key);
 	if (find != lookup.end()) {
 		return find->second;
-	} else {
 
-		// TODO: find a better way to check for equivalence
-		std::stringstream cmdStream, otherStream;
-		cola::print(cmd, cmdStream);
-		cola::print(other, otherStream);
-		bool result = cmdStream.str() == otherStream.str();
+	} else {
+		bool result = plankton::syntactically_equal(*cmd.lhs, *other.lhs) && plankton::syntactically_equal(*cmd.rhs, *other.rhs);
 		lookup[key] = result;
 		return result;
 	}
@@ -199,21 +87,32 @@ void Verifier::extend_interference(std::unique_ptr<Effect> effect) {
 	}
 }
 
+void Verifier::extend_interference(const cola::Assignment& command) {
+	auto transformer = interference_renaming_info.as_transformer();
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
+	// make effect: (rename(current_annotation.now), rename(command)) where rename(x) renames the local variables in x
+	auto pre = plankton::replace_expression(plankton::copy(*current_annotation->now), transformer);
+	auto cmd = std::make_unique<Assignment>(
+		plankton::replace_expression(cola::copy(*command.lhs), transformer),
+		plankton::replace_expression(cola::copy(*command.rhs), transformer)
+	);
+	auto effect = std::make_unique<Effect>(std::move(pre), std::move(cmd));
+
+	// extend interference
+	extend_interference(std::move(effect));
+}
+
 
 void Verifier::apply_interference() {
 	if (inside_atomic) return;
-	auto& now = *current_annotation->now; // TODO: ensure that current_annotation->now does not contain nested conjunctions
+	auto now = plankton::flatten(std::move(current_annotation->now));
 	
 	// find strongest formula that is interference
 	auto stable = std::make_unique<ConjunctionFormula>();
 	bool changed;
 	do {
 		changed = false;
-		for (auto& conjunct : now.conjuncts) {
+		for (auto& conjunct : now->conjuncts) {
 			if (!conjunct) continue;
 
 			// add conjunct to stable
@@ -235,22 +134,7 @@ void Verifier::apply_interference() {
 }
 
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-inline std::unique_ptr<Annotation> merge_for_interference(const ConjunctionFormula& formula, const ConjunctionFormula& other) {
-	auto annotation = std::make_unique<Annotation>(plankton::copy(formula));
-	auto remaining = plankton::copy(other);
-	annotation->now->conjuncts.insert(
-		annotation->now->conjuncts.end(),
-		std::make_move_iterator(remaining->conjuncts.begin()),
-		std::make_move_iterator(remaining->conjuncts.end())
-	);
-	return annotation;
-}
-
-bool Verifier::is_interference_free(const ConjunctionFormula& formula){
+bool Verifier::is_interference_free(const Formula& formula){
 	for (const auto& effect : interference) {
 		if (!post_maintains_formula(*effect->precondition, formula, *effect->command)) {
 			return false;

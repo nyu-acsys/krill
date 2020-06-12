@@ -16,6 +16,7 @@
 namespace plankton {
 
 	struct ConjunctionFormula;
+	struct ImplicationFormula;
 	struct ExpressionFormula;
 	struct NegatedFormula;
 	struct OwnershipFormula;
@@ -29,6 +30,7 @@ namespace plankton {
 
 	struct LogicVisitor {
 		virtual void visit(const ConjunctionFormula& formula) = 0;
+		virtual void visit(const ImplicationFormula& formula) = 0;
 		virtual void visit(const ExpressionFormula& formula) = 0;
 		virtual void visit(const NegatedFormula& formula) = 0;
 		virtual void visit(const OwnershipFormula& formula) = 0;
@@ -43,6 +45,7 @@ namespace plankton {
 
 	struct LogicNonConstVisitor {
 		virtual void visit(ConjunctionFormula& formula) = 0;
+		virtual void visit(ImplicationFormula& formula) = 0;
 		virtual void visit(ExpressionFormula& formula) = 0;
 		virtual void visit(NegatedFormula& formula) = 0;
 		virtual void visit(OwnershipFormula& formula) = 0;
@@ -67,16 +70,25 @@ namespace plankton {
 		protected: Formula() {}
 	};
 
-	struct BasicFormula : public Formula {
-	};
-
 	struct ConjunctionFormula : public Formula {
-		std::deque<std::unique_ptr<BasicFormula>> conjuncts; // TODO: use list (interference freedom checks merge conjunctions frequently)?
+		std::deque<std::unique_ptr<Formula>> conjuncts; // TODO: use list (interference freedom checks merge conjunctions frequently)?
 		ACCEPT_FORMULA_VISITOR
 	};
 
-	struct ExpressionFormula : public BasicFormula {
+	struct ImplicationFormula : public Formula {
+		std::unique_ptr<Formula> premise;
+		std::unique_ptr<Formula> conclusion;
+
+		ImplicationFormula(std::unique_ptr<Formula> premise_, std::unique_ptr<Formula> conclusion_) : premise(std::move(premise_)), conclusion(std::move(conclusion_)) {
+			assert(premise);
+			assert(conclusion);
+		}
+		ACCEPT_FORMULA_VISITOR
+	};
+
+	struct ExpressionFormula : public Formula {
 		std::unique_ptr<cola::Expression> expr;
+
 		ExpressionFormula(std::unique_ptr<cola::Expression> expr_) : expr(std::move(expr_)) {
 			assert(expr);
 			assert(expr->type() == cola::Type::bool_type());
@@ -84,16 +96,18 @@ namespace plankton {
 		ACCEPT_FORMULA_VISITOR
 	};
 
-	struct NegatedFormula : BasicFormula {
-		std::unique_ptr<BasicFormula> formula;
-		NegatedFormula(std::unique_ptr<BasicFormula> formula_) : formula(std::move(formula_)) {
+	struct NegatedFormula : Formula {
+		std::unique_ptr<Formula> formula;
+
+		NegatedFormula(std::unique_ptr<Formula> formula_) : formula(std::move(formula_)) {
 			assert(formula);
 		}
 		ACCEPT_FORMULA_VISITOR
 	};
 
-	struct OwnershipFormula : public BasicFormula {
+	struct OwnershipFormula : public Formula {
 		std::unique_ptr<cola::VariableExpression> expr;
+
 		OwnershipFormula(std::unique_ptr<cola::VariableExpression> expr_) : expr(std::move(expr_)) {
 			assert(expr);
 			assert(!expr->decl.is_shared);
@@ -102,8 +116,9 @@ namespace plankton {
 		ACCEPT_FORMULA_VISITOR
 	};
 
-	struct LogicallyContainedFormula : public BasicFormula {
+	struct LogicallyContainedFormula : public Formula {
 		std::unique_ptr<cola::Expression> expr;
+
 		LogicallyContainedFormula(std::unique_ptr<cola::Expression> expr_) : expr(std::move(expr_)) {
 			assert(expr);
 			assert(expr->sort() == cola::Sort::DATA);
@@ -111,9 +126,10 @@ namespace plankton {
 		ACCEPT_FORMULA_VISITOR
 	};
 
-	struct FlowFormula : BasicFormula {
+	struct FlowFormula : Formula {
 		std::unique_ptr<cola::Expression> expr;
 		FlowValue flow;
+
 		FlowFormula(std::unique_ptr<cola::Expression> expr_, FlowValue flow_) : expr(std::move(expr_)), flow(flow_) {
 			assert(expr);
 			assert(expr->sort() == cola::Sort::PTR);
@@ -121,27 +137,35 @@ namespace plankton {
 		ACCEPT_FORMULA_VISITOR
 	};
 
-	struct ObligationFormula : BasicFormula {
+	struct ObligationFormula : Formula {
 		// TODO: fill
 		ACCEPT_FORMULA_VISITOR
 	};
 
-	struct FulfillmentFormula : BasicFormula {
+	struct FulfillmentFormula : Formula {
 		// TODO: fill
 		ACCEPT_FORMULA_VISITOR
 	};
 
-	struct PastPredicate {
+
+	struct TimePredicate {
+		TimePredicate(const TimePredicate& other) = delete;
+		virtual ~TimePredicate() = default;
+		virtual void accept(LogicVisitor& visitor) const = 0;
+		virtual void accept(LogicNonConstVisitor& visitor) = 0;
+		protected: TimePredicate() {}
+	};
+
+	struct PastPredicate : public TimePredicate {
 		std::unique_ptr<Formula> formula;
 		
 		PastPredicate(std::unique_ptr<Formula> formula_) : formula(std::move(formula_)) {
 			assert(formula);
 		}
-		void accept(LogicVisitor& visitor) const { visitor.visit(*this); }
-		void accept(LogicNonConstVisitor& visitor) { visitor.visit(*this); }
+		ACCEPT_FORMULA_VISITOR
 	};
 
-	struct FuturePredicate {
+	struct FuturePredicate : public TimePredicate  {
 		std::unique_ptr<Formula> pre;
 		std::unique_ptr<cola::Assignment> command;
 		std::unique_ptr<Formula> post;
@@ -152,35 +176,21 @@ namespace plankton {
 				assert(command);
 				assert(post);
 			}
-		void accept(LogicVisitor& visitor) const { visitor.visit(*this); }
-		void accept(LogicNonConstVisitor& visitor) { visitor.visit(*this); }
+			ACCEPT_FORMULA_VISITOR
 	};
+
 
 	struct Annotation {
-		std::unique_ptr<ConjunctionFormula> now;
-		std::deque<PastPredicate> past;
-		std::deque<FuturePredicate> future;
+		std::unique_ptr<Formula> now;
+		std::deque<std::unique_ptr<TimePredicate>> time;
 
-		Annotation(std::unique_ptr<ConjunctionFormula> now_) : now(std::move(now_)) {
+		Annotation() : now(std::make_unique<ConjunctionFormula>()) {}
+		Annotation(std::unique_ptr<Formula> now_) : now(std::move(now_)) {
 			assert(now);
 		}
-		Annotation() : now(std::make_unique<ConjunctionFormula>()) {}
 		void accept(LogicVisitor& visitor) const { visitor.visit(*this); }
 		void accept(LogicNonConstVisitor& visitor) { visitor.visit(*this); }
 	};
-
-
-	void print(const Formula& formula, std::ostream& stream);
-	void print(const PastPredicate& predicate, std::ostream& stream);
-	void print(const FuturePredicate& predicate, std::ostream& stream);
-	void print(const Annotation& annotation, std::ostream& stream);
-
-
-	template<typename T, typename = std::enable_if<std::is_base_of<Formula, T>::value>>
-	std::unique_ptr<T> copy(const T& formula);
-	PastPredicate copy(const PastPredicate& predicate);
-	FuturePredicate copy(const FuturePredicate& predicate);
-	std::unique_ptr<Annotation> copy(const Annotation& annotation);
 
 
 	std::unique_ptr<Annotation> make_true();

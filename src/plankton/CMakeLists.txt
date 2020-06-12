@@ -18,6 +18,7 @@ set(SOURCES
 	error.cpp
 	logic.cpp
 	post.cpp
+	util.cpp
 	verify.cpp
 	verify_interference.cpp
 )

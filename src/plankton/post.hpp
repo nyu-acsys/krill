@@ -25,11 +25,11 @@ namespace plankton {
 
 	/** Tests whether 'cmd' maintains 'maintained' under 'pre & maintained'.
 	  */
-	bool post_maintains_formula(const ConjunctionFormula& pre, const ConjunctionFormula& maintained, const cola::Assignment& cmd);
+	bool post_maintains_formula(const Formula& pre, const Formula& maintained, const cola::Assignment& cmd);
 
 	/** Tests whether 'cmd' maintains 'forall n. invariant(n)' under 'pre & (forall n. invariant(n))'.
 	  */
-	bool post_maintains_invariant(const Annotation& pre, const ConjunctionFormula& invariant, const cola::Assignment& cmd);
+	bool post_maintains_invariant(const Annotation& pre, const Formula& invariant, const cola::Assignment& cmd);
 
 } // namespace plankton
 

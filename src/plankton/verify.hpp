@@ -10,21 +10,26 @@
 #include "cola/ast.hpp"
 #include "plankton/error.hpp"
 #include "plankton/logic.hpp"
+#include "plankton/util.hpp"
 
 
 namespace plankton {
 
 	struct Effect {
-		std::unique_ptr<ConjunctionFormula> precondition;
+		std::unique_ptr<Formula> precondition;
 		std::unique_ptr<cola::Assignment> command;
-		Effect(std::unique_ptr<ConjunctionFormula> pre, std::unique_ptr<cola::Assignment> cmd) : precondition(std::move(pre)), command(std::move(cmd)) {}
+		
+		Effect(std::unique_ptr<Formula> pre, std::unique_ptr<cola::Assignment> cmd) : precondition(std::move(pre)), command(std::move(cmd)) {}
 	};
 
 	struct RenamingInfo {
 		std::vector<std::unique_ptr<cola::VariableDeclaration>> renamed_variables;
 		std::map<const cola::VariableDeclaration*, const cola::VariableDeclaration*> variable2renamed;
+		
 		RenamingInfo() = default;
 		RenamingInfo(const RenamingInfo& other) = delete;
+
+		transformer_t as_transformer();
 		const cola::VariableDeclaration& rename(const cola::VariableDeclaration& decl);
 	};
 
@@ -69,7 +74,7 @@ namespace plankton {
 			void extend_interference(const cola::Assignment& command); // calls extend_interferenceadds with renamed (current_annotation, command)
 			void extend_interference(std::unique_ptr<Effect> effect); // adds effect to interference; updates is_interference_saturated
 			void apply_interference(); // weakens current_annotation according to interference
-			bool is_interference_free(const ConjunctionFormula& formula);
+			bool is_interference_free(const Formula& formula);
 			bool has_effect(const cola::Expression& assignee);
 	};
 
