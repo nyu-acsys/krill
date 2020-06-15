@@ -40,6 +40,62 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> /*pr
 // TODO: (3) infer new knowledge (exhaustively)
 
 
+struct OwnershipChecker : public LogicNonConstVisitor {
+	const Expression& prune_expr;
+	bool prune_child = false;
+	bool prune_value = true;
+	OwnershipChecker(const Expression& expr) : prune_expr(expr) {}
+
+	template<typename T>
+	void handle_formula(std::unique_ptr<T>& formula) {
+		formula->accept(*this);
+		if (prune_child) {
+			formula = std::make_unique<ExpressionFormula>(std::make_unique<BooleanValue>(prune_value));
+			prune_child = false;
+		}
+	}
+
+	void visit(ConjunctionFormula& formula) override {
+		for (auto& conjunct : formula.conjuncts) {
+			handle_formula(conjunct);
+		}
+	}
+	
+	void visit(NegatedFormula& formula) override {
+		bool old_value = prune_value;
+		prune_value = !prune_value;
+		handle_formula(formula.formula);
+		prune_value = old_value;
+	}
+
+	void visit(ImplicationFormula& formula) override {
+		// do not touch formula.precondition
+		handle_formula(formula.conclusion);
+	}
+
+	void visit(OwnershipFormula& formula) override {
+		if (plankton::syntactically_equal(*formula.expr, prune_expr)) {
+			prune_child = true;
+		}
+	}
+
+	void visit(ExpressionFormula& /*formula*/) override { /* do nothing */ }
+	void visit(LogicallyContainedFormula& /*formula*/) override { /* do nothing */ }
+	void visit(FlowFormula& /*formula*/) override { /* do nothing */ }
+	void visit(ObligationFormula& /*formula*/) override { /* do nothing */ }
+	void visit(FulfillmentFormula& /*formula*/) override { /* do nothing */ }
+	void visit(PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: OwnershipChecker::visit(PastPredicate&)"); }
+	void visit(FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: OwnershipChecker::visit(FuturePredicate&)"); }
+	void visit(Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: OwnershipChecker::visit(Annotation&)"); }
+};
+
+std::unique_ptr<Formula> destroy_ownership(std::unique_ptr<Formula> formula, const Expression& expr) {
+	// remove ownership of 'expr' in 'uptrcontainer'
+	OwnershipChecker visitor(expr);
+	visitor.handle_formula(formula);
+	return formula;
+}
+
 template<typename T>
 T container_search_and_destroy(T&& uptrcontainer, const Expression& destroy) {
 	// remove knowledge about 'destroy' in 'uptrcontainer'
@@ -67,7 +123,8 @@ T container_search_and_inline(T&& uptrcontainer, const Expression& search, const
 
 std::unique_ptr<Annotation> search_and_destroy_and_inline(std::unique_ptr<Annotation> pre, const Expression& lhs, const Expression& rhs) {
 	// destroy knowledge about lhs
-	auto flat = plankton::flatten(std::move(pre->now));
+	auto pruned = destroy_ownership(std::move(pre->now), rhs);
+	auto flat = plankton::flatten(std::move(pruned));
 	flat->conjuncts = container_search_and_destroy(std::move(flat->conjuncts), lhs);
 	pre->time = container_search_and_destroy(std::move(pre->time), lhs);
 
@@ -82,7 +139,6 @@ std::unique_ptr<Annotation> search_and_destroy_and_inline(std::unique_ptr<Annota
 
 	// done
 	return pre;
-	throw std::logic_error("not yet implemented");
 }
 
 std::unique_ptr<Annotation> post_full_assign_var_expr(std::unique_ptr<Annotation> pre, const Assignment& /*cmd*/, const VariableExpression& lhs, const Expression& rhs) {
