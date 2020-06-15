@@ -2,6 +2,7 @@
 
 #include <set>
 #include <sstream>
+#include <iostream> // TODO:remove
 #include "cola/util.hpp"
 #include "plankton/config.hpp"
 #include "plankton/post.hpp"
@@ -327,7 +328,7 @@ void Verifier::visit(const Macro& cmd) {
 	}
 
 	// descend into function call
-	cmd.decl.accept(*this);
+	cmd.decl.body->accept(*this);
 
 	// get returned values (treated as assignments)
 	for (std::size_t i = 0; i < cmd.lhs.size(); ++i) {

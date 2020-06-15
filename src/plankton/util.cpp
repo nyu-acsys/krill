@@ -302,112 +302,164 @@ bool plankton::syntactically_equal(const Expression& expression, const Expressio
 	return expressionStream.str() == otherStream.str();
 }
 
+struct ContainsVisitor : public BaseVisitor, public LogicVisitor {
+	using BaseVisitor::visit;
+	using LogicVisitor::visit;
 
-bool plankton::contains_expression(const Formula& /*formula*/, const Expression& /*search*/) {
-	throw std::logic_error("not yet implemented: plankton::contains_expression");
+	const Expression& search;
+	bool found = false;
+	ContainsVisitor(const Expression& search_) : search(search_) {}
+
+	template<typename T>
+	static bool contains(const T& obj, const Expression& search) {
+		ContainsVisitor visitor(search);
+		obj.accept(visitor);
+		return visitor.found;
+	}
+
+	template<typename T>
+	void handle_expression(const std::unique_ptr<T>& expression) {
+		if (syntactically_equal(*expression, search)) {
+			found = true;
+		}
+		if (!found) {
+			expression->accept(*this);
+		}
+	}
+
+	void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
+	void visit(const NullValue& /*node*/) override { /* do nothing */ }
+	void visit(const EmptyValue& /*node*/) override { /* do nothing */ }
+	void visit(const MaxValue& /*node*/) override { /* do nothing */ }
+	void visit(const MinValue& /*node*/) override { /* do nothing */ }
+	void visit(const NDetValue& /*node*/) override { /* do nothing */ }
+	void visit(const VariableExpression& /*node*/) override { /* do nothing */ }
+	void visit(const NegatedExpression& node) override { handle_expression(node.expr); }
+	void visit(const BinaryExpression& node) override { handle_expression(node.lhs); handle_expression(node.rhs); }
+	void visit(const Dereference& node) override { handle_expression(node.expr); }
+	void visit(const ExpressionFormula& formula) override { handle_expression(formula.expr); }
+	void visit(const OwnershipFormula& formula) override { handle_expression(formula.expr); }
+	void visit(const LogicallyContainedFormula& formula) override { handle_expression(formula.expr); }
+	void visit(const FlowFormula& formula) override { handle_expression(formula.expr); }
+	void visit(const ObligationFormula& /*formula*/) override { throw std::logic_error("not yet implemented: ContainsVisitor::visit(const ObligationFormula&)"); }
+	void visit(const FulfillmentFormula& /*formula*/) override { throw std::logic_error("not yet implemented: ContainsVisitor::visit(const FulfillmentFormula&)"); }
+	void visit(const NegatedFormula& formula) override { formula.formula->accept(*this); }
+	void visit(const ConjunctionFormula& formula) override {
+		for (const auto& conjunct : formula.conjuncts) {
+			conjunct->accept(*this);
+		}
+	}
+	void visit(const ImplicationFormula& formula) override { formula.premise->accept(*this); formula.conclusion->accept(*this); }
+	void visit(const PastPredicate& formula) override { formula.formula->accept(*this); }
+	void visit(const FuturePredicate& formula) override {
+		formula.pre->accept(*this);
+		handle_expression(formula.command->lhs);
+		handle_expression(formula.command->rhs);
+		formula.post->accept(*this);
+	}
+	void visit(const Annotation& formula) override {
+		formula.now->accept(*this);
+		for (const auto& pred : formula.time) {
+			pred->accept(*this);
+		}
+	}
+};
+
+bool plankton::contains_expression(const Formula& formula, const Expression& search) {
+	return ContainsVisitor::contains(formula, search);
 }
 
-bool plankton::contains_expression(const TimePredicate& /*predicate*/, const Expression& /*search*/) {
-	throw std::logic_error("not yet implemented: plankton::contains_expression");
+bool plankton::contains_expression(const TimePredicate& predicate, const Expression& search) {
+	return ContainsVisitor::contains(predicate, search);
 }
 
-// struct InterferneceExpressionRenamer : public BaseNonConstVisitor {
-// 	RenamingInfo& info;
-// 	std::unique_ptr<Expression>* current_owner = nullptr;
 
-// 	InterferneceExpressionRenamer(RenamingInfo& info_) : info(info_) {}
+struct ReplacementVisitor : public BaseNonConstVisitor, public LogicNonConstVisitor {
+	using BaseNonConstVisitor::visit;
+	using LogicNonConstVisitor::visit;
 
-// 	void handle_expression(std::unique_ptr<Expression>& expr) {
-// 		current_owner = &expr;
-// 		expr->accept(*this);
-// 	}
+	transformer_t transformer;
+	ReplacementVisitor(transformer_t transformer_) : transformer(transformer_) {}
 
-// 	std::unique_ptr<VariableExpression> handle_variable(VariableExpression& expr) {
-// 		return std::make_unique<VariableExpression>(info.rename(expr.decl));
-// 	}
+	template<typename T>
+	static std::unique_ptr<T> replace(std::unique_ptr<T> obj, transformer_t transformer) {
+		ReplacementVisitor visitor(transformer);
+		obj->accept(visitor);
+		return std::move(obj);
+	}
 
-// 	void visit(VariableExpression& expr) override {
-// 		assert(current_owner);
-// 		assert(current_owner->get() == &expr);
-// 		*current_owner = handle_variable(expr);
-// 	}
-	
-// 	void visit(Dereference& expr) override {
-// 		handle_expression(expr.expr);
-// 	}
-	
-// 	void visit(NegatedExpression& expr) override {
-// 		handle_expression(expr.expr);
-// 	}
+	void handle_expression(std::unique_ptr<Expression>& expression) {
+		auto [replace, replacement] = transformer(*expression);
+		if (replace) {
+			expression = std::move(replacement);
+		} else {
+			expression->accept(*this);
+		}
+	}
 
-// 	void visit(BinaryExpression& expr) override {
-// 		handle_expression(expr.lhs);
-// 		handle_expression(expr.rhs);
-// 	}
+	void visit(OwnershipFormula& formula) override {
+		auto [replace, replacement] = transformer(*formula.expr);
+		if (replace) {
+			Expression* raw = replacement.get();
+			VariableExpression* cast = dynamic_cast<VariableExpression*>(raw);
+			if (!cast) {
+				throw std::logic_error("Replacement violates AST: replacing 'VariableExpression' in 'OwnershipFormula' with an incompatible type.");
+			}
+			formula.expr.release();
+			formula.expr.reset(cast);
+		} else {
+			formula.expr->accept(*this);
+		}
+	}
 
-// 	void visit(BooleanValue& /*expr*/) override { /* do nothing */ }
-// 	void visit(NullValue& /*expr*/) override { /* do nothing */ }
-// 	void visit(EmptyValue& /*expr*/) override { /* do nothing */ }
-// 	void visit(MaxValue& /*expr*/) override { /* do nothing */ }
-// 	void visit(MinValue& /*expr*/) override { /* do nothing */ }
-// 	void visit(NDetValue& /*expr*/) override { /* do nothing */ }
-// };
-
-// struct InterferenceFormulaRenamer : LogicNonConstVisitor {
-// 	InterferneceExpressionRenamer expr_renamer;
-
-// 	InterferenceFormulaRenamer(RenamingInfo& info_) : expr_renamer(info_) {}
-
-// 	void visit(ConjunctionFormula& formula) override {
-// 		for (auto& conjunct : formula.conjuncts) {
-// 			conjunct->accept(*this);
-// 		}
-// 	}
-
-// 	void visit(ExpressionFormula& formula) override {
-// 		expr_renamer.handle_expression(formula.expr);
-// 	}
-
-// 	void visit(NegatedFormula& formula) override {
-// 		formula.formula->accept(*this);
-// 	}
-
-// 	void visit(OwnershipFormula& formula) override {
-// 		formula.expr = expr_renamer.handle_variable(*formula.expr);
-// 	}
-
-// 	void visit(LogicallyContainedFormula& formula) override {
-// 		expr_renamer.handle_expression(formula.expr);
-// 	}
-
-// 	void visit(FlowFormula& formula) override {
-// 		expr_renamer.handle_expression(formula.expr);
-// 	}
-
-// 	void visit(ObligationFormula& /*formula*/) override {
-// 		throw std::logic_error("not yet implemented: InterferenceFormulaRenamer::visit(ObligationFormula&)");
-// 	}
-
-// 	void visit(FulfillmentFormula& /*formula*/) override {
-// 		throw std::logic_error("not yet implemented: InterferenceFormulaRenamer::visit(FulfillmentFormula&)");
-// 	}
-
-// 	void visit(PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: InterferenceFormulaRenamer::visit(const PastPredicate&)"); }
-// 	void visit(FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: InterferenceFormulaRenamer::visit(const FuturePredicate&)"); }
-// 	void visit(Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: InterferenceFormulaRenamer::visit(const Annotation&)"); }
-// };
+	void visit(BooleanValue& /*node*/) override { /* do nothing */ }
+	void visit(NullValue& /*node*/) override { /* do nothing */ }
+	void visit(EmptyValue& /*node*/) override { /* do nothing */ }
+	void visit(MaxValue& /*node*/) override { /* do nothing */ }
+	void visit(MinValue& /*node*/) override { /* do nothing */ }
+	void visit(NDetValue& /*node*/) override { /* do nothing */ }
+	void visit(VariableExpression& /*node*/) override { /* do nothing */ }
+	void visit(NegatedExpression& node) override { handle_expression(node.expr); }
+	void visit(BinaryExpression& node) override { handle_expression(node.lhs); handle_expression(node.rhs); }
+	void visit(Dereference& node) override { handle_expression(node.expr); }
+	void visit(ExpressionFormula& formula) override { handle_expression(formula.expr); }
+	void visit(LogicallyContainedFormula& formula) override { handle_expression(formula.expr); }
+	void visit(FlowFormula& formula) override { handle_expression(formula.expr); }
+	void visit(ObligationFormula& /*formula*/) override { throw std::logic_error("not yet implemented: ReplacementVisitor::visit(ObligationFormula&)"); }
+	void visit(FulfillmentFormula& /*formula*/) override { throw std::logic_error("not yet implemented: ReplacementVisitor::visit(FulfillmentFormula&)"); }
+	void visit(NegatedFormula& formula) override { formula.formula->accept(*this); }
+	void visit(ConjunctionFormula& formula) override {
+		for (auto& conjunct : formula.conjuncts) {
+			conjunct->accept(*this);
+		}
+	}
+	void visit(ImplicationFormula& formula) override { formula.premise->accept(*this); formula.conclusion->accept(*this); }
+	void visit(PastPredicate& formula) override { formula.formula->accept(*this); }
+	void visit(FuturePredicate& formula) override {
+		formula.pre->accept(*this);
+		handle_expression(formula.command->lhs);
+		handle_expression(formula.command->rhs);
+		formula.post->accept(*this);
+	}
+	void visit(Annotation& formula) override {
+		formula.now->accept(*this);
+		for (auto& pred : formula.time) {
+			pred->accept(*this);
+		}
+	}
+};
 
 
-std::unique_ptr<Expression> plankton::replace_expression(std::unique_ptr<Expression> /*expression*/, transformer_t /*transformer*/) {
-	throw std::logic_error("not yet implemented: plankton::replace_expression");
+std::unique_ptr<Expression> plankton::replace_expression(std::unique_ptr<Expression> expression, transformer_t transformer) {
+	return ReplacementVisitor::replace(std::move(expression), transformer);
 }
 
-std::unique_ptr<Formula> plankton::replace_expression(std::unique_ptr<Formula> /*formula*/, transformer_t /*transformer*/) {
-	throw std::logic_error("not yet implemented: plankton::replace_expression");
+std::unique_ptr<Formula> plankton::replace_expression(std::unique_ptr<Formula> formula, transformer_t transformer) {
+	return ReplacementVisitor::replace(std::move(formula), transformer);
 }
 
-std::unique_ptr<TimePredicate> plankton::replace_expression(std::unique_ptr<TimePredicate> /*predicate*/, transformer_t /*transformer*/) {
-	throw std::logic_error("not yet implemented: plankton::replace_expression");
+std::unique_ptr<TimePredicate> plankton::replace_expression(std::unique_ptr<TimePredicate> predicate, transformer_t transformer) {
+	return ReplacementVisitor::replace(std::move(predicate), transformer);
 }
 
 
