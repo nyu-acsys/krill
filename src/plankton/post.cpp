@@ -35,11 +35,6 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> /*pr
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-// TODO: (1) destroy knowledge about current lhs (and everything that is not guaranteed to survive the assignment)
-// TODO: (2) add new knowledge
-// TODO: (3) infer new knowledge (exhaustively)
-
-
 struct OwnershipChecker : public LogicNonConstVisitor {
 	const Expression& prune_expr;
 	bool prune_child = false;
@@ -141,8 +136,38 @@ std::unique_ptr<Annotation> search_and_destroy_and_inline_var(std::unique_ptr<An
 	return pre;
 }
 
-//////////////////////////////////////
-//////////////////////////////////////
+inline void check_purity(const VariableExpression& lhs) {
+	if (lhs.decl.is_shared) {
+		// assignment to 'lhs' potentially impure (may require obligation/fulfillment transformation)
+		// TODO: implement
+		throw UnsupportedConstructError("assignment to shared variable '" + lhs.decl.name + "'; assignment potentially impure.");
+	}
+}
+
+std::unique_ptr<Annotation> post_full_assign_var_expr(std::unique_ptr<Annotation> pre, const Assignment& /*cmd*/, const VariableExpression& lhs, const Expression& rhs) {
+	check_purity(lhs);
+	return search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
+}
+
+std::unique_ptr<Annotation> post_full_assign_var_derefptr(std::unique_ptr<Annotation> pre, const Assignment& /*cmd*/, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& /*rhsVar*/) {
+	check_purity(lhs);
+	auto post = search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
+	// TODO: infer flow/contains and put it into a past predicate
+	// TODO: no self loops? Add lhs != rhs?
+	// TODO: use invariant to find out stuff?
+	throw std::logic_error("not yet implemented: post_full_assign_var_derefptr");
+}
+
+std::unique_ptr<Annotation> post_full_assign_var_derefdata(std::unique_ptr<Annotation> pre, const Assignment& /*cmd*/, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& /*rhsVar*/) {
+	check_purity(lhs);
+	// TODO: use invariant to find out stuff?
+	return search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct DereferenceExtractor : public BaseVisitor, public LogicVisitor {
 	using BaseVisitor::visit;
@@ -236,47 +261,310 @@ std::unique_ptr<Annotation> search_and_destroy_and_inline_deref(std::unique_ptr<
 	return pre;
 }
 
-//////////////////////////////////////
-//////////////////////////////////////
+bool is_owned(const Annotation& /*annotation*/, const VariableExpression& /*var*/) {
+	throw std::logic_error("not yet implemented: is_owned");
+}
 
-std::unique_ptr<Annotation> post_full_assign_var_expr(std::unique_ptr<Annotation> pre, const Assignment& /*cmd*/, const VariableExpression& lhs, const Expression& rhs) {
-	auto post = search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
-	if (lhs.decl.is_shared) {
-		// TODO: assignment may be impure -> obligation/fulfillment transformation requrired
-		throw std::logic_error("not yet implemented: post_full_assign_var_expr");
+bool has_no_flow(const Annotation& /*annotation*/, const VariableExpression& /*var*/) {
+	throw std::logic_error("not yet implemented: has_no_flow");
+}
+
+struct PurityCheckFormulaFactory {
+	std::deque<unique_ptr<VariableDeclaration>> dummy_decls;
+	std::deque<unique_ptr<Formula>> dummy_formulas;
+
+	using triple_t = std::tuple<const Type*, const Type*, const Type*>;
+	using quintuple_t = std::tuple<const VariableDeclaration*, const VariableDeclaration*, const VariableDeclaration*, const VariableDeclaration*, const VariableDeclaration*>;
+	std::map<triple_t, quintuple_t> types2decls;
+	std::map<triple_t, const ConjunctionFormula*> types2premise;
+	std::map<triple_t, const ImplicationFormula*> types2others;
+	std::map<triple_t, const ImplicationFormula*> types2unchanged;
+	std::map<triple_t, const ImplicationFormula*> types2inserted;
+	std::map<triple_t, const ImplicationFormula*> types2deleted;
+
+
+	static std::unique_ptr<Formula> from_expr(std::unique_ptr<Expression>&& expr) {
+		return std::make_unique<ExpressionFormula>(std::move(expr));
 	}
+
+	static std::unique_ptr<Expression> from_decl(const VariableDeclaration& decl) {
+		return std::unique_ptr<VariableExpression>(decl);
+	}
+
+	static std::unique_ptr<Expression> from_decl(const VariableDeclaration& decl, std::string field) {
+		return std::unique_ptr<Dereference>(from_decl(decl), field);
+	}
+
+	static triple_t get_triple(const Type& keyType, const Type& nodeType, std::string fieldname) {
+		const Type& fieldType = nodeType.fields.at(fieldname).get();
+		return std::make_tuple(&keyType, &nodeType, &fieldType);
+	}
+
+	static std::unique_ptr<Formula> make_implication(std::unique_ptr<Formula> premise, std::unique_ptr<Formula> conclusion, bool negated=false) {
+		// !(A => B)  |=|  A && !B
+		auto result = std::make_unique<ImplicationFormula>(std::move(premise), std::move(conclusion));
+		if (negated) {
+			result = std::make_unique<NegatedFormula>(std::move(result));
+		}
+		return result;
+	}
+
+	static std::unique_ptr<Formula> make_equality(std::unique_ptr<Formula> formula, std::unique_ptr<Formula> other) {
+		auto result = std::make_unique<ConjunctionFormula>();
+		result->conjuncts.push_back(make_implication(plankton::copy(*formula), plankton::copy(*other)));
+		result->conjuncts.push_back(make_implication(std::move(other), std::move(formula)));
+	}
+
+	static std::unique_ptr<ConjunctionFormula> copy_conjunction(const ConjunctionFormula& formula) {
+		auto result = std::make_unique<ConjunctionFormula>();
+		for (const auto& conjunct : formula.conjuncts) {
+			result->conjuncts.push_back(plankton::copy(*conjunct));
+		}
+		return result;
+	}
+
+	static std::unique_ptr<ImplicationFormula> copy_implication(const ImplicationFormula& formula) {
+		return std::make_unique<ImplicationFormula>(plankton::copy(formula.premise), plankton::copy(formula.conclusion))
+	}
+
+	quintuple_t get_decls(triple_t mapKey) {
+		auto find = types2decls.find(mapKey);
+		if (find != types2decls.end()) {
+			return find->second;
+		}
+
+		auto keyNow = std::make_unique<VariableDeclaration>("tmp#searchKey-now", keyType, false);
+		auto keyNext = std::make_unique<VariableDeclaration>("tmp#searchKey-next", keyType, false);
+		auto nodeNow = std::make_unique<VariableDeclaration>("tmp#node-now", nodeType, false);
+		auto nodeNext = std::make_unique<VariableDeclaration>("tmp#node-next", nodeType, false);
+		auto value = std::make_unique<VariableDeclaration>("tmp#value", fieldType, false);
+
+		auto mapValue = std:;make_tuple(keyNow.get(), keyNext.get(), nodeNow.get(), nodeNext.get(), value.get());
+		dummy_decls.push_back(std::move(keyNow));
+		dummy_decls.push_back(std::move(keyNext));
+		dummy_decls.push_back(std::move(nodeNow));
+		dummy_decls.push_back(std::move(nodeNext));
+		dummy_decls.push_back(std::move(value));
+		types2decls[mapKey] = mapValue;
+
+		return mapValue;
+	}
+
+	std::pair<quintuple_t, std::unique_ptr<ConjunctionFormula>> get_dummy_premise_base(triple_t mapKey) {
+		auto quint = get_decls(mapKey);
+
+		// see if we have something prepared already
+		auto find = types2premise.find(mapKey);
+		if (find != types2premise.end()) {
+			return std::make_pair(quint, copy_conjunction(*find->second));
+		}
+
+		// prepare something new
+		auto [keyNow, keyNext, nodeNow, nodeNext, value] = quint;
+		auto premise = std::make_unique<ConjunctionFormula>();
+		premise.push_back(from_expr( // nodeNow = nodeNext
+			std::make_unique<BinaryExpression>(OP_EQ, from_decl(*nodeNow), from_decl(*nodeNext));
+		));
+		premise.push_back(from_expr( // nodeNext->{field} = value
+			std::make_unique<BinaryExpression>(OP_EQ, from_decl(*nodeNext, field), from_decl(*value));
+		));
+		for (auto name : type.fields) {
+			if (name == field) continue;
+			premise.push_back(from_expr( // nodeNow->{name} = nodeNext->{name}
+				std::make_unique<BinaryExpression>(OP_EQ, from_decl(*nodeNow, name), from_decl(*nodeNext, name));
+			));	
+		}
+
+		// return
+		auto result = std::make_pair(quint, plankton::copy(premise));
+		types2premise.insert(std::make_pair(mapKey, premise.get()));
+		dummy_formulas.push_back(std::move(premise))
+		return result;
+	}
+
+	std::unique_ptr<Formula> get_key_formula(quintuple_t decls, BinaryExpression::Operator op) {
+		auto& keyNow = *std::get<0>(decls);
+		auto& keyNext = *std::get<1>(decls);
+		return std::make_unique<ExpressionFormula>(std::make_unique<BinaryExpression>(op, from_decl(keyNow), from_decl(keyNext)));
+	}
+
+	std::unique_ptr<Formula> make_contains_now(quintuple_t decls) {
+		auto& keyNext = *std::get<1>(decls);
+		auto& nodeNow = *std::get<2>(decls);
+		// return contains(nodeNow, keyNext)
+		throw std::logic_error("not yet implemented: make_contains_now");
+	}
+
+	std::unique_ptr<Formula> make_contains_next(quintuple_t decls) {
+		auto& keyNext = *std::get<1>(decls);
+		auto& nodeNext = *std::get<3>(decls);
+		// return contains(nodeNext, keyNext)
+		throw std::logic_error("not yet implemented: make_contains_next");
+	}
+
+	std::pair<quintuple_t, std::unique_ptr<ConjunctionFormula>> get_dummy_premise(triple_t mapKey, BinaryExpression::Operator op=BinaryExpression::Operator::EQ) {
+		auto result = get_dummy_premise_base(mapKey);
+		result.second->conjuncts.push_back(get_key_formula(result.first, op));
+		return result;
+	}
+
+	template<typename M, typename F>
+	std::unique_ptr<ImplicationFormula> get_or_create_dummy(M& map, triple_t mapKey, F makeNew) {
+		auto find = map.find(mapKey);
+		if (find != map.end()) {
+			return copy_implication(*find->second);
+
+		} else {
+			auto newElem = makeNew();
+			auto result = copy_implication(*newElem);
+			map.insert(std::make_pair(mapKey, std::move(newElem)));
+			return result;
+		}
+	}
+
+	std::unique_ptr<ImplicationFormula> get_dummy_other_keys_unchanged(triple_t mapKey) {
+		return get_or_create_dummy(types2others, mapKey, [&mapKey](){
+			auto [decls, premise] = get_dummy_premise(mapKey, BinaryExpression::Operator::NEQ);
+			auto conclusion = make_equality(make_contains_now(decls), make_contains_next(decls));
+			return make_implication(std::move(premise), std::move(conclusion));
+		});
+	}
+
+	std::unique_ptr<ImplicationFormula> get_dummy_search_key_unchanged(triple_t mapKey) {
+		return types2unchanged(types2unchanged, mapKey, [&mapKey](){
+			auto [decls, premise] = get_dummy_premise(mapKey);
+			auto conclusion = make_equality(make_contains_now(decls), make_contains_next(decls));
+			return make_implication(std::move(premise), std::move(conclusion));
+		});
+	}
+
+	std::unique_ptr<ImplicationFormula> get_dummy_search_key_inserted(triple_t mapKey) {
+		return types2inserted(types2inserted, mapKey, [&mapKey](){
+			auto [decls, premise] = get_dummy_premise(mapKey);
+			auto conclusion = make_implication(make_contains_now(decls), make_contains_next(decls), true);
+			return make_implication(std::move(premise), std::move(conclusion));
+		});
+	}
+
+	std::unique_ptr<ImplicationFormula> get_dummy_search_key_deleted(triple_t mapKey) {
+		return types2deleted(types2deleted, mapKey, [&mapKey](){
+			auto [decls, premise] = get_dummy_premise(mapKey);
+			auto conclusion = make_equality(make_contains_next(decls), make_contains_now(decls), true);
+			return make_implication(std::move(premise), std::move(conclusion));
+		});
+	}
+
+
+	std::unique_ptr<ImplicationFormula> extend_dummy_with_state(std::unique_ptr<ImplicationFormula> dummy, const ConjunctionFormula& state, triple_t mapKey, const VariableDeclaration& searchKey, const VariableDeclaration& node, const Expression& value) {
+		auto premise = copy_conjunction(state);
+		premise->conjuncts.push_back(std::move(dummy->premise));
+		auto [dummyKeyNow, dummyKeyNext, dummyNodeNow, dummyNodeNext, dummyValue] = get_decls(mapKey);
+		premise->conjuncts.push_back(from_expr(
+			std::make_unique<BinaryExpression>(BinaryExpression::Operator::EQ, from_decl(dummyNodeNow), from_decl(node));
+		));
+		premise->conjuncts.push_back(from_expr(
+			std::make_unique<BinaryExpression>(BinaryExpression::Operator::EQ, from_decl(dummyKeyNow), from_decl(searchKey));
+		));
+		premise->conjuncts.push_back(from_expr(
+			std::make_unique<BinaryExpression>(BinaryExpression::Operator::EQ, from_decl(dummyValue), cola::copy(value));
+		));
+		dummy->premise = std::move(premise);
+		return dummy;
+	}
+
+	static triple_t get_triple(const VariableDeclaration& searchKey, const Dereference& deref) {
+		return get_triple(searchKey.type, deref.expr->type(), deref.type());
+	}
+
+	std::unique_ptr<ImplicationFormula> get_other_keys_unchanged(const ConjunctionFormula& state, const VariableDeclaration& searchKey, const Dereference& deref, const VariableDeclaration& derefNode, const Expression& value) {
+		auto mapKey = get_triple(searchKey, deref);
+		auto implication = get_dummy_other_keys_unchanged(mapKey);
+		return extend_dummy_with_state(std::move(implication), state, mapKey, searchKey, derefNode, value);
+	}
+
+	std::unique_ptr<ImplicationFormula> get_search_key_unchanged(const ConjunctionFormula& state, const VariableDeclaration& searchKey, const Dereference& deref, const VariableDeclaration& derefNode, const Expression& value) {
+		auto mapKey = get_triple(searchKey, deref);
+		auto implication = get_dummy_search_key_unchanged(mapKey);
+		return extend_dummy_with_state(std::move(implication), state, mapKey, searchKey, derefNode, value);
+	}
+
+	std::unique_ptr<ImplicationFormula> get_search_key_inserted(const ConjunctionFormula& state, const VariableDeclaration& searchKey, const Dereference& deref, const VariableDeclaration& derefNode, const Expression& value) {
+		auto mapKey = get_triple(searchKey, deref);
+		auto implication = get_dummy_search_key_inserted(mapKey);
+		return extend_dummy_with_state(std::move(implication), state, mapKey, searchKey, derefNode, value);
+	}
+
+	std::unique_ptr<ImplicationFormula> get_search_key_deleted(const ConjunctionFormula& state, const VariableDeclaration& searchKey, const Dereference& deref, const VariableDeclaration& derefNode, const Expression& value) {
+		auto mapKey = get_triple(searchKey, deref);
+		auto implication = get_dummy_search_key_deleted(mapKey);
+		return extend_dummy_with_state(std::move(implication), state, mapKey, searchKey, derefNode, value);
+	}
+};
+
+
+
+const VariableDeclaration& get_search_key() {
+	throw std::logic_error("not yet implemented: get_search_key");
+}
+
+std::unique_ptr<Annotation> handle_purity_ptr(std::unique_ptr<Annotation> /*pre*/, const Dereference& /*lhs*/, const VariableExpression& /*lhsVar*/, const Expression& /*rhs*/) {
+	// assignment may be impure -> obligation/fulfillment transformation requrired
+	throw std::logic_error("not yet implemented: handle_purity_ptr");
+}
+
+std::unique_ptr<Annotation> handle_purity_data(std::unique_ptr<Annotation> pre, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
+	// assignment may be impure ==> obligation/fulfillment transformation requrired
+	// ASSUMPTION: assignments to data members do not affect the flow
+	//             ==> only the logical content of 'lhsVar' may change
+
+	if (is_owned(*pre, lhsVar) || has_no_flow(*pre, lhsVar)) {
+		// the content of 'lhs.expr' is intersected with the empty flow ==> changes are irrelevant
+		return pre;
+	}
+
+	// check purity
+	static PurityCheckFormulaFactory factory;
+	auto& searchKey = get_search_key();
+	auto otherKeysUnchanged = factory.get_other_keys_unchanged(*pre->now, searchKey, lhs, lhsVar, rhs);
+	auto searchKeyUnchanged = factory.get_search_key_unchanged(*pre->now, searchKey, lhs, lhsVar, rhs);
+	auto searchKeyInserted = factory.get_search_key_inserted(*pre->now, searchKey, lhs, lhsVar, rhs);
+	auto searchKeyDeleted = factory.get_search_key_deleted(*pre->now, searchKey, lhs, lhsVar, rhs);
+
+	auto impHolds = [](auto imp){
+		return plankton::implies(*imp->premise, *imp->conclusion);
+	}
+
+	if (!impHolds(otherKeysUnchanged)) {
+		throw VerificationError("Impure action does not satisfy specification");
+
+	} else if (impHolds(searchKeyUnchanged)) {
+		// pure
+		throw std::logic_error("not yet implemented: handle_purity_data");
+
+	} else if (impHolds(searchKeyInserted)) {
+		// inserted
+		throw std::logic_error("not yet implemented: handle_purity_data");
+		
+	} else if (impHolds(searchKeyDeleted)) {
+		// deleted
+		throw std::logic_error("not yet implemented: handle_purity_data");
+		
+	} else {
+		throw VerificationError("Could not show action pure nor prove it satisfies its specification.");
+
+	}
+}
+
+std::unique_ptr<Annotation> post_full_assign_derefptr_varimmi(std::unique_ptr<Annotation> pre, const Assignment& /*cmd*/, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
+	auto post = handle_purity_ptr(std::move(pre), lhs, lhsVar, rhs);
+	post = search_and_destroy_and_inline_deref(std::move(pre), lhs, rhs);
 	return post;
 }
 
-std::unique_ptr<Annotation> post_full_assign_var_derefptr(std::unique_ptr<Annotation> pre, const Assignment& /*cmd*/, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& /*rhsVar*/) {
-	auto post = search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
-	if (lhs.decl.is_shared) {
-		// TODO: assignment may be impure -> obligation/fulfillment transformation requrired
-		throw std::logic_error("not yet implemented: post_full_assign_var_derefptr");
-	}
-	// TODO: infer flow/contains and put it into a past predicate
-	throw std::logic_error("not yet implemented: post_full_assign_var_derefptr");
-}
-
-std::unique_ptr<Annotation> post_full_assign_var_derefdata(std::unique_ptr<Annotation> pre, const Assignment& /*cmd*/, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& /*rhsVar*/) {
-	auto post = search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
-	if (lhs.decl.is_shared) {
-		// TODO: assignment may be impure -> obligation/fulfillment transformation requrired
-		throw std::logic_error("not yet implemented: post_full_assign_var_derefdata");
-	}
+std::unique_ptr<Annotation> post_full_assign_derefdata_varimmi(std::unique_ptr<Annotation> pre, const Assignment& /*cmd*/, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
+	auto post = handle_purity_ptr(std::move(pre), lhs, lhsVar, rhs);
+	post = search_and_destroy_and_inline_deref(std::move(pre), lhs, rhs);
 	return post;
-}
-
-std::unique_ptr<Annotation> post_full_assign_derefptr_varimmi(std::unique_ptr<Annotation> pre, const Assignment& /*cmd*/, const Dereference& lhs, const VariableExpression& /*lhsVar*/, const Expression& rhs) {
-	auto post = search_and_destroy_and_inline_deref(std::move(pre), lhs, rhs);
-	// TODO: assignment may be impure -> obligation/fulfillment transformation requrired
-	throw std::logic_error("not yet implemented: post_full_assign_derefptr_varimmi");
-}
-
-std::unique_ptr<Annotation> post_full_assign_derefdata_varimmi(std::unique_ptr<Annotation> pre, const Assignment& /*cmd*/, const Dereference& lhs, const VariableExpression& /*lhsVar*/, const Expression& rhs) {
-	auto post = search_and_destroy_and_inline_deref(std::move(pre), lhs, rhs);
-	// TODO: assignment may be impure -> obligation/fulfillment transformation requrired
-	throw std::logic_error("not yet implemented: post_full_assign_derefdata_varimmi");
 }
 
 
