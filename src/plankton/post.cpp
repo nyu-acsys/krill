@@ -40,38 +40,6 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> /*pr
 // TODO: (3) infer new knowledge (exhaustively)
 
 
-struct FormChecker : public LogicVisitor {
-	static void check(const Annotation& formula) {
-		FormChecker visitor;
-		formula.accept(visitor);
-	}
-	void visit(const FlowFormula& /*formula*/) override {
-		throw std::logic_error("Malformed annotation: 'FlowFormula' not expected here.");
-	}
-	void visit(const LogicallyContainedFormula& /*formula*/) override {
-		throw std::logic_error("Malformed annotation: 'LogicallyContainedFormula' not expected here.");
-	}
-
-	void visit(const ConjunctionFormula& formula) override {
-		for (const auto& conjunct : formula.conjuncts) {
-			conjunct->accept(*this);
-		}
-	}
-	void visit(const ImplicationFormula& formula) override { formula.premise->accept(*this); formula.conclusion->accept(*this); }
-	void visit(const Annotation& annotation) override { annotation.now->accept(*this); }
-	void visit(const NegatedFormula& formula) override { formula.formula->accept(*this); }
-	void visit(const ExpressionFormula& /*formula*/) override { /* do nothing */ }
-	void visit(const OwnershipFormula& /*formula*/) override { /* do nothing */ }
-	void visit(const ObligationFormula& /*formula*/) override { /* do nothing */ }
-	void visit(const FulfillmentFormula& /*formula*/) override { /* do nothing */ }
-	void visit(const PastPredicate& /*formula*/) override { /* do nothing */ }
-	void visit(const FuturePredicate& /*formula*/) override { /* do nothing */ }
-};
-
-
-
-
-
 struct OwnershipChecker : public LogicNonConstVisitor {
 	const Expression& prune_expr;
 	bool prune_child = false;
@@ -315,6 +283,34 @@ std::unique_ptr<Annotation> post_full_assign_derefdata_varimmi(std::unique_ptr<A
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct FormChecker : public LogicVisitor {
+	static void check(const Annotation& formula) {
+		FormChecker visitor;
+		formula.accept(visitor);
+	}
+	void visit(const FlowFormula& /*formula*/) override {
+		throw std::logic_error("Malformed annotation: 'FlowFormula' not expected here.");
+	}
+	void visit(const LogicallyContainedFormula& /*formula*/) override {
+		throw std::logic_error("Malformed annotation: 'LogicallyContainedFormula' not expected here.");
+	}
+
+	void visit(const ConjunctionFormula& formula) override {
+		for (const auto& conjunct : formula.conjuncts) {
+			conjunct->accept(*this);
+		}
+	}
+	void visit(const ImplicationFormula& formula) override { formula.premise->accept(*this); formula.conclusion->accept(*this); }
+	void visit(const Annotation& annotation) override { annotation.now->accept(*this); }
+	void visit(const NegatedFormula& formula) override { formula.formula->accept(*this); }
+	void visit(const ExpressionFormula& /*formula*/) override { /* do nothing */ }
+	void visit(const OwnershipFormula& /*formula*/) override { /* do nothing */ }
+	void visit(const ObligationFormula& /*formula*/) override { /* do nothing */ }
+	void visit(const FulfillmentFormula& /*formula*/) override { /* do nothing */ }
+	void visit(const PastPredicate& /*formula*/) override { /* do nothing */ }
+	void visit(const FuturePredicate& /*formula*/) override { /* do nothing */ }
+};
 
 struct AssignmentExpressionAnalyser : public BaseVisitor {
 	const VariableExpression* decl = nullptr;
