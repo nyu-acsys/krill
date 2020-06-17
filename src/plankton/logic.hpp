@@ -126,6 +126,7 @@ namespace plankton {
 		ACCEPT_FORMULA_VISITOR
 	};
 
+	// TODO: instead have a 'HasFlowFormula(expr)' and a 'KeysetContainsFormula(nodeExpr, keyExpr)?'
 	struct FlowFormula : Formula {
 		std::unique_ptr<cola::Expression> expr;
 		FlowValue flow;
@@ -137,13 +138,27 @@ namespace plankton {
 		ACCEPT_FORMULA_VISITOR
 	};
 
+	struct Specification {
+		enum struct Kind { CONTAINS, INSERT, DELETE };
+		Kind kind;
+		std::unique_ptr<cola::VariableExpression> key;
+		Specification(Kind kind_, std::unique_ptr<cola::VariableExpression> key_) : kind(kind_), key(std::move(key_)) {
+			assert(key);
+		}
+		Specification(Kind kind_, const cola::VariableDeclaration& key_) : kind(kind_), key(std::make_unique<cola::VariableExpression>(key_)) {}
+		std::unique_ptr<Specification> copy() const { return std::make_unique<Specification>(kind, key->decl); }
+	};
+
 	struct ObligationFormula : Formula {
-		// TODO: fill
+		std::unique_ptr<Specification> spec;
+		ObligationFormula(std::unique_ptr<Specification> spec_) : spec(std::move(spec_)) {}
 		ACCEPT_FORMULA_VISITOR
 	};
 
 	struct FulfillmentFormula : Formula {
-		// TODO: fill
+		std::unique_ptr<Specification> spec;
+		bool return_value;
+		FulfillmentFormula(std::unique_ptr<Specification> spec_, bool return_value_) : spec(std::move(spec_)), return_value(return_value_) {}
 		ACCEPT_FORMULA_VISITOR
 	};
 

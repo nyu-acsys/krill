@@ -11,6 +11,7 @@
 
 namespace plankton {
 
+	void print(const Specification& specification, std::ostream& stream);
 	void print(const Formula& formula, std::ostream& stream);
 	void print(const TimePredicate& TimePredicate, std::ostream& stream);
 	void print(const Annotation& annotation, std::ostream& stream);
@@ -26,10 +27,13 @@ namespace plankton {
 
 
 	bool syntactically_equal(const cola::Expression& expression, const cola::Expression& other);
-
+	std::pair<bool, const ObligationFormula*> is_obligation(const Formula& formula);
+	std::pair<bool, const FuturePredicate*> is_future(const TimePredicate& predicate);
 	
 	bool contains_expression(const Formula& formula, const cola::Expression& search);
 	bool contains_expression(const TimePredicate& predicate, const cola::Expression& search);
+	bool contains_expression_within_obligation(const Formula& formula, const cola::Expression& search);
+	bool contains_expression_within_obligation(const TimePredicate& predicate, const cola::Expression& search);
 
 
 	using transformer_t = std::function<std::pair<bool,std::unique_ptr<cola::Expression>>(const cola::Expression&)>;

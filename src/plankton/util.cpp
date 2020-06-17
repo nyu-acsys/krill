@@ -10,6 +10,17 @@ using namespace plankton;
 const std::string AND_STR = "  ∧  ";
 const std::string EMPTY_STR = "true";
 
+void plankton::print(const Specification& specification, std::ostream& stream) {
+	switch (specification.kind) {
+		case Specification::Kind::CONTAINS: stream << "contains"; break;
+		case Specification::Kind::INSERT: stream << "insert"; break;
+		case Specification::Kind::DELETE: stream << "delete"; break;
+	}
+	stream << "(";
+	cola::print(*specification.key, stream);
+	stream << ")";
+}
+
 template<typename T, typename U>
 void print_elems(std::ostream& stream, const T& elems, U printer, std::string delim=AND_STR, std::string empty=EMPTY_STR) {
 	if (elems.empty()) {
@@ -81,12 +92,15 @@ struct FormulaPrinter : public LogicVisitor {
 		plankton::print(formula.flow, stream);
 	}
 
-	void visit(const ObligationFormula& /*formula*/) override {
-		stream << "@OBL";
+	void visit(const ObligationFormula& formula) override {
+		stream << "@OBL:";
+		plankton::print(*formula.spec, stream);
 	}
 
-	void visit(const FulfillmentFormula& /*formula*/) override {
-		stream << "@FUL";
+	void visit(const FulfillmentFormula& formula) override {
+		stream << "@FUL:";
+		plankton::print(*formula.spec, stream);
+		stream << "=" << (formula.return_value ? "true" : "false");
 	}
 
 	void visit(const PastPredicate& predicate) override {
@@ -180,12 +194,12 @@ struct CopyVisitor : public LogicVisitor {
 		result_formula = std::make_unique<FlowFormula>(cola::copy(*formula.expr), formula.flow);
 	}
 
-	void visit(const ObligationFormula& /*formula*/) override {
-		throw std::logic_error("not yet implemented: plankton::copy(const ObligationFormula&)");
+	void visit(const ObligationFormula& formula) override {
+		result_formula = std::make_unique<ObligationFormula>(formula.spec->copy());
 	}
 
-	void visit(const FulfillmentFormula& /*formula*/) override {
-		throw std::logic_error("not yet implemented: plankton::copy(const FulfillmentFormula&)");
+	void visit(const FulfillmentFormula& formula) override {
+		result_formula = std::make_unique<FulfillmentFormula>(formula.spec->copy(), formula.return_value);
 	}
 
 	void visit(const PastPredicate& predicate) override {
@@ -292,7 +306,6 @@ std::unique_ptr<ConjunctionFormula> plankton::flatten(const Formula& formula) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-
 bool plankton::syntactically_equal(const Expression& expression, const Expression& other) {
 	// TODO: find a better way to do this
 	// NOTE: this relies on two distinct VariableDeclaration objects not having the same name
@@ -302,29 +315,77 @@ bool plankton::syntactically_equal(const Expression& expression, const Expressio
 	return expressionStream.str() == otherStream.str();
 }
 
+template<typename T>
+struct SubclassExtractor : public LogicVisitor {
+	const T* result = nullptr;
+	void visit(const ConjunctionFormula& formula) override { result = dynamic_cast<const T*>(&formula); }
+	void visit(const ImplicationFormula& formula) override { result = dynamic_cast<const T*>(&formula); }
+	void visit(const ExpressionFormula& formula) override { result = dynamic_cast<const T*>(&formula); }
+	void visit(const NegatedFormula& formula) override { result = dynamic_cast<const T*>(&formula); }
+	void visit(const OwnershipFormula& formula) override { result = dynamic_cast<const T*>(&formula); }
+	void visit(const LogicallyContainedFormula& formula) override { result = dynamic_cast<const T*>(&formula); }
+	void visit(const FlowFormula& formula) override { result = dynamic_cast<const T*>(&formula); }
+	void visit(const ObligationFormula& formula) override { result = dynamic_cast<const T*>(&formula); }
+	void visit(const FulfillmentFormula& formula) override { result = dynamic_cast<const T*>(&formula); }
+	void visit(const PastPredicate& formula) override { result = dynamic_cast<const T*>(&formula); }
+	void visit(const FuturePredicate& formula) override { result = dynamic_cast<const T*>(&formula); }
+	void visit(const Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: SubclassExtractor::visit(const Annotation&);"); }
+	std::pair<bool, const T*> get_result() {
+		if (result) return std::make_pair(true, result);
+		else return std::make_pair(false, nullptr);
+	}
+};
+
+template<typename T, typename O>
+std::pair<bool, const T*> is_of_type(const O& formula) {
+	SubclassExtractor<T> visitor;
+	formula.accept(visitor);
+	return visitor.get_result();
+}
+
+std::pair<bool, const ObligationFormula*> plankton::is_obligation(const Formula& formula) {
+	return is_of_type<ObligationFormula, Formula>(formula);
+}
+
+std::pair<bool, const FuturePredicate*> plankton::is_future(const TimePredicate& predicate) {
+	return is_of_type<FuturePredicate, TimePredicate>(predicate);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 struct ContainsVisitor : public BaseVisitor, public LogicVisitor {
 	using BaseVisitor::visit;
 	using LogicVisitor::visit;
 
 	const Expression& search;
+	bool deep_search;
 	bool found = false;
-	ContainsVisitor(const Expression& search_) : search(search_) {}
+	bool inside_obligation = false;
+	bool found_inside_obligation = false;
+	ContainsVisitor(const Expression& search_, bool deep_) : search(search_), deep_search(deep_) {}
 
 	template<typename T>
-	static bool contains(const T& obj, const Expression& search) {
-		ContainsVisitor visitor(search);
+	static std::pair<bool, bool> contains(const T& obj, const Expression& search, bool deep=true) {
+		ContainsVisitor visitor(search, deep);
 		obj.accept(visitor);
-		return visitor.found;
+		return std::make_pair(visitor.found, visitor.found_inside_obligation);
 	}
 
 	template<typename T>
 	void handle_expression(const std::unique_ptr<T>& expression) {
 		if (syntactically_equal(*expression, search)) {
 			found = true;
+			if (inside_obligation) {
+				found_inside_obligation = true;
+			}
 		}
-		if (!found) {
-			expression->accept(*this);
+		if (found && !deep_search) {
+			return; // be lazy
 		}
+		expression->accept(*this);
 	}
 
 	void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
@@ -341,8 +402,13 @@ struct ContainsVisitor : public BaseVisitor, public LogicVisitor {
 	void visit(const OwnershipFormula& formula) override { handle_expression(formula.expr); }
 	void visit(const LogicallyContainedFormula& formula) override { handle_expression(formula.expr); }
 	void visit(const FlowFormula& formula) override { handle_expression(formula.expr); }
-	void visit(const ObligationFormula& /*formula*/) override { throw std::logic_error("not yet implemented: ContainsVisitor::visit(const ObligationFormula&)"); }
-	void visit(const FulfillmentFormula& /*formula*/) override { throw std::logic_error("not yet implemented: ContainsVisitor::visit(const FulfillmentFormula&)"); }
+	void visit(const ObligationFormula& formula) override {
+		bool was_inside_obligation = inside_obligation;
+		inside_obligation = true;
+		handle_expression(formula.spec->key);
+		inside_obligation = was_inside_obligation;
+	}
+	void visit(const FulfillmentFormula& formula) override { handle_expression(formula.spec->key); }
 	void visit(const NegatedFormula& formula) override { formula.formula->accept(*this); }
 	void visit(const ConjunctionFormula& formula) override {
 		for (const auto& conjunct : formula.conjuncts) {
@@ -366,11 +432,19 @@ struct ContainsVisitor : public BaseVisitor, public LogicVisitor {
 };
 
 bool plankton::contains_expression(const Formula& formula, const Expression& search) {
-	return ContainsVisitor::contains(formula, search);
+	return ContainsVisitor::contains(formula, search, false).first;
 }
 
 bool plankton::contains_expression(const TimePredicate& predicate, const Expression& search) {
-	return ContainsVisitor::contains(predicate, search);
+	return ContainsVisitor::contains(predicate, search, false).first;
+}
+
+bool plankton::contains_expression_within_obligation(const Formula& formula, const Expression& search) {
+	return ContainsVisitor::contains(formula, search).second;
+}
+
+bool plankton::contains_expression_within_obligation(const TimePredicate& predicate, const Expression& search) {
+	return ContainsVisitor::contains(predicate, search).second;
 }
 
 
@@ -397,18 +471,18 @@ struct ReplacementVisitor : public BaseNonConstVisitor, public LogicNonConstVisi
 		}
 	}
 
-	void visit(OwnershipFormula& formula) override {
-		auto [replace, replacement] = transformer(*formula.expr);
+	void handle_expression(std::unique_ptr<VariableExpression>& expression) {
+		auto [replace, replacement] = transformer(*expression);
 		if (replace) {
 			Expression* raw = replacement.get();
 			VariableExpression* cast = dynamic_cast<VariableExpression*>(raw);
 			if (!cast) {
-				throw std::logic_error("Replacement violates AST: replacing 'VariableExpression' in 'OwnershipFormula' with an incompatible type.");
+				throw std::logic_error("Replacement violates AST: required replacement for 'VariableExpression' to be of type 'VariableExpression'.");
 			}
-			formula.expr.release();
-			formula.expr.reset(cast);
+			expression.release();
+			expression.reset(cast);
 		} else {
-			formula.expr->accept(*this);
+			expression->accept(*this);
 		}
 	}
 
@@ -425,8 +499,9 @@ struct ReplacementVisitor : public BaseNonConstVisitor, public LogicNonConstVisi
 	void visit(ExpressionFormula& formula) override { handle_expression(formula.expr); }
 	void visit(LogicallyContainedFormula& formula) override { handle_expression(formula.expr); }
 	void visit(FlowFormula& formula) override { handle_expression(formula.expr); }
-	void visit(ObligationFormula& /*formula*/) override { throw std::logic_error("not yet implemented: ReplacementVisitor::visit(ObligationFormula&)"); }
-	void visit(FulfillmentFormula& /*formula*/) override { throw std::logic_error("not yet implemented: ReplacementVisitor::visit(FulfillmentFormula&)"); }
+	void visit(OwnershipFormula& formula) override { handle_expression(formula.expr); }
+	void visit(ObligationFormula& formula) override { handle_expression(formula.spec->key); }
+	void visit(FulfillmentFormula& formula) override { handle_expression(formula.spec->key); }
 	void visit(NegatedFormula& formula) override { formula.formula->accept(*this); }
 	void visit(ConjunctionFormula& formula) override {
 		for (auto& conjunct : formula.conjuncts) {
