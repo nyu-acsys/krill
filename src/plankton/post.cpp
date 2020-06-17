@@ -15,252 +15,6 @@ using namespace plankton;
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> /*pre*/, const Assume& /*cmd*/) {
-	throw std::logic_error("not yet implemented: plankton::post(std::unique_ptr<Annotation>, const Assume&)");
-}
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> /*pre*/, const Malloc& /*cmd*/) {
-	// TODO: extend_current_annotation(... knowledge about all members of new object, flow...)
-	// TODO: destroy knowledge about current lhs (and everything that is not guaranteed to survive the assignment)
-	throw std::logic_error("not yet implemented: plankton::post(std::unique_ptr<Annotation>, const Malloc&)");
-}
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-struct OwnershipChecker : public LogicNonConstVisitor {
-	const Expression& prune_expr;
-	bool prune_child = false;
-	bool prune_value = true;
-	OwnershipChecker(const Expression& expr) : prune_expr(expr) {}
-
-	template<typename T>
-	void handle_formula(std::unique_ptr<T>& formula) {
-		formula->accept(*this);
-		if (prune_child) {
-			formula = std::make_unique<ExpressionFormula>(std::make_unique<BooleanValue>(prune_value));
-			prune_child = false;
-		}
-	}
-
-	void visit(ConjunctionFormula& formula) override {
-		for (auto& conjunct : formula.conjuncts) {
-			handle_formula(conjunct);
-		}
-	}
-	
-	void visit(NegatedFormula& formula) override {
-		bool old_value = prune_value;
-		prune_value = !prune_value;
-		handle_formula(formula.formula);
-		prune_value = old_value;
-	}
-
-	void visit(ImplicationFormula& formula) override {
-		// do not touch formula.precondition
-		handle_formula(formula.conclusion);
-	}
-
-	void visit(OwnershipFormula& formula) override {
-		if (plankton::syntactically_equal(*formula.expr, prune_expr)) {
-			prune_child = true;
-		}
-	}
-
-	void visit(ExpressionFormula& /*formula*/) override { /* do nothing */ }
-	void visit(LogicallyContainedFormula& /*formula*/) override { /* do nothing */ }
-	void visit(FlowFormula& /*formula*/) override { /* do nothing */ }
-	void visit(ObligationFormula& /*formula*/) override { /* do nothing */ }
-	void visit(FulfillmentFormula& /*formula*/) override { /* do nothing */ }
-	void visit(PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: OwnershipChecker::visit(PastPredicate&)"); }
-	void visit(FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: OwnershipChecker::visit(FuturePredicate&)"); }
-	void visit(Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: OwnershipChecker::visit(Annotation&)"); }
-};
-
-std::unique_ptr<Formula> destroy_ownership(std::unique_ptr<Formula> formula, const Expression& expr) {
-	// remove ownership of 'expr' in 'uptrcontainer'
-	OwnershipChecker visitor(expr);
-	visitor.handle_formula(formula);
-	return formula;
-}
-
-template<typename T>
-T container_search_and_destroy(T&& uptrcontainer, const Expression& destroy) {
-	// remove knowledge about 'destroy' in 'uptrcontainer'
-	T new_container;
-	for (auto& elem : uptrcontainer) {
-		if (!plankton::contains_expression(*elem, destroy)) {
-			new_container.push_back(std::move(elem));
-		}
-	}
-	return std::move(new_container);
-}
-
-template<typename T>
-T container_search_and_inline(T&& uptrcontainer, const Expression& search, const Expression& replacement) {
-	// copy knowledge about 'search' in 'uptrcontainer' over to 'replacement'
-	T new_elements;
-	for (auto& elem : uptrcontainer) {
-		if (plankton::contains_expression(*elem, search) && !plankton::contains_expression_within_obligation(*elem, search)) {
-			new_elements.push_back(replace_expression(plankton::copy(*elem), search, replacement));
-		}
-	}
-	uptrcontainer.insert(uptrcontainer.end(), std::make_move_iterator(new_elements.begin()), std::make_move_iterator(new_elements.end()));
-	return std::move(uptrcontainer);
-}
-
-std::unique_ptr<Annotation> search_and_destroy_and_inline_var(std::unique_ptr<Annotation> pre, const VariableExpression& lhs, const Expression& rhs) {
-	// destroy knowledge about lhs
-	auto pruned = destroy_ownership(std::move(pre->now), rhs);
-	auto flat = plankton::flatten(std::move(pruned));
-	flat->conjuncts = container_search_and_destroy(std::move(flat->conjuncts), lhs);
-	pre->time = container_search_and_destroy(std::move(pre->time), lhs);
-
-	// copy knowledge about rhs over to lhs
-	flat->conjuncts = container_search_and_inline(std::move(flat->conjuncts), rhs, lhs);
-	pre->time = container_search_and_inline(std::move(pre->time), rhs, lhs); // TODO important: are those really freely duplicable?
-
-	// add new knowledge
-	auto equality = std::make_unique<ExpressionFormula>(std::make_unique<BinaryExpression>(BinaryExpression::Operator::EQ, cola::copy(lhs), cola::copy(rhs)));
-	flat->conjuncts.push_back(std::move(equality));
-	pre->now = std::move(flat);
-
-	// done
-	return pre;
-}
-
-inline void check_purity(const VariableExpression& lhs) {
-	if (lhs.decl.is_shared) {
-		// assignment to 'lhs' potentially impure (may require obligation/fulfillment transformation)
-		// TODO: implement
-		throw UnsupportedConstructError("assignment to shared variable '" + lhs.decl.name + "'; assignment potentially impure.");
-	}
-}
-
-std::unique_ptr<Annotation> post_full_assign_var_expr(std::unique_ptr<Annotation> pre, const Assignment& /*cmd*/, const VariableExpression& lhs, const Expression& rhs) {
-	check_purity(lhs);
-	return search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
-}
-
-std::unique_ptr<Annotation> post_full_assign_var_derefptr(std::unique_ptr<Annotation> pre, const Assignment& /*cmd*/, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& /*rhsVar*/) {
-	check_purity(lhs);
-	auto post = search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
-	// TODO: infer flow/contains and put it into a past predicate
-	// TODO: no self loops? Add lhs != rhs?
-	// TODO: use invariant to find out stuff?
-	throw std::logic_error("not yet implemented: post_full_assign_var_derefptr");
-}
-
-std::unique_ptr<Annotation> post_full_assign_var_derefdata(std::unique_ptr<Annotation> pre, const Assignment& /*cmd*/, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& /*rhsVar*/) {
-	check_purity(lhs);
-	// TODO: use invariant to find out stuff?
-	return search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
-}
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-struct DereferenceExtractor : public BaseVisitor, public LogicVisitor {
-	using BaseVisitor::visit;
-	using LogicVisitor::visit;
-
-	std::string search_field;
-	std::deque<std::unique_ptr<Expression>> result;
-	DereferenceExtractor(std::string search) : search_field(search) {}
-
-	static std::deque<std::unique_ptr<Expression>> extract(const Formula& formula, std::string fieldname) {
-		DereferenceExtractor visitor(fieldname);
-		formula.accept(visitor);
-		return std::move(visitor.result);
-	}
-
-	void visit(const Dereference& node) override {
-		node.expr->accept(*this);
-		result.push_back(cola::copy(node));
-	}
-	void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
-	void visit(const NullValue& /*node*/) override { /* do nothing */ }
-	void visit(const EmptyValue& /*node*/) override { /* do nothing */ }
-	void visit(const MaxValue& /*node*/) override { /* do nothing */ }
-	void visit(const MinValue& /*node*/) override { /* do nothing */ }
-	void visit(const NDetValue& /*node*/) override { /* do nothing */ }
-	void visit(const VariableExpression& /*node*/) override { /* do nothing */ }
-	void visit(const NegatedExpression& node) override { node.expr->accept(*this); }
-	void visit(const BinaryExpression& node) override { node.lhs->accept(*this); node.rhs->accept(*this); }
-	void visit(const ExpressionFormula& formula) override { formula.expr->accept(*this); }
-	void visit(const OwnershipFormula& formula) override { formula.expr->accept(*this); }
-	void visit(const LogicallyContainedFormula& formula) override { formula.expr->accept(*this); }
-	void visit(const FlowFormula& formula) override { formula.expr->accept(*this); }
-	void visit(const ObligationFormula& formula) override { formula.spec->key->accept(*this); }
-	void visit(const FulfillmentFormula& formula) override { formula.spec->key->accept(*this); }
-	void visit(const NegatedFormula& formula) override { formula.formula->accept(*this); }
-	void visit(const ConjunctionFormula& formula) override {
-		for (const auto& conjunct : formula.conjuncts) {
-			conjunct->accept(*this);
-		}
-	}
-	void visit(const ImplicationFormula& formula) override { formula.premise->accept(*this); formula.conclusion->accept(*this); }
-	void visit(const PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: DereferenceExtractor::visit(const PastPredicate&)"); }
-	void visit(const FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: DereferenceExtractor::visit(const FuturePredicate&)"); }
-	void visit(const Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: DereferenceExtractor::visit(const Annotation&)"); }
-};
-
-std::unique_ptr<ConjunctionFormula> search_and_destroy_derefs(std::unique_ptr<ConjunctionFormula> now, const Dereference& lhs) {
-	auto expr = std::make_unique<BinaryExpression>(
-		BinaryExpression::Operator::NEQ, std::make_unique<Dereference>(std::make_unique<NullValue>(), lhs.fieldname), cola::copy(lhs)
-	);
-	auto& uptr = expr->lhs;
-	auto inequality = std::make_unique<ExpressionFormula>(std::move(expr));
-	
-
-	// find all dereferences that may be affected (are not guaranteed to be destroyed)
-	auto dereferences = DereferenceExtractor::extract(*now, lhs.fieldname);
-	for (auto& deref : dereferences) {
-		uptr = std::move(deref);
-		deref.reset();
-		if (!plankton::implies(*now, *inequality)) {
-			deref = std::move(uptr);
-		}
-	}
-
-	// delete knowlege about potentially affected dereferences
-	for (auto& deref : dereferences) {
-		if (deref) {
-			now->conjuncts = container_search_and_destroy(std::move(now->conjuncts), *deref);
-		}
-	}
-
-	return now;
-}
-
-std::unique_ptr<Annotation> search_and_destroy_and_inline_deref(std::unique_ptr<Annotation> pre, const Dereference& lhs, const Expression& rhs) {
-	// destroy knowledge about lhs (do not modify TimePredicates)
-	auto pruned = destroy_ownership(std::move(pre->now), rhs);
-	auto flat = plankton::flatten(std::move(pruned));
-	flat = search_and_destroy_derefs(std::move(flat), lhs);
-	// do not modify 
-
-	// copy knowledge about rhs over to lhs (do not modify TimePredicates)
-	flat->conjuncts = container_search_and_inline(std::move(flat->conjuncts), rhs, lhs);
-
-	// add new knowledge
-	auto equality = std::make_unique<ExpressionFormula>(std::make_unique<BinaryExpression>(BinaryExpression::Operator::EQ, cola::copy(lhs), cola::copy(rhs)));
-	flat->conjuncts.push_back(std::move(equality));
-	pre->now = std::move(flat);
-
-	// done
-	return pre;
-}
-
 struct PurityChecker {
 	std::deque<std::unique_ptr<VariableDeclaration>> dummy_decls;
 	std::deque<std::unique_ptr<Formula>> dummy_formulas;
@@ -522,6 +276,247 @@ struct PurityChecker {
 } thePurityChecker;
 
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct OwnershipChecker : public LogicNonConstVisitor { // TODO: is this thingy correct?
+	const Expression& prune_expr;
+	bool prune_child = false;
+	bool prune_value = true;
+	OwnershipChecker(const Expression& expr) : prune_expr(expr) {}
+
+	template<typename T>
+	void handle_formula(std::unique_ptr<T>& formula) {
+		formula->accept(*this);
+		if (prune_child) {
+			formula = std::make_unique<ExpressionFormula>(std::make_unique<BooleanValue>(prune_value));
+			prune_child = false;
+		}
+	}
+
+	void visit(ConjunctionFormula& formula) override {
+		for (auto& conjunct : formula.conjuncts) {
+			handle_formula(conjunct);
+		}
+	}
+	
+	void visit(NegatedFormula& formula) override {
+		bool old_value = prune_value;
+		prune_value = !prune_value;
+		handle_formula(formula.formula);
+		prune_value = old_value;
+	}
+
+	void visit(ImplicationFormula& formula) override {
+		if (!prune_value) {
+			// touch formula.precondition only for negated implications
+			handle_formula(formula.premise);
+		}
+		handle_formula(formula.conclusion);
+	}
+
+	void visit(OwnershipFormula& formula) override {
+		if (plankton::syntactically_equal(*formula.expr, prune_expr)) {
+			prune_child = true;
+		}
+	}
+
+	void visit(LogicallyContainedFormula& /*formula*/) override { prune_child = true; }
+	void visit(FlowFormula& /*formula*/) override { prune_child = true; }
+	// TODO: prune keyset stuff
+
+	void visit(ExpressionFormula& /*formula*/) override { /* do nothing */ }
+	void visit(ObligationFormula& /*formula*/) override { /* do nothing */ }
+	void visit(FulfillmentFormula& /*formula*/) override { /* do nothing */ }
+
+	void visit(PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: OwnershipChecker::visit(PastPredicate&)"); }
+	void visit(FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: OwnershipChecker::visit(FuturePredicate&)"); }
+	void visit(Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: OwnershipChecker::visit(Annotation&)"); }
+};
+
+std::unique_ptr<Formula> destroy_ownership_and_non_local_knowledge(std::unique_ptr<Formula> formula, const Expression& expr) {
+	// remove ownership of 'expr' in 'uptrcontainer'
+	OwnershipChecker visitor(expr);
+	visitor.handle_formula(formula);
+	return formula;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+template<typename T>
+T container_search_and_destroy(T&& uptrcontainer, const Expression& destroy) {
+	// remove knowledge about 'destroy' in 'uptrcontainer'
+	T new_container;
+	for (auto& elem : uptrcontainer) {
+		if (!plankton::contains_expression(*elem, destroy)) {
+			new_container.push_back(std::move(elem));
+		}
+	}
+	return std::move(new_container);
+}
+
+template<typename T>
+T container_search_and_inline(T&& uptrcontainer, const Expression& search, const Expression& replacement) {
+	// copy knowledge about 'search' in 'uptrcontainer' over to 'replacement'
+	T new_elements;
+	for (auto& elem : uptrcontainer) {
+		if (plankton::contains_expression(*elem, search) && !plankton::contains_expression_within_obligation(*elem, search)) {
+			new_elements.push_back(replace_expression(plankton::copy(*elem), search, replacement));
+		}
+	}
+	uptrcontainer.insert(uptrcontainer.end(), std::make_move_iterator(new_elements.begin()), std::make_move_iterator(new_elements.end()));
+	return std::move(uptrcontainer);
+}
+
+std::unique_ptr<Annotation> search_and_destroy_and_inline_var(std::unique_ptr<Annotation> pre, const VariableExpression& lhs, const Expression& rhs) {
+	// destroy knowledge about lhs
+	auto pruned = destroy_ownership_and_non_local_knowledge(std::move(pre->now), rhs);
+	auto flat = plankton::flatten(std::move(pruned));
+	flat->conjuncts = container_search_and_destroy(std::move(flat->conjuncts), lhs);
+	pre->time = container_search_and_destroy(std::move(pre->time), lhs);
+
+	// copy knowledge about rhs over to lhs
+	flat->conjuncts = container_search_and_inline(std::move(flat->conjuncts), rhs, lhs);
+	pre->time = container_search_and_inline(std::move(pre->time), rhs, lhs); // TODO important: are those really freely duplicable?
+
+	// add new knowledge
+	auto equality = std::make_unique<ExpressionFormula>(std::make_unique<BinaryExpression>(BinaryExpression::Operator::EQ, cola::copy(lhs), cola::copy(rhs)));
+	flat->conjuncts.push_back(std::move(equality));
+	pre->now = std::move(flat);
+
+	// done
+	return pre;
+}
+
+inline void check_purity(const VariableExpression& lhs) {
+	if (lhs.decl.is_shared) {
+		// assignment to 'lhs' potentially impure (may require obligation/fulfillment transformation)
+		// TODO: implement
+		throw UnsupportedConstructError("assignment to shared variable '" + lhs.decl.name + "'; assignment potentially impure.");
+	}
+}
+
+std::unique_ptr<Annotation> post_full_assign_var_expr(std::unique_ptr<Annotation> pre, const Assignment& /*cmd*/, const VariableExpression& lhs, const Expression& rhs) {
+	check_purity(lhs);
+	return search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
+}
+
+std::unique_ptr<Annotation> post_full_assign_var_derefptr(std::unique_ptr<Annotation> pre, const Assignment& /*cmd*/, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& /*rhsVar*/) {
+	check_purity(lhs);
+	auto post = search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
+	// TODO: infer flow/contains and put it into a past predicate
+	// TODO: no self loops? Add lhs != rhs?
+	// TODO: use invariant to find out stuff?
+	throw std::logic_error("not yet implemented: post_full_assign_var_derefptr");
+}
+
+std::unique_ptr<Annotation> post_full_assign_var_derefdata(std::unique_ptr<Annotation> pre, const Assignment& /*cmd*/, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& /*rhsVar*/) {
+	check_purity(lhs);
+	// TODO: use invariant to find out stuff?
+	return search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct DereferenceExtractor : public BaseVisitor, public LogicVisitor {
+	using BaseVisitor::visit;
+	using LogicVisitor::visit;
+
+	std::string search_field;
+	std::deque<std::unique_ptr<Expression>> result;
+	DereferenceExtractor(std::string search) : search_field(search) {}
+
+	static std::deque<std::unique_ptr<Expression>> extract(const Formula& formula, std::string fieldname) {
+		DereferenceExtractor visitor(fieldname);
+		formula.accept(visitor);
+		return std::move(visitor.result);
+	}
+
+	void visit(const Dereference& node) override {
+		node.expr->accept(*this);
+		result.push_back(cola::copy(node));
+	}
+	void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
+	void visit(const NullValue& /*node*/) override { /* do nothing */ }
+	void visit(const EmptyValue& /*node*/) override { /* do nothing */ }
+	void visit(const MaxValue& /*node*/) override { /* do nothing */ }
+	void visit(const MinValue& /*node*/) override { /* do nothing */ }
+	void visit(const NDetValue& /*node*/) override { /* do nothing */ }
+	void visit(const VariableExpression& /*node*/) override { /* do nothing */ }
+	void visit(const NegatedExpression& node) override { node.expr->accept(*this); }
+	void visit(const BinaryExpression& node) override { node.lhs->accept(*this); node.rhs->accept(*this); }
+	void visit(const ExpressionFormula& formula) override { formula.expr->accept(*this); }
+	void visit(const OwnershipFormula& formula) override { formula.expr->accept(*this); }
+	void visit(const LogicallyContainedFormula& formula) override { formula.expr->accept(*this); }
+	void visit(const FlowFormula& formula) override { formula.expr->accept(*this); }
+	void visit(const ObligationFormula& formula) override { formula.spec->key->accept(*this); }
+	void visit(const FulfillmentFormula& formula) override { formula.spec->key->accept(*this); }
+	void visit(const NegatedFormula& formula) override { formula.formula->accept(*this); }
+	void visit(const ConjunctionFormula& formula) override {
+		for (const auto& conjunct : formula.conjuncts) {
+			conjunct->accept(*this);
+		}
+	}
+	void visit(const ImplicationFormula& formula) override { formula.premise->accept(*this); formula.conclusion->accept(*this); }
+	void visit(const PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: DereferenceExtractor::visit(const PastPredicate&)"); }
+	void visit(const FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: DereferenceExtractor::visit(const FuturePredicate&)"); }
+	void visit(const Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: DereferenceExtractor::visit(const Annotation&)"); }
+};
+
+std::unique_ptr<ConjunctionFormula> search_and_destroy_derefs(std::unique_ptr<ConjunctionFormula> now, const Dereference& lhs) {
+	auto expr = std::make_unique<BinaryExpression>(
+		BinaryExpression::Operator::NEQ, std::make_unique<Dereference>(std::make_unique<NullValue>(), lhs.fieldname), cola::copy(lhs)
+	);
+	auto& uptr = expr->lhs;
+	auto inequality = std::make_unique<ExpressionFormula>(std::move(expr));
+	
+
+	// find all dereferences that may be affected (are not guaranteed to be destroyed)
+	auto dereferences = DereferenceExtractor::extract(*now, lhs.fieldname);
+	for (auto& deref : dereferences) {
+		uptr = std::move(deref);
+		deref.reset();
+		if (!plankton::implies(*now, *inequality)) {
+			deref = std::move(uptr);
+		}
+	}
+
+	// delete knowlege about potentially affected dereferences
+	for (auto& deref : dereferences) {
+		if (deref) {
+			now->conjuncts = container_search_and_destroy(std::move(now->conjuncts), *deref);
+		}
+	}
+
+	return now;
+}
+
+std::unique_ptr<Annotation> search_and_destroy_and_inline_deref(std::unique_ptr<Annotation> pre, const Dereference& lhs, const Expression& rhs) {
+	// destroy knowledge about lhs (do not modify TimePredicates)
+	auto pruned = destroy_ownership_and_non_local_knowledge(std::move(pre->now), rhs);
+	auto flat = plankton::flatten(std::move(pruned));
+	flat = search_and_destroy_derefs(std::move(flat), lhs);
+	// do not modify 
+
+	// copy knowledge about rhs over to lhs (do not modify TimePredicates)
+	flat->conjuncts = container_search_and_inline(std::move(flat->conjuncts), rhs, lhs);
+
+	// add new knowledge
+	auto equality = std::make_unique<ExpressionFormula>(std::make_unique<BinaryExpression>(BinaryExpression::Operator::EQ, cola::copy(lhs), cola::copy(rhs)));
+	flat->conjuncts.push_back(std::move(equality));
+	pre->now = std::move(flat);
+
+	// done
+	return pre;
+}
+
 bool is_owned(const Formula& now, const VariableExpression& var) {
 	OwnershipFormula ownership(std::make_unique<VariableExpression>(var.decl));
 	return plankton::implies(now, ownership);
@@ -637,34 +632,6 @@ std::unique_ptr<Annotation> post_full_assign_derefdata_varimmi(std::unique_ptr<A
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct FormChecker : public LogicVisitor {
-	static void check(const Annotation& formula) {
-		FormChecker visitor;
-		formula.accept(visitor);
-	}
-	void visit(const FlowFormula& /*formula*/) override {
-		throw std::logic_error("Malformed annotation: 'FlowFormula' not expected here."); // TODO: we have to allow those, but prune them if not guaranteed to survive command
-	}
-	void visit(const LogicallyContainedFormula& /*formula*/) override {
-		throw std::logic_error("Malformed annotation: 'LogicallyContainedFormula' not expected here."); // TODO: we have to allow those, but prune them if not guaranteed to survive command
-	}
-
-	void visit(const ConjunctionFormula& formula) override {
-		for (const auto& conjunct : formula.conjuncts) {
-			conjunct->accept(*this);
-		}
-	}
-	void visit(const ImplicationFormula& formula) override { formula.premise->accept(*this); formula.conclusion->accept(*this); }
-	void visit(const Annotation& annotation) override { annotation.now->accept(*this); }
-	void visit(const NegatedFormula& formula) override { formula.formula->accept(*this); }
-	void visit(const ExpressionFormula& /*formula*/) override { /* do nothing */ }
-	void visit(const OwnershipFormula& /*formula*/) override { /* do nothing */ }
-	void visit(const ObligationFormula& /*formula*/) override { /* do nothing */ }
-	void visit(const FulfillmentFormula& /*formula*/) override { /* do nothing */ }
-	void visit(const PastPredicate& /*formula*/) override { /* do nothing */ }
-	void visit(const FuturePredicate& /*formula*/) override { /* do nothing */ }
-};
-
 struct AssignmentExpressionAnalyser : public BaseVisitor {
 	const VariableExpression* decl = nullptr;
 	const Dereference* deref = nullptr;
@@ -714,9 +681,8 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 	std::cout << "under:" << std::endl;
 	plankton::print(*pre, std::cout);
 	std::cout << std::endl << std::endl;
-	FormChecker::check(*pre);
-	// TODO: make the following 🤮 nicer
 
+	// TODO: make the following 🤮 nicer
 	AssignmentExpressionAnalyser analyser;
 	cmd.lhs->accept(analyser);
 	const VariableExpression* lhsVar = analyser.decl;
@@ -785,14 +751,19 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> /*pre*/, const Assume& /*cmd*/) {
+	throw std::logic_error("not yet implemented: plankton::post(std::unique_ptr<Annotation>, const Assume&)");
+}
+
+std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> /*pre*/, const Malloc& /*cmd*/) {
+	// TODO: extend_current_annotation(... knowledge about all members of new object, flow...)
+	// TODO: destroy knowledge about current lhs (and everything that is not guaranteed to survive the assignment)
+	throw std::logic_error("not yet implemented: plankton::post(std::unique_ptr<Annotation>, const Malloc&)");
+}
+
 bool plankton::post_maintains_formula(const Formula& /*pre*/, const Formula& /*maintained*/, const cola::Assignment& /*cmd*/) {
 	throw std::logic_error("not yet implemented: plankton::post_maintains_formula(const Formula&, const Formula&, const cola::Assignment&)");
 }
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool plankton::post_maintains_invariant(const Annotation& /*pre*/, const Formula& /*invariant*/, const cola::Assignment& /*cmd*/) {
 	throw std::logic_error("not yet implemented: plankton::post_maintains_invariant(const Annotation&, const Formula&, const cola::Assignment&)");
