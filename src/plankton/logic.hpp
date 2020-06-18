@@ -116,7 +116,7 @@ namespace plankton {
 	// Axioms
 	//
 
-	struct NegatedAxiom : Axiom {
+	struct NegatedAxiom : public Axiom {
 		std::unique_ptr<Axiom> axiom;
 
 		NegatedAxiom(std::unique_ptr<Axiom> axiom);

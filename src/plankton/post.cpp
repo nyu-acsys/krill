@@ -22,17 +22,18 @@ struct PurityChecker {
 	const Type dummy_data_type = Type("post#dummy-data-type", Sort::DATA);
 	const VariableDeclaration dummy_search_key = VariableDeclaration("post#dummy-search-key", dummy_data_type, false);
 
+	using tuple_t = std::pair<std::unique_ptr<ConjunctionFormula>, std::unique_ptr<ConjunctionFormula>>;
 	using triple_t = std::tuple<const Type*, const Type*, const Type*>;
 	using quintuple_t = std::tuple<const VariableDeclaration*, const VariableDeclaration*, const VariableDeclaration*, const VariableDeclaration*, const VariableDeclaration*>;
 	std::map<triple_t, quintuple_t> types2decls;
 	std::map<triple_t, const ConjunctionFormula*> types2premise;
-	std::map<triple_t, const ImplicationFormula*> types2pure;
-	std::map<triple_t, const ImplicationFormula*> types2inserted;
-	std::map<triple_t, const ImplicationFormula*> types2deleted;
+	std::map<triple_t, std::pair<const ConjunctionFormula*, const ConjunctionFormula*>> types2pure;
+	std::map<triple_t, std::pair<const ConjunctionFormula*, const ConjunctionFormula*>> types2inserted;
+	std::map<triple_t, std::pair<const ConjunctionFormula*, const ConjunctionFormula*>> types2deleted;
 
 
-	static std::unique_ptr<Formula> from_expr(std::unique_ptr<Expression>&& expr) {
-		return std::make_unique<ExpressionFormula>(std::move(expr));
+	static std::unique_ptr<Axiom> from_expr(std::unique_ptr<Expression>&& expr) {
+		return std::make_unique<ExpressionAxiom>(std::move(expr));
 	}
 
 	static std::unique_ptr<Expression> from_decl(const VariableDeclaration& decl) {
@@ -53,25 +54,11 @@ struct PurityChecker {
 		return get_triple(searchKey.type, deref.expr->type(), deref.fieldname);
 	}
 
-	static std::unique_ptr<ImplicationFormula> make_implication(std::unique_ptr<Formula> premise, std::unique_ptr<Formula> conclusion) {
-		return std::make_unique<ImplicationFormula>(std::move(premise), std::move(conclusion));
-	}
-
-	static std::unique_ptr<NegatedFormula> make_negated_implication(std::unique_ptr<Formula> premise, std::unique_ptr<Formula> conclusion) {
-		// !(A => B)  |=|  A && !B
-		return std::make_unique<NegatedFormula>(make_implication(std::move(premise), std::move(conclusion)));
-	}
-
-	static std::unique_ptr<ConjunctionFormula> copy_conjunction(const ConjunctionFormula& formula) {
-		auto result = std::make_unique<ConjunctionFormula>();
-		for (const auto& conjunct : formula.conjuncts) {
-			result->conjuncts.push_back(plankton::copy(*conjunct));
-		}
+	static std::unique_ptr<ImplicationFormula> make_implication(std::unique_ptr<Axiom> premise, std::unique_ptr<Axiom> conclusion) {
+		auto result = std::make_unique<ImplicationFormula>();
+		result->premise->conjuncts.push_back(std::move(premise));
+		result->conclusion->conjuncts.push_back(std::move(conclusion));
 		return result;
-	}
-
-	static std::unique_ptr<ImplicationFormula> copy_implication(const ImplicationFormula& formula) {
-		return std::make_unique<ImplicationFormula>(plankton::copy(*formula.premise), plankton::copy(*formula.conclusion));
 	}
 
 	quintuple_t get_decls(triple_t mapKey) {
@@ -104,7 +91,7 @@ struct PurityChecker {
 		// see if we have something prepared already
 		auto find = types2premise.find(mapKey);
 		if (find != types2premise.end()) {
-			return std::make_pair(quint, copy_conjunction(*find->second));
+			return std::make_pair(quint, plankton::copy(*find->second));
 		}
 
 		// prepare something new
@@ -125,30 +112,30 @@ struct PurityChecker {
 		}
 
 		// return
-		auto result = std::make_pair(quint, copy_conjunction(*premise));
+		auto result = std::make_pair(quint, plankton::copy(*premise));
 		types2premise.insert(std::make_pair(mapKey, premise.get()));
 		dummy_formulas.push_back(std::move(premise));
 		return result;
 	}
 
-	std::unique_ptr<Formula> get_key_formula(quintuple_t decls, BinaryExpression::Operator op) {
+	std::unique_ptr<Axiom> get_key_formula(quintuple_t decls) {
 		auto& keyNow = *std::get<0>(decls);
 		auto& keyNext = *std::get<1>(decls);
-		return std::make_unique<ExpressionFormula>(std::make_unique<BinaryExpression>(op, from_decl(keyNow), from_decl(keyNext)));
+		return from_expr(std::make_unique<BinaryExpression>(BinaryExpression::Operator::EQ, from_decl(keyNow), from_decl(keyNext)));
 	}
 
-	std::pair<quintuple_t, std::unique_ptr<ConjunctionFormula>> get_dummy_premise(triple_t mapKey, std::string fieldname, BinaryExpression::Operator op=BinaryExpression::Operator::EQ) {
+	std::pair<quintuple_t, std::unique_ptr<ConjunctionFormula>> get_dummy_premise(triple_t mapKey, std::string fieldname) {
 		auto result = get_dummy_premise_base(mapKey, fieldname);
-		result.second->conjuncts.push_back(get_key_formula(result.first, op));
+		result.second->conjuncts.push_back(get_key_formula(result.first));
 		return result;
 	}
 
-	std::unique_ptr<Formula> make_contains_predicate(const VariableDeclaration& /*node*/, const VariableDeclaration& /*key*/) {
+	std::unique_ptr<Axiom> make_contains_predicate(const VariableDeclaration& /*node*/, const VariableDeclaration& /*key*/) {
 		// return contains(node, key)
 		throw std::logic_error("not yet implemented: make_contains_next");
 	}
 
-	std::unique_ptr<Formula> make_pure_conclusion(quintuple_t decls) {
+	std::unique_ptr<ConjunctionFormula> make_pure_conclusion(quintuple_t decls) {
 		auto& keyNext = *std::get<1>(decls);
 		auto& nodeNow = *std::get<2>(decls);
 		auto& nodeNext = *std::get<3>(decls);
@@ -168,62 +155,67 @@ struct PurityChecker {
 		auto& nodeNow = *std::get<2>(decls);
 		auto& nodeNext = *std::get<3>(decls);
 
-		auto result = std::make_unique<ConjunctionFormula>();
-		result->conjuncts.push_back(make_pure_conclusion(decls));
+		auto result = make_pure_conclusion(decls);
 
-		auto impLhs = make_contains_predicate(nodeNow, keyNow);
-		auto impRhs = make_contains_predicate(nodeNext, keyNow);
-		if (deletion) {
-			impLhs.swap(impRhs);
+		auto lhs = make_contains_predicate(nodeNow, keyNow);
+		auto rhs = make_contains_predicate(nodeNext, keyNow);
+		if (!deletion) {
+			lhs.swap(rhs);
 		}
-		result->conjuncts.push_back(make_negated_implication(std::move(impLhs), std::move(impRhs)));
+		result->conjuncts.push_back(std::move(lhs));
+		result->conjuncts.push_back(std::make_unique<NegatedAxiom>(std::move(rhs)));
 
 		return result;
 	}
 
 	template<typename M, typename F>
-	std::unique_ptr<ImplicationFormula> get_or_create_dummy(M& map, triple_t mapKey, F makeNew) {
+	tuple_t get_or_create_dummy(M& map, triple_t mapKey, F makeNew) {
 		auto find = map.find(mapKey);
 		if (find != map.end()) {
-			return copy_implication(*find->second);
+			auto [premise, conclusion] = find->second;
+			return std::make_pair(plankton::copy(*premise), plankton::copy(*conclusion));
 
 		} else {
-			auto newElem = makeNew();
-			auto result = copy_implication(*newElem);
-			map.insert(std::make_pair(mapKey, newElem.get()));
-			dummy_formulas.push_back(std::move(newElem));
+			auto [premise, conclusion] = makeNew();
+			auto result = std::make_pair(plankton::copy(*premise), plankton::copy(*conclusion));
+			map[mapKey] = std::make_pair(premise.get(), conclusion.get());
+			dummy_formulas.push_back(std::move(premise));
+			dummy_formulas.push_back(std::move(conclusion));
 			return result;
 		}
 	}
 
-	std::unique_ptr<ImplicationFormula> get_dummy_pure(triple_t mapKey, std::string fieldname) {
+	tuple_t get_dummy_pure(triple_t mapKey, std::string fieldname) {
 		return get_or_create_dummy(types2pure, mapKey, [&,this](){
 			auto [decls, premise] = get_dummy_premise_base(mapKey, fieldname); // do not restrict keyNext
 			auto conclusion = make_pure_conclusion(decls);
-			return make_implication(std::move(premise), std::move(conclusion));
+			return std::make_pair(std::move(premise), std::move(conclusion));
 		});
 	}
 
-	std::unique_ptr<ImplicationFormula> get_dummy_satisfies_insert(triple_t mapKey, std::string fieldname) {
+	tuple_t get_dummy_satisfies_insert(triple_t mapKey, std::string fieldname) {
 		return get_or_create_dummy(types2inserted, mapKey, [&,this](){
 			auto [decls, premise] = get_dummy_premise(mapKey, fieldname);
 			auto conclusion = make_satisfaction_conclusion(decls, false);
-			return make_implication(std::move(premise), std::move(conclusion));
+			return std::make_pair(std::move(premise), std::move(conclusion));
 		});
 	}
 
-	std::unique_ptr<ImplicationFormula> get_dummy_satisfies_delete(triple_t mapKey, std::string fieldname) {
+	tuple_t get_dummy_satisfies_delete(triple_t mapKey, std::string fieldname) {
 		return get_or_create_dummy(types2deleted, mapKey, [&,this](){
 			auto [decls, premise] = get_dummy_premise(mapKey, fieldname);
 			auto conclusion = make_satisfaction_conclusion(decls, true);
-			return make_implication(std::move(premise), std::move(conclusion));
+			return std::make_pair(std::move(premise), std::move(conclusion));
 		});
 	}
 
 
-	std::unique_ptr<ImplicationFormula> extend_dummy_with_state(std::unique_ptr<ImplicationFormula> dummy, const ConjunctionFormula& state, triple_t mapKey, const VariableDeclaration& searchKey, const VariableDeclaration& node, const Expression& value) {
-		auto premise = copy_conjunction(state); // TODO: one could probably go without copy the state formula here
-		premise->conjuncts.push_back(std::move(dummy->premise));
+	std::unique_ptr<ConjunctionFormula> extend_dummy_with_state(std::unique_ptr<ConjunctionFormula> dummy, const ConjunctionFormula& state, triple_t mapKey, const VariableDeclaration& searchKey, const VariableDeclaration& node, const Expression& value) {
+		auto premise = plankton::copy(state); // TODO: one could probably avoid this copy somehow
+		for (auto& conjunct : dummy->conjuncts) {
+			premise->conjuncts.push_back(std::move(conjunct));
+		}
+
 		auto [dummyKeyNow, dummyKeyNext, dummyNodeNow, dummyNodeNext, dummyValue] = get_decls(mapKey);
 		premise->conjuncts.push_back(from_expr(
 			std::make_unique<BinaryExpression>(BinaryExpression::Operator::EQ, from_decl(*dummyNodeNow), from_decl(node))
@@ -234,31 +226,34 @@ struct PurityChecker {
 		premise->conjuncts.push_back(from_expr(
 			std::make_unique<BinaryExpression>(BinaryExpression::Operator::EQ, from_decl(*dummyValue), cola::copy(value))
 		));
-		dummy->premise = std::move(premise);
-		return dummy;
+
+		return premise;
 	}
 
-	std::unique_ptr<ImplicationFormula> get_pure(const ConjunctionFormula& state, const Dereference& deref, const VariableDeclaration& derefNode, const Expression& value) {
+	tuple_t get_pure(const ConjunctionFormula& state, const Dereference& deref, const VariableDeclaration& derefNode, const Expression& value) {
 		auto mapKey = get_triple(dummy_search_key, deref);
-		auto implication = get_dummy_pure(mapKey, deref.fieldname);
-		return extend_dummy_with_state(std::move(implication), state, mapKey, dummy_search_key, derefNode, value);
+		auto [premise, conclusion] = get_dummy_pure(mapKey, deref.fieldname);
+		premise = extend_dummy_with_state(std::move(premise), state, mapKey, dummy_search_key, derefNode, value);
+		return std::make_pair(std::move(premise), std::move(conclusion));
 	}
 
-	std::unique_ptr<ImplicationFormula> get_satisfies_insert(const ConjunctionFormula& state, const VariableDeclaration& searchKey, const Dereference& deref, const VariableDeclaration& derefNode, const Expression& value) {
+	tuple_t get_satisfies_insert(const ConjunctionFormula& state, const VariableDeclaration& searchKey, const Dereference& deref, const VariableDeclaration& derefNode, const Expression& value) {
 		auto mapKey = get_triple(searchKey, deref);
-		auto implication = get_dummy_satisfies_insert(mapKey, deref.fieldname);
-		return extend_dummy_with_state(std::move(implication), state, mapKey, searchKey, derefNode, value);
+		auto [premise, conclusion] = get_dummy_satisfies_insert(mapKey, deref.fieldname);
+		premise = extend_dummy_with_state(std::move(premise), state, mapKey, searchKey, derefNode, value);
+		return std::make_pair(std::move(premise), std::move(conclusion));
 	}
 
-	std::unique_ptr<ImplicationFormula> get_satisfies_delete(const ConjunctionFormula& state, const VariableDeclaration& searchKey, const Dereference& deref, const VariableDeclaration& derefNode, const Expression& value) {
+	tuple_t get_satisfies_delete(const ConjunctionFormula& state, const VariableDeclaration& searchKey, const Dereference& deref, const VariableDeclaration& derefNode, const Expression& value) {
 		auto mapKey = get_triple(searchKey, deref);
-		auto implication = get_dummy_satisfies_delete(mapKey, deref.fieldname);
-		return extend_dummy_with_state(std::move(implication), state, mapKey, searchKey, derefNode, value);
+		auto [premise, conclusion] = get_dummy_satisfies_delete(mapKey, deref.fieldname);
+		premise = extend_dummy_with_state(std::move(premise), state, mapKey, searchKey, derefNode, value);
+		return std::make_pair(std::move(premise), std::move(conclusion));
 	}
 
 
-	static bool implication_holds(std::unique_ptr<ImplicationFormula> implication) {
-		return plankton::implies(*implication->premise, *implication->conclusion);
+	static bool implication_holds(tuple_t&& implication) {
+		return plankton::implies(*implication.first, *implication.second);
 	}
 
 	bool is_pure(const ConjunctionFormula& state, const Dereference& deref, const VariableDeclaration& derefNode, const Expression& value) {
@@ -280,17 +275,27 @@ struct PurityChecker {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct OwnershipChecker : public LogicNonConstVisitor { // TODO: is this thingy correct?
+struct Pruner : public BaseLogicNonConstVisitor { // TODO: is this thingy correct?
 	const Expression& prune_expr;
 	bool prune_child = false;
 	bool prune_value = true;
-	OwnershipChecker(const Expression& expr) : prune_expr(expr) {}
+	Pruner(const Expression& expr) : prune_expr(expr) {}
+
+	template<typename T> std::unique_ptr<T> make_pruned() {
+		return std::make_unique<ExpressionAxiom>(std::make_unique<BooleanValue>(prune_value));
+	}
+	
+	template<> std::unique_ptr<AxiomConjunctionFormula> make_pruned<AxiomConjunctionFormula>() {
+		auto result = std::make_unique<AxiomConjunctionFormula>();
+		result->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BooleanValue>(prune_value)));
+		return result;
+	}
 
 	template<typename T>
 	void handle_formula(std::unique_ptr<T>& formula) {
 		formula->accept(*this);
 		if (prune_child) {
-			formula = std::make_unique<ExpressionFormula>(std::make_unique<BooleanValue>(prune_value));
+			formula = make_pruned<T>();
 			prune_child = false;
 		}
 	}
@@ -300,45 +305,43 @@ struct OwnershipChecker : public LogicNonConstVisitor { // TODO: is this thingy 
 			handle_formula(conjunct);
 		}
 	}
-	
-	void visit(NegatedFormula& formula) override {
+
+	void visit(AxiomConjunctionFormula& formula) override {
+		for (auto& conjunct : formula.conjuncts) {
+			handle_formula(conjunct);
+		}
+	}
+
+	void visit(NegatedAxiom& formula) override {
 		bool old_value = prune_value;
 		prune_value = !prune_value;
-		handle_formula(formula.formula);
+		handle_formula(formula.axiom);
 		prune_value = old_value;
 	}
 
 	void visit(ImplicationFormula& formula) override {
-		if (!prune_value) {
-			// touch formula.precondition only for negated implications
-			handle_formula(formula.premise);
-		}
+		assert(prune_value);
 		handle_formula(formula.conclusion);
 	}
 
-	void visit(OwnershipFormula& formula) override {
-		if (plankton::syntactically_equal(*formula.expr, prune_expr)) {
-			prune_child = true;
-		}
+	void visit(OwnershipAxiom& formula) override {
+		if (!prune_value) return;
+		prune_child = plankton::syntactically_equal(*formula.expr, prune_expr);
 	}
 
-	void visit(LogicallyContainedFormula& /*formula*/) override { prune_child = true; }
-	void visit(FlowFormula& /*formula*/) override { prune_child = true; }
-	// TODO: prune keyset stuff
+	void visit(LogicallyContainedAxiom& /*formula*/) override { prune_child = true; }
+	void visit(KeysetContainsAxiom& /*formula*/) override { prune_child = true; }
+	void visit(FlowAxiom& /*formula*/) override { prune_child = true; }
 
-	void visit(ExpressionFormula& /*formula*/) override { /* do nothing */ }
-	void visit(ObligationFormula& /*formula*/) override { /* do nothing */ }
-	void visit(FulfillmentFormula& /*formula*/) override { /* do nothing */ }
-
-	void visit(PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: OwnershipChecker::visit(PastPredicate&)"); }
-	void visit(FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: OwnershipChecker::visit(FuturePredicate&)"); }
-	void visit(Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: OwnershipChecker::visit(Annotation&)"); }
+	void visit(ExpressionAxiom& /*formula*/) override { prune_child = false; }
+	void visit(ObligationAxiom& /*formula*/) override { prune_child = false; }
+	void visit(FulfillmentAxiom& /*formula*/) override { prune_child = false; }
 };
 
-std::unique_ptr<Formula> destroy_ownership_and_non_local_knowledge(std::unique_ptr<Formula> formula, const Expression& expr) {
-	// remove ownership of 'expr' in 'uptrcontainer'
-	OwnershipChecker visitor(expr);
-	visitor.handle_formula(formula);
+std::unique_ptr<ConjunctionFormula> destroy_ownership_and_non_local_knowledge(std::unique_ptr<ConjunctionFormula> formula, const Expression& expr) {
+	// remove ownership of 'expr' in 'formula' as well as all non-local knowledge (like flow, keysets, node contents)
+	Pruner visitor(expr);
+	formula->accept(visitor);
 	return formula;
 }
 
@@ -349,6 +352,9 @@ std::unique_ptr<Formula> destroy_ownership_and_non_local_knowledge(std::unique_p
 
 template<typename T>
 T container_search_and_destroy(T&& uptrcontainer, const Expression& destroy) {
+	// TODO: we are deleting to much -> we do not need to delete thing in the premise of implications
+	throw std::logic_error("not yet implemented: container_search_and_destroy");
+
 	// remove knowledge about 'destroy' in 'uptrcontainer'
 	T new_container;
 	for (auto& elem : uptrcontainer) {
@@ -361,10 +367,14 @@ T container_search_and_destroy(T&& uptrcontainer, const Expression& destroy) {
 
 template<typename T>
 T container_search_and_inline(T&& uptrcontainer, const Expression& search, const Expression& replacement) {
+	// TODO: should we inline in the premise of implications?
+	throw std::logic_error("not yet implemented: container_search_and_inline");
+
 	// copy knowledge about 'search' in 'uptrcontainer' over to 'replacement'
 	T new_elements;
 	for (auto& elem : uptrcontainer) {
-		if (plankton::contains_expression(*elem, search) && !plankton::contains_expression_within_obligation(*elem, search)) {
+		auto [contained, contained_within_obligation] = plankton::contains_expression_obligation(*elem, search);
+		if (contained && !contained_within_obligation) {
 			new_elements.push_back(replace_expression(plankton::copy(*elem), search, replacement));
 		}
 	}
@@ -374,19 +384,18 @@ T container_search_and_inline(T&& uptrcontainer, const Expression& search, const
 
 std::unique_ptr<Annotation> search_and_destroy_and_inline_var(std::unique_ptr<Annotation> pre, const VariableExpression& lhs, const Expression& rhs) {
 	// destroy knowledge about lhs
-	auto pruned = destroy_ownership_and_non_local_knowledge(std::move(pre->now), rhs);
-	auto flat = plankton::flatten(std::move(pruned));
-	flat->conjuncts = container_search_and_destroy(std::move(flat->conjuncts), lhs);
+	auto now = destroy_ownership_and_non_local_knowledge(std::move(pre->now), rhs);
+	now->conjuncts = container_search_and_destroy(std::move(now->conjuncts), lhs);
 	pre->time = container_search_and_destroy(std::move(pre->time), lhs);
 
 	// copy knowledge about rhs over to lhs
-	flat->conjuncts = container_search_and_inline(std::move(flat->conjuncts), rhs, lhs);
+	now->conjuncts = container_search_and_inline(std::move(now->conjuncts), rhs, lhs);
 	pre->time = container_search_and_inline(std::move(pre->time), rhs, lhs); // TODO important: are those really freely duplicable?
 
 	// add new knowledge
-	auto equality = std::make_unique<ExpressionFormula>(std::make_unique<BinaryExpression>(BinaryExpression::Operator::EQ, cola::copy(lhs), cola::copy(rhs)));
-	flat->conjuncts.push_back(std::move(equality));
-	pre->now = std::move(flat);
+	auto equality = std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(BinaryExpression::Operator::EQ, cola::copy(lhs), cola::copy(rhs)));
+	now->conjuncts.push_back(std::move(equality));
+	pre->now = std::move(now);
 
 	// done
 	return pre;
@@ -425,9 +434,10 @@ std::unique_ptr<Annotation> post_full_assign_var_derefdata(std::unique_ptr<Annot
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct DereferenceExtractor : public BaseVisitor, public LogicVisitor {
+struct DereferenceExtractor : public BaseVisitor, public DefaultListener {
 	using BaseVisitor::visit;
-	using LogicVisitor::visit;
+	using DefaultListener::visit;
+	using DefaultListener::enter;
 
 	std::string search_field;
 	std::deque<std::unique_ptr<Expression>> result;
@@ -452,22 +462,14 @@ struct DereferenceExtractor : public BaseVisitor, public LogicVisitor {
 	void visit(const VariableExpression& /*node*/) override { /* do nothing */ }
 	void visit(const NegatedExpression& node) override { node.expr->accept(*this); }
 	void visit(const BinaryExpression& node) override { node.lhs->accept(*this); node.rhs->accept(*this); }
-	void visit(const ExpressionFormula& formula) override { formula.expr->accept(*this); }
-	void visit(const OwnershipFormula& formula) override { formula.expr->accept(*this); }
-	void visit(const LogicallyContainedFormula& formula) override { formula.expr->accept(*this); }
-	void visit(const FlowFormula& formula) override { formula.expr->accept(*this); }
-	void visit(const ObligationFormula& formula) override { formula.spec->key->accept(*this); }
-	void visit(const FulfillmentFormula& formula) override { formula.spec->key->accept(*this); }
-	void visit(const NegatedFormula& formula) override { formula.formula->accept(*this); }
-	void visit(const ConjunctionFormula& formula) override {
-		for (const auto& conjunct : formula.conjuncts) {
-			conjunct->accept(*this);
-		}
-	}
-	void visit(const ImplicationFormula& formula) override { formula.premise->accept(*this); formula.conclusion->accept(*this); }
-	void visit(const PastPredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: DereferenceExtractor::visit(const PastPredicate&)"); }
-	void visit(const FuturePredicate& /*formula*/) override { throw std::logic_error("Unexpected invocation: DereferenceExtractor::visit(const FuturePredicate&)"); }
-	void visit(const Annotation& /*formula*/) override { throw std::logic_error("Unexpected invocation: DereferenceExtractor::visit(const Annotation&)"); }
+	
+	void enter(const ExpressionAxiom& formula) override { formula.expr->accept(*this); }
+	void enter(const OwnershipAxiom& formula) override { formula.expr->accept(*this); }
+	void enter(const LogicallyContainedAxiom& formula) override { formula.expr->accept(*this); }
+	void enter(const KeysetContainsAxiom& formula) override { formula.node->accept(*this); formula.value->accept(*this); }
+	void enter(const FlowAxiom& formula) override { formula.expr->accept(*this); }
+	void enter(const ObligationAxiom& formula) override { formula.key->accept(*this); }
+	void enter(const FulfillmentAxiom& formula) override { formula.key->accept(*this); }
 };
 
 std::unique_ptr<ConjunctionFormula> search_and_destroy_derefs(std::unique_ptr<ConjunctionFormula> now, const Dereference& lhs) {
@@ -475,7 +477,7 @@ std::unique_ptr<ConjunctionFormula> search_and_destroy_derefs(std::unique_ptr<Co
 		BinaryExpression::Operator::NEQ, std::make_unique<Dereference>(std::make_unique<NullValue>(), lhs.fieldname), cola::copy(lhs)
 	);
 	auto& uptr = expr->lhs;
-	auto inequality = std::make_unique<ExpressionFormula>(std::move(expr));
+	auto inequality = std::make_unique<ExpressionAxiom>(std::move(expr));
 	
 
 	// find all dereferences that may be affected (are not guaranteed to be destroyed)
@@ -500,25 +502,25 @@ std::unique_ptr<ConjunctionFormula> search_and_destroy_derefs(std::unique_ptr<Co
 
 std::unique_ptr<Annotation> search_and_destroy_and_inline_deref(std::unique_ptr<Annotation> pre, const Dereference& lhs, const Expression& rhs) {
 	// destroy knowledge about lhs (do not modify TimePredicates)
-	auto pruned = destroy_ownership_and_non_local_knowledge(std::move(pre->now), rhs);
-	auto flat = plankton::flatten(std::move(pruned));
-	flat = search_and_destroy_derefs(std::move(flat), lhs);
+	auto now = destroy_ownership_and_non_local_knowledge(std::move(pre->now), rhs);
+	now = search_and_destroy_derefs(std::move(now), lhs);
 	// do not modify 
 
 	// copy knowledge about rhs over to lhs (do not modify TimePredicates)
-	flat->conjuncts = container_search_and_inline(std::move(flat->conjuncts), rhs, lhs);
+	now->conjuncts = container_search_and_inline(std::move(now->conjuncts), rhs, lhs);
 
-	// add new knowledge
-	auto equality = std::make_unique<ExpressionFormula>(std::make_unique<BinaryExpression>(BinaryExpression::Operator::EQ, cola::copy(lhs), cola::copy(rhs)));
-	flat->conjuncts.push_back(std::move(equality));
-	pre->now = std::move(flat);
+	// add new knowledge;
+	now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(
+		std::make_unique<BinaryExpression>(BinaryExpression::Operator::EQ, cola::copy(lhs), cola::copy(rhs))
+	));
 
 	// done
+	pre->now = std::move(now);
 	return pre;
 }
 
 bool is_owned(const Formula& now, const VariableExpression& var) {
-	OwnershipFormula ownership(std::make_unique<VariableExpression>(var.decl));
+	OwnershipAxiom ownership(std::make_unique<VariableExpression>(var.decl));
 	return plankton::implies(now, ownership);
 }
 
@@ -529,7 +531,7 @@ bool has_no_flow(const Formula& /*now*/, const VariableExpression& /*var*/) {
 
 bool has_enabled_future_predicate(const Formula& now, const Annotation& time, const Assignment& cmd) {
 	for (const auto& pred : time.time) {
-		auto [is_future, future_pred] = plankton::is_future(*pred);
+		auto [is_future, future_pred] = plankton::is_of_type<FuturePredicate>(*pred);
 		if (!is_future) continue;
 		if (!plankton::syntactically_equal(*future_pred->command->lhs, *cmd.lhs)) continue;
 		if (!plankton::syntactically_equal(*future_pred->command->rhs, *cmd.rhs)) continue;
@@ -540,42 +542,45 @@ bool has_enabled_future_predicate(const Formula& now, const Annotation& time, co
 	return false;
 }
 
-bool keyset_contains(const ConjunctionFormula& /*now*/, const VariableExpression& /*node*/, const VariableDeclaration& /*searchKey*/) {
-	throw std::logic_error("not yet implemented: keyset_contains");
+bool keyset_contains(const Formula& now, const VariableExpression& node, const VariableDeclaration& searchKey) {
+	KeysetContainsAxiom keyset(std::make_unique<VariableExpression>(node.decl), std::make_unique<VariableExpression>(searchKey));
+	return plankton::implies(now, keyset);
 }
 
-std::pair<bool, std::unique_ptr<FulfillmentFormula>> try_fulfill_impure_obligation(const ConjunctionFormula& now, const ObligationFormula& obligation, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
-	std::pair<bool, std::unique_ptr<FulfillmentFormula>> result;
-	if (obligation.spec->kind == Specification::Kind::CONTAINS) {
+std::pair<bool, std::unique_ptr<FulfillmentAxiom>> try_fulfill_impure_obligation(const ConjunctionFormula& now, const ObligationAxiom& obligation, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
+	std::pair<bool, std::unique_ptr<FulfillmentAxiom>> result;
+	if (obligation.kind == ObligationAxiom::Kind::CONTAINS) {
 		return result;
 	}
 
-	auto& searchKey = obligation.spec->key->decl;
+	auto& searchKey = obligation.key->decl;
 	if (keyset_contains(now, lhsVar, searchKey)) {
 		// 'searchKey' in keyset of 'lhsVar.decl' ==> we are guaranteed that 'lhsVar' is the correct node to modify
-		result.first = (obligation.spec->kind == Specification::Kind::INSERT && thePurityChecker.satisfies_insert(now, searchKey, lhs, lhsVar.decl, rhs))
-		            || (obligation.spec->kind == Specification::Kind::DELETE && thePurityChecker.satisfies_delete(now, searchKey, lhs, lhsVar.decl, rhs));
+		result.first = (obligation.kind == ObligationAxiom::Kind::INSERT && thePurityChecker.satisfies_insert(now, searchKey, lhs, lhsVar.decl, rhs))
+		            || (obligation.kind == ObligationAxiom::Kind::DELETE && thePurityChecker.satisfies_delete(now, searchKey, lhs, lhsVar.decl, rhs));
 	}
 
 	if (result.first) {
-		result.second = std::make_unique<FulfillmentFormula>(obligation.spec->copy(), true);
+		result.second = std::make_unique<FulfillmentAxiom>(obligation.kind, std::make_unique<VariableExpression>(obligation.key->decl), true);
 	}
 
 	return result;
 }
 
 std::pair<bool, std::unique_ptr<ConjunctionFormula>> check_impure_specification(std::unique_ptr<ConjunctionFormula> now, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
+	bool result = false;
 	for (auto& conjunct : now->conjuncts) {
-		auto [is_obligation, obligation] = plankton::is_obligation(*conjunct);
+		auto [is_obligation, obligation] = plankton::is_of_type<ObligationAxiom>(*conjunct);
 		if (is_obligation) {
 			auto [success, fulfillment] = try_fulfill_impure_obligation(*now, *obligation, lhs, lhsVar, rhs);
 			if (success) {
 				conjunct = std::move(fulfillment);
-				return std::make_pair(true, std::move(now));
+				result = true;
+				break;
 			}
 		}
 	}
-	return std::make_pair(false, std::move(now));
+	return std::make_pair(result, std::move(now));
 }
 
 std::unique_ptr<Annotation> handle_purity_ptr(std::unique_ptr<Annotation> /*pre*/, const Assignment& /*cmd*/, const Dereference& /*lhs*/, const VariableExpression& /*lhsVar*/, const Expression& /*rhs*/) {
@@ -588,7 +593,7 @@ std::unique_ptr<Annotation> handle_purity_data(std::unique_ptr<Annotation> pre, 
 	// ASSUMPTION: assignments to data members do not affect the flow
 	//             ==> only the logical content of 'lhsVar' may change
 
-	auto now = plankton::flatten(std::move(pre->now));
+	auto now = std::move(pre->now);
 	bool success = false;
 
 	// the content of 'lhs.expr' is intersected with the empty flow ==> changes are irrelevant

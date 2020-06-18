@@ -23,8 +23,24 @@ namespace plankton {
 	
 	void print(const Formula& formula, std::ostream& stream);
 
-	template<typename F, EXTENDS_FORMULA(F)>
-	std::unique_ptr<F> copy(const F& formula);
+	std::unique_ptr<Formula> copy(const Formula& formula);
+	std::unique_ptr<SimpleFormula> copy(const SimpleFormula& formula);
+	std::unique_ptr<Axiom> copy(const Axiom& formula);
+	std::unique_ptr<TimePredicate> copy(const TimePredicate& formula);
+	std::unique_ptr<AxiomConjunctionFormula> copy(const AxiomConjunctionFormula& formula);
+	std::unique_ptr<ImplicationFormula> copy(const ImplicationFormula& formula);
+	std::unique_ptr<ConjunctionFormula> copy(const ConjunctionFormula& formula);
+	std::unique_ptr<NegatedAxiom> copy(const NegatedAxiom& formula);
+	std::unique_ptr<ExpressionAxiom> copy(const ExpressionAxiom& formula);
+	std::unique_ptr<OwnershipAxiom> copy(const OwnershipAxiom& formula);
+	std::unique_ptr<LogicallyContainedAxiom> copy(const LogicallyContainedAxiom& formula);
+	std::unique_ptr<KeysetContainsAxiom> copy(const KeysetContainsAxiom& formula);
+	std::unique_ptr<FlowAxiom> copy(const FlowAxiom& formula);
+	std::unique_ptr<ObligationAxiom> copy(const ObligationAxiom& formula);
+	std::unique_ptr<FulfillmentAxiom> copy(const FulfillmentAxiom& formula);
+	std::unique_ptr<PastPredicate> copy(const PastPredicate& formula);
+	std::unique_ptr<FuturePredicate> copy(const FuturePredicate& formula);
+	std::unique_ptr<Annotation> copy(const Annotation& formula);
 
 	//
 	// Inspection
@@ -33,7 +49,11 @@ namespace plankton {
 	bool syntactically_equal(const cola::Expression& expression, const cola::Expression& other);
 
 	template<typename F, EXTENDS_FORMULA(F)>
-	std::pair<bool, const F*> is_of_type(const Formula& formula);
+	std::pair<bool, const F*> is_of_type(const Formula& formula) {
+		auto result = dynamic_cast<const F*>(&formula);
+		if (result) return std::make_pair(true, result);
+		else return std::make_pair(false, nullptr);
+	}
 	
 	/** Test whether 'formula' contains 'search' as subexpression somewhere.
 	  */
@@ -52,12 +72,16 @@ namespace plankton {
 	using transformer_t = std::function<std::pair<bool,std::unique_ptr<cola::Expression>>(const cola::Expression&)>;
 
 	std::unique_ptr<cola::Expression> replace_expression(std::unique_ptr<cola::Expression> expression, transformer_t transformer);
-	template<typename F, EXTENDS_FORMULA(F)>
-	std::unique_ptr<F> replace_expression(std::unique_ptr<F> formula, transformer_t transformer);
+	std::unique_ptr<Formula> replace_expression(std::unique_ptr<Formula> formula, transformer_t transformer);
+	std::unique_ptr<SimpleFormula> replace_expression(std::unique_ptr<SimpleFormula> formula, transformer_t transformer);
+	std::unique_ptr<ConjunctionFormula> replace_expression(std::unique_ptr<ConjunctionFormula> formula, transformer_t transformer);
+	std::unique_ptr<TimePredicate> replace_expression(std::unique_ptr<TimePredicate> formula, transformer_t transformer);
 
 	std::unique_ptr<cola::Expression> replace_expression(std::unique_ptr<cola::Expression> formula, const cola::Expression& replace, const cola::Expression& with);
-	template<typename F, EXTENDS_FORMULA(F)>
-	std::unique_ptr<F> replace_expression(std::unique_ptr<F> formula, const cola::Expression& replace, const cola::Expression& with);
+	std::unique_ptr<Formula> replace_expression(std::unique_ptr<Formula> formula, const cola::Expression& replace, const cola::Expression& with);
+	std::unique_ptr<SimpleFormula> replace_expression(std::unique_ptr<SimpleFormula> formula, const cola::Expression& replace, const cola::Expression& with);
+	std::unique_ptr<ConjunctionFormula> replace_expression(std::unique_ptr<ConjunctionFormula> formula, const cola::Expression& replace, const cola::Expression& with);
+	std::unique_ptr<TimePredicate> replace_expression(std::unique_ptr<TimePredicate> formula, const cola::Expression& replace, const cola::Expression& with);
 
 	//
 	// Solving

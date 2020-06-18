@@ -6,12 +6,7 @@ using namespace cola;
 using namespace plankton;
 
 
-template<> std::unique_ptr<Axiom> plankton::copy<Axiom>(const Axiom& formula);
-template<> std::unique_ptr<SimpleFormula> plankton::copy<SimpleFormula>(const SimpleFormula& formula);
-template<> std::unique_ptr<TimePredicate> plankton::copy<TimePredicate>(const TimePredicate& formula);
-
-template<>
-std::unique_ptr<AxiomConjunctionFormula> plankton::copy<AxiomConjunctionFormula>(const AxiomConjunctionFormula& formula) {
+std::unique_ptr<AxiomConjunctionFormula> plankton::copy(const AxiomConjunctionFormula& formula) {
 	auto copy = std::make_unique<AxiomConjunctionFormula>();
 	for (const auto& conjunct : formula.conjuncts) {
 		copy->conjuncts.push_back(plankton::copy(*conjunct));
@@ -19,13 +14,11 @@ std::unique_ptr<AxiomConjunctionFormula> plankton::copy<AxiomConjunctionFormula>
 	return copy;
 }
 
-template<>
-std::unique_ptr<ImplicationFormula> plankton::copy<ImplicationFormula>(const ImplicationFormula& formula) {
+std::unique_ptr<ImplicationFormula> plankton::copy(const ImplicationFormula& formula) {
 	return std::make_unique<ImplicationFormula>(plankton::copy(*formula.premise), plankton::copy(*formula.conclusion));
 }
 
-template<>
-std::unique_ptr<ConjunctionFormula> plankton::copy<ConjunctionFormula>(const ConjunctionFormula& formula) {
+std::unique_ptr<ConjunctionFormula> plankton::copy(const ConjunctionFormula& formula) {
 	auto copy = std::make_unique<ConjunctionFormula>();
 	for (const auto& conjunct : formula.conjuncts) {
 		copy->conjuncts.push_back(plankton::copy(*conjunct));
@@ -33,53 +26,43 @@ std::unique_ptr<ConjunctionFormula> plankton::copy<ConjunctionFormula>(const Con
 	return copy;
 }
 
-template<>
-std::unique_ptr<NegatedAxiom> plankton::copy<NegatedAxiom>(const NegatedAxiom& formula) {
+std::unique_ptr<NegatedAxiom> plankton::copy(const NegatedAxiom& formula) {
 	return std::make_unique<NegatedAxiom>(plankton::copy(*formula.axiom));
 }
 
-template<>
-std::unique_ptr<ExpressionAxiom> plankton::copy<ExpressionAxiom>(const ExpressionAxiom& formula) {
+std::unique_ptr<ExpressionAxiom> plankton::copy(const ExpressionAxiom& formula) {
 	return std::make_unique<ExpressionAxiom>(cola::copy(*formula.expr));
 }
 
-template<>
-std::unique_ptr<OwnershipAxiom> plankton::copy<OwnershipAxiom>(const OwnershipAxiom& formula) {
+std::unique_ptr<OwnershipAxiom> plankton::copy(const OwnershipAxiom& formula) {
 	return std::make_unique<OwnershipAxiom>(std::make_unique<VariableExpression>(formula.expr->decl));
 }
 
-template<>
-std::unique_ptr<LogicallyContainedAxiom> plankton::copy<LogicallyContainedAxiom>(const LogicallyContainedAxiom& formula) {
+std::unique_ptr<LogicallyContainedAxiom> plankton::copy(const LogicallyContainedAxiom& formula) {
 	return std::make_unique<LogicallyContainedAxiom>(cola::copy(*formula.expr));
 }
 
-template<>
-std::unique_ptr<KeysetContainsAxiom> plankton::copy<KeysetContainsAxiom>(const KeysetContainsAxiom& formula) {
+std::unique_ptr<KeysetContainsAxiom> plankton::copy(const KeysetContainsAxiom& formula) {
 	return std::make_unique<KeysetContainsAxiom>(cola::copy(*formula.node), cola::copy(*formula.value));
 }
 
-template<>
-std::unique_ptr<FlowAxiom> plankton::copy<FlowAxiom>(const FlowAxiom& formula) {
+std::unique_ptr<FlowAxiom> plankton::copy(const FlowAxiom& formula) {
 	return std::make_unique<FlowAxiom>(cola::copy(*formula.expr), formula.flow);
 }
 
-template<>
-std::unique_ptr<ObligationAxiom> plankton::copy<ObligationAxiom>(const ObligationAxiom& formula) {
+std::unique_ptr<ObligationAxiom> plankton::copy(const ObligationAxiom& formula) {
 	return std::make_unique<ObligationAxiom>(formula.kind, std::make_unique<VariableExpression>(formula.key->decl));
 }
 
-template<>
-std::unique_ptr<FulfillmentAxiom> plankton::copy<FulfillmentAxiom>(const FulfillmentAxiom& formula) {
+std::unique_ptr<FulfillmentAxiom> plankton::copy(const FulfillmentAxiom& formula) {
 	return std::make_unique<FulfillmentAxiom>(formula.kind, std::make_unique<VariableExpression>(formula.key->decl), formula.return_value);
 }
 
-template<>
-std::unique_ptr<PastPredicate> plankton::copy<PastPredicate>(const PastPredicate& formula) {
+std::unique_ptr<PastPredicate> plankton::copy(const PastPredicate& formula) {
 	return std::make_unique<PastPredicate>(plankton::copy(*formula.formula));
 }
 
-template<>
-std::unique_ptr<FuturePredicate> plankton::copy<FuturePredicate>(const FuturePredicate& formula) {
+std::unique_ptr<FuturePredicate> plankton::copy(const FuturePredicate& formula) {
 	return std::make_unique<FuturePredicate>(
 		plankton::copy(*formula.pre),
 		std::make_unique<Assignment>(cola::copy(*formula.command->lhs), cola::copy(*formula.command->rhs)),
@@ -87,8 +70,7 @@ std::unique_ptr<FuturePredicate> plankton::copy<FuturePredicate>(const FuturePre
 	);
 }
 
-template<>
-std::unique_ptr<Annotation> plankton::copy<Annotation>(const Annotation& formula) {
+std::unique_ptr<Annotation> plankton::copy(const Annotation& formula) {
 	auto copy = std::make_unique<Annotation>(plankton::copy(*formula.now));
 	for (const auto& pred : formula.time) {
 		copy->time.push_back(plankton::copy(*pred));
@@ -101,25 +83,54 @@ template<typename T>
 struct CopyVisitor : public LogicVisitor {
 	std::unique_ptr<T> result;
 
-	void visit(const AxiomConjunctionFormula& formula) { result = plankton::copy<AxiomConjunctionFormula>(formula); }
-	void visit(const ImplicationFormula& formula) { result = plankton::copy<ImplicationFormula>(formula); }
-	void visit(const ConjunctionFormula& formula) { result = plankton::copy<ConjunctionFormula>(formula); }
-	void visit(const NegatedAxiom& formula) { result = plankton::copy<NegatedAxiom>(formula); }
-	void visit(const ExpressionAxiom& formula) { result = plankton::copy<ExpressionAxiom>(formula); }
-	void visit(const OwnershipAxiom& formula) { result = plankton::copy<OwnershipAxiom>(formula); }
-	void visit(const LogicallyContainedAxiom& formula) { result = plankton::copy<LogicallyContainedAxiom>(formula); }
-	void visit(const KeysetContainsAxiom& formula) { result = plankton::copy<KeysetContainsAxiom>(formula); }
-	void visit(const FlowAxiom& formula) { result = plankton::copy<FlowAxiom>(formula); }
-	void visit(const ObligationAxiom& formula) { result = plankton::copy<ObligationAxiom>(formula); }
-	void visit(const FulfillmentAxiom& formula) { result = plankton::copy<FulfillmentAxiom>(formula); }
-	void visit(const PastPredicate& formula) { result = plankton::copy<PastPredicate>(formula); }
-	void visit(const FuturePredicate& formula) { result = plankton::copy<FuturePredicate>(formula); }
-	void visit(const Annotation& formula) { result = plankton::copy<Annotation>(formula); }
+	template<typename U>
+	std::enable_if_t<std::is_base_of_v<T, U>> set_result(std::unique_ptr<U> uptr) {
+		result = std::move(uptr);
+	}
+
+	template<typename U>
+	std::enable_if_t<!std::is_base_of_v<T, U>> set_result(std::unique_ptr<U> /*uptr*/) {
+		throw std::logic_error("Wargelgarbel: could not copy formula... sorry.");
+	}
+
+	void visit(const ConjunctionFormula& formula) { set_result(plankton::copy(formula)); }
+	void visit(const Annotation& formula) { set_result(plankton::copy(formula)); }
+	void visit(const AxiomConjunctionFormula& formula) { set_result(plankton::copy(formula)); }
+
+	void visit(const ImplicationFormula& formula) { set_result(plankton::copy(formula)); }
+
+	void visit(const NegatedAxiom& formula) { set_result(plankton::copy(formula)); }
+	void visit(const ExpressionAxiom& formula) { set_result(plankton::copy(formula)); }
+	void visit(const OwnershipAxiom& formula) { set_result(plankton::copy(formula)); }
+	void visit(const LogicallyContainedAxiom& formula) { set_result(plankton::copy(formula)); }
+	void visit(const KeysetContainsAxiom& formula) { set_result(plankton::copy(formula)); }
+	void visit(const FlowAxiom& formula) { set_result(plankton::copy(formula)); }
+	void visit(const ObligationAxiom& formula) { set_result(plankton::copy(formula)); }
+	void visit(const FulfillmentAxiom& formula) { set_result(plankton::copy(formula)); }
+
+	void visit(const PastPredicate& formula) { set_result(plankton::copy(formula)); }
+	void visit(const FuturePredicate& formula) { set_result(plankton::copy(formula)); }
 };
 
-template<typename F, typename X>
-std::unique_ptr<F> plankton::copy(const F& formula) {
-	CopyVisitor<F> visitor;
+template<typename T>
+std::unique_ptr<T> do_copy(const T& formula) {
+	CopyVisitor<T> visitor;
 	formula.accept(visitor);
 	return std::move(visitor.result);
+}
+
+std::unique_ptr<Formula> plankton::copy(const Formula& formula) {
+	return do_copy<Formula>(formula);
+}
+
+std::unique_ptr<SimpleFormula> plankton::copy(const SimpleFormula& formula) {
+	return do_copy<SimpleFormula>(formula);
+}
+
+std::unique_ptr<Axiom> plankton::copy(const Axiom& formula) {
+	return do_copy<Axiom>(formula);
+}
+
+std::unique_ptr<TimePredicate> plankton::copy(const TimePredicate& formula) {
+	return do_copy<TimePredicate>(formula);
 }
