@@ -17,10 +17,15 @@ set(SOURCES
 	config.cpp
 	error.cpp
 	logic.cpp
-	post.cpp
-	util.cpp
+	util/contains.cpp
+	util/copy.cpp
+	util/equal.cpp
+	util/print.cpp
+	util/replace.cpp
+	util/solving.cpp
 	verify.cpp
 	verify_interference.cpp
+	post.cpp
 )
 
 add_library(Plankton ${SOURCES})

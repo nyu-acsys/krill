@@ -16,10 +16,10 @@
 namespace plankton {
 
 	struct Effect {
-		std::unique_ptr<Formula> precondition;
+		std::unique_ptr<ConjunctionFormula> precondition;
 		std::unique_ptr<cola::Assignment> command;
 		
-		Effect(std::unique_ptr<Formula> pre, std::unique_ptr<cola::Assignment> cmd) : precondition(std::move(pre)), command(std::move(cmd)) {}
+		Effect(std::unique_ptr<ConjunctionFormula> pre, std::unique_ptr<cola::Assignment> cmd) : precondition(std::move(pre)), command(std::move(cmd)) {}
 	};
 
 	struct RenamingInfo {

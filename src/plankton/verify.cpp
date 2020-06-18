@@ -137,7 +137,7 @@ void Verifier::visit(const Program& program) {
 
 std::unique_ptr<Annotation> get_init_annotation() {
 	// TODO: how to initialize annotation??
-	return plankton::make_true();
+	return Annotation::make_true();
 }
 
 void Verifier::visit_interface_function(const Function& function) {
@@ -253,7 +253,7 @@ void Verifier::visit(const Skip& /*cmd*/) {
 
 void Verifier::visit(const Break& /*cmd*/) {
 	breaking_annotations.push_back(std::move(current_annotation));
-	current_annotation = plankton::make_false();
+	current_annotation = Annotation::make_false();
 }
 
 void Verifier::visit(const Continue& /*cmd*/) {
@@ -279,7 +279,7 @@ void Verifier::visit(const Return& cmd) {
 		check_pointer_accesses(*expr);
 	}
 	returning_annotations.push_back(std::move(current_annotation));
-	current_annotation = plankton::make_false();
+	current_annotation = Annotation::make_false();
 }
 
 void Verifier::visit(const Malloc& cmd) {
