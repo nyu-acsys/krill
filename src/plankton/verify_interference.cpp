@@ -105,14 +105,13 @@ void Verifier::extend_interference(const cola::Assignment& command) {
 
 void Verifier::apply_interference() {
 	if (inside_atomic) return;
-	auto now = plankton::flatten(std::move(current_annotation->now));
 	
 	// find strongest formula that is interference
 	auto stable = std::make_unique<ConjunctionFormula>();
 	bool changed;
 	do {
 		changed = false;
-		for (auto& conjunct : now->conjuncts) {
+		for (auto& conjunct : current_annotation->now->conjuncts) {
 			if (!conjunct) continue;
 
 			// add conjunct to stable

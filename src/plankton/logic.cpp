@@ -80,7 +80,7 @@ Annotation::Annotation(std::unique_ptr<ConjunctionFormula> now_) : now(std::move
 
 inline std::unique_ptr<Annotation> mk_bool(bool value) {
 	auto result = std::make_unique<Annotation>();
-	result->now->axioms.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BooleanValue>(value)));
+	result->now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BooleanValue>(value)));
 	return result;
 }
 

@@ -91,7 +91,7 @@ namespace plankton {
 	struct Axiom : public SimpleFormula {
 	};
 
-	struct AxiomConjunctionFormula : public SimpleFormula {
+	struct AxiomConjunctionFormula : public Formula {
 		std::deque<std::unique_ptr<Axiom>> conjuncts;
 		
 		ACCEPT_FORMULA_VISITOR
@@ -107,8 +107,7 @@ namespace plankton {
 	};
 
 	struct ConjunctionFormula : public Formula {
-		std::deque<std::unique_ptr<Axiom>> axioms;
-		std::deque<std::unique_ptr<ImplicationFormula>> implications;
+		std::deque<std::unique_ptr<SimpleFormula>> conjuncts;
 
 		ACCEPT_FORMULA_VISITOR
 	};
@@ -271,8 +270,7 @@ namespace plankton {
 		}
 		void visit(const ConjunctionFormula& formula) override {
 			enter(formula);
-			visit_all(formula.axioms);
-			visit_all(formula.implications);
+			visit_all(formula.conjuncts);
 			exit(formula);
 		}
 		void visit(const AxiomConjunctionFormula& formula) override {
@@ -392,8 +390,7 @@ namespace plankton {
 		}
 		void visit(ConjunctionFormula& formula) override {
 			enter(formula);
-			visit_all(formula.axioms);
-			visit_all(formula.implications);
+			visit_all(formula.conjuncts);
 			exit(formula);
 		}
 		void visit(AxiomConjunctionFormula& formula) override {

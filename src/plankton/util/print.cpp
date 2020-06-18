@@ -50,11 +50,7 @@ struct FormulaPrinter : public LogicVisitor {
 	}
 
 	void visit(const ConjunctionFormula& formula) override {
-		print_elems(stream, formula.axioms, [this](const auto& e){
-			e->accept(*this);
-		});
-		stream << AND_STR;
-		print_elems(stream, formula.implications, [this](const auto& e){
+		print_elems(stream, formula.conjuncts, [this](const auto& e){
 			e->accept(*this);
 		});
 	}

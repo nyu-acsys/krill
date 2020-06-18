@@ -27,11 +27,8 @@ std::unique_ptr<ImplicationFormula> plankton::copy<ImplicationFormula>(const Imp
 template<>
 std::unique_ptr<ConjunctionFormula> plankton::copy<ConjunctionFormula>(const ConjunctionFormula& formula) {
 	auto copy = std::make_unique<ConjunctionFormula>();
-	for (const auto& axiom : formula.axioms) {
-		copy->axioms.push_back(plankton::copy(*axiom));
-	}
-	for (const auto& implication : formula.implications) {
-		copy->implications.push_back(plankton::copy(*implication));
+	for (const auto& conjunct : formula.conjuncts) {
+		copy->conjuncts.push_back(plankton::copy(*conjunct));
 	}
 	return copy;
 }
