@@ -352,8 +352,7 @@ std::unique_ptr<ConjunctionFormula> destroy_ownership_and_non_local_knowledge(st
 
 template<typename T>
 T container_search_and_destroy(T&& uptrcontainer, const Expression& destroy) {
-	// TODO: we are deleting to much -> we do not need to delete thing in the premise of implications
-	throw std::logic_error("not yet implemented: container_search_and_destroy");
+	// TODO important: are we are deleting to much -> should we avoid deleting things in the premise of implications?
 
 	// remove knowledge about 'destroy' in 'uptrcontainer'
 	T new_container;
@@ -367,8 +366,7 @@ T container_search_and_destroy(T&& uptrcontainer, const Expression& destroy) {
 
 template<typename T>
 T container_search_and_inline(T&& uptrcontainer, const Expression& search, const Expression& replacement) {
-	// TODO: should we inline in the premise of implications?
-	throw std::logic_error("not yet implemented: container_search_and_inline");
+	// TODO important: must we avoid inlining in the premise of implications?
 
 	// copy knowledge about 'search' in 'uptrcontainer' over to 'replacement'
 	T new_elements;
@@ -381,6 +379,11 @@ T container_search_and_inline(T&& uptrcontainer, const Expression& search, const
 	uptrcontainer.insert(uptrcontainer.end(), std::make_move_iterator(new_elements.begin()), std::make_move_iterator(new_elements.end()));
 	return std::move(uptrcontainer);
 }
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<Annotation> search_and_destroy_and_inline_var(std::unique_ptr<Annotation> pre, const VariableExpression& lhs, const Expression& rhs) {
 	// destroy knowledge about lhs
@@ -524,9 +527,9 @@ bool is_owned(const Formula& now, const VariableExpression& var) {
 	return plankton::implies(now, ownership);
 }
 
-bool has_no_flow(const Formula& /*now*/, const VariableExpression& /*var*/) {
-	// always returning false would not harm soundness
-	throw std::logic_error("not yet implemented: has_no_flow");
+bool has_no_flow(const Formula& now, const VariableExpression& var) {
+	FlowAxiom flow(cola::copy(var), FlowValue::empty());
+	return plankton::implies(now, flow);
 }
 
 bool has_enabled_future_predicate(const Formula& now, const Annotation& time, const Assignment& cmd) {
@@ -585,6 +588,16 @@ std::pair<bool, std::unique_ptr<ConjunctionFormula>> check_impure_specification(
 
 std::unique_ptr<Annotation> handle_purity_ptr(std::unique_ptr<Annotation> /*pre*/, const Assignment& /*cmd*/, const Dereference& /*lhs*/, const VariableExpression& /*lhsVar*/, const Expression& /*rhs*/) {
 	// assignment may be impure -> obligation/fulfillment transformation requrired
+
+	/*
+		Distinguish cases:
+		(1) pure deletion: lhsVar->next = y /\ y ->next = rhs /\ content(y)=<empty>
+		(2) impure insertion: lhsVar->next = y /\ rhs->next = y /\ contains(rhs, k) /\ OBL(insert, k) /\ "rhs bekommt keyset mit k"
+
+		(3) impure deletion: lhsVar->next = y /\ y ->next = rhs /\ contains(y, k) /\ k \in keyset(y) /\ OBL(delete, k)
+
+	*/
+
 	throw std::logic_error("not yet implemented: handle_purity_ptr");
 }
 
