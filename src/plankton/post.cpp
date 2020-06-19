@@ -14,6 +14,21 @@ using namespace plankton;
 struct POST_PTR_T {};
 struct POST_DATA_T {};
 
+template<typename T>
+std::string to_string(const T& obj) {
+	// make string
+	std::stringstream stream;
+	cola::print(obj, stream);
+	std::string result = stream.str();
+	// trim
+	std::stringstream trimmer;
+	trimmer << result;
+	result.clear();
+	trimmer >> result;
+	// done
+	return result;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -23,7 +38,7 @@ struct PurityChecker {
 	std::deque<std::unique_ptr<Formula>> dummy_formulas;
 
 	const Type dummy_data_type = Type("post#dummy-data-type", Sort::DATA);
-	const VariableDeclaration dummy_search_key = VariableDeclaration("post#dummy-search-key", dummy_data_type, false);
+	const VariableDeclaration dummy_search_key = VariableDeclaration("post#dummy-search-key", dummy_data_type, false); // TODO: just use Type::data_type()?
 
 	using tuple_t = std::pair<std::unique_ptr<ConjunctionFormula>, std::unique_ptr<ConjunctionFormula>>;
 	using triple_t = std::tuple<const Type*, const Type*, const Type*>;
@@ -525,6 +540,10 @@ std::unique_ptr<Annotation> search_and_destroy_and_inline_deref(std::unique_ptr<
 	return pre;
 }
 
+bool is_heap_homogeneous(const Dereference& deref) {
+	return deref.type().field(deref.fieldname) != &deref.type();
+}
+
 bool is_owned(const Formula& now, const VariableExpression& var) {
 	OwnershipAxiom ownership(std::make_unique<VariableExpression>(var.decl));
 	return plankton::implies(now, ownership);
@@ -553,7 +572,22 @@ bool keyset_contains(const Formula& now, const VariableExpression& node, const V
 	return plankton::implies(now, keyset);
 }
 
-std::pair<bool, std::unique_ptr<FulfillmentAxiom>> try_fulfill_impure_obligation(const ConjunctionFormula& now, const ObligationAxiom& obligation, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
+template<typename T, typename R>
+std::pair<bool, std::unique_ptr<ConjunctionFormula>> try_fulfill_obligation_mapper(std::unique_ptr<ConjunctionFormula> now, T mapper, const Dereference& lhs, const VariableExpression& lhsVar, const R& rhs) {
+	for (auto& conjunct : now->conjuncts) {
+		auto [is_obligation, obligation] = plankton::is_of_type<ObligationAxiom>(*conjunct);
+		if (is_obligation) {
+			auto [success, fulfillment] = mapper(*now, *obligation, lhs, lhsVar, rhs);
+			if (success) {
+				conjunct = std::move(fulfillment);
+				return std::make_pair(true, std::move(now));
+			}
+		}
+	}
+	return std::make_pair(false, std::move(now));
+}
+
+std::pair<bool, std::unique_ptr<FulfillmentAxiom>> try_fulfill_impure_obligation_data(const ConjunctionFormula& now, const ObligationAxiom& obligation, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
 	std::pair<bool, std::unique_ptr<FulfillmentAxiom>> result;
 	if (obligation.kind == ObligationAxiom::Kind::CONTAINS) {
 		return result;
@@ -574,37 +608,151 @@ std::pair<bool, std::unique_ptr<FulfillmentAxiom>> try_fulfill_impure_obligation
 }
 
 std::pair<bool, std::unique_ptr<ConjunctionFormula>> ensure_pure_or_spec_data(std::unique_ptr<ConjunctionFormula> now, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
+	// we assume that the update is local to the node referenced by 'lhsVar'
+	if (!plankton::is_flow_field_local(lhsVar.type(), lhs.fieldname)) {
+		return std::make_pair(false, std::move(now));
+	}
+
 	// pure assignment ==> do nothing
 	if (thePurityChecker.is_pure(*now, lhs, lhsVar.decl, rhs)) {
 		return std::make_pair(true, std::move(now));
 	}
 
 	// check impure specification
-	for (auto& conjunct : now->conjuncts) {
-		auto [is_obligation, obligation] = plankton::is_of_type<ObligationAxiom>(*conjunct);
-		if (is_obligation) {
-			auto [success, fulfillment] = try_fulfill_impure_obligation(*now, *obligation, lhs, lhsVar, rhs);
-			if (success) {
-				conjunct = std::move(fulfillment);
-				return std::make_pair(true, std::move(now));
-			}
-		}
+	return try_fulfill_obligation_mapper(std::move(now), try_fulfill_impure_obligation_data, lhs, lhsVar, rhs);
+}
+
+bool is_pure_node_insertion(const ConjunctionFormula& /*now*/, const Dereference& /*lhs*/, const VariableExpression& /*rhs*/) {
+	// check if the inserted node has already flow? The insertion could happen on a higher level than logical/impure insertion
+	throw std::logic_error("not yet implemented: is_pure_node_insertion");
+}
+
+bool is_impure_node_insertion(const ConjunctionFormula& now, const ObligationAxiom& obligation, const Dereference& lhs, const VariableExpression& rhs) {
+	if (obligation.kind != ObligationAxiom::Kind::INSERT) {
+		return false;
 	}
 
-	// neither pure nor satisfies spec
-	return std::make_pair(false, std::move(now));
+	if (!is_heap_homogeneous(lhs)) {
+		return false;
+	}
+
+	// variables for solving
+	auto& searchKey = obligation.key->decl;
+	VariableDeclaration successor("post#dummy-successor", lhs.type(), false);
+
+	// solving premise: now /\ lhs = successor
+
+	// solving conclusion: rhs->{lhs.fieldname} = successor /\ contains(rhs, key) /\ [forall k!=key. !contains(rhs, k)] /\ "k in keyset(successor)" ????
+
+	// make assumption on flow to satisfy:
+	//         max-content(lhs) < min-content(rhs) /\ max-content(rhs) < min-content(successor) 
+	//     ==> insertion of content(rhs), rest remains unchanged
+	// then:
+	//    content(rhs) subseteq keyset(rhs) ==> pure
+	//    keyset(rhs) = empty ==> impure
+	//    owned(rhs) = empty ==> impure
+	//    flow(rhs) = empty ==> impure
+
+	// TODO: one has to guarantee that the keys removed from the successors keyset are not contained in the successor
+
+	throw std::logic_error("not yet implemented: try_fulfill_impure_obligation_ptr_insertion");
+}
+
+template<typename T>
+bool is_node_unlinking_with_additional_checks(const ConjunctionFormula& now, const Dereference& lhs, const VariableExpression& rhs, T make_additional_checks) {
+	if (!is_heap_homogeneous(lhs)) {
+		return false;
+	}
+
+	// create dummy variables for solving
+	VariableDeclaration inbetween("post#dummy-ptr-unklink", lhs.type(), false);
+	VariableDeclaration key("post#dummy-key-unklink", Type::data_type(), false); // TODO: is the type correct? or create dummy data type?
+
+	// solving premise: now /\ lhs = inbetween
+	auto premise = plankton::copy(now);
+	premise->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+		BinaryExpression::Operator::EQ,
+		std::make_unique<VariableExpression>(inbetween),
+		cola::copy(lhs))
+	));
+
+	// solving conclusion: inbetween->{lhs.fieldname} = rhs /\ additional_checks
+	// key is a fresh variable ==> it is implicityly universally quantified
+	auto conclusion = make_additional_checks(inbetween, key);
+	conclusion->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+		BinaryExpression::Operator::EQ,
+		std::make_unique<Dereference>(std::make_unique<VariableExpression>(inbetween), lhs.fieldname),
+		cola::copy(rhs))
+	));
+
+	// solve
+	return plankton::implies(*premise, *conclusion);
+}
+
+bool is_pure_node_unlinking(const ConjunctionFormula& now, const Dereference& lhs, const VariableExpression& rhs) {
+	return is_node_unlinking_with_additional_checks(now, lhs, rhs, [](const auto& nodeInbetween, const auto& dummyKey){
+		auto result = std::make_unique<ConjunctionFormula>();
+		// addional check: forall key. !contains(nodeInbetween, key)
+		result->conjuncts.push_back(
+			std::make_unique<NegatedAxiom>(thePurityChecker.make_contains_predicate(nodeInbetween, dummyKey))
+		);
+		return result;
+	});
+}
+
+bool is_impure_node_unlinking(const ConjunctionFormula& now, const ObligationAxiom& obligation, const Dereference& lhs, const VariableExpression& rhs) {
+	if (obligation.kind != ObligationAxiom::Kind::DELETE) return false;
+	auto& searchKey = obligation.key->decl;
+	return is_node_unlinking_with_additional_checks(now, lhs, rhs, [&searchKey](const auto& nodeInbetween, const auto& dummyKey){
+		auto result = std::make_unique<ConjunctionFormula>();
+		// addional check: contains(nodeInbetween, searchKey) /\ [forall k!=searchKey. !contains(nodeInbetween, k)] /\ "k \in keyset(nodeInbetween)"
+		result->conjuncts.push_back(
+			thePurityChecker.make_contains_predicate(nodeInbetween, searchKey)
+		);
+		result->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+			BinaryExpression::Operator::NEQ,
+			std::make_unique<VariableExpression>(searchKey),
+			std::make_unique<VariableExpression>(dummyKey)
+		)));
+		result->conjuncts.push_back(
+			std::make_unique<NegatedAxiom>(thePurityChecker.make_contains_predicate(nodeInbetween, dummyKey))
+		);
+		result->conjuncts.push_back(
+			std::make_unique<KeysetContainsAxiom>(std::make_unique<VariableExpression>(nodeInbetween), std::make_unique<VariableExpression>(searchKey))
+		);
+		return result;
+	});
+}
+
+std::pair<bool, std::unique_ptr<FulfillmentAxiom>> try_fulfill_impure_obligation_ptr(const ConjunctionFormula& now, const ObligationAxiom& obligation, const Dereference& lhs, const VariableExpression& /*lhsVar*/, const VariableExpression& rhs) {
+	std::pair<bool, std::unique_ptr<FulfillmentAxiom>> result;
+	result.first = is_impure_node_insertion(now, obligation, lhs, rhs) || is_impure_node_unlinking(now, obligation, lhs, rhs);
+	if (result.first) {
+		result.second = std::make_unique<FulfillmentAxiom>(obligation.kind, std::make_unique<VariableExpression>(obligation.key->decl), true);
+	}
+	return result;
 }
 
 std::pair<bool, std::unique_ptr<ConjunctionFormula>> ensure_pure_or_spec_ptr(std::unique_ptr<ConjunctionFormula> now, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
-	/*
-		Distinguish cases:
-		(1) pure deletion: lhsVar->next = y /\ y ->next = rhs /\ content(y)=<empty>
-		(2) impure insertion: lhsVar->next = y /\ rhs->next = y /\ contains(rhs, k) /\ OBL(insert, k) /\ "rhs bekommt keyset mit k"
+	// we assume that the update affects the flow only on the part sent out by the modified selector
+	if (!plankton::is_flow_field_local(lhsVar.type(), lhs.fieldname)) {
+		return std::make_pair(false, std::move(now));
+	}
 
-		(3) impure deletion: lhsVar->next = y /\ y ->next = rhs /\ contains(y, k) /\ k \in keyset(y) /\ OBL(delete, k)
+	// extract variable from rhs
+	auto rhs_check = plankton::is_of_type<VariableExpression>(rhs);
+	if (!rhs_check.first) {
+		throw UnsupportedConstructError("assigning to '" + to_string(lhs) + "' from unsupported expression '" + to_string(rhs) + "'; expected a pointer variable.");
+	}
+	const VariableExpression& rhsVar = *rhs_check.second;
 
-	*/
-	throw std::logic_error("not yet implemented");
+	// Case 1/2: pure deletion/insertion
+	if (is_pure_node_unlinking(*now, lhs, rhsVar) || is_pure_node_insertion(*now, lhs, rhsVar)) {
+		return std::make_pair(true, std::move(now));
+	}
+
+	// Case 3/4: impure deletion/insertion
+	return try_fulfill_obligation_mapper(std::move(now), try_fulfill_impure_obligation_ptr, lhs, lhsVar, rhsVar);
 }
 
 template<bool is_ptr>
@@ -615,7 +763,7 @@ std::unique_ptr<Annotation> handle_purity(std::unique_ptr<Annotation> pre, const
 	// the content of 'lhsVar' is intersected with the empty flow ==> changes are irrelevant
 	success = is_owned(*now, lhsVar) || has_no_flow(*now, lhsVar);
 
-	// ensure 'cmd' is pure or satisfies spec ==> depends on 'lhs' being of data or pointer sort
+	// ensure 'cmd' is pure or satisfies spec
 	if (!success) {
 		auto result = (is_ptr ? ensure_pure_or_spec_ptr : ensure_pure_or_spec_data)(std::move(now), lhs, lhsVar, rhs);
 		success = result.first;
@@ -626,7 +774,7 @@ std::unique_ptr<Annotation> handle_purity(std::unique_ptr<Annotation> pre, const
 	success = success || has_enabled_future_predicate(*now, *pre, cmd);
 
 	if (!success) {
-		throw VerificationError("Impure assignment violates specification or proof obligation.");
+		throw VerificationError("Could not find proof obligation or establish specification for impure assignment: '" + to_string(cmd) + "'.");
 	}
 
 	pre->now = std::move(now);
@@ -684,14 +832,6 @@ struct AssignmentExpressionAnalyser : public BaseVisitor {
 	void visit(const BinaryExpression& /*node*/) override { if (deref) derefNested = true; }
 
 };
-
-inline void throw_unsupported(std::string where, const Expression& expr) {
-	std::stringstream msg;
-	msg << "compound expression '";
-	cola::print(expr, msg);
-	msg << "' as " << where << "-hand side of assignment not supported.";
-	throw UnsupportedConstructError(msg.str());
-}
 
 std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Assignment& cmd) {
 	std::cout << "Post for assignment:  ";

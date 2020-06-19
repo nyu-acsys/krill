@@ -15,7 +15,6 @@
 namespace plankton {
 	
 	#define EXTENDS_FORMULA(T) typename = std::enable_if_t<std::is_base_of_v<Formula, T>>
-	//typename = std::enable_if<std::is_base_of<Formula, T>::value>
 
 	//
 	// Basics
@@ -48,9 +47,9 @@ namespace plankton {
 
 	bool syntactically_equal(const cola::Expression& expression, const cola::Expression& other);
 
-	template<typename F, EXTENDS_FORMULA(F)>
-	std::pair<bool, const F*> is_of_type(const Formula& formula) {
-		auto result = dynamic_cast<const F*>(&formula);
+	template<typename T, typename U>
+	std::pair<bool, const T*> is_of_type(const U& formula) {
+		auto result = dynamic_cast<const T*>(&formula);
 		if (result) return std::make_pair(true, result);
 		else return std::make_pair(false, nullptr);
 	}
