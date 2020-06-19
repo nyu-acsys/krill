@@ -103,6 +103,7 @@ namespace plankton {
 
 		ImplicationFormula();
 		ImplicationFormula(std::unique_ptr<AxiomConjunctionFormula> premise, std::unique_ptr<AxiomConjunctionFormula> conclusion);
+		ImplicationFormula(std::unique_ptr<Axiom> premise, std::unique_ptr<Axiom> conclusion);
 		ACCEPT_FORMULA_VISITOR
 	};
 

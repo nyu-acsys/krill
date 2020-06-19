@@ -15,6 +15,13 @@ ImplicationFormula::ImplicationFormula(std::unique_ptr<AxiomConjunctionFormula> 
 	assert(conclusion);
 }
 
+ImplicationFormula::ImplicationFormula(std::unique_ptr<Axiom> premise_, std::unique_ptr<Axiom> conclusion_) : ImplicationFormula() {
+	assert(premise_);
+	assert(conclusion_);
+	premise->conjuncts.push_back(std::move(premise_));
+	conclusion->conjuncts.push_back(std::move(conclusion_));
+}
+
 NegatedAxiom::NegatedAxiom(std::unique_ptr<Axiom> axiom_) : axiom(std::move(axiom_)) {
 	assert(axiom);
 }

@@ -622,28 +622,37 @@ std::pair<bool, std::unique_ptr<ConjunctionFormula>> ensure_pure_or_spec_data(st
 	return try_fulfill_obligation_mapper(std::move(now), try_fulfill_impure_obligation_data, lhs, lhsVar, rhs);
 }
 
-bool is_pure_node_insertion(const ConjunctionFormula& /*now*/, const Dereference& /*lhs*/, const VariableExpression& /*rhs*/) {
-	// check if the inserted node has already flow? The insertion could happen on a higher level than logical/impure insertion
-	throw std::logic_error("not yet implemented: is_pure_node_insertion");
-}
-
-bool is_impure_node_insertion(const ConjunctionFormula& now, const ObligationAxiom& obligation, const Dereference& lhs, const VariableExpression& rhs) {
-	if (obligation.kind != ObligationAxiom::Kind::INSERT) {
+template<typename T> 
+bool is_node_insertion_with_additional_checks(const ConjunctionFormula& now, const Dereference& lhs, const VariableExpression& rhs, T make_additional_checks) {
+	if (rhs.type().field(lhs.fieldname) != &lhs.type()) {
 		return false;
 	}
 
-	if (!is_heap_homogeneous(lhs)) {
-		return false;
-	}
-
-	// variables for solving
-	auto& searchKey = obligation.key->decl;
-	VariableDeclaration successor("post#dummy-successor", lhs.type(), false);
+	// create dummy variables for solving
+	VariableDeclaration successor("post#dummy-ptr-insert", lhs.type(), false);
+	VariableDeclaration key("post#dummy-key-insert", Type::data_type(), false); // TODO: is the type correct? or create dummy data type?
 
 	// solving premise: now /\ lhs = successor
+	auto premise = plankton::copy(now);
+	premise->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+		BinaryExpression::Operator::EQ,
+		cola::copy(lhs),
+		std::make_unique<VariableExpression>(successor)
+	)));
 
-	// solving conclusion: rhs->{lhs.fieldname} = successor /\ contains(rhs, key) /\ [forall k!=key. !contains(rhs, k)] /\ "k in keyset(successor)" ????
+	// solving conclusion: additional_checks /\ rhs->{lhs.fieldname} = successor /\ ??????????
+	// key is a fresh variable ==> it is implicityly universally quantified
+	auto conclusion = make_additional_checks(successor, key);
+	premise->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+		BinaryExpression::Operator::EQ,
+		cola::copy(rhs),
+		std::make_unique<Dereference>(std::make_unique<VariableExpression>(successor), lhs.fieldname)
+	)));
 
+	// TODO: add contains(rhs, key) /\ [forall k!=key. !contains(rhs, k)] /\ "k in keyset(successor)"
+	throw std::logic_error("not yet implemented: is_node_insertion_with_additional_checks");
+
+	// TODO: one has to guarantee that the keys removed from the successors keyset are not contained in the successor
 	// make assumption on flow to satisfy:
 	//         max-content(lhs) < min-content(rhs) /\ max-content(rhs) < min-content(successor) 
 	//     ==> insertion of content(rhs), rest remains unchanged
@@ -653,9 +662,39 @@ bool is_impure_node_insertion(const ConjunctionFormula& now, const ObligationAxi
 	//    owned(rhs) = empty ==> impure
 	//    flow(rhs) = empty ==> impure
 
-	// TODO: one has to guarantee that the keys removed from the successors keyset are not contained in the successor
+	// solve
+	return plankton::implies(*premise, *conclusion);
+}
 
-	throw std::logic_error("not yet implemented: try_fulfill_impure_obligation_ptr_insertion");
+bool is_pure_node_insertion(const ConjunctionFormula& now, const Dereference& lhs, const VariableExpression& rhs) {
+	return is_node_insertion_with_additional_checks(now, lhs, rhs, [&rhs](const auto& /*successor*/, const auto& dummyKey){
+		auto result = std::make_unique<ConjunctionFormula>();
+		// additional check: content(rhs) subseteq keyset(rhs)
+		result->conjuncts.push_back(std::make_unique<ImplicationFormula>(
+			thePurityChecker.make_contains_predicate(rhs.decl, dummyKey),
+			std::make_unique<KeysetContainsAxiom>(std::make_unique<VariableExpression>(rhs.decl), std::make_unique<VariableExpression>(dummyKey))
+		));
+		return result;
+	});
+}
+
+bool is_impure_node_insertion(const ConjunctionFormula& now, const ObligationAxiom& obligation, const Dereference& lhs, const VariableExpression& rhs) {
+	if (obligation.kind != ObligationAxiom::Kind::INSERT) {
+		return false;
+	}
+	auto& searchKey = obligation.key->decl;
+	return is_node_insertion_with_additional_checks(now, lhs, rhs, [&searchKey,&rhs](const auto& /*successor*/, const auto& dummyKey){
+		auto result = std::make_unique<ConjunctionFormula>();
+		// additional checks: [keyset(rhs) = empty \/ owned(rhs)] /\  ????????????????
+		result->conjuncts.push_back(std::make_unique<ImplicationFormula>(
+			std::make_unique<KeysetContainsAxiom>(std::make_unique<VariableExpression>(rhs.decl), std::make_unique<VariableExpression>(dummyKey)), // double negation removed
+			std::make_unique<OwnershipAxiom>(std::make_unique<VariableExpression>(rhs.decl))
+		));
+		// TODO: make sure that the inserted node contains *only* searchKey!
+		// TODO: check correctness of the above
+		throw std::logic_error("not yet implemented: try_fulfill_impure_obligation_ptr_insertion");
+		return result;
+	});
 }
 
 template<typename T>
@@ -672,18 +711,18 @@ bool is_node_unlinking_with_additional_checks(const ConjunctionFormula& now, con
 	auto premise = plankton::copy(now);
 	premise->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
 		BinaryExpression::Operator::EQ,
-		std::make_unique<VariableExpression>(inbetween),
-		cola::copy(lhs))
-	));
+		cola::copy(lhs),
+		std::make_unique<VariableExpression>(inbetween)
+	)));
 
-	// solving conclusion: inbetween->{lhs.fieldname} = rhs /\ additional_checks
+	// solving conclusion: additional_checks /\ inbetween->{lhs.fieldname} = rhs
 	// key is a fresh variable ==> it is implicityly universally quantified
 	auto conclusion = make_additional_checks(inbetween, key);
 	conclusion->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
 		BinaryExpression::Operator::EQ,
 		std::make_unique<Dereference>(std::make_unique<VariableExpression>(inbetween), lhs.fieldname),
-		cola::copy(rhs))
-	));
+		cola::copy(rhs)
+	)));
 
 	// solve
 	return plankton::implies(*premise, *conclusion);
