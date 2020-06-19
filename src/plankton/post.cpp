@@ -11,6 +11,9 @@ using namespace cola;
 using namespace plankton;
 
 
+struct POST_PTR_T {};
+struct POST_DATA_T {};
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -570,25 +573,29 @@ std::pair<bool, std::unique_ptr<FulfillmentAxiom>> try_fulfill_impure_obligation
 	return result;
 }
 
-std::pair<bool, std::unique_ptr<ConjunctionFormula>> check_impure_specification(std::unique_ptr<ConjunctionFormula> now, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
-	bool result = false;
+std::pair<bool, std::unique_ptr<ConjunctionFormula>> ensure_pure_or_spec_data(std::unique_ptr<ConjunctionFormula> now, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
+	// pure assignment ==> do nothing
+	if (thePurityChecker.is_pure(*now, lhs, lhsVar.decl, rhs)) {
+		return std::make_pair(true, std::move(now));
+	}
+
+	// check impure specification
 	for (auto& conjunct : now->conjuncts) {
 		auto [is_obligation, obligation] = plankton::is_of_type<ObligationAxiom>(*conjunct);
 		if (is_obligation) {
 			auto [success, fulfillment] = try_fulfill_impure_obligation(*now, *obligation, lhs, lhsVar, rhs);
 			if (success) {
 				conjunct = std::move(fulfillment);
-				result = true;
-				break;
+				return std::make_pair(true, std::move(now));
 			}
 		}
 	}
-	return std::make_pair(result, std::move(now));
+
+	// neither pure nor satisfies spec
+	return std::make_pair(false, std::move(now));
 }
 
-std::unique_ptr<Annotation> handle_purity_ptr(std::unique_ptr<Annotation> /*pre*/, const Assignment& /*cmd*/, const Dereference& /*lhs*/, const VariableExpression& /*lhsVar*/, const Expression& /*rhs*/) {
-	// assignment may be impure -> obligation/fulfillment transformation requrired
-
+std::pair<bool, std::unique_ptr<ConjunctionFormula>> ensure_pure_or_spec_ptr(std::unique_ptr<ConjunctionFormula> now, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
 	/*
 		Distinguish cases:
 		(1) pure deletion: lhsVar->next = y /\ y ->next = rhs /\ content(y)=<empty>
@@ -597,28 +604,21 @@ std::unique_ptr<Annotation> handle_purity_ptr(std::unique_ptr<Annotation> /*pre*
 		(3) impure deletion: lhsVar->next = y /\ y ->next = rhs /\ contains(y, k) /\ k \in keyset(y) /\ OBL(delete, k)
 
 	*/
-
-	throw std::logic_error("not yet implemented: handle_purity_ptr");
+	throw std::logic_error("not yet implemented");
 }
 
-std::unique_ptr<Annotation> handle_purity_data(std::unique_ptr<Annotation> pre, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
-	// assignment may be impure ==> obligation/fulfillment transformation requrired
-	// ASSUMPTION: assignments to data members do not affect the flow
-	//             ==> only the logical content of 'lhsVar' may change
-
+template<bool is_ptr>
+std::unique_ptr<Annotation> handle_purity(std::unique_ptr<Annotation> pre, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
 	auto now = std::move(pre->now);
 	bool success = false;
 
-	// the content of 'lhs.expr' is intersected with the empty flow ==> changes are irrelevant
+	// the content of 'lhsVar' is intersected with the empty flow ==> changes are irrelevant
 	success = is_owned(*now, lhsVar) || has_no_flow(*now, lhsVar);
 
-	// pure assignment ==> do nothing
-	success = success || thePurityChecker.is_pure(*now, lhs, lhsVar.decl, rhs);
-
-	// check spec if necessary
+	// ensure 'cmd' is pure or satisfies spec ==> depends on 'lhs' being of data or pointer sort
 	if (!success) {
-		auto result = check_impure_specification(std::move(now), lhs, lhsVar, rhs);
-		success |= result.first;
+		auto result = (is_ptr ? ensure_pure_or_spec_ptr : ensure_pure_or_spec_data)(std::move(now), lhs, lhsVar, rhs);
+		success = result.first;
 		now = std::move(result.second);
 	}
 
@@ -634,13 +634,13 @@ std::unique_ptr<Annotation> handle_purity_data(std::unique_ptr<Annotation> pre, 
 }
 
 std::unique_ptr<Annotation> post_full_assign_derefptr_varimmi(std::unique_ptr<Annotation> pre, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
-	auto post = handle_purity_ptr(std::move(pre), cmd, lhs, lhsVar, rhs);
+	auto post = handle_purity<true>(std::move(pre), cmd, lhs, lhsVar, rhs);
 	post = search_and_destroy_and_inline_deref(std::move(pre), lhs, rhs);
 	return post;
 }
 
 std::unique_ptr<Annotation> post_full_assign_derefdata_varimmi(std::unique_ptr<Annotation> pre, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
-	auto post = handle_purity_data(std::move(pre), cmd, lhs, lhsVar, rhs);
+	auto post = handle_purity<false>(std::move(pre), cmd, lhs, lhsVar, rhs);
 	post = search_and_destroy_and_inline_deref(std::move(pre), lhs, rhs);
 	return post;
 }
