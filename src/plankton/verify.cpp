@@ -103,16 +103,25 @@ void Verifier::check_pointer_accesses(const Expression& expr) {
 	}
 }
 
-void Verifier::check_invariant_stability(const Assignment& /*command*/) {
-	// TODO: get invariant from somewhere
-	throw std::logic_error("not yet implemented (Verifier::check_invariant_stability)");
-	// if (!post_maintains_invariant(*current_annotation, <invariant>, command)) {
-	// 	std::stringstream msg;
-	// 	msg << "Invariant violated by '";
-	// 	cola::print(command, msg);
-	// 	msg << "'.";
-	// 	throw VerificationError(msg.str());
-	// }
+void throw_invariant_violation_if(bool flag, const Command& command, std::string more_message="") {
+	if (flag) {
+		std::stringstream msg;
+		msg << "Invariant violated" << more_message << ", at '";
+		cola::print(command, msg);
+		msg << "'.";
+		throw VerificationError(msg.str());
+	}
+}
+
+void Verifier::check_invariant_stability(const Assignment& command) {
+	throw_invariant_violation_if(!post_maintains_invariant(*current_annotation, *theInvariant, command, *theProgram), command);
+}
+
+void Verifier::check_invariant_stability(const Malloc& command) {
+	if (command.lhs.is_shared) {
+		throw UnsupportedConstructError("allocation targeting shared variable '" + command.lhs.name + "'");
+	}
+	throw_invariant_violation_if(!plankton::post_maintains_invariant(*current_annotation, *theInvariant, command, *theProgram), command, " by newly allocated node");
 }
 
 
@@ -120,10 +129,17 @@ void Verifier::check_invariant_stability(const Assignment& /*command*/) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-void Verifier::visit(const Program& program) {
-	// TODO: check initializer
-	theProgram = &program;
+std::unique_ptr<ConjunctionFormula> extract_invariant(const Program& /*program*/) {
+	throw std::logic_error("not yet implemented: extract_invariant");
+}
 
+void Verifier::visit(const Program& program) {
+	// setup
+	theProgram = &program;
+	theInvariant = extract_invariant(program);
+
+	// TODO: check initializer
+	// compute fixed point
 	is_interference_saturated = true;
 	do {
 		for (const auto& func : program.functions) {
@@ -133,6 +149,8 @@ void Verifier::visit(const Program& program) {
 		}
 	} while (!is_interference_saturated);
 
+	// cleanup
+	theInvariant.reset();
 	theProgram = nullptr;
 	throw std::logic_error("not yet implemented (Verifier::Program)");
 }
@@ -264,7 +282,7 @@ void Verifier::visit(const Continue& /*cmd*/) {
 
 void Verifier::visit(const Assume& cmd) {
 	check_pointer_accesses(*cmd.expr);
-	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
+	current_annotation = plankton::post_full(std::move(current_annotation), cmd, *theProgram);
 	if (has_effect(*cmd.expr)) apply_interference();
 }
 
@@ -285,11 +303,8 @@ void Verifier::visit(const Return& cmd) {
 }
 
 void Verifier::visit(const Malloc& cmd) {
-	// TODO: extend interference?
-	if (cmd.lhs.is_shared) {
-		throw UnsupportedConstructError("allocation targeting shared variable '" + cmd.lhs.name + "'");
-	}
-	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
+	check_invariant_stability(cmd);
+	current_annotation = plankton::post_full(std::move(current_annotation), cmd, *theProgram);
 }
 
 void Verifier::visit(const Assignment& cmd) {

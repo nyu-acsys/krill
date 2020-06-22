@@ -1095,11 +1095,33 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> /*pre*/, const Assume& /*cmd*/) {
-	throw std::logic_error("not yet implemented: plankton::post(std::unique_ptr<Annotation>, const Assume&)");
+std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Assume& cmd, const cola::Program& program) {
+	// reuse assignment post if possible
+	auto check = is_of_type<BinaryExpression>(*cmd.expr);
+	if (check.first && check.second->op == BinaryExpression::Operator::EQ) {
+		try {
+			Assignment dummy_assign(cola::copy(*check.second->lhs), cola::copy(*check.second->rhs));
+			auto post = make_post_full(plankton::copy(*pre), dummy_assign, program, false);
+			dummy_assign.lhs.swap(dummy_assign.rhs);
+			pre = make_post_full(std::move(pre), dummy_assign, program, false);
+
+			pre->now->conjuncts.insert(
+				pre->now->conjuncts.begin(), std::make_move_iterator(post->now->conjuncts.begin()), std::make_move_iterator(post->now->conjuncts.end())
+			);
+			pre->time.insert(
+				pre->time.begin(), std::make_move_iterator(post->time.begin()), std::make_move_iterator(post->time.end())
+			);
+		} catch (UnsupportedConstructError err) {
+			// do nothing: the assumption simply does not adhere to the expressions normal form we assume for assignments
+		}
+	}
+
+	pre->now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(cola::copy(*cmd.expr)));
+	return pre;	
 }
 
-std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Malloc& cmd) {
+std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Malloc& cmd, const cola::Program& /*program*/) {
+	// TODO: do post for a dummy assignment 'lhs = lhs' to avoid code duplication?
 	VariableExpression lhs(cmd.lhs);
 	check_purity_var(lhs);
 
@@ -1152,6 +1174,11 @@ bool plankton::post_maintains_formula(const ConjunctionFormula& pre, const Conju
 	return plankton::implies(*post, maintained);
 }
 
-bool plankton::post_maintains_invariant(const Annotation& /*pre*/, const Formula& /*invariant*/, const cola::Assignment& /*cmd*/) {
-	throw std::logic_error("not yet implemented: plankton::post_maintains_invariant(const Annotation&, const Formula&, const cola::Assignment&)");
+bool plankton::post_maintains_invariant(const Annotation& /*pre*/, const Formula& /*invariant*/, const cola::Assignment& /*cmd*/, const cola::Program& /*program*/) {
+	throw std::logic_error("not yet implemented: plankton::post_maintains_invariant(const Annotation&, const Formula&, const cola::Assignment&, const cola::Program&)");
+}
+
+bool plankton::post_maintains_invariant(const Annotation& /*pre*/, const Formula& /*invariant*/, const cola::Malloc& /*cmd*/, const cola::Program& /*program*/) {
+	// TODO: ensure that 'owned(node)' implies that the invariant holds for 'node'
+	throw std::logic_error("not yet implemented: plankton::post_maintains_invariant(const Annotation&, const Formula&, const cola::Malloc&, const cola::Program&)");
 }
