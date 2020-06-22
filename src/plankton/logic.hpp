@@ -228,7 +228,7 @@ namespace plankton {
 		const cola::Program& source;
 
 		NodeInvariant(const cola::Program& source);
-		std::unique_ptr<ConjunctionFormula> instatiate(const cola::VariableDeclaration& var) const;
+		std::unique_ptr<ConjunctionFormula> instantiate(const cola::VariableDeclaration& var) const;
 	};
 
 	//

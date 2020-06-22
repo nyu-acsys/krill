@@ -1080,6 +1080,7 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 	// reuse assignment post if possible
 	auto check = is_of_type<BinaryExpression>(*cmd.expr);
 	if (check.first && check.second->op == BinaryExpression::Operator::EQ) {
+		// TODO important: is this necessary?
 		try {
 			Assignment dummy_assign(cola::copy(*check.second->lhs), cola::copy(*check.second->rhs));
 			auto post = make_post_full(plankton::copy(*pre), dummy_assign, program, false);
@@ -1159,7 +1160,18 @@ bool plankton::post_maintains_invariant(const Annotation& /*pre*/, const NodeInv
 	throw std::logic_error("not yet implemented: plankton::post_maintains_invariant(const Annotation&, const NodeInvariant&, const cola::Assignment&, const cola::Program&)");
 }
 
-bool plankton::post_maintains_invariant(const Annotation& /*pre*/, const NodeInvariant& /*invariant*/, const cola::Malloc& /*cmd*/, const cola::Program& /*program*/) {
-	// TODO: ensure that 'owned(node)' implies that the invariant holds for 'node'
-	throw std::logic_error("not yet implemented: plankton::post_maintains_invariant(const Annotation&, const NodeInvariant&, const cola::Malloc&, const cola::Program&)");
+bool plankton::post_maintains_invariant(const Annotation& /*pre*/, const NodeInvariant& invariant, const cola::Malloc& cmd, const cola::Program& program) {
+	static std::map<const NodeInvariant*, bool> inv2res;
+
+	auto find = inv2res.find(&invariant);
+	if (find != inv2res.end()) {
+		return find->second;
+	}
+
+	auto post = plankton::post_full(Annotation::make_true(), cmd, program);
+	auto lhsinv = invariant.instantiate(cmd.lhs);
+	bool result = plankton::implies(*post->now, *lhsinv);
+
+	inv2res[&invariant] = result;
+	return result;
 }

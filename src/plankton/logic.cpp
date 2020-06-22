@@ -108,7 +108,7 @@ NodeInvariant::NodeInvariant(const cola::Program& source_) : source(source_) {
 	}
 }
 
-std::unique_ptr<ConjunctionFormula> NodeInvariant::instatiate(const VariableDeclaration& var) const {
+std::unique_ptr<ConjunctionFormula> NodeInvariant::instantiate(const VariableDeclaration& var) const {
 	// TODO: should we really store them? With instantiations for dummy/temp variables this map might grow unnecessary large
 	static std::map<const VariableDeclaration*, std::unique_ptr<ConjunctionFormula>> var2res;
 
