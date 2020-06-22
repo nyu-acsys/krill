@@ -25,7 +25,7 @@ namespace plankton {
 
 	/** Tests whether 'cmd' maintains 'maintained' under 'pre & maintained'.
 	  */
-	bool post_maintains_formula(const Formula& pre, const Formula& maintained, const cola::Assignment& cmd);
+	bool post_maintains_formula(const ConjunctionFormula& pre, const ConjunctionFormula& maintained, const cola::Assignment& cmd, const cola::Program& program);
 
 	/** Tests whether 'cmd' maintains 'forall n. invariant(n)' under 'pre & (forall n. invariant(n))'.
 	  */

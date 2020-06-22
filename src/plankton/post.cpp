@@ -519,7 +519,11 @@ std::unique_ptr<Annotation> search_and_destroy_and_inline_var(std::unique_ptr<An
 	return pre;
 }
 
-inline void check_purity(const VariableExpression& lhs) {
+inline void check_purity_var(const VariableExpression& lhs, bool check_purity=true) {
+	if (!check_purity) {
+		return;
+	}
+
 	if (lhs.decl.is_shared) {
 		// assignment to 'lhs' potentially impure (may require obligation/fulfillment transformation)
 		// TODO: implement
@@ -527,13 +531,13 @@ inline void check_purity(const VariableExpression& lhs) {
 	}
 }
 
-std::unique_ptr<Annotation> post_full_assign_var_expr(std::unique_ptr<Annotation> pre, const Program& /*program*/, const Assignment& /*cmd*/, const VariableExpression& lhs, const Expression& rhs) {
-	check_purity(lhs);
+std::unique_ptr<Annotation> post_full_assign_var_expr(std::unique_ptr<Annotation> pre, const Program& /*program*/, const Assignment& /*cmd*/, const VariableExpression& lhs, const Expression& rhs, bool check_purity=true) {
+	check_purity_var(lhs, check_purity);
 	return search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
 }
 
-std::unique_ptr<Annotation> post_full_assign_var_derefptr(std::unique_ptr<Annotation> pre, const Program& /*program*/, const Assignment& /*cmd*/, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& /*rhsVar*/) {
-	check_purity(lhs);
+std::unique_ptr<Annotation> post_full_assign_var_derefptr(std::unique_ptr<Annotation> pre, const Program& /*program*/, const Assignment& /*cmd*/, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& /*rhsVar*/, bool check_purity=true) {
+	check_purity_var(lhs, check_purity);
 	auto post = search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
 	// TODO: infer flow/contains and put it into a past predicate
 	// TODO: no self loops? Add lhs != rhs?
@@ -541,8 +545,8 @@ std::unique_ptr<Annotation> post_full_assign_var_derefptr(std::unique_ptr<Annota
 	throw std::logic_error("not yet implemented: post_full_assign_var_derefptr");
 }
 
-std::unique_ptr<Annotation> post_full_assign_var_derefdata(std::unique_ptr<Annotation> pre, const Program& /*program*/, const Assignment& /*cmd*/, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& /*rhsVar*/) {
-	check_purity(lhs);
+std::unique_ptr<Annotation> post_full_assign_var_derefdata(std::unique_ptr<Annotation> pre, const Program& /*program*/, const Assignment& /*cmd*/, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& /*rhsVar*/, bool check_purity=true) {
+	check_purity_var(lhs, check_purity);
 	// TODO: use invariant to find out stuff?
 	return search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
 }
@@ -931,7 +935,11 @@ std::pair<bool, std::unique_ptr<ConjunctionFormula>> ensure_pure_or_spec_ptr(std
 }
 
 template<bool is_ptr>
-std::unique_ptr<Annotation> handle_purity(std::unique_ptr<Annotation> pre, const cola::Program& program, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
+std::unique_ptr<Annotation> handle_purity(std::unique_ptr<Annotation> pre, const cola::Program& program, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs, bool check_purity=true) {
+	if (!check_purity) {
+		return pre;
+	}
+
 	auto now = std::move(pre->now);
 	bool success = false;
 
@@ -956,14 +964,14 @@ std::unique_ptr<Annotation> handle_purity(std::unique_ptr<Annotation> pre, const
 	return pre;
 }
 
-std::unique_ptr<Annotation> post_full_assign_derefptr_varimmi(std::unique_ptr<Annotation> pre, const cola::Program& program, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
-	auto post = handle_purity<true>(std::move(pre), program, cmd, lhs, lhsVar, rhs);
+std::unique_ptr<Annotation> post_full_assign_derefptr_varimmi(std::unique_ptr<Annotation> pre, const cola::Program& program, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs, bool check_purity=true) {
+	auto post = handle_purity<true>(std::move(pre), program, cmd, lhs, lhsVar, rhs, check_purity);
 	post = search_and_destroy_and_inline_deref(std::move(pre), lhs, rhs);
 	return post;
 }
 
-std::unique_ptr<Annotation> post_full_assign_derefdata_varimmi(std::unique_ptr<Annotation> pre, const cola::Program& program, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
-	auto post = handle_purity<false>(std::move(pre), program, cmd, lhs, lhsVar, rhs);
+std::unique_ptr<Annotation> post_full_assign_derefdata_varimmi(std::unique_ptr<Annotation> pre, const cola::Program& program, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs, bool check_purity=true) {
+	auto post = handle_purity<false>(std::move(pre), program, cmd, lhs, lhsVar, rhs, check_purity);
 	post = search_and_destroy_and_inline_deref(std::move(pre), lhs, rhs);
 	return post;
 }
@@ -1008,7 +1016,7 @@ struct AssignmentExpressionAnalyser : public BaseVisitor {
 
 };
 
-std::unique_ptr<Annotation> make_post_full(std::unique_ptr<Annotation> pre, const Assignment& cmd, const cola::Program& program) {
+std::unique_ptr<Annotation> make_post_full(std::unique_ptr<Annotation> pre, const Assignment& cmd, const cola::Program& program, bool check_purity=true) {
 	std::cout << "Post for assignment:  ";
 	cola::print(cmd, std::cout);
 	std::cout << "under:" << std::endl;
@@ -1040,9 +1048,9 @@ std::unique_ptr<Annotation> make_post_full(std::unique_ptr<Annotation> pre, cons
 		assert(lhsVar);
 		if (!rhsDeref) {
 			if (lhsDeref->sort() == Sort::PTR) {
-				return post_full_assign_derefptr_varimmi(std::move(pre), program, cmd, *lhsDeref, *lhsVar, *cmd.rhs);
+				return post_full_assign_derefptr_varimmi(std::move(pre), program, cmd, *lhsDeref, *lhsVar, *cmd.rhs, check_purity);
 			} else {
-				return post_full_assign_derefdata_varimmi(std::move(pre), program, cmd, *lhsDeref, *lhsVar, *cmd.rhs);
+				return post_full_assign_derefdata_varimmi(std::move(pre), program, cmd, *lhsDeref, *lhsVar, *cmd.rhs, check_purity);
 			}
 		} else {
 			// deref on both sides not supported
@@ -1067,19 +1075,19 @@ std::unique_ptr<Annotation> make_post_full(std::unique_ptr<Annotation> pre, cons
 				throw UnsupportedConstructError(msg.str());
 
 			} else if (rhsDeref->sort() == Sort::PTR) {
-				return post_full_assign_var_derefptr(std::move(pre), program, cmd, *lhsVar, *rhsDeref, *rhsVar);
+				return post_full_assign_var_derefptr(std::move(pre), program, cmd, *lhsVar, *rhsDeref, *rhsVar, check_purity);
 			} else {
-				return post_full_assign_var_derefdata(std::move(pre), program, cmd, *lhsVar, *rhsDeref, *rhsVar);
+				return post_full_assign_var_derefdata(std::move(pre), program, cmd, *lhsVar, *rhsDeref, *rhsVar, check_purity);
 			}
 		} else {
-			return post_full_assign_var_expr(std::move(pre), program, cmd, *lhsVar, *cmd.rhs);
+			return post_full_assign_var_expr(std::move(pre), program, cmd, *lhsVar, *cmd.rhs, check_purity);
 		}
 	}
 
 	throw std::logic_error("Conditional was expected to be complete.");
 }
 
-std::unique_ptr<Annotation> post_full(std::unique_ptr<Annotation> pre, const Assignment& cmd, const cola::Program& program) {
+std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Assignment& cmd, const cola::Program& program) {
 	return make_post_full(std::move(pre), cmd, program);
 }
 
@@ -1097,21 +1105,20 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> /*pr
 	throw std::logic_error("not yet implemented: plankton::post(std::unique_ptr<Annotation>, const Malloc&)");
 }
 
-std::unique_ptr<ConjunctionFormula> combine_formulas(const ConjunctionFormula& formula, const ConjunctionFormula& other) {
+std::unique_ptr<Annotation> combine_to_annotation(const ConjunctionFormula& formula, const ConjunctionFormula& other) {
 	auto copyFormula = plankton::copy(formula);
 	auto copyOther = plankton::copy(other);
 	copyFormula->conjuncts.insert(
-		copyFormula->conjuncts.begin,
+		copyFormula->conjuncts.begin(),
 		std::make_move_iterator(copyOther->conjuncts.begin()),
 		std::make_move_iterator(copyOther->conjuncts.end())
 	);
-	return copyFormula;
+	return std::make_unique<Annotation>(std::move(copyFormula));
 }
 
 bool plankton::post_maintains_formula(const ConjunctionFormula& pre, const ConjunctionFormula& maintained, const cola::Assignment& cmd, const cola::Program& program) {
-	// TODO: one can probably implement an optimized (quick) check, in particular avoiding purity checks
-	auto post = make_post_full(combine_formulas(pre, maintained), cmd, program);
-	throw std::logic_error("not yet implemented: plankton::post_maintains_formula(const Formula&, const Formula&, const cola::Assignment&)");
+	// TODO: one can probably implement an optimized (quick) check
+	auto post = make_post_full(combine_to_annotation(pre, maintained), cmd, program, false);
 	return plankton::implies(*post, maintained);
 }
 

@@ -75,7 +75,7 @@ namespace plankton {
 			void extend_interference(const cola::Assignment& command); // calls extend_interferenceadds with renamed (current_annotation, command)
 			void extend_interference(std::unique_ptr<Effect> effect); // adds effect to interference; updates is_interference_saturated
 			void apply_interference(); // weakens current_annotation according to interference
-			bool is_interference_free(const Formula& formula);
+			bool is_interference_free(const ConjunctionFormula& formula);
 			bool has_effect(const cola::Expression& assignee);
 	};
 
