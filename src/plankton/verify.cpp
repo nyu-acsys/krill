@@ -129,14 +129,10 @@ void Verifier::check_invariant_stability(const Malloc& command) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<ConjunctionFormula> extract_invariant(const Program& /*program*/) {
-	throw std::logic_error("not yet implemented: extract_invariant");
-}
-
 void Verifier::visit(const Program& program) {
 	// setup
 	theProgram = &program;
-	theInvariant = extract_invariant(program);
+	theInvariant = std::make_unique<NodeInvariant>(program);
 
 	// TODO: check initializer
 	// compute fixed point

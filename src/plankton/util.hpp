@@ -84,6 +84,8 @@ namespace plankton {
 	std::unique_ptr<ConjunctionFormula> replace_expression(std::unique_ptr<ConjunctionFormula> formula, const cola::Expression& replace, const cola::Expression& with);
 	std::unique_ptr<TimePredicate> replace_expression(std::unique_ptr<TimePredicate> formula, const cola::Expression& replace, const cola::Expression& with);
 
+	std::unique_ptr<Axiom> instantiate_property(const cola::Property& property, std::vector<std::reference_wrapper<const cola::VariableDeclaration>> vars);
+
 	//
 	// Solving
 	//

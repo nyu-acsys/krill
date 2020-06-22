@@ -20,6 +20,7 @@ set(SOURCES
 	util/contains.cpp
 	util/copy.cpp
 	util/equal.cpp
+	util/instantiate.cpp
 	util/print.cpp
 	util/replace.cpp
 	util/solving.cpp

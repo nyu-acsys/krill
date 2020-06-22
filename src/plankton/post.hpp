@@ -29,11 +29,11 @@ namespace plankton {
 
 	/** Tests whether 'cmd' maintains 'forall n. invariant(n)' under 'pre & (forall n. invariant(n))'.
 	  */
-	bool post_maintains_invariant(const Annotation& pre, const Formula& invariant, const cola::Assignment& cmd, const cola::Program& program);
+	bool post_maintains_invariant(const Annotation& pre, const NodeInvariant& invariant, const cola::Assignment& cmd, const cola::Program& program);
 
 	/** Tests whether 'cmd' maintains 'forall n. invariant(n)' under 'pre & (forall n. invariant(n))'.
 	  */
-	bool post_maintains_invariant(const Annotation& pre, const Formula& invariant, const cola::Malloc& cmd, const cola::Program& program);
+	bool post_maintains_invariant(const Annotation& pre, const NodeInvariant& invariant, const cola::Malloc& cmd, const cola::Program& program);
 
 } // namespace plankton
 

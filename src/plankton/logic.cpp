@@ -1,6 +1,7 @@
 #include "plankton/logic.hpp"
 
 #include <cassert>
+#include "plankton/util.hpp"
 
 using namespace cola;
 using namespace plankton;
@@ -97,4 +98,29 @@ std::unique_ptr<Annotation> Annotation::make_true() {
 
 std::unique_ptr<Annotation> Annotation::make_false() {
 	return mk_bool(false);
+}
+
+NodeInvariant::NodeInvariant(const cola::Program& source_) : source(source_) {
+	for (const auto& inv : source.invariants) {
+		if (inv->vars.size() != 1 || inv->vars.at(0)->type.sort != Sort::PTR) {
+			throw std::logic_error("Cannot construct node invariant from given program, '" + inv->name + "' is malformed.");
+		}
+	}
+}
+
+std::unique_ptr<ConjunctionFormula> NodeInvariant::instatiate(const VariableDeclaration& var) const {
+	// TODO: should we really store them? With instantiations for dummy/temp variables this map might grow unnecessary large
+	static std::map<const VariableDeclaration*, std::unique_ptr<ConjunctionFormula>> var2res;
+
+	auto find = var2res.find(&var);
+	if (find != var2res.end()) {
+		return plankton::copy(*find->second);
+	}
+
+	std::unique_ptr<ConjunctionFormula> result;
+	for (const auto& property : source.invariants) {
+		result->conjuncts.push_back(plankton::instantiate_property(*property, { var }));
+	}
+	var2res[&var] = plankton::copy(*result);
+	return result;
 }

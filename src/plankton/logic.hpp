@@ -3,6 +3,7 @@
 #define PLANKTON_LOGIC
 
 
+#include <vector>
 #include <deque>
 #include <memory>
 #include "cola/ast.hpp"
@@ -217,6 +218,17 @@ namespace plankton {
 		static std::unique_ptr<Annotation> make_true();
 		static std::unique_ptr<Annotation> make_false();
 		ACCEPT_FORMULA_VISITOR
+	};
+
+	//
+	// Annotation
+	//
+
+	struct NodeInvariant {
+		const cola::Program& source;
+
+		NodeInvariant(const cola::Program& source);
+		std::unique_ptr<ConjunctionFormula> instatiate(const cola::VariableDeclaration& var) const;
 	};
 
 	//

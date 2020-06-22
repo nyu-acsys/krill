@@ -188,26 +188,7 @@ struct PurityChecker {
 		}
 
 		// instatiate predicate
-		std::unique_ptr<Axiom> axiom;
-		axiom = std::make_unique<ExpressionAxiom>(cola::copy(*logically_contains_predicate.expr));
-		auto& nodeVar = *logically_contains_predicate.vars.at(0);
-		auto& keyVar = *logically_contains_predicate.vars.at(1);
-		VariableExpression dummy_node(nodeVar);
-		VariableExpression dummy_key(keyVar);
-		axiom = plankton::replace_expression(std::move(axiom), [&](const auto& expr){
-			std::unique_ptr<Expression> replacement;
-
-			if (plankton::syntactically_equal(expr, dummy_node)) {
-				replacement = std::make_unique<VariableExpression>(node);
-			
-			} else if (plankton::syntactically_equal(expr, dummy_key)) {
-				replacement = std::make_unique<VariableExpression>(key);
-			}
-
-			return std::make_pair(replacement ? true : false, std::move(replacement));
-		});
-
-		// store and return
+		auto axiom = plankton::instantiate_property	(logically_contains_predicate, { node, key });
 		auto result = plankton::copy(*axiom);
 		vars2contains.insert(std::make_pair(mapKey, axiom.get()));
 		dummy_formulas.push_back(std::move(axiom));
@@ -1174,11 +1155,11 @@ bool plankton::post_maintains_formula(const ConjunctionFormula& pre, const Conju
 	return plankton::implies(*post, maintained);
 }
 
-bool plankton::post_maintains_invariant(const Annotation& /*pre*/, const Formula& /*invariant*/, const cola::Assignment& /*cmd*/, const cola::Program& /*program*/) {
-	throw std::logic_error("not yet implemented: plankton::post_maintains_invariant(const Annotation&, const Formula&, const cola::Assignment&, const cola::Program&)");
+bool plankton::post_maintains_invariant(const Annotation& /*pre*/, const NodeInvariant& /*invariant*/, const cola::Assignment& /*cmd*/, const cola::Program& /*program*/) {
+	throw std::logic_error("not yet implemented: plankton::post_maintains_invariant(const Annotation&, const NodeInvariant&, const cola::Assignment&, const cola::Program&)");
 }
 
-bool plankton::post_maintains_invariant(const Annotation& /*pre*/, const Formula& /*invariant*/, const cola::Malloc& /*cmd*/, const cola::Program& /*program*/) {
+bool plankton::post_maintains_invariant(const Annotation& /*pre*/, const NodeInvariant& /*invariant*/, const cola::Malloc& /*cmd*/, const cola::Program& /*program*/) {
 	// TODO: ensure that 'owned(node)' implies that the invariant holds for 'node'
-	throw std::logic_error("not yet implemented: plankton::post_maintains_invariant(const Annotation&, const Formula&, const cola::Malloc&, const cola::Program&)");
+	throw std::logic_error("not yet implemented: plankton::post_maintains_invariant(const Annotation&, const NodeInvariant&, const cola::Malloc&, const cola::Program&)");
 }
