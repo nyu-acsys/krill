@@ -474,11 +474,37 @@ T container_search_and_inline(T&& uptrcontainer, const Expression& search, const
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+std::deque<std::unique_ptr<TimePredicate>> container_search_and_destroy_time(std::deque<std::unique_ptr<TimePredicate>>&& time, const VariableExpression& destroy) {
+	// split
+	std::deque<std::unique_ptr<TimePredicate>> result;
+	std::deque<std::unique_ptr<PastPredicate>> pasts;
+	for (auto& pred : time) {
+		if (!is_of_type<PastPredicate>(*pred).first) {
+			result.push_back(std::move(pred));
+		} else {
+			auto raw = static_cast<PastPredicate*>(pred.release());
+			// std::unique_ptr<PastPredicate> casted(check.second);
+			// pasts.emplace_back(std::move(casted));
+			pasts.emplace_back(raw);
+		}
+	}
+
+	// apply search and destroy
+	result = container_search_and_destroy(std::move(result), destroy);
+	for (auto& past : pasts) {
+		past->formula->conjuncts = container_search_and_destroy(std::move(past->formula->conjuncts), destroy);
+	}
+
+	// combine
+	result.insert(result.end(), std::make_move_iterator(pasts.begin()), std::make_move_iterator(pasts.end()));
+	return result;
+}
+
 std::unique_ptr<Annotation> search_and_destroy_and_inline_var(std::unique_ptr<Annotation> pre, const VariableExpression& lhs, const Expression& rhs) {
 	// destroy knowledge about lhs
 	auto now = destroy_ownership_and_non_local_knowledge(std::move(pre->now), rhs);
 	now->conjuncts = container_search_and_destroy(std::move(now->conjuncts), lhs);
-	pre->time = container_search_and_destroy(std::move(pre->time), lhs);
+	pre->time = container_search_and_destroy_time(std::move(pre->time), lhs);
 
 	// copy knowledge about rhs over to lhs
 	now->conjuncts = container_search_and_inline(std::move(now->conjuncts), rhs, lhs);
