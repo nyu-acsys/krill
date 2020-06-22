@@ -1008,7 +1008,7 @@ struct AssignmentExpressionAnalyser : public BaseVisitor {
 
 };
 
-std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Assignment& cmd, const cola::Program& program) {
+std::unique_ptr<Annotation> make_post_full(std::unique_ptr<Annotation> pre, const Assignment& cmd, const cola::Program& program) {
 	std::cout << "Post for assignment:  ";
 	cola::print(cmd, std::cout);
 	std::cout << "under:" << std::endl;
@@ -1079,6 +1079,9 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 	throw std::logic_error("Conditional was expected to be complete.");
 }
 
+std::unique_ptr<Annotation> post_full(std::unique_ptr<Annotation> pre, const Assignment& cmd, const cola::Program& program) {
+	return make_post_full(std::move(pre), cmd, program);
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1094,8 +1097,22 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> /*pr
 	throw std::logic_error("not yet implemented: plankton::post(std::unique_ptr<Annotation>, const Malloc&)");
 }
 
-bool plankton::post_maintains_formula(const Formula& /*pre*/, const Formula& /*maintained*/, const cola::Assignment& /*cmd*/) {
+std::unique_ptr<ConjunctionFormula> combine_formulas(const ConjunctionFormula& formula, const ConjunctionFormula& other) {
+	auto copyFormula = plankton::copy(formula);
+	auto copyOther = plankton::copy(other);
+	copyFormula->conjuncts.insert(
+		copyFormula->conjuncts.begin,
+		std::make_move_iterator(copyOther->conjuncts.begin()),
+		std::make_move_iterator(copyOther->conjuncts.end())
+	);
+	return copyFormula;
+}
+
+bool plankton::post_maintains_formula(const ConjunctionFormula& pre, const ConjunctionFormula& maintained, const cola::Assignment& cmd, const cola::Program& program) {
+	// TODO: one can probably implement an optimized (quick) check, in particular avoiding purity checks
+	auto post = make_post_full(combine_formulas(pre, maintained), cmd, program);
 	throw std::logic_error("not yet implemented: plankton::post_maintains_formula(const Formula&, const Formula&, const cola::Assignment&)");
+	return plankton::implies(*post, maintained);
 }
 
 bool plankton::post_maintains_invariant(const Annotation& /*pre*/, const Formula& /*invariant*/, const cola::Assignment& /*cmd*/) {
