@@ -1099,10 +1099,40 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> /*pr
 	throw std::logic_error("not yet implemented: plankton::post(std::unique_ptr<Annotation>, const Assume&)");
 }
 
-std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> /*pre*/, const Malloc& /*cmd*/) {
-	// TODO: extend_current_annotation(... knowledge about all members of new object, flow...)
-	// TODO: destroy knowledge about current lhs (and everything that is not guaranteed to survive the assignment)
-	throw std::logic_error("not yet implemented: plankton::post(std::unique_ptr<Annotation>, const Malloc&)");
+std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Malloc& cmd) {
+	VariableExpression lhs(cmd.lhs);
+	check_purity_var(lhs);
+
+	// destroy knowledge about lhs
+	auto now = std::move(pre->now);
+	now->conjuncts = container_search_and_destroy(std::move(now->conjuncts), lhs);
+	pre->time = container_search_and_destroy_time(std::move(pre->time), lhs);
+
+	// add new knowledge about lhs
+	now->conjuncts.push_back( // owned(lhs)
+		std::make_unique<OwnershipAxiom>(std::make_unique<VariableExpression>(cmd.lhs))
+	);
+	now->conjuncts.push_back( // flow(lhs)=empty
+		std::make_unique<FlowAxiom>(std::make_unique<VariableExpression>(cmd.lhs), FlowValue::empty())
+	);
+	for (const auto& [fieldname, type] : lhs.type().fields) {
+		std::unique_ptr<Expression> default_value;
+		if (type.get().sort == Sort::PTR) {
+			default_value = std::make_unique<NullValue>();
+		} else if (type.get().sort == Sort::BOOL) {
+			default_value = std::make_unique<BooleanValue>(false);
+		}
+		// TODO: what about data fields?
+		if (default_value) {
+			now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>( // lhs->{fieldname} = default_value
+				BinaryExpression::Operator::EQ, cola::copy(lhs), std::move(default_value)
+			)));
+		}
+	}
+	// TODO: more knowledge needed?
+
+	pre->now = std::move(now);
+	return pre;
 }
 
 std::unique_ptr<Annotation> combine_to_annotation(const ConjunctionFormula& formula, const ConjunctionFormula& other) {
