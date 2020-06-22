@@ -122,6 +122,7 @@ void Verifier::check_invariant_stability(const Assignment& /*command*/) {
 
 void Verifier::visit(const Program& program) {
 	// TODO: check initializer
+	theProgram = &program;
 
 	is_interference_saturated = true;
 	do {
@@ -132,6 +133,7 @@ void Verifier::visit(const Program& program) {
 		}
 	} while (!is_interference_saturated);
 
+	theProgram = nullptr;
 	throw std::logic_error("not yet implemented (Verifier::Program)");
 }
 
@@ -301,7 +303,8 @@ void Verifier::visit(const Assignment& cmd) {
 	}
 
 	// compute post annotation
-	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
+	assert(theProgram);
+	current_annotation = plankton::post_full(std::move(current_annotation), cmd, *theProgram);
 	if (has_effect(*cmd.lhs) || has_effect(*cmd.rhs)) apply_interference();
 }
 

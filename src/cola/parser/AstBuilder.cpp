@@ -49,6 +49,7 @@ struct VarExtractor : public Visitor {
 	void visit(const Assignment& /*node*/) override { /* do nothing */ }
 	void visit(const Macro& /*node*/) override { /* do nothing */ }
 	void visit(const CompareAndSwap& /*node*/) override { /* do nothing */ }
+	void visit(const Property& /*node*/) override { /* do nothing */ }
 	void visit(const Function& /*node*/) override { /* do nothing */ }
 	void visit(const Program& /*node*/) override { /* do nothing */ }
 };
@@ -97,6 +98,7 @@ struct AssignableVisitor : public Visitor {
 	void visit(const Assignment& /*node*/) override { throw std::logic_error("Unexpected invocation (AssignableVisitor::visit(const Assignment&)"); }
 	void visit(const Macro& /*node*/) override { throw std::logic_error("Unexpected invocation (AssignableVisitor::visit(const Macro&)"); }
 	void visit(const CompareAndSwap& /*node*/) override { throw std::logic_error("Unexpected invocation (AssignableVisitor::visit(const CompareAndSwap&)"); }
+	void visit(const Property& /*node*/) override { throw std::logic_error("Unexpected invocation (AssignableVisitor::visit(const Property&)"); }
 	void visit(const Function& /*node*/) override { throw std::logic_error("Unexpected invocation (AssignableVisitor::visit(const Function&)"); }
 	void visit(const Program& /*node*/) override { throw std::logic_error("Unexpected invocation (AssignableVisitor::visit(const Program&)"); }
 };

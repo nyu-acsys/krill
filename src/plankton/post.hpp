@@ -20,7 +20,7 @@ namespace plankton {
 
 	/** Computes a strongest post annotation for executing 'cmd' under 'pre'.
 	  */
-	std::unique_ptr<Annotation> post_full(std::unique_ptr<Annotation> pre, const cola::Assignment& cmd);
+	std::unique_ptr<Annotation> post_full(std::unique_ptr<Annotation> pre, const cola::Assignment& cmd, const cola::Program& program);
 
 
 	/** Tests whether 'cmd' maintains 'maintained' under 'pre & maintained'.

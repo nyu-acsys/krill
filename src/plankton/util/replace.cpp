@@ -114,6 +114,10 @@ std::unique_ptr<SimpleFormula> plankton::replace_expression(std::unique_ptr<Simp
 	return ExpressionReplacer::replace(std::move(formula), transformer);
 }
 
+std::unique_ptr<Axiom> plankton::replace_expression(std::unique_ptr<Axiom> formula, transformer_t transformer) {
+	return ExpressionReplacer::replace(std::move(formula), transformer);
+}
+
 std::unique_ptr<ConjunctionFormula> plankton::replace_expression(std::unique_ptr<ConjunctionFormula> formula, transformer_t transformer) {
 	return ExpressionReplacer::replace(std::move(formula), transformer);
 }
@@ -137,8 +141,11 @@ std::unique_ptr<Expression> plankton::replace_expression(std::unique_ptr<Express
 	return plankton::replace_expression(std::move(expression), make_transformer(replace, with));
 }
 
-
 std::unique_ptr<Formula> plankton::replace_expression(std::unique_ptr<Formula> formula, const cola::Expression& replace, const cola::Expression& with) {
+	return plankton::replace_expression(std::move(formula), make_transformer(replace, with));
+}
+
+std::unique_ptr<Axiom> plankton::replace_expression(std::unique_ptr<Axiom> formula, const cola::Expression& replace, const cola::Expression& with) {
 	return plankton::replace_expression(std::move(formula), make_transformer(replace, with));
 }
 

@@ -92,10 +92,19 @@ namespace cola {
 		std::string name;
 		Kind kind;
 		std::vector<std::unique_ptr<VariableDeclaration>> args;
-		std::vector<std::unique_ptr<VariableDeclaration>> returns;
+		std::vector<std::unique_ptr<VariableDeclaration>> returns; // TODO: remove?
 		std::unique_ptr<Scope> body;
 		Function(std::string name_, Kind kind_, std::unique_ptr<Scope> body_) : name(name_), kind(kind_), body(std::move(body_)) {
 			assert(body);
+		}
+		ACCEPT_COLA_VISITOR
+	};
+
+	struct Property : public AstNode {
+		std::vector<std::unique_ptr<VariableDeclaration>> vars;
+		std::unique_ptr<Expression> expr;
+		Property(std::unique_ptr<Expression> expr_) : expr(std::move(expr_)) {
+			assert(expr);
 		}
 		ACCEPT_COLA_VISITOR
 	};
@@ -107,6 +116,7 @@ namespace cola {
 		std::unique_ptr<Function> initializer;
 		std::vector<std::unique_ptr<Function>> functions;
 		std::map<std::string, std::string> options;
+		std::unique_ptr<Property> logically_contains;
 		ACCEPT_COLA_VISITOR
 	};
 

@@ -24,6 +24,11 @@ struct NameClashResolver : public BaseNonConstVisitor {
 		names.insert(node.name);
 	}
 
+	void visit(Property& node) {
+		for (auto& decl : node.vars) {
+			decl->name = "@" + decl->name;
+		}
+	}
 	void visit(Function& node) {
 		for (auto& decl : node.args) {
 			decl->accept(*this);
@@ -34,17 +39,24 @@ struct NameClashResolver : public BaseNonConstVisitor {
 		node.body->accept(*this);
 	}
 	void visit(Program& node) {
+		names.clear();
+		name2func.clear();
 		for (auto& func : node.functions) {
 			name2func[func->name] = func.get();
 		}
 		for (auto& decl : node.variables) {
 			decl->accept(*this);
 		}
+		auto names_copy = names;
 		for (auto& func : node.functions) {
 			if (func->kind == Function::Kind::INTERFACE) {
-				names.clear();
+				// names.clear();
+				names = names_copy;
 				func->accept(*this);
 			}
+		}
+		if (node.logically_contains) {
+			node.logically_contains->accept(*this);
 		}
 	}
 
