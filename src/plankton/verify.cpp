@@ -51,8 +51,9 @@ const VariableDeclaration& RenamingInfo::rename(const VariableDeclaration& decl)
 		// create new replacement
 		auto newName = find_renaming(decl.name, *this);
 		auto newDecl = std::make_unique<VariableDeclaration>(newName, decl.type, decl.is_shared);
-		variable2renamed[&decl] = newDecl.get();
 		replacement = newDecl.get();
+		variable2renamed[&decl] = replacement;
+		variable2renamed[replacement] = replacement; // prevent renamed variable from being renamed
 		renamed_variables.push_back(std::move(newDecl));
 	}
 
@@ -60,7 +61,14 @@ const VariableDeclaration& RenamingInfo::rename(const VariableDeclaration& decl)
 }
 
 transformer_t RenamingInfo::as_transformer() {
-	throw std::logic_error("not yet implemented: RenamingInfo::as_transformer()");
+	return [this](const auto& expr){
+		std::unique_ptr<Expression> replacement;
+		auto check = is_of_type<VariableExpression>(expr);
+		if (check.first) {
+			replacement = std::make_unique<VariableExpression>(this->rename(check.second->decl));
+		}
+		return std::make_pair(replacement ? true : false, std::move(replacement));
+	};
 }
 
 
@@ -69,7 +77,7 @@ transformer_t RenamingInfo::as_transformer() {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct VariableCollector : BaseVisitor {
+struct DereferencedExpressionCollector : BaseVisitor {
 	std::set<const Expression*> exprs;
 
 	void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
@@ -90,7 +98,7 @@ struct VariableCollector : BaseVisitor {
 };
 
 void Verifier::check_pointer_accesses(const Expression& expr) {
-	VariableCollector collector;
+	DereferencedExpressionCollector collector;
 	expr.accept(collector);
 	for (const Expression* expr : collector.exprs) {
 		if (!plankton::implies_nonnull(*current_annotation->now, *expr)) {
@@ -122,6 +130,36 @@ void Verifier::check_invariant_stability(const Malloc& command) {
 		throw UnsupportedConstructError("allocation targeting shared variable '" + command.lhs.name + "'");
 	}
 	throw_invariant_violation_if(!plankton::post_maintains_invariant(*current_annotation, *theInvariant, command, *theProgram), command, " by newly allocated node");
+}
+
+struct VariableCollector : BaseVisitor {
+	std::set<const VariableDeclaration*> vars;
+
+	void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
+	void visit(const NullValue& /*node*/) override { /* do nothing */ }
+	void visit(const EmptyValue& /*node*/) override { /* do nothing */ }
+	void visit(const MaxValue& /*node*/) override { /* do nothing */ }
+	void visit(const MinValue& /*node*/) override { /* do nothing */ }
+	void visit(const NDetValue& /*node*/) override { /* do nothing */ }
+	void visit(const VariableExpression& node) override { vars.insert(&node.decl); }
+
+	void visit(const NegatedExpression& node) override { node.expr->accept(*this); }
+	void visit(const BinaryExpression& node) override { node.lhs->accept(*this); node.rhs->accept(*this); }
+	void visit(const Dereference& node) override { node.expr->accept(*this); }
+
+	void visit(const Assume& node) override { node.expr->accept(*this); }
+	void visit(const Assignment& node) override { node.lhs->accept(*this); node.rhs->accept(*this); }
+};
+
+void Verifier::exploint_invariant(const cola::Command& command) {
+	VariableCollector collector;
+	command.accept(collector);
+	for (const VariableDeclaration* var : collector.vars) {
+		auto varinv = theInvariant->instantiate(*var);
+		current_annotation->now->conjuncts.insert(current_annotation->now->conjuncts.begin(),
+			std::make_move_iterator(varinv->conjuncts.begin()), std::make_move_iterator(varinv->conjuncts.end())
+		);
+	}
 }
 
 
@@ -279,6 +317,7 @@ void Verifier::visit(const Continue& /*cmd*/) {
 void Verifier::visit(const Assume& cmd) {
 	check_pointer_accesses(*cmd.expr);
 	current_annotation = plankton::post_full(std::move(current_annotation), cmd, *theProgram);
+	exploint_invariant(cmd);
 	if (has_effect(*cmd.expr)) apply_interference();
 }
 
@@ -304,6 +343,7 @@ void Verifier::visit(const Malloc& cmd) {
 }
 
 void Verifier::visit(const Assignment& cmd) {
+	exploint_invariant(cmd);
 	check_pointer_accesses(*cmd.lhs);
 	check_pointer_accesses(*cmd.rhs);
 
@@ -316,6 +356,7 @@ void Verifier::visit(const Assignment& cmd) {
 	// compute post annotation
 	assert(theProgram);
 	current_annotation = plankton::post_full(std::move(current_annotation), cmd, *theProgram);
+	exploint_invariant(cmd);
 	if (has_effect(*cmd.lhs) || has_effect(*cmd.rhs)) apply_interference();
 }
 

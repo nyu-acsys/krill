@@ -73,6 +73,7 @@ namespace plankton {
 			void check_pointer_accesses(const cola::Expression& expr); // ensures null is not dereferenced in expr
 			void check_invariant_stability(const cola::Assignment& command);
 			void check_invariant_stability(const cola::Malloc& command);
+			void exploint_invariant(const cola::Command& command);
 			
 			void extend_interference(const cola::Assignment& command); // calls extend_interferenceadds with renamed (current_annotation, command)
 			void extend_interference(std::unique_ptr<Effect> effect); // adds effect to interference; updates is_interference_saturated

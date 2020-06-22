@@ -100,10 +100,48 @@ std::unique_ptr<Annotation> Annotation::make_false() {
 	return mk_bool(false);
 }
 
+
+struct DereferenceChecker : BaseVisitor {
+	bool result = true;
+	bool inside_deref = false;
+
+	static bool is_node_local(const Expression& expr) {
+		DereferenceChecker visitor;
+		expr.accept(visitor);
+		return visitor.result;
+	}
+
+	void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
+	void visit(const NullValue& /*node*/) override { /* do nothing */ }
+	void visit(const EmptyValue& /*node*/) override { /* do nothing */ }
+	void visit(const MaxValue& /*node*/) override { /* do nothing */ }
+	void visit(const MinValue& /*node*/) override { /* do nothing */ }
+	void visit(const NDetValue& /*node*/) override { /* do nothing */ }
+	void visit(const VariableExpression& /*node*/) override { /* do nothing */ }
+
+	void visit(const NegatedExpression& node) override {
+		if (result) node.expr->accept(*this);
+	}
+	void visit(const BinaryExpression& node) override {
+		if (result) node.lhs->accept(*this);
+		if (result) node.rhs->accept(*this);
+	}
+	void visit(const Dereference& node) override {
+		if (inside_deref) result = false;
+		if (!result) return;
+		inside_deref = true;
+		node.expr->accept(*this);
+		inside_deref = false;
+	}
+};
+
 NodeInvariant::NodeInvariant(const cola::Program& source_) : source(source_) {
 	for (const auto& inv : source.invariants) {
 		if (inv->vars.size() != 1 || inv->vars.at(0)->type.sort != Sort::PTR) {
-			throw std::logic_error("Cannot construct node invariant from given program, '" + inv->name + "' is malformed.");
+			throw std::logic_error("Cannot construct node invariant from given program, invariant '" + inv->name + "' is malformed.");
+		}
+		if (!DereferenceChecker::is_node_local(*inv->expr)) {
+			throw std::logic_error("Cannot construct node invariant from given program, invariant '" + inv->name + "' is not node-local.");
 		}
 	}
 }
@@ -117,7 +155,7 @@ std::unique_ptr<ConjunctionFormula> NodeInvariant::instantiate(const VariableDec
 		return plankton::copy(*find->second);
 	}
 
-	std::unique_ptr<ConjunctionFormula> result;
+	auto result = std::make_unique<ConjunctionFormula>();
 	for (const auto& property : source.invariants) {
 		result->conjuncts.push_back(plankton::instantiate_property(*property, { var }));
 	}

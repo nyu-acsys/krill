@@ -519,16 +519,13 @@ std::unique_ptr<Annotation> post_full_assign_var_expr(std::unique_ptr<Annotation
 
 std::unique_ptr<Annotation> post_full_assign_var_derefptr(std::unique_ptr<Annotation> pre, const Program& /*program*/, const Assignment& /*cmd*/, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& /*rhsVar*/, bool check_purity=true) {
 	check_purity_var(lhs, check_purity);
-	auto post = search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
-	// TODO: infer flow/contains and put it into a past predicate
 	// TODO: no self loops? Add lhs != rhs?
-	// TODO: use invariant to find out stuff?
-	throw std::logic_error("not yet implemented: post_full_assign_var_derefptr");
+	// TODO important: infer flow/contains and put it into a past predicate
+	return search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
 }
 
 std::unique_ptr<Annotation> post_full_assign_var_derefdata(std::unique_ptr<Annotation> pre, const Program& /*program*/, const Assignment& /*cmd*/, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& /*rhsVar*/, bool check_purity=true) {
 	check_purity_var(lhs, check_purity);
-	// TODO: use invariant to find out stuff?
 	return search_and_destroy_and_inline_var(std::move(pre), lhs, rhs);
 }
 
@@ -1076,27 +1073,25 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Assume& cmd, const cola::Program& program) {
-	// reuse assignment post if possible
-	auto check = is_of_type<BinaryExpression>(*cmd.expr);
-	if (check.first && check.second->op == BinaryExpression::Operator::EQ) {
-		// TODO important: is this necessary?
-		try {
-			Assignment dummy_assign(cola::copy(*check.second->lhs), cola::copy(*check.second->rhs));
-			auto post = make_post_full(plankton::copy(*pre), dummy_assign, program, false);
-			dummy_assign.lhs.swap(dummy_assign.rhs);
-			pre = make_post_full(std::move(pre), dummy_assign, program, false);
-
-			pre->now->conjuncts.insert(
-				pre->now->conjuncts.begin(), std::make_move_iterator(post->now->conjuncts.begin()), std::make_move_iterator(post->now->conjuncts.end())
-			);
-			pre->time.insert(
-				pre->time.begin(), std::make_move_iterator(post->time.begin()), std::make_move_iterator(post->time.end())
-			);
-		} catch (UnsupportedConstructError err) {
-			// do nothing: the assumption simply does not adhere to the expressions normal form we assume for assignments
-		}
-	}
+std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Assume& cmd, const cola::Program& /*program*/) {
+	// TODO important: enable the following?
+	// auto check = is_of_type<BinaryExpression>(*cmd.expr);
+	// if (check.first && check.second->op == BinaryExpression::Operator::EQ) {
+	// 	try {
+	// 		Assignment dummy_assign(cola::copy(*check.second->lhs), cola::copy(*check.second->rhs));
+	// 		auto post = make_post_full(plankton::copy(*pre), dummy_assign, program, false);
+	// 		dummy_assign.lhs.swap(dummy_assign.rhs);
+	// 		pre = make_post_full(std::move(pre), dummy_assign, program, false);
+	// 		pre->now->conjuncts.insert(
+	// 			pre->now->conjuncts.begin(), std::make_move_iterator(post->now->conjuncts.begin()), std::make_move_iterator(post->now->conjuncts.end())
+	// 		);
+	// 		pre->time.insert(
+	// 			pre->time.begin(), std::make_move_iterator(post->time.begin()), std::make_move_iterator(post->time.end())
+	// 		);
+	// 	} catch (UnsupportedConstructError err) {
+	// 		// do nothing: the assumption simply does not adhere to the expressions normal form we assume for assignments
+	// 	}
+	// }
 
 	pre->now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(cola::copy(*cmd.expr)));
 	return pre;	
