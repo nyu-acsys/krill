@@ -1054,6 +1054,15 @@ std::pair<bool, std::unique_ptr<FulfillmentAxiom>> try_fulfill_impure_obligation
 	return result;
 }
 
+const VariableExpression& extract_or_fail(const Expression& expr, const Expression* lhs=nullptr) {
+	auto check = plankton::is_of_type<VariableExpression>(expr);
+	if (!check.first) {
+		auto msg = lhs ? " to '" + to_string(*lhs) + "'" : "";
+		throw UnsupportedConstructError("assigning" + msg + " from unsupported expression '" + to_string(expr) + "'; expected a pointer variable.");
+	}
+	return *check.second;
+}
+
 std::pair<bool, std::unique_ptr<ConjunctionFormula>> ensure_pure_or_spec_ptr(std::unique_ptr<ConjunctionFormula> now, const Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
 	// we assume that the update affects the flow only on the part sent out by the modified selector
 	if (!plankton::is_flow_field_local(lhsVar.type(), lhs.fieldname)) {
@@ -1062,11 +1071,7 @@ std::pair<bool, std::unique_ptr<ConjunctionFormula>> ensure_pure_or_spec_ptr(std
 
 	// extract variable from rhs
 	// TODO important: what about rhs being NULL?
-	auto rhs_check = plankton::is_of_type<VariableExpression>(rhs);
-	if (!rhs_check.first) {
-		throw UnsupportedConstructError("assigning to '" + to_string(lhs) + "' from unsupported expression '" + to_string(rhs) + "'; expected a pointer variable.");
-	}
-	const VariableExpression& rhsVar = *rhs_check.second;
+	const VariableExpression& rhsVar = extract_or_fail(rhs, &lhs);
 
 	// Case 1/2: pure deletion/insertion
 	if (is_pure_node_unlinking(*now, program, lhs, lhsVar, rhsVar) || is_pure_node_insertion(*now, program, lhs, lhsVar, rhsVar)) {
@@ -1173,6 +1178,8 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct InvariantComputer : public AssignmentComputer<bool> {
+	static constexpr auto NO_CHECKS = [](const auto&, const auto&){ return std::make_unique<ConjunctionFormula>(); };
+
 	const Annotation& pre;
 	const NodeInvariant& invariant;
 	const Program& program;
@@ -1195,23 +1202,46 @@ struct InvariantComputer : public AssignmentComputer<bool> {
 		return true;
 	}
 
-	std::unique_ptr<Annotation> make_partial_post(const Expression& lhs, const Expression& rhs) {
+	std::unique_ptr<Annotation> make_partial_post(std::unique_ptr<ConjunctionFormula> now, const Expression& lhs, const Expression& rhs, bool destroy_flow=false) {
 		// TODO: use full post image to avoid code duplication?
-		auto post_now = plankton::copy(*pre.now);
-		post_now = destroy_ownership(std::move(post_now), rhs);
-		post_now->conjuncts = container_search_and_destroy(std::move(post_now->conjuncts), lhs);
-		post_now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+		if (destroy_flow) {
+			now = destroy_ownership_and_non_local_knowledge(std::move(now), rhs);
+		} else {
+			now = destroy_ownership(std::move(now), rhs);
+		}
+		now->conjuncts = container_search_and_destroy(std::move(now->conjuncts), lhs);
+		now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
 			BinaryExpression::Operator::EQ,
 			cola::copy(lhs),
 			cola::copy(rhs)
 		)));
-		return std::make_unique<Annotation>(std::move(post_now));
+		return std::make_unique<Annotation>(std::move(now));
+	}
+
+	std::unique_ptr<Annotation> make_partial_post(const Expression& lhs, const Expression& rhs, bool destroy_flow=false) {
+		return make_partial_post(plankton::copy(*pre.now), lhs, rhs, destroy_flow);
+	}
+
+	bool solve_invariant(std::unique_ptr<Annotation> premise, const VariableDeclaration& left, const VariableDeclaration& right, const VariableDeclaration& other) {
+		// extend premise with invariant for other
+		auto otherInv = invariant.instantiate(other);
+		premise->now->conjuncts.insert(
+			premise->now->conjuncts.begin(),
+			std::make_move_iterator(otherInv->conjuncts.begin()),
+			std::make_move_iterator(otherInv->conjuncts.end())
+		);
+
+		// conclusion: invariant for left, right, other
+		auto conclusion = std::move(combine_to_annotation(invariant.instantiate(left), invariant.instantiate(right))->now);
+		conclusion = std::move(combine_to_annotation(invariant.instantiate(other), std::move(conclusion))->now);
+
+		// solve
+		return plankton::implies(*premise->now, *conclusion);
 	}
 
 	bool derefptr_varimmi_insert(const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
 		// ensure we are dealing with a one-nonde-insertion
-		auto no_checks = [](const auto&, const auto&){ return std::make_unique<ConjunctionFormula>(); };
-		if (!is_node_insertion_with_additional_checks(*pre.now, program, lhs, lhsVar, rhs, no_checks)) {
+		if (!is_node_insertion_with_additional_checks(*pre.now, program, lhs, lhsVar, rhs, NO_CHECKS)) {
 			return false;
 		}
 
@@ -1223,35 +1253,46 @@ struct InvariantComputer : public AssignmentComputer<bool> {
 			std::make_unique<Dereference>(cola::copy(rhs), lhs.fieldname),
 			std::make_unique<VariableExpression>(successor)
 		)));
-		auto succinv = invariant.instantiate(successor);
-		partial_post->now->conjuncts.insert(
-			partial_post->now->conjuncts.begin(),
-			std::make_move_iterator(succinv->conjuncts.begin()),
-			std::make_move_iterator(succinv->conjuncts.end())
-		);
-
-		// conclusion: invariant for lhsVar, rhs, successor
-		auto conclusion = std::move(combine_to_annotation(invariant.instantiate(lhsVar.decl), invariant.instantiate(rhs.decl))->now);
-		conclusion = std::move(combine_to_annotation(invariant.instantiate(successor), std::move(conclusion))->now);
 
 		// solve
-		return plankton::implies(*partial_post->now, *conclusion);
+		return solve_invariant(std::move(partial_post), lhsVar.decl, rhs.decl, successor);
 	}
 
-	bool derefptr_varimmi_unlink(const Dereference& /*lhs*/, const VariableExpression& /*lhsVar*/, const VariableExpression& /*rhs*/) {
-		// remove any flow knowledge about lhsVar, make a partial post, and basically ask if "logically deletion ==> invariant"
-		throw std::logic_error("not yet implemented: InvariantComputer::derefptr_varimmi_unlink");
+	bool derefptr_varimmi_unlink(const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
+		// ensure we are dealing with a one-nonde-insertion
+		if (!is_node_unlinking_with_additional_checks(*pre.now, program, lhs, lhsVar, rhs, NO_CHECKS)) {
+			return false;
+		}
+
+		// premise: partial post extended with pointer to deleted node
+		VariableDeclaration inbetween("inv#dummy-ptr-unklink", lhs.type(), false);
+		auto now = plankton::copy(*pre.now);
+		now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+			BinaryExpression::Operator::EQ,
+			cola::copy(lhs),
+			std::make_unique<VariableExpression>(inbetween)
+		)));
+		// remove flow knowledge for post ==> inbetween should be "marked" in some way such that the invariant becomes easily checkable
+		auto partial_post = make_partial_post(std::move(now), lhs, rhs, true);
+
+		// solve
+		return solve_invariant(std::move(partial_post), lhsVar.decl, rhs.decl, inbetween);
 	}
 
 	bool derefptr_varimmi(const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) override {
-		// extract variable from rhs
-		// TODO important: what about rhs being NULL?
-		auto rhs_check = plankton::is_of_type<VariableExpression>(rhs);
-		if (!rhs_check.first) {
-			throw UnsupportedConstructError("assigning to '" + to_string(lhs) + "' from unsupported expression '" + to_string(rhs) + "'; expected a pointer variable.");
+		// handle NULL assignment
+		if (plankton::is_of_type<NullValue>(rhs).first) {
+			if (is_owned(*pre.now, lhsVar) || has_no_flow(*pre.now, lhsVar)) {
+				// owned(lhsVar) \/ owned(lhsVar) ==> flow does not change
+				auto partial_post = make_partial_post(lhs, rhs, false);
+				auto conclusion = invariant.instantiate(lhsVar.decl);
+				return plankton::implies(*partial_post->now, *conclusion);
+			} else {
+				return false;
+			}
 		}
-		const VariableExpression& rhsVar = *rhs_check.second;
 
+		auto& rhsVar = extract_or_fail(rhs, &lhs);
 		return derefptr_varimmi_insert(lhs, lhsVar, rhsVar)
 		    || derefptr_varimmi_unlink(lhs, lhsVar, rhsVar)
 		    || has_enabled_future_predicate(*pre.now, pre, cmd);
