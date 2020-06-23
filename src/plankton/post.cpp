@@ -1070,7 +1070,6 @@ std::pair<bool, std::unique_ptr<ConjunctionFormula>> ensure_pure_or_spec_ptr(std
 	}
 
 	// extract variable from rhs
-	// TODO important: what about rhs being NULL?
 	const VariableExpression& rhsVar = extract_or_fail(rhs, &lhs);
 
 	// Case 1/2: pure deletion/insertion
@@ -1093,6 +1092,10 @@ std::unique_ptr<Annotation> handle_purity(std::unique_ptr<Annotation> pre, const
 
 	// the content of 'lhsVar' is intersected with the empty flow ==> changes are irrelevant
 	success = is_owned(*now, lhsVar) || has_no_flow(*now, lhsVar);
+
+	if (plankton::is_of_type<NullValue>(rhs).first && !success) {
+		throw VerificationError("Could not handle assignment '" + to_string(cmd) + "': '" + to_string(lhs) + "' is neither known to be owned nor known to have no flow.");
+	}
 
 	// ensure 'cmd' is pure or satisfies spec
 	if (!success) {
