@@ -34,6 +34,139 @@ std::string to_string(const T& obj) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+struct AssignmentExpressionAnalyser : public BaseVisitor {
+	const VariableExpression* decl = nullptr;
+	const Dereference* deref = nullptr;
+	bool derefNested = false;
+
+	void reset() {
+		decl = nullptr;
+		deref = nullptr;
+		derefNested = false;
+	}
+
+	void visit(const VariableExpression& node) override {
+		decl = &node;
+	}
+
+	void visit(const Dereference& node) override {
+		if (!deref) {
+			deref = &node;
+			node.expr->accept(*this);
+		} else {
+			derefNested = true;
+		}
+	}
+
+	void visit(const NullValue& /*node*/) override { if (deref) derefNested = true; }
+	void visit(const BooleanValue& /*node*/) override {if (deref) derefNested = true; }
+	void visit(const EmptyValue& /*node*/) override { if (deref) derefNested = true; }
+	void visit(const MaxValue& /*node*/) override { if (deref) derefNested = true; }
+	void visit(const MinValue& /*node*/) override { if (deref) derefNested = true; }
+	void visit(const NDetValue& /*node*/) override { if (deref) derefNested = true; }
+	void visit(const NegatedExpression& /*node*/) override { if (deref) derefNested = true; }
+	void visit(const BinaryExpression& /*node*/) override { if (deref) derefNested = true; }
+
+};
+
+template<typename R>
+struct AssignmentComputer {
+	virtual ~AssignmentComputer() = default;
+	virtual R var_expr(const Assignment& cmd, const VariableExpression& lhs, const Expression& rhs) = 0;
+	virtual R var_derefptr(const Assignment& cmd, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& rhsVar) = 0;
+	virtual R var_derefdata(const Assignment& cmd, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& rhsVar) = 0;
+	virtual R derefptr_varimmi(const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) = 0;
+	virtual R derefdata_varimmi(const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) = 0;
+};
+
+template<typename R>
+R compute_assignment_switch(AssignmentComputer<R>& computer, const Assignment& cmd) {
+	// TODO: make the following 🤮 nicer
+	AssignmentExpressionAnalyser analyser;
+	cmd.lhs->accept(analyser);
+	const VariableExpression* lhsVar = analyser.decl;
+	const Dereference* lhsDeref = analyser.deref;
+	bool lhsDerefNested = analyser.derefNested;
+	analyser.reset();
+	cmd.rhs->accept(analyser);
+	const VariableExpression* rhsVar = analyser.decl;
+	const Dereference* rhsDeref = analyser.deref;
+	bool rhsDerefNested = analyser.derefNested;
+
+	if (lhsDerefNested || (lhsDeref == nullptr && lhsVar == nullptr)) {
+		// lhs is a compound expression
+		std::stringstream msg;
+		msg << "compound expression '";
+		cola::print(*cmd.lhs, msg);
+		msg << "' as left-hand side of assignment not supported.";
+		throw UnsupportedConstructError(msg.str());
+
+	} else if (lhsDeref) {
+		// lhs is a dereference
+		assert(lhsVar);
+		if (!rhsDeref) {
+			if (lhsDeref->sort() == Sort::PTR) {
+				return computer.derefptr_varimmi(cmd, *lhsDeref, *lhsVar, *cmd.rhs);
+			} else {
+				return computer.derefdata_varimmi(cmd, *lhsDeref, *lhsVar, *cmd.rhs);
+			}
+		} else {
+			// deref on both sides not supported
+			std::stringstream msg;
+			msg << "right-hand side '";
+			cola::print(*cmd.rhs, msg);
+			msg << "' of assignment not supported with '";
+			cola::print(*cmd.lhs, msg);
+			msg << "' as left-hand side.";
+			throw UnsupportedConstructError(msg.str());
+		}
+
+	} else if (lhsVar) {
+		// lhs is a variable or an immidiate value
+		if (rhsDeref) {
+			if (rhsDerefNested) {
+				// lhs is a compound expression
+				std::stringstream msg;
+				msg << "compound expression '";
+				cola::print(*cmd.rhs, msg);
+				msg << "' as right-hand side of assignment not supported.";
+				throw UnsupportedConstructError(msg.str());
+
+			} else if (rhsDeref->sort() == Sort::PTR) {
+				return computer.var_derefptr(cmd, *lhsVar, *rhsDeref, *rhsVar);
+			} else {
+				return computer.var_derefdata(cmd, *lhsVar, *rhsDeref, *rhsVar);
+			}
+		} else {
+			return computer.var_expr(cmd, *lhsVar, *cmd.rhs);
+		}
+	}
+
+	throw std::logic_error("Conditional was expected to be complete.");
+}
+
+std::unique_ptr<Annotation> combine_to_annotation(std::unique_ptr<ConjunctionFormula> formula, std::unique_ptr<ConjunctionFormula> other) {
+	formula->conjuncts.insert(
+		formula->conjuncts.begin(),
+		std::make_move_iterator(other->conjuncts.begin()),
+		std::make_move_iterator(other->conjuncts.end())
+	);
+	return std::make_unique<Annotation>(std::move(formula));
+}
+
+std::unique_ptr<Annotation> combine_to_annotation(const ConjunctionFormula& formula, std::unique_ptr<ConjunctionFormula> other) {
+	return combine_to_annotation(plankton::copy(formula), std::move(other));
+}
+
+std::unique_ptr<Annotation> combine_to_annotation(const ConjunctionFormula& formula, const ConjunctionFormula& other) {
+	return combine_to_annotation(formula, plankton::copy(other));
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 const Property& extract_logically_contains_predicate(const Program& program) {
 	auto exception_if = [](bool flag, std::string reason){
 		if (flag) {
@@ -345,6 +478,7 @@ PurityChecker& get_purity_checker(const Program& program) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+template<bool prune_local>
 struct Pruner : public BaseLogicNonConstVisitor { // TODO: is this thingy correct?
 	const Expression& prune_expr;
 	bool prune_child = false;
@@ -399,20 +533,30 @@ struct Pruner : public BaseLogicNonConstVisitor { // TODO: is this thingy correc
 		prune_child = plankton::syntactically_equal(*formula.expr, prune_expr);
 	}
 
-	void visit(LogicallyContainedAxiom& /*formula*/) override { prune_child = true; }
-	void visit(KeysetContainsAxiom& /*formula*/) override { prune_child = true; }
-	void visit(FlowAxiom& /*formula*/) override { prune_child = true; }
+	void visit(LogicallyContainedAxiom& /*formula*/) override { prune_child = prune_local; }
+	void visit(KeysetContainsAxiom& /*formula*/) override { prune_child = prune_local; }
+	void visit(FlowAxiom& /*formula*/) override { prune_child = prune_local; }
 
 	void visit(ExpressionAxiom& /*formula*/) override { prune_child = false; }
 	void visit(ObligationAxiom& /*formula*/) override { prune_child = false; }
 	void visit(FulfillmentAxiom& /*formula*/) override { prune_child = false; }
 };
 
-std::unique_ptr<ConjunctionFormula> destroy_ownership_and_non_local_knowledge(std::unique_ptr<ConjunctionFormula> formula, const Expression& expr) {
-	// remove ownership of 'expr' in 'formula' as well as all non-local knowledge (like flow, keysets, node contents)
-	Pruner visitor(expr);
+template<bool prune_local>
+inline std::unique_ptr<ConjunctionFormula> apply_pruner(std::unique_ptr<ConjunctionFormula> formula, const Expression& expr) {
+	Pruner<prune_local> visitor(expr);
 	formula->accept(visitor);
 	return formula;
+}
+
+std::unique_ptr<ConjunctionFormula> destroy_ownership(std::unique_ptr<ConjunctionFormula> formula, const Expression& expr) {
+	// remove ownership of 'expr' in 'formula'
+	return apply_pruner<false>(std::move(formula), expr);
+}
+
+std::unique_ptr<ConjunctionFormula> destroy_ownership_and_non_local_knowledge(std::unique_ptr<ConjunctionFormula> formula, const Expression& expr) {
+	// remove ownership of 'expr' in 'formula' as well as all non-local knowledge (like flow, keysets, node contents)
+	return apply_pruner<true>(std::move(formula), expr);
 }
 
 
@@ -508,7 +652,7 @@ inline void check_purity_var(const VariableExpression& lhs, bool check_purity=tr
 	if (lhs.decl.is_shared) {
 		// assignment to 'lhs' potentially impure (may require obligation/fulfillment transformation)
 		// TODO: implement
-		throw UnsupportedConstructError("assignment to shared variable '" + lhs.decl.name + "'; assignment potentially impure.");
+		throw UnsupportedConstructError("assignment to shared variable '" + lhs.decl.name + "'; assignment potentially impure");
 	}
 }
 
@@ -652,7 +796,7 @@ bool keyset_contains(const Formula& now, const VariableExpression& node, const V
 }
 
 template<typename T, typename R>
-std::pair<bool, std::unique_ptr<ConjunctionFormula>> try_fulfill_obligation_mapper(std::unique_ptr<ConjunctionFormula> now, T mapper, const cola::Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const R& rhs) {
+std::pair<bool, std::unique_ptr<ConjunctionFormula>> try_fulfill_obligation_mapper(std::unique_ptr<ConjunctionFormula> now, T mapper, const Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const R& rhs) {
 	for (auto& conjunct : now->conjuncts) {
 		auto [is_obligation, obligation] = plankton::is_of_type<ObligationAxiom>(*conjunct);
 		if (is_obligation) {
@@ -666,7 +810,7 @@ std::pair<bool, std::unique_ptr<ConjunctionFormula>> try_fulfill_obligation_mapp
 	return std::make_pair(false, std::move(now));
 }
 
-std::pair<bool, std::unique_ptr<FulfillmentAxiom>> try_fulfill_impure_obligation_data(const ConjunctionFormula& now, const ObligationAxiom& obligation, const cola::Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
+std::pair<bool, std::unique_ptr<FulfillmentAxiom>> try_fulfill_impure_obligation_data(const ConjunctionFormula& now, const ObligationAxiom& obligation, const Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
 	std::pair<bool, std::unique_ptr<FulfillmentAxiom>> result;
 	if (obligation.kind == ObligationAxiom::Kind::CONTAINS) {
 		return result;
@@ -686,7 +830,7 @@ std::pair<bool, std::unique_ptr<FulfillmentAxiom>> try_fulfill_impure_obligation
 	return result;
 }
 
-std::pair<bool, std::unique_ptr<ConjunctionFormula>> ensure_pure_or_spec_data(std::unique_ptr<ConjunctionFormula> now, const cola::Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
+std::pair<bool, std::unique_ptr<ConjunctionFormula>> ensure_pure_or_spec_data(std::unique_ptr<ConjunctionFormula> now, const Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
 	// we assume that the update is local to the node referenced by 'lhsVar'
 	if (!plankton::is_flow_field_local(lhsVar.type(), lhs.fieldname)) {
 		return std::make_pair(false, std::move(now));
@@ -701,8 +845,41 @@ std::pair<bool, std::unique_ptr<ConjunctionFormula>> ensure_pure_or_spec_data(st
 	return try_fulfill_obligation_mapper(std::move(now), try_fulfill_impure_obligation_data, program, lhs, lhsVar, rhs);
 }
 
+std::pair<std::unique_ptr<ImplicationFormula>, std::unique_ptr<ImplicationFormula>> make_key_inbetween_formulas(const Program& program, const VariableDeclaration& left, const VariableDeclaration& middle, const VariableDeclaration& right, const VariableDeclaration& key, const VariableDeclaration& otherKey) {
+	// content(left) < content(middle)
+	auto implication = std::make_unique<ImplicationFormula>();
+	implication->premise->conjuncts.push_back(
+		get_purity_checker(program).make_contains_predicate(left, key)
+	);
+	implication->premise->conjuncts.push_back(
+		get_purity_checker(program).make_contains_predicate(middle, otherKey)
+	);
+	implication->conclusion->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+		BinaryExpression::Operator::LT,
+		std::make_unique<VariableExpression>(key),
+		std::make_unique<VariableExpression>(otherKey)
+	)));
+
+	// max-content(rhs) < min-content(successor)
+	auto other = std::make_unique<ImplicationFormula>();
+	other->premise->conjuncts.push_back(
+		get_purity_checker(program).make_contains_predicate(middle, key)
+	);
+	other->premise->conjuncts.push_back(
+		get_purity_checker(program).make_contains_predicate(right, otherKey)
+	);
+	other->conclusion->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+		BinaryExpression::Operator::LT,
+		std::make_unique<VariableExpression>(key),
+		std::make_unique<VariableExpression>(otherKey)
+	)));
+	
+	// done
+	return std::make_pair(std::move(implication), std::move(other));
+}
+
 template<typename T> 
-bool is_node_insertion_with_additional_checks(const ConjunctionFormula& now, const cola::Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs, T make_additional_checks) {
+bool is_node_insertion_with_additional_checks(const ConjunctionFormula& now, const Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs, T make_additional_checks) {
 	if (rhs.type().field(lhs.fieldname) != &lhs.type()) {
 		return false;
 	}
@@ -710,7 +887,6 @@ bool is_node_insertion_with_additional_checks(const ConjunctionFormula& now, con
 	// Assume that the keys removed from the succesors keyset are not contained in the successor:
 	//         max-content(lhs) < min-content(rhs) /\ max-content(rhs) < min-content(successor)
 	//     ==> insertion of content(rhs) /\ rest remains unchanged
-	// TODO: check the flow assumption
 	if (!plankton::is_flow_insertion_inbetween_local(lhsVar.type(), lhs.fieldname)) {
 		return false;
 	}
@@ -736,40 +912,16 @@ bool is_node_insertion_with_additional_checks(const ConjunctionFormula& now, con
 		cola::copy(rhs),
 		std::make_unique<Dereference>(std::make_unique<VariableExpression>(successor), lhs.fieldname)
 	)));
-	// max-content(lhs) < min-content(rhs)
-	auto implication = std::make_unique<ImplicationFormula>();
-	implication->premise->conjuncts.push_back(
-		get_purity_checker(program).make_contains_predicate(lhsVar.decl, key)
-	);
-	implication->premise->conjuncts.push_back(
-		get_purity_checker(program).make_contains_predicate(rhs.decl, otherKey)
-	);
-	implication->conclusion->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
-		BinaryExpression::Operator::LT,
-		std::make_unique<VariableExpression>(key),
-		std::make_unique<VariableExpression>(otherKey)
-	)));
-	conclusion->conjuncts.push_back(std::move(implication));
-	// max-content(rhs) < min-content(successor)
-	implication = std::make_unique<ImplicationFormula>();
-	implication->premise->conjuncts.push_back(
-		get_purity_checker(program).make_contains_predicate(rhs.decl, key)
-	);
-	implication->premise->conjuncts.push_back(
-		get_purity_checker(program).make_contains_predicate(successor, otherKey)
-	);
-	implication->conclusion->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
-		BinaryExpression::Operator::LT,
-		std::make_unique<VariableExpression>(key),
-		std::make_unique<VariableExpression>(otherKey)
-	)));
-	conclusion->conjuncts.push_back(std::move(implication));
+	// content(lhs) < content(rhs)< content(successor)
+	auto parts = make_key_inbetween_formulas(program, lhsVar.decl, rhs.decl, successor, key, otherKey);
+	conclusion->conjuncts.push_back(std::move(parts.first));
+	conclusion->conjuncts.push_back(std::move(parts.second));
 
 	// solve
 	return plankton::implies(*premise, *conclusion);
 }
 
-bool is_pure_node_insertion(const ConjunctionFormula& now, const cola::Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
+bool is_pure_node_insertion(const ConjunctionFormula& now, const Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
 	return is_node_insertion_with_additional_checks(now, program, lhs, lhsVar, rhs, [&rhs,&program](const auto& /*successor*/, const auto& dummyKey){
 		auto result = std::make_unique<ConjunctionFormula>();
 		// additional check: content(rhs) subseteq keyset(rhs)
@@ -781,7 +933,7 @@ bool is_pure_node_insertion(const ConjunctionFormula& now, const cola::Program& 
 	});
 }
 
-bool is_impure_node_insertion(const ConjunctionFormula& now, const ObligationAxiom& obligation, const cola::Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
+bool is_impure_node_insertion(const ConjunctionFormula& now, const ObligationAxiom& obligation, const Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
 	if (obligation.kind != ObligationAxiom::Kind::INSERT) {
 		return false;
 	}
@@ -816,14 +968,22 @@ bool is_impure_node_insertion(const ConjunctionFormula& now, const ObligationAxi
 }
 
 template<typename T>
-bool is_node_unlinking_with_additional_checks(const ConjunctionFormula& now, const cola::Program& /*program*/, const Dereference& lhs, const VariableExpression& /*lhsVar*/, const VariableExpression& rhs, T make_additional_checks) {
+bool is_node_unlinking_with_additional_checks(const ConjunctionFormula& now, const Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs, T make_additional_checks) {
 	if (!is_heap_homogeneous(lhs)) {
+		return false;
+	}
+
+	// Assume that the keys inserted into the rhs keyset do not extend its logical content:
+	//         max-content(lhs) < min-content(rhs) /\ max-content(rhs) < min-content(successor)
+	//     ==> deletion of content(inbetween) /\ rest remains unchanged
+	if (!plankton::is_flow_unlinking_local(lhsVar.type(), lhs.fieldname)) {
 		return false;
 	}
 
 	// create dummy variables for solving
 	VariableDeclaration inbetween("post#dummy-ptr-unklink", lhs.type(), false);
 	VariableDeclaration key("post#dummy-key-unklink", Type::data_type(), false); // TODO: is the type correct? or create dummy data type?
+	VariableDeclaration otherKey("post#dummy-otherKey-unlink", Type::data_type(), false);
 
 	// solving premise: now /\ lhs = inbetween
 	auto premise = plankton::copy(now);
@@ -833,7 +993,7 @@ bool is_node_unlinking_with_additional_checks(const ConjunctionFormula& now, con
 		std::make_unique<VariableExpression>(inbetween)
 	)));
 
-	// solving conclusion: additional_checks /\ inbetween->{lhs.fieldname} = rhs
+	// solving conclusion: additional_checks /\ inbetween->{lhs.fieldname} = rhs /\ "flow assumption premise"
 	// key is a fresh variable ==> it is implicityly universally quantified
 	auto conclusion = make_additional_checks(inbetween, key);
 	conclusion->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
@@ -841,12 +1001,16 @@ bool is_node_unlinking_with_additional_checks(const ConjunctionFormula& now, con
 		std::make_unique<Dereference>(std::make_unique<VariableExpression>(inbetween), lhs.fieldname),
 		cola::copy(rhs)
 	)));
+	// content(lhs) < content(rhs)< content(successor)
+	auto parts = make_key_inbetween_formulas(program, lhsVar.decl, inbetween, rhs.decl, key, otherKey);
+	conclusion->conjuncts.push_back(std::move(parts.first));
+	conclusion->conjuncts.push_back(std::move(parts.second));
 
 	// solve
 	return plankton::implies(*premise, *conclusion);
 }
 
-bool is_pure_node_unlinking(const ConjunctionFormula& now, const cola::Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
+bool is_pure_node_unlinking(const ConjunctionFormula& now, const Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
 	return is_node_unlinking_with_additional_checks(now, program, lhs, lhsVar, rhs, [&program](const auto& nodeInbetween, const auto& dummyKey){
 		auto result = std::make_unique<ConjunctionFormula>();
 		// addional check: forall key. !contains(nodeInbetween, key)
@@ -857,7 +1021,7 @@ bool is_pure_node_unlinking(const ConjunctionFormula& now, const cola::Program& 
 	});
 }
 
-bool is_impure_node_unlinking(const ConjunctionFormula& now, const ObligationAxiom& obligation, const cola::Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
+bool is_impure_node_unlinking(const ConjunctionFormula& now, const ObligationAxiom& obligation, const Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
 	if (obligation.kind != ObligationAxiom::Kind::DELETE) return false;
 	auto& searchKey = obligation.key->decl;
 	return is_node_unlinking_with_additional_checks(now, program, lhs, lhsVar, rhs, [&searchKey,&program](const auto& nodeInbetween, const auto& dummyKey){
@@ -881,7 +1045,7 @@ bool is_impure_node_unlinking(const ConjunctionFormula& now, const ObligationAxi
 	});
 }
 
-std::pair<bool, std::unique_ptr<FulfillmentAxiom>> try_fulfill_impure_obligation_ptr(const ConjunctionFormula& now, const ObligationAxiom& obligation, const cola::Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
+std::pair<bool, std::unique_ptr<FulfillmentAxiom>> try_fulfill_impure_obligation_ptr(const ConjunctionFormula& now, const ObligationAxiom& obligation, const Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
 	std::pair<bool, std::unique_ptr<FulfillmentAxiom>> result;
 	result.first = is_impure_node_insertion(now, obligation, program, lhs, lhsVar, rhs) || is_impure_node_unlinking(now, obligation, program, lhs, lhsVar, rhs);
 	if (result.first) {
@@ -890,13 +1054,14 @@ std::pair<bool, std::unique_ptr<FulfillmentAxiom>> try_fulfill_impure_obligation
 	return result;
 }
 
-std::pair<bool, std::unique_ptr<ConjunctionFormula>> ensure_pure_or_spec_ptr(std::unique_ptr<ConjunctionFormula> now, const cola::Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
+std::pair<bool, std::unique_ptr<ConjunctionFormula>> ensure_pure_or_spec_ptr(std::unique_ptr<ConjunctionFormula> now, const Program& program, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
 	// we assume that the update affects the flow only on the part sent out by the modified selector
 	if (!plankton::is_flow_field_local(lhsVar.type(), lhs.fieldname)) {
 		return std::make_pair(false, std::move(now));
 	}
 
 	// extract variable from rhs
+	// TODO important: what about rhs being NULL?
 	auto rhs_check = plankton::is_of_type<VariableExpression>(rhs);
 	if (!rhs_check.first) {
 		throw UnsupportedConstructError("assigning to '" + to_string(lhs) + "' from unsupported expression '" + to_string(rhs) + "'; expected a pointer variable.");
@@ -913,7 +1078,7 @@ std::pair<bool, std::unique_ptr<ConjunctionFormula>> ensure_pure_or_spec_ptr(std
 }
 
 template<bool is_ptr>
-std::unique_ptr<Annotation> handle_purity(std::unique_ptr<Annotation> pre, const cola::Program& program, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs, bool check_purity=true) {
+std::unique_ptr<Annotation> handle_purity(std::unique_ptr<Annotation> pre, const Program& program, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs, bool check_purity=true) {
 	if (!check_purity) {
 		return pre;
 	}
@@ -942,13 +1107,13 @@ std::unique_ptr<Annotation> handle_purity(std::unique_ptr<Annotation> pre, const
 	return pre;
 }
 
-std::unique_ptr<Annotation> post_full_assign_derefptr_varimmi(std::unique_ptr<Annotation> pre, const cola::Program& program, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs, bool check_purity=true) {
+std::unique_ptr<Annotation> post_full_assign_derefptr_varimmi(std::unique_ptr<Annotation> pre, const Program& program, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs, bool check_purity=true) {
 	auto post = handle_purity<true>(std::move(pre), program, cmd, lhs, lhsVar, rhs, check_purity);
 	post = search_and_destroy_and_inline_deref(std::move(pre), lhs, rhs);
 	return post;
 }
 
-std::unique_ptr<Annotation> post_full_assign_derefdata_varimmi(std::unique_ptr<Annotation> pre, const cola::Program& program, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs, bool check_purity=true) {
+std::unique_ptr<Annotation> post_full_assign_derefdata_varimmi(std::unique_ptr<Annotation> pre, const Program& program, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs, bool check_purity=true) {
 	auto post = handle_purity<false>(std::move(pre), program, cmd, lhs, lhsVar, rhs, check_purity);
 	post = search_and_destroy_and_inline_deref(std::move(pre), lhs, rhs);
 	return post;
@@ -959,121 +1124,168 @@ std::unique_ptr<Annotation> post_full_assign_derefdata_varimmi(std::unique_ptr<A
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct AssignmentExpressionAnalyser : public BaseVisitor {
-	const VariableExpression* decl = nullptr;
-	const Dereference* deref = nullptr;
-	bool derefNested = false;
+struct FullPostComputer : public AssignmentComputer<std::unique_ptr<Annotation>> {
+	std::unique_ptr<Annotation> pre;
+	const Program& program;
+	bool check_purity;
 
-	void reset() {
-		decl = nullptr;
-		deref = nullptr;
-		derefNested = false;
+	FullPostComputer(std::unique_ptr<Annotation> pre_, const Program& program_, bool check_purity_=true)
+	 : pre(std::move(pre_)), program(program_), check_purity(check_purity_) {
+	 	assert(pre);
+	 }
+
+	std::unique_ptr<Annotation> var_expr(const Assignment& cmd, const VariableExpression& lhs, const Expression& rhs) override {
+		return post_full_assign_var_expr(std::move(pre), program, cmd, lhs, rhs, check_purity);
 	}
-
-	void visit(const VariableExpression& node) override {
-		decl = &node;
+	std::unique_ptr<Annotation> var_derefptr(const Assignment& cmd, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& rhsVar) override {
+		return post_full_assign_var_derefptr(std::move(pre), program, cmd, lhs, rhs, rhsVar, check_purity);
 	}
-
-	void visit(const Dereference& node) override {
-		if (!deref) {
-			deref = &node;
-			node.expr->accept(*this);
-		} else {
-			derefNested = true;
-		}
+	std::unique_ptr<Annotation> var_derefdata(const Assignment& cmd, const VariableExpression& lhs, const Dereference& rhs, const VariableExpression& rhsVar) override {
+		return post_full_assign_var_derefdata(std::move(pre), program, cmd, lhs, rhs, rhsVar, check_purity);
 	}
-
-	void visit(const NullValue& /*node*/) override { if (deref) derefNested = true; }
-	void visit(const BooleanValue& /*node*/) override {if (deref) derefNested = true; }
-	void visit(const EmptyValue& /*node*/) override { if (deref) derefNested = true; }
-	void visit(const MaxValue& /*node*/) override { if (deref) derefNested = true; }
-	void visit(const MinValue& /*node*/) override { if (deref) derefNested = true; }
-	void visit(const NDetValue& /*node*/) override { if (deref) derefNested = true; }
-	void visit(const NegatedExpression& /*node*/) override { if (deref) derefNested = true; }
-	void visit(const BinaryExpression& /*node*/) override { if (deref) derefNested = true; }
-
+	std::unique_ptr<Annotation> derefptr_varimmi(const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) override {
+		return post_full_assign_derefptr_varimmi(std::move(pre), program, cmd, lhs, lhsVar, rhs, check_purity);
+	}
+	std::unique_ptr<Annotation> derefdata_varimmi(const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) override {
+		return post_full_assign_derefdata_varimmi(std::move(pre), program, cmd, lhs, lhsVar, rhs, check_purity);
+	}
 };
 
-std::unique_ptr<Annotation> make_post_full(std::unique_ptr<Annotation> pre, const Assignment& cmd, const cola::Program& program, bool check_purity=true) {
+
+std::unique_ptr<Annotation> make_post_full(std::unique_ptr<Annotation> pre, const Assignment& cmd, const Program& program, bool check_purity=true) {
+	FullPostComputer computer(std::move(pre), program, check_purity);
+	return compute_assignment_switch(computer, cmd);
+}
+
+std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Assignment& cmd, const Program& program) {
 	std::cout << "Post for assignment:  ";
 	cola::print(cmd, std::cout);
 	std::cout << "under:" << std::endl;
 	plankton::print(*pre, std::cout);
 	std::cout << std::endl << std::endl;
 
-	// TODO: make the following 🤮 nicer
-	AssignmentExpressionAnalyser analyser;
-	cmd.lhs->accept(analyser);
-	const VariableExpression* lhsVar = analyser.decl;
-	const Dereference* lhsDeref = analyser.deref;
-	bool lhsDerefNested = analyser.derefNested;
-	analyser.reset();
-	cmd.rhs->accept(analyser);
-	const VariableExpression* rhsVar = analyser.decl;
-	const Dereference* rhsDeref = analyser.deref;
-	bool rhsDerefNested = analyser.derefNested;
-
-	if (lhsDerefNested || (lhsDeref == nullptr && lhsVar == nullptr)) {
-		// lhs is a compound expression
-		std::stringstream msg;
-		msg << "compound expression '";
-		cola::print(*cmd.lhs, msg);
-		msg << "' as left-hand side of assignment not supported.";
-		throw UnsupportedConstructError(msg.str());
-
-	} else if (lhsDeref) {
-		// lhs is a dereference
-		assert(lhsVar);
-		if (!rhsDeref) {
-			if (lhsDeref->sort() == Sort::PTR) {
-				return post_full_assign_derefptr_varimmi(std::move(pre), program, cmd, *lhsDeref, *lhsVar, *cmd.rhs, check_purity);
-			} else {
-				return post_full_assign_derefdata_varimmi(std::move(pre), program, cmd, *lhsDeref, *lhsVar, *cmd.rhs, check_purity);
-			}
-		} else {
-			// deref on both sides not supported
-			std::stringstream msg;
-			msg << "right-hand side '";
-			cola::print(*cmd.rhs, msg);
-			msg << "' of assignment not supported with '";
-			cola::print(*cmd.lhs, msg);
-			msg << "' as left-hand side.";
-			throw UnsupportedConstructError(msg.str());
-		}
-
-	} else if (lhsVar) {
-		// lhs is a variable or an immidiate value
-		if (rhsDeref) {
-			if (rhsDerefNested) {
-				// lhs is a compound expression
-				std::stringstream msg;
-				msg << "compound expression '";
-				cola::print(*cmd.rhs, msg);
-				msg << "' as right-hand side of assignment not supported.";
-				throw UnsupportedConstructError(msg.str());
-
-			} else if (rhsDeref->sort() == Sort::PTR) {
-				return post_full_assign_var_derefptr(std::move(pre), program, cmd, *lhsVar, *rhsDeref, *rhsVar, check_purity);
-			} else {
-				return post_full_assign_var_derefdata(std::move(pre), program, cmd, *lhsVar, *rhsDeref, *rhsVar, check_purity);
-			}
-		} else {
-			return post_full_assign_var_expr(std::move(pre), program, cmd, *lhsVar, *cmd.rhs, check_purity);
-		}
-	}
-
-	throw std::logic_error("Conditional was expected to be complete.");
-}
-
-std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Assignment& cmd, const cola::Program& program) {
 	return make_post_full(std::move(pre), cmd, program);
 }
 
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Assume& cmd, const cola::Program& /*program*/) {
+struct InvariantComputer : public AssignmentComputer<bool> {
+	const Annotation& pre;
+	const NodeInvariant& invariant;
+	const Program& program;
+
+	InvariantComputer(const Annotation& pre_, const NodeInvariant& invariant_, const Program& program_)
+	 : pre(pre_), invariant(invariant_), program(program_) {}
+
+	bool var_expr(const Assignment& /*cmd*/, const VariableExpression& lhs, const Expression& /*rhs*/) override {
+		if (lhs.decl.is_shared) {
+			throw UnsupportedConstructError("assignment to shared variable '" + lhs.decl.name + "'; cannot check invariant");
+		}
+		return true;
+	}
+
+	bool var_derefptr(const Assignment& /*cmd*/, const VariableExpression& /*lhs*/, const Dereference& /*rhs*/, const VariableExpression& /*rhsVar*/) override {
+		return true;
+	}
+
+	bool var_derefdata(const Assignment& /*cmd*/, const VariableExpression& /*lhs*/, const Dereference& /*rhs*/, const VariableExpression& /*rhsVar*/) override {
+		return true;
+	}
+
+	std::unique_ptr<Annotation> make_partial_post(const Expression& lhs, const Expression& rhs) {
+		// TODO: use full post image to avoid code duplication?
+		auto post_now = plankton::copy(*pre.now);
+		post_now = destroy_ownership(std::move(post_now), rhs);
+		post_now->conjuncts = container_search_and_destroy(std::move(post_now->conjuncts), lhs);
+		post_now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+			BinaryExpression::Operator::EQ,
+			cola::copy(lhs),
+			cola::copy(rhs)
+		)));
+		return std::make_unique<Annotation>(std::move(post_now));
+	}
+
+	bool derefptr_varimmi_insert(const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
+		// ensure we are dealing with a one-nonde-insertion
+		auto no_checks = [](const auto&, const auto&){ return std::make_unique<ConjunctionFormula>(); };
+		if (!is_node_insertion_with_additional_checks(*pre.now, program, lhs, lhsVar, rhs, no_checks)) {
+			return false;
+		}
+
+		// premise: partial post extend with invariant for successor or rhs
+		auto partial_post = make_partial_post(lhs, rhs);
+		VariableDeclaration successor("inv#dummy-ptr-insert", lhs.type(), false);
+		partial_post->now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+			BinaryExpression::Operator::EQ,
+			std::make_unique<Dereference>(cola::copy(rhs), lhs.fieldname),
+			std::make_unique<VariableExpression>(successor)
+		)));
+		auto succinv = invariant.instantiate(successor);
+		partial_post->now->conjuncts.insert(
+			partial_post->now->conjuncts.begin(),
+			std::make_move_iterator(succinv->conjuncts.begin()),
+			std::make_move_iterator(succinv->conjuncts.end())
+		);
+
+		// conclusion: invariant for lhsVar, rhs, successor
+		auto conclusion = std::move(combine_to_annotation(invariant.instantiate(lhsVar.decl), invariant.instantiate(rhs.decl))->now);
+		conclusion = std::move(combine_to_annotation(invariant.instantiate(successor), std::move(conclusion))->now);
+
+		// solve
+		return plankton::implies(*partial_post->now, *conclusion);
+	}
+
+	bool derefptr_varimmi_unlink(const Dereference& /*lhs*/, const VariableExpression& /*lhsVar*/, const VariableExpression& /*rhs*/) {
+		// remove any flow knowledge about lhsVar, make a partial post, and basically ask if "logically deletion ==> invariant"
+		throw std::logic_error("not yet implemented: InvariantComputer::derefptr_varimmi_unlink");
+	}
+
+	bool derefptr_varimmi(const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) override {
+		// extract variable from rhs
+		// TODO important: what about rhs being NULL?
+		auto rhs_check = plankton::is_of_type<VariableExpression>(rhs);
+		if (!rhs_check.first) {
+			throw UnsupportedConstructError("assigning to '" + to_string(lhs) + "' from unsupported expression '" + to_string(rhs) + "'; expected a pointer variable.");
+		}
+		const VariableExpression& rhsVar = *rhs_check.second;
+
+		return derefptr_varimmi_insert(lhs, lhsVar, rhsVar)
+		    || derefptr_varimmi_unlink(lhs, lhsVar, rhsVar)
+		    || has_enabled_future_predicate(*pre.now, pre, cmd);
+	}
+
+	bool derefdata_varimmi(const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) override {
+		if (!plankton::is_flow_field_local(lhsVar.type(), lhs.fieldname)) {
+			return false;
+		}
+
+		// check invariant on modified node (lhsVar) ==> other nodes are not influenced by above assumption check
+		auto partial_post = make_partial_post(lhs, rhs);
+		auto lhsVarInv = invariant.instantiate(lhsVar.decl);
+		if (plankton::implies(*partial_post, *lhsVarInv)) {
+			return true;
+		}
+
+		// as a last resort, search for an enabled future
+		return has_enabled_future_predicate(*pre.now, pre, cmd);
+	}
+};
+
+
+bool plankton::post_maintains_invariant(const Annotation& pre, const NodeInvariant& invariant, const cola::Assignment& cmd, const Program& program) {
+	InvariantComputer computer(pre, invariant, program);
+	return compute_assignment_switch(computer, cmd);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Assume& cmd, const Program& /*program*/) {
 	// TODO important: enable the following?
 	// auto check = is_of_type<BinaryExpression>(*cmd.expr);
 	// if (check.first && check.second->op == BinaryExpression::Operator::EQ) {
@@ -1097,7 +1309,7 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 	return pre;	
 }
 
-std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Malloc& cmd, const cola::Program& /*program*/) {
+std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Malloc& cmd, const Program& /*program*/) {
 	// TODO: do post for a dummy assignment 'lhs = lhs' to avoid code duplication?
 	VariableExpression lhs(cmd.lhs);
 	check_purity_var(lhs);
@@ -1134,28 +1346,13 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 	return pre;
 }
 
-std::unique_ptr<Annotation> combine_to_annotation(const ConjunctionFormula& formula, const ConjunctionFormula& other) {
-	auto copyFormula = plankton::copy(formula);
-	auto copyOther = plankton::copy(other);
-	copyFormula->conjuncts.insert(
-		copyFormula->conjuncts.begin(),
-		std::make_move_iterator(copyOther->conjuncts.begin()),
-		std::make_move_iterator(copyOther->conjuncts.end())
-	);
-	return std::make_unique<Annotation>(std::move(copyFormula));
-}
-
-bool plankton::post_maintains_formula(const ConjunctionFormula& pre, const ConjunctionFormula& maintained, const cola::Assignment& cmd, const cola::Program& program) {
+bool plankton::post_maintains_formula(const ConjunctionFormula& pre, const ConjunctionFormula& maintained, const cola::Assignment& cmd, const Program& program) {
 	// TODO: one can probably implement an optimized (quick) check
 	auto post = make_post_full(combine_to_annotation(pre, maintained), cmd, program, false);
 	return plankton::implies(*post, maintained);
 }
 
-bool plankton::post_maintains_invariant(const Annotation& /*pre*/, const NodeInvariant& /*invariant*/, const cola::Assignment& /*cmd*/, const cola::Program& /*program*/) {
-	throw std::logic_error("not yet implemented: plankton::post_maintains_invariant(const Annotation&, const NodeInvariant&, const cola::Assignment&, const cola::Program&)");
-}
-
-bool plankton::post_maintains_invariant(const Annotation& /*pre*/, const NodeInvariant& invariant, const cola::Malloc& cmd, const cola::Program& program) {
+bool plankton::post_maintains_invariant(const Annotation& /*pre*/, const NodeInvariant& invariant, const cola::Malloc& cmd, const Program& program) {
 	static std::map<const NodeInvariant*, bool> inv2res;
 
 	auto find = inv2res.find(&invariant);

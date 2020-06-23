@@ -32,6 +32,15 @@ namespace plankton {
 		throw std::logic_error("not yet implemented: plankton::is_flow_insertion_inbetween_local");
 	}
 
+	/** Returns true if unlinking a node, i.e., updating the heap from 'n1->{fieldname}=n2 /\ n2->{fieldname}=n3'
+	  * to 'n1->{fieldname}=n3', deletes the keys of 'n2' from the data structure and leaves all other nodes unchaged,
+	  * provided the keys contained in 'n2' are all strictly larger than the ones in 'n1' and strictly smaller than
+	  * the ones in 'n3'.
+	  */
+	inline bool is_flow_unlinking_local(const cola::Type& /*nodeType*/, std::string /*fieldname*/) {
+		throw std::logic_error("not yet implemented: plankton::is_flow_unlinking_local");
+	}
+
 } // namespace plankton
 
 #endif
