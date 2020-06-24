@@ -317,7 +317,8 @@ void Verifier::visit(const Choice& stmt) {
 		post_conditions.push_back(std::move(current_annotation));
 	}
 	
-	current_annotation = plankton::unify(post_conditions);
+	current_annotation = plankton::unify(std::move(post_conditions));
+	apply_interference(); // TODO important: needed?
 }
 
 void Verifier::visit(const IfThenElse& stmt) {
@@ -335,7 +336,8 @@ void Verifier::visit(const IfThenElse& stmt) {
 	dummyElse.accept(*this);
 	stmt.elseBranch->accept(*this);
 
-	current_annotation = plankton::unify(*current_annotation, *postIf);
+	current_annotation = plankton::unify(std::move(current_annotation), std::move(postIf));
+	apply_interference(); // TODO important: needed?
 }
 
 void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { // consider peelFirst a suggestion
@@ -353,11 +355,13 @@ void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { //
 		if (plankton::is_equal(*previous_annotation, *current_annotation)) {
 			break;
 		}
-		current_annotation = plankton::unify(*current_annotation, *previous_annotation);
+		current_annotation = plankton::unify(std::move(current_annotation), std::move(previous_annotation));
+		apply_interference(); // TODO important: needed?
 	}
 
-	current_annotation = plankton::unify(breaking_annotations);
+	current_annotation = plankton::unify(std::move(breaking_annotations));
 	breaking_annotations = std::move(outer_breaking_annotations);
+	apply_interference(); // TODO important: needed?
 }
 
 void Verifier::visit(const Loop& /*stmt*/) {

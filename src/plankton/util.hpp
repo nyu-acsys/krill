@@ -110,15 +110,15 @@ namespace plankton {
 	  */
 	bool is_equal(const Annotation& /*annotation*/, const Annotation& /*other*/);
 
-	/** Returns a formula F such that the formulas 'formula ==> F' and 'other ==> F' are tautologies.
-	  * Opts for the strongest such formula F.
+	/** Returns an annotation F such that the formulas 'annotation ==> F' and 'other ==> F' are tautologies.
+	  * Opts for the strongest such annotation F.
 	  */
-	std::unique_ptr<Annotation> unify(const Annotation& annotation, const Annotation& other);
+	std::unique_ptr<Annotation> unify(std::unique_ptr<Annotation> annotation, std::unique_ptr<Annotation> other);
 
-	/** Returns a formula F such that the formula 'H ==> F' is a tautology for all H in formulas.
-	  * Opts for the strongest such formula F.
+	/** Returns an annotation F such that the formula 'H ==> F' is a tautology for all passed annotations H.
+	  * Opts for the strongest such annotation F.
 	  */
-	std::unique_ptr<Annotation> unify(const std::vector<std::unique_ptr<Annotation>>& annotations);
+	std::unique_ptr<Annotation> unify(std::vector<std::unique_ptr<Annotation>> annotations);
 
 } // namespace plankton
 
