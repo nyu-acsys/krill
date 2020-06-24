@@ -1,12 +1,63 @@
 #include "plankton/util.hpp"
 
+#include <iostream> // TODO: remove
 #include "cola/util.hpp"
 
 using namespace cola;
 using namespace plankton;
 
 
-bool check_implication(const Formula& /*premise*/, const Formula& /*conclusion*/) {
+struct SolvingError : public std::exception {
+	const std::string cause;
+	SolvingError(std::string cause_) : cause(std::move(cause_)) {}
+	virtual const char* what() const noexcept { return cause.c_str(); }
+};
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool syntactically_contains(const std::deque<const SimpleFormula*>& container, const SimpleFormula& search) {
+	for (const auto& formula : container) {
+		if (plankton::syntactically_equal(*formula, search)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+std::deque<const SimpleFormula*> quick_discharge(const std::deque<const SimpleFormula*>& premises, std::deque<const SimpleFormula*> conclusions) {
+	for (const SimpleFormula*& formula : conclusions) {
+		if (syntactically_contains(premises, *formula)) {
+			// TODO: does this work?
+			formula = conclusions.back();
+			conclusions.back() = nullptr;
+		}
+		// TODO: add more heuristics
+	}
+	while (!conclusions.empty() && conclusions.back() == nullptr) {
+		conclusions.pop_back();
+	}
+	return conclusions;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+bool check_implication(std::deque<const SimpleFormula*> premises, std::deque<const SimpleFormula*> conclusions) {
+	static ExpressionAxiom trueFormula(std::make_unique<BooleanValue>(true));
+
+	// do a quick check
+	premises.push_back(&trueFormula);
+	conclusions = quick_discharge(premises, std::move(conclusions));
+
+	// everything implies true
+	if (conclusions.empty()) return true;
+
+	// thoroughly check implication
 	throw std::logic_error("not yet implemented (check_implication)");
 }
 
@@ -15,20 +66,50 @@ bool check_implication(const Formula& /*premise*/, const Formula& /*conclusion*/
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+std::deque<const SimpleFormula*> collect_conjuncts(const Formula& formula) {
+	std::deque<const SimpleFormula*> result;
+
+	if (const SimpleFormula* form = dynamic_cast<const SimpleFormula*>(&formula)) {
+		result.push_back(form);
+
+	} else if (const ConjunctionFormula* form = dynamic_cast<const ConjunctionFormula*>(&formula)) {
+		for (const auto& conjunct : form->conjuncts) {
+			result.push_back(conjunct.get());
+		}
+
+	} else if (const AxiomConjunctionFormula* form = dynamic_cast<const AxiomConjunctionFormula*>(&formula)) {
+		for (const auto& conjunct : form->conjuncts) {
+			result.push_back(conjunct.get());
+		}
+
+	} else {
+		throw SolvingError("Unsupported formula type for solving: '" + std::string(typeid(Formula).name()) + "'.");
+	}
+
+	return result;
+}
+
+bool plankton::implies(const Formula& formula, const Formula& implied) {
+	std::cout << "################# CHECK IMPLIES #################" << std::endl;
+	plankton::print(formula, std::cout);
+	std::cout << std::endl << " ====>> " << std::endl;
+	plankton::print(implied, std::cout);
+	std::cout << std::endl << std::endl;
+
+	return check_implication(collect_conjuncts(formula), collect_conjuncts(implied));
+}
+
 bool plankton::implies_nonnull(const Formula& formula, const cola::Expression& expr) {
+	return true;
 	// TODO: find more efficient implementation that avoids copying expr
 	ExpressionAxiom nonnull(std::make_unique<BinaryExpression>(BinaryExpression::Operator::NEQ, cola::copy(expr), std::make_unique<NullValue>()));
-	return check_implication(formula, nonnull);
+	return plankton::implies(formula, nonnull);
 }
 
 bool plankton::implies(const Formula& formula, const Expression& implied) {
 	// TODO: find more efficient implementation that avoids copying expr
 	ExpressionAxiom axiom(cola::copy(implied));
-	return check_implication(formula, axiom);
-}
-
-bool plankton::implies(const Formula& formula, const Formula& implied) {
-	return check_implication(formula, implied);
+	return plankton::implies(formula, axiom);
 }
 
 
@@ -45,17 +126,21 @@ std::unique_ptr<Annotation> plankton::unify(std::unique_ptr<Annotation> annotati
 
 template<typename T>
 struct PieceIterator {
+	using container_t = const std::vector<std::unique_ptr<Annotation>>&;
 	using outer_iterator_t = std::vector<std::unique_ptr<Annotation>>::const_iterator;
 	using inner_iterator_t = typename std::deque<std::unique_ptr<T>>::const_iterator;
+	using inner_iterator_getter_t = std::function<inner_iterator_t(const Annotation&)>;
 
-	const std::vector<std::unique_ptr<Annotation>>& container;
+	container_t container;
 	outer_iterator_t current_outer;
 	inner_iterator_t current_inner;
+	inner_iterator_getter_t get_begin;
+	inner_iterator_getter_t get_end;
 
-	virtual inner_iterator_t inner_begin() const = 0;
-	virtual inner_iterator_t inner_end() const = 0;
+	virtual inner_iterator_t inner_begin() const { return get_begin(*current_outer->get()); }
+	virtual inner_iterator_t inner_end() const { return get_end(*current_outer->get()); }
 
-	void progress_to_next() {
+	virtual void progress_to_next() {
 		while (current_outer != container.end()) {
 			current_inner = inner_begin();
 			if (current_inner != inner_end()) {
@@ -66,7 +151,7 @@ struct PieceIterator {
 	}
 
 	virtual ~PieceIterator() = default;
-	PieceIterator(const std::vector<std::unique_ptr<Annotation>>& container_) : container(container_) {
+	PieceIterator(container_t container_, inner_iterator_getter_t begin, inner_iterator_getter_t end) : container(container_), get_begin(begin), get_end(end) {
 		current_outer = container.begin();
 		progress_to_next();
 	}
@@ -84,29 +169,30 @@ struct PieceIterator {
 		}
 		return std::make_pair(current_outer->get(), result);
 	}
-
 };
 
-struct NowIterator : public PieceIterator<SimpleFormula> {
-	inner_iterator_t inner_begin() const override { return (*current_outer)->now->conjuncts.begin(); }
-	inner_iterator_t inner_end() const override { return (*current_outer)->now->conjuncts.end(); }
+PieceIterator<SimpleFormula> iterator_for_simple_formulas(const std::vector<std::unique_ptr<Annotation>>& container) {
+	return PieceIterator<SimpleFormula>(
+		container,
+		[](const auto& annotation){ return annotation.now->conjuncts.begin(); },
+		[](const auto& annotation){ return annotation.now->conjuncts.end(); }
+	);
+}
 
-	NowIterator(const std::vector<std::unique_ptr<Annotation>>& container) : PieceIterator(container) {}
-};
-
-struct TimeIterator : public PieceIterator<TimePredicate> {
-	inner_iterator_t inner_begin() const override { return (*current_outer)->time.begin(); }
-	inner_iterator_t inner_end() const override { return (*current_outer)->time.end(); }
-
-	TimeIterator(const std::vector<std::unique_ptr<Annotation>>& container) : PieceIterator(container) {}
-};
+PieceIterator<TimePredicate> iterator_for_time_predicates(const std::vector<std::unique_ptr<Annotation>>& container) {
+	return PieceIterator<TimePredicate>(
+		container,
+		[](const auto& annotation){ return annotation.time.begin(); },
+		[](const auto& annotation){ return annotation.time.end(); }
+	);
+}
 
 bool time_implies(const PastPredicate& premise, const PastPredicate& conclusion) {
-	return check_implication(*premise.formula, *conclusion.formula);
+	return plankton::implies(*premise.formula, *conclusion.formula);
 }
 
 bool time_implies(const FuturePredicate& premise, const FuturePredicate& conclusion) {
-	return check_implication(*premise.pre, *conclusion.pre) && check_implication(*conclusion.post, *premise.post);
+	return plankton::implies(*premise.pre, *conclusion.pre) && plankton::implies(*conclusion.post, *premise.post);
 }
 
 template<typename T, typename = std::enable_if_t<std::is_base_of_v<TimePredicate, T>>>
@@ -122,7 +208,7 @@ bool annotation_implies_time(const Annotation& annotation, const T& conclusion) 
 
 bool annotation_implies(const Annotation& annotation, const Formula& formula) {
 	if (const SimpleFormula* form = dynamic_cast<const SimpleFormula*>(&formula)) {
-		return check_implication(*annotation.now, *form);
+		return plankton::implies(*annotation.now, *form);
 
 	} else if (const PastPredicate* pred = dynamic_cast<const PastPredicate*>(&formula)) {
 		return annotation_implies_time(annotation, *pred);
@@ -131,7 +217,7 @@ bool annotation_implies(const Annotation& annotation, const Formula& formula) {
 		return annotation_implies_time(annotation, *pred);
 
 	} else if (const ConjunctionFormula* con = dynamic_cast<const ConjunctionFormula*>(&formula)) {
-		return check_implication(*annotation.now, *con);
+		return plankton::implies(*annotation.now, *con);
 	}
 
 	std::string name(typeid(formula).name());
@@ -153,7 +239,7 @@ bool all_imply(const T& container, const Formula& conclusion, const Annotation* 
 std::unique_ptr<Annotation> plankton::unify(std::vector<std::unique_ptr<Annotation>> annotations) {
 	auto result = std::make_unique<Annotation>();
 
-	NowIterator now_iterator(annotations);
+	auto now_iterator = iterator_for_simple_formulas(annotations);
 	while (now_iterator.has_next()) {
 		auto [annotation, formula] = now_iterator.get_next();
 		if (all_imply(annotations, *formula, annotation)) {
@@ -161,7 +247,7 @@ std::unique_ptr<Annotation> plankton::unify(std::vector<std::unique_ptr<Annotati
 		}
 	}
 
-	TimeIterator time_iterator(annotations);
+	auto time_iterator = iterator_for_time_predicates(annotations);
 	while (time_iterator.has_next()) {
 		auto [annotation, pred] = time_iterator.get_next();
 		if (all_imply(annotations, *pred, annotation)) {
@@ -173,8 +259,8 @@ std::unique_ptr<Annotation> plankton::unify(std::vector<std::unique_ptr<Annotati
 }
 
 bool annotation_implies(const Annotation& premise, const Annotation& conclusion) {
-	if (!check_implication(*premise.now, *conclusion.now)) return false;
-	if (!check_implication(*conclusion.now, *premise.now)) return false;
+	if (!plankton::implies(*premise.now, *conclusion.now)) return false;
+	if (!plankton::implies(*conclusion.now, *premise.now)) return false;
 	for (const auto& pred : conclusion.time) {
 		if (!annotation_implies(premise, *pred)) return false;
 	}

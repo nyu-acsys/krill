@@ -1166,13 +1166,15 @@ std::unique_ptr<Annotation> make_post_full(std::unique_ptr<Annotation> pre, cons
 }
 
 std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Assignment& cmd, const Program& program) {
-	std::cout << "################# Post #################" << std::endl;
+	std::cout << "################# POST FOR #################" << std::endl;
 	plankton::print(*pre, std::cout);
 	std::cout << std::endl;
 	cola::print(cmd, std::cout);
+	std::cout << std::endl;
 
 	auto result = make_post_full(std::move(pre), cmd, program);
 
+	std::cout << "################# POST RESULT #################" << std::endl;
 	plankton::print(*result, std::cout);
 	std::cout << std::endl << std::endl;
 
