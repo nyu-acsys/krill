@@ -186,25 +186,93 @@ void Verifier::visit(const Program& program) {
 	// cleanup
 	theInvariant.reset();
 	theProgram = nullptr;
-	throw std::logic_error("not yet implemented (Verifier::Program)");
 }
 
-std::unique_ptr<Annotation> get_init_annotation() {
-	// TODO: how to initialize annotation??
-	return Annotation::make_true();
+struct SpecStore {
+	SpecificationAxiom::Kind kind;
+	const VariableDeclaration& searchKey;
+	const VariableDeclaration& returnedVar;
+};
+
+SpecStore get_spec(const Function& function) {
+	SpecificationAxiom::Kind kind;
+	if (function.name == "contains") {
+		kind =  SpecificationAxiom::Kind::CONTAINS;
+	} else if (function.name == "insert") {
+		kind =  SpecificationAxiom::Kind::INSERT;
+	} else if (function.name == "delete") {
+		kind =  SpecificationAxiom::Kind::DELETE;
+	} else {
+		throw UnsupportedConstructError("Specification for function '" + function.name + "' unknown, expected one of: 'contains', 'insert', 'delete'.");
+	}
+	if (function.args.size() != 1) {
+		throw UnsupportedConstructError("Cannot verify function '" + function.name + "': expected 1 parameter, got " + std::to_string(function.args.size()) + ".");
+	}
+	if (function.returns.size() != 1) {
+		throw UnsupportedConstructError("Cannot verify function '" + function.name + "': expected 1 return value, got " + std::to_string(function.returns.size()) + ".");
+	}
+	if (&function.returns.at(0)->type != &Type::bool_type()) {
+		throw UnsupportedConstructError("Cannot verify function '" + function.name + "': expected boolean return value.");
+	}
+	return { kind, *function.args.at(0), *function.returns.at(0) };
 }
+
+std::unique_ptr<Annotation> get_init_annotation(SpecStore spec) {
+	auto result = Annotation::make_true();
+	result->now->conjuncts.push_back(
+		std::make_unique<ObligationAxiom>(spec.kind, std::make_unique<VariableExpression>(spec.searchKey)) // obligation(specKind, searchKey)
+	);
+	// TODO: have those restrictions come from the program?
+	result->now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+		BinaryExpression::Operator::LT, std::make_unique<MinValue>(), std::make_unique<VariableExpression>(spec.searchKey) // -∞ < searchKey
+	)));
+	result->now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+		BinaryExpression::Operator::LT, std::make_unique<VariableExpression>(spec.searchKey), std::make_unique<MaxValue>() // searchKey < ∞
+	)));
+	return result;
+}
+
+struct FulfillmentSearcher : public DefaultListener {
+	const Annotation& annotation;
+	SpecStore spec;
+	bool result = false;
+
+	FulfillmentSearcher(const Annotation& annotation, SpecStore spec) : annotation(annotation), spec(spec) {}
+
+	static bool search(const Annotation& annotation, SpecStore spec) {
+		FulfillmentSearcher listener(annotation, spec);
+		annotation.now->accept(listener);
+		return listener.result;
+	}
+
+	void exit(const FulfillmentAxiom& formula) override {
+		if (result) return;
+		if (formula.kind == spec.kind && &formula.key->decl == &spec.searchKey) {
+			auto conclusion = std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+				BinaryExpression::Operator::EQ,
+				std::make_unique<VariableExpression>(spec.returnedVar),
+				std::make_unique<BooleanValue>(formula.return_value)
+			));
+			result = plankton::implies(*annotation.now, *conclusion);
+		}
+	}
+};
 
 void Verifier::visit_interface_function(const Function& function) {
 	assert(function.kind == Function::Kind::INTERFACE);
 	inside_atomic = false;
 
-	// TODO: get method specification and remember it?
-	// TODO: add restrictions on parameters (like -inf<k<inf)? from specification?
-	current_annotation = get_init_annotation();
-	function.body->accept(*this);
-	// TODO: check post condition entails linearizability
+	// extract specification info and initial annotation
+	auto spec = get_spec(function);
+	current_annotation = get_init_annotation(spec);
 
-	throw std::logic_error("not yet implemented (Verifier::handle_interface_function)");
+	// handle body and check if obligation is fulfilled
+	function.body->accept(*this);
+	for (const auto& returned : returning_annotations) {
+		if (!FulfillmentSearcher::search(*returned, spec)) {
+			throw VerificationError("Could not establish linearizability for function '" + function.name + "'.");
+		}
+	}
 }
 
 

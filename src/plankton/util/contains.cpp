@@ -3,39 +3,31 @@
 using namespace cola;
 using namespace plankton;
 
-
 struct ExpressionContainsVisitor : public BaseVisitor {
 	const Expression& search;
 	bool found = false;
 	ExpressionContainsVisitor(const Expression& search_) : search(search_) {}
 
-	bool contains(const Expression& search) {
-		bool found = false;
-		search.accept(*this);
-		return found;
-	}
-
-	template<typename T>
-	void handle_expression(const std::unique_ptr<T>& expression) {
+	void handle_expression(const Expression& expression) {
 		if (found) return;
-		if (syntactically_equal(*expression, search)) {
+		if (syntactically_equal(expression, search)) {
 			found = true;
 		} else {
-			expression->accept(*this);
+			expression.accept(*this);
 		}
 	}
 
 	void visit(const NegatedExpression& node) override {
-		handle_expression(node.expr);
+		handle_expression(*node.expr);
 	}
 
 	void visit(const BinaryExpression& node) override {
-		handle_expression(node.lhs);
-		handle_expression(node.rhs);
+		handle_expression(*node.lhs);
+		handle_expression(*node.rhs);
 	}
 
 	void visit(const Dereference& node) override {
-		handle_expression(node.expr);
+		handle_expression(*node.expr);
 	}
 
 	void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
@@ -45,6 +37,12 @@ struct ExpressionContainsVisitor : public BaseVisitor {
 	void visit(const MinValue& /*node*/) override { /* do nothing */ }
 	void visit(const NDetValue& /*node*/) override { /* do nothing */ }
 	void visit(const VariableExpression& /*node*/) override { /* do nothing */ }
+
+	bool contains(const Expression& search) {
+		found = false;
+		handle_expression(search);
+		return found;
+	}
 };
 
 
