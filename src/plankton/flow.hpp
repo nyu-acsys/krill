@@ -16,6 +16,10 @@ namespace plankton {
 		stream << "?";
 	}
 
+	inline bool is_flow_equal(const FlowValue& /*value*/, const FlowValue& /*other*/) {
+		throw std::logic_error("not yet implemented: plankton::is_flow_field_local");
+	}
+
 	/** Returns true if updating the member field 'fieldname' of a node of type 'nodeType' does
 	  * not change the flow sent out by the changed node on member fields other than 'fieldname'.
 	  */

@@ -67,6 +67,7 @@ bool check_implication(std::deque<const SimpleFormula*> premises, std::deque<con
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 std::deque<const SimpleFormula*> collect_conjuncts(const Formula& formula) {
+	// TODO: preprocess/simplify (remove double negations)?
 	std::deque<const SimpleFormula*> result;
 
 	if (const SimpleFormula* form = dynamic_cast<const SimpleFormula*>(&formula)) {
@@ -100,7 +101,6 @@ bool plankton::implies(const Formula& formula, const Formula& implied) {
 }
 
 bool plankton::implies_nonnull(const Formula& formula, const cola::Expression& expr) {
-	return true;
 	// TODO: find more efficient implementation that avoids copying expr
 	ExpressionAxiom nonnull(std::make_unique<BinaryExpression>(BinaryExpression::Operator::NEQ, cola::copy(expr), std::make_unique<NullValue>()));
 	return plankton::implies(formula, nonnull);
