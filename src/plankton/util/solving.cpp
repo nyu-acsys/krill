@@ -6,38 +6,29 @@ using namespace cola;
 using namespace plankton;
 
 
-bool check_implication(const Formula& /*premise*/, const Formula& /*otherPremise*/, const Formula& /*conclusion*/) {
+bool check_implication(const Formula& /*premise*/, const Formula& /*conclusion*/) {
 	throw std::logic_error("not yet implemented (check_implication)");
 }
 
-bool check_implication(const Formula& premise, const Formula& conclusion) {
-	static ExpressionAxiom trueFormula(std::make_unique<BooleanValue>(true));
-	return check_implication(premise, trueFormula, conclusion);
-}
-
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool plankton::implies_nonnull(const Formula& /*formula*/, const cola::Expression& /*expr*/) {
+bool plankton::implies_nonnull(const Formula& formula, const cola::Expression& expr) {
 	// TODO: find more efficient implementation that avoids copying expr
-	BinaryExpression nonnull(BinaryExpression::Operator::NEQ, cola::copy(expr), std::make_unique<NullValue>());
-	return plankton::implies(formula, nonnull);
+	ExpressionAxiom nonnull(std::make_unique<BinaryExpression>(BinaryExpression::Operator::NEQ, cola::copy(expr), std::make_unique<NullValue>()));
+	return check_implication(formula, nonnull);
 }
 
-bool plankton::implies(const Formula& /*formula*/, const Expression& /*implied*/) {
+bool plankton::implies(const Formula& formula, const Expression& implied) {
 	// TODO: find more efficient implementation that avoids copying expr
 	ExpressionAxiom axiom(cola::copy(implied));
-	return plankton::implies(formula, axiom);
+	return check_implication(formula, axiom);
 }
 
-bool plankton::implies(const Formula& /*formula*/, const Formula& /*implied*/) {
-	throw std::logic_error("not yet implemented (plankton::implies)");
-}
-
-bool plankton::implies(const Formula& /*formula*/, const std::vector<std::reference_wrapper<const Formula>>& /*implied*/) {
-	throw std::logic_error("not yet implemented (plankton::implies)");
+bool plankton::implies(const Formula& formula, const Formula& implied) {
+	return check_implication(formula, implied);
 }
 
 
@@ -130,11 +121,8 @@ bool annotation_implies_time(const Annotation& annotation, const T& conclusion) 
 }
 
 bool annotation_implies(const Annotation& annotation, const Formula& formula) {
-	if (const Axiom* axiom = dynamic_cast<const Axiom*>(&formula)) {
-		return check_implication(*annotation.now, formula);
-
-	} else if (const ImplicationFormula* imp = dynamic_cast<const ImplicationFormula*>(&formula)) {
-		return check_implication(*annotation.now, *imp->premise, *imp->conclusion);
+	if (const SimpleFormula* form = dynamic_cast<const SimpleFormula*>(&formula)) {
+		return check_implication(*annotation.now, *form);
 
 	} else if (const PastPredicate* pred = dynamic_cast<const PastPredicate*>(&formula)) {
 		return annotation_implies_time(annotation, *pred);

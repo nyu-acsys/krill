@@ -102,10 +102,6 @@ namespace plankton {
 	  */
 	bool implies(const Formula& formula, const Formula& implied);
 
-	/** Returns true if 'formula ==> implied[i]' is a tautology for all '0 <= i < implied.size()'.
-	  */
-	bool implies(const Formula& formula, const std::vector<std::reference_wrapper<const Formula>>& implied);
-
 	/** Returns true if 'annotation ==> other' and 'other ==> annotation'.
 	  */
 	bool is_equal(const Annotation& /*annotation*/, const Annotation& /*other*/);
