@@ -239,12 +239,6 @@ struct FulfillmentSearcher : public DefaultListener {
 
 	FulfillmentSearcher(const Annotation& annotation, SpecStore spec) : annotation(annotation), spec(spec) {}
 
-	static bool search(const Annotation& annotation, SpecStore spec) {
-		FulfillmentSearcher listener(annotation, spec);
-		annotation.now->accept(listener);
-		return listener.result;
-	}
-
 	void exit(const FulfillmentAxiom& formula) override {
 		if (result) return;
 		if (formula.kind == spec.kind && &formula.key->decl == &spec.searchKey) {
@@ -258,6 +252,23 @@ struct FulfillmentSearcher : public DefaultListener {
 	}
 };
 
+void establish_linearizability_or_fail(const Annotation& annotation, const Function& function, SpecStore spec) {
+	// check for false
+	static ExpressionAxiom falseFormula(std::make_unique<BooleanValue>(false));
+	if (plankton::implies(annotation, falseFormula)) {
+		return;
+	}
+
+	// search for fulfillment
+	FulfillmentSearcher listener(annotation, spec);
+	annotation.now->accept(listener);
+	if (listener.result) {
+		return;
+	}
+
+	throw VerificationError("Could not establish linearizability for function '" + function.name + "'.");
+}
+
 void Verifier::visit_interface_function(const Function& function) {
 	assert(function.kind == Function::Kind::INTERFACE);
 	inside_atomic = false;
@@ -268,10 +279,9 @@ void Verifier::visit_interface_function(const Function& function) {
 
 	// handle body and check if obligation is fulfilled
 	function.body->accept(*this);
+	establish_linearizability_or_fail(*current_annotation, function, spec);
 	for (const auto& returned : returning_annotations) {
-		if (!FulfillmentSearcher::search(*returned, spec)) {
-			throw VerificationError("Could not establish linearizability for function '" + function.name + "'.");
-		}
+		establish_linearizability_or_fail(*returned, function, spec);
 	}
 }
 
