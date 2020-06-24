@@ -28,7 +28,7 @@ struct LogicSyntacticEqualityChecker : public LogicVisitor {
 		return result;
 	}
 	
-	template<typename T> // T = TimePredicate, SimpleFormula, Axiom
+	template<typename T>
 	bool is_equal(const std::deque<std::unique_ptr<T>>& conjuncts, const std::deque<std::unique_ptr<T>>& other) {
 		for (const auto& elem : conjuncts) {
 			bool has_match = false;
@@ -46,7 +46,7 @@ struct LogicSyntacticEqualityChecker : public LogicVisitor {
 	}
 
 	template<typename T, typename F = std::function<bool(const T&, const T&)>>
-	void handle(const T& formula, F chk_equal) {
+	inline void handle(const T& formula, F chk_equal) {
 		if (auto other = dynamic_cast<const T*>(compare_to)) {
 			result = chk_equal(formula, *other);
 		}
