@@ -51,34 +51,70 @@ std::deque<const SimpleFormula*> quick_discharge(const std::deque<const SimpleFo
 struct EncodingInfo {
 	z3::context context;
 	z3::solver solver;
+	z3::sort ptr_sort;
+	z3::sort data_sort;
+	z3::expr null_ptr;
+	z3::expr min_val;
+	z3::expr max_val;
 	std::map<const VariableDeclaration*, z3::expr> var2expr;
 	std::map<std::string, z3::expr> special2expr;
 
-	EncodingInfo() : solver(context) {
+	EncodingInfo() :
+		solver(context),
+		ptr_sort(context.int_sort()),
+		data_sort(context.int_sort()),
+		null_ptr(context.constant("_NULL_", ptr_sort)), 
+		min_val(context.constant("_MIN_", data_sort)),
+		max_val(context.constant("_MIN_", data_sort))
+	{
+		// TODO: currently null_ptr/min_val/max_valu are just some symbols that are not bound to a value
+		// TODO: ptr_sort and data_sort should not be comparable??
 		// TODO: set up sorts (pointers, data), heap function?
 	}
 
-	z3::expr get_var(const VariableDeclaration& /*decl*/) {
-		// TODO: get or create a z3 variable expression for the given variable declaration
-		throw std::logic_error("not yet implemented: EncodingInfo::get_var(const VariableDeclaration& decl)");
+	z3::sort get_sort(Sort sort) {
+		switch (sort) {
+			case Sort::PTR: return ptr_sort;
+			case Sort::DATA: return data_sort;
+			case Sort::BOOL: return context.bool_sort();
+			case Sort::VOID: throw SolvingError("Cannot represent cola::Sort::VOID as z3::sort.");
+		}
 	}
 
-	z3::expr get_var(std::string /*name*/) {
-		// TODO: get or create a z3 variable expression for the given special name
-		// TODO: should the variable sort be freely specifiable?
-		throw std::logic_error("not yet implemented: EncodingInfo::get_var(std::string name, Sort sort)");
+	template<typename M, typename K, typename F>
+	z3::expr get_or_create(M& map, const K& key, F make_new) {
+		auto find = map.find(key);
+		if (find != map.end()) {
+			return find->second;
+		}
+		auto insert = map.insert(std::make_pair(key, make_new()));
+		return insert.first->second;
+	}
+
+	z3::expr get_var(const VariableDeclaration& decl) {
+		return get_or_create(var2expr, &decl, [this,&decl](){
+			std::string name = "var__" + decl.name;
+			return context.constant(name.c_str(), get_sort(decl.type.sort));
+		});
+	}
+
+	z3::expr get_var(std::string name, Sort sort=Sort::BOOL) {
+		return get_or_create(special2expr, name, [this,&name,&sort](){
+			std::string varname = "special__" + name;
+			return context.constant(varname.c_str(), get_sort(sort));
+		});
 	}
 
 	z3::expr get_nullptr() {
-		throw std::logic_error("not yet implemented: EncodingInfo::get_nullptr()");
+		return null_ptr;
 	}
 
 	z3::expr get_min_value() {
-		throw std::logic_error("not yet implemented: EncodingInfo::get_min_value()");
+		return min_val;
 	}
 
 	z3::expr get_max_value() {
-		throw std::logic_error("not yet implemented: EncodingInfo::get_max_value()");
+		return max_val;
 	}
 	
 	z3::expr mk_bool_val(bool value) {
