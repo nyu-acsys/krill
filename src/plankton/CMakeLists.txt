@@ -17,9 +17,11 @@ set(SOURCES
 	config.cpp
 	error.cpp
 	logic.cpp
+	util/conjoin.cpp
 	util/contains.cpp
 	util/copy.cpp
 	util/equal.cpp
+	util/flatten.cpp
 	util/instantiate.cpp
 	util/print.cpp
 	util/replace.cpp

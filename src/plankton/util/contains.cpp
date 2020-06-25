@@ -118,3 +118,12 @@ bool plankton::contains_expression(const Formula& formula, const Expression& sea
 std::pair<bool, bool> plankton::contains_expression_obligation(const Formula& formula, const Expression& search) {
 	return ContainsChecker::contains(formula, search);
 }
+
+bool plankton::syntactically_contains_conjunct(const ConjunctionFormula& formula, const SimpleFormula& other) {
+	for (const auto& conjunct : formula.conjuncts) {
+		if (plankton::syntactically_equal(*conjunct, other)) {
+			return true;
+		}
+	}
+	return false;
+}

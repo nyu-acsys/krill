@@ -156,9 +156,7 @@ void Verifier::exploint_invariant(const cola::Command& command) {
 	command.accept(collector);
 	for (const VariableDeclaration* var : collector.vars) {
 		auto varinv = theInvariant->instantiate(*var);
-		current_annotation->now->conjuncts.insert(current_annotation->now->conjuncts.begin(),
-			std::make_move_iterator(varinv->conjuncts.begin()), std::make_move_iterator(varinv->conjuncts.end())
-		);
+		current_annotation->now = plankton::conjoin(std::move(current_annotation->now), std::move(varinv));
 	}
 }
 
@@ -167,10 +165,28 @@ void Verifier::exploint_invariant(const cola::Command& command) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+std::unique_ptr<NodeInvariant> make_dummy_invariant(const Program& program) {
+	// TODO important: remove this
+	std::cout << "MAKING DUMMY INVARIANT" << std::endl;
+	Program* dummy = new Program(); // leak it :)
+	auto headNonNull = std::make_unique<BinaryExpression>(
+		BinaryExpression::Operator::NEQ, std::make_unique<VariableExpression>(*program.variables.at(0)), std::make_unique<NullValue>()
+	);
+	auto headNextNonNull = std::make_unique<BinaryExpression>(
+		BinaryExpression::Operator::NEQ, std::make_unique<Dereference>(std::make_unique<VariableExpression>(*program.variables.at(0)), "next"), std::make_unique<NullValue>()
+	);
+	auto combined = std::make_unique<BinaryExpression>(
+		BinaryExpression::Operator::AND, std::move(headNonNull), std::move(headNextNonNull)
+	);
+	dummy->invariants.push_back(std::make_unique<Property>("Head nonnull", std::move(combined)));
+	return std::make_unique<NodeInvariant>(*dummy);
+}
+
 void Verifier::visit(const Program& program) {
 	// setup
 	theProgram = &program;
 	theInvariant = std::make_unique<NodeInvariant>(program);
+	theInvariant = make_dummy_invariant(program);
 
 	// TODO: check initializer
 	// compute fixed point

@@ -41,12 +41,16 @@ namespace plankton {
 	std::unique_ptr<FuturePredicate> copy(const FuturePredicate& formula);
 	std::unique_ptr<Annotation> copy(const Annotation& formula);
 
+	std::unique_ptr<ConjunctionFormula> conjoin(std::unique_ptr<ConjunctionFormula> formula, std::unique_ptr<ConjunctionFormula> other);
+	std::unique_ptr<ConjunctionFormula> conjoin(std::unique_ptr<ConjunctionFormula> formula, std::unique_ptr<AxiomConjunctionFormula> other);
+
 	//
 	// Inspection
 	//
 
 	bool syntactically_equal(const cola::Expression& expression, const cola::Expression& other);
 	bool syntactically_equal(const SimpleFormula& formula, const SimpleFormula& other);
+	bool syntactically_contains_conjunct(const ConjunctionFormula& formula, const SimpleFormula& other);
 
 	template<typename T, typename U>
 	std::pair<bool, const T*> is_of_type(const U& formula) {
@@ -86,6 +90,9 @@ namespace plankton {
 	std::unique_ptr<TimePredicate> replace_expression(std::unique_ptr<TimePredicate> formula, const cola::Expression& replace, const cola::Expression& with);
 
 	std::unique_ptr<Axiom> instantiate_property(const cola::Property& property, std::vector<std::reference_wrapper<const cola::VariableDeclaration>> vars);
+	std::unique_ptr<AxiomConjunctionFormula> instantiate_property_flatten(const cola::Property& property, std::vector<std::reference_wrapper<const cola::VariableDeclaration>> vars);
+
+	std::unique_ptr<AxiomConjunctionFormula> flatten(std::unique_ptr<cola::Expression> expression);
 
 	//
 	// Solving

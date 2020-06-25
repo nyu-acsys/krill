@@ -146,12 +146,7 @@ R compute_assignment_switch(AssignmentComputer<R>& computer, const Assignment& c
 }
 
 std::unique_ptr<Annotation> combine_to_annotation(std::unique_ptr<ConjunctionFormula> formula, std::unique_ptr<ConjunctionFormula> other) {
-	formula->conjuncts.insert(
-		formula->conjuncts.begin(),
-		std::make_move_iterator(other->conjuncts.begin()),
-		std::make_move_iterator(other->conjuncts.end())
-	);
-	return std::make_unique<Annotation>(std::move(formula));
+	return std::make_unique<Annotation>(plankton::conjoin(std::move(formula), std::move(other)));
 }
 
 std::unique_ptr<Annotation> combine_to_annotation(const ConjunctionFormula& formula, std::unique_ptr<ConjunctionFormula> other) {
@@ -1234,11 +1229,7 @@ struct InvariantComputer : public AssignmentComputer<bool> {
 	bool solve_invariant(std::unique_ptr<Annotation> premise, const VariableDeclaration& left, const VariableDeclaration& right, const VariableDeclaration& other) {
 		// extend premise with invariant for other
 		auto otherInv = invariant.instantiate(other);
-		premise->now->conjuncts.insert(
-			premise->now->conjuncts.begin(),
-			std::make_move_iterator(otherInv->conjuncts.begin()),
-			std::make_move_iterator(otherInv->conjuncts.end())
-		);
+		premise->now = plankton::conjoin(std::move(premise->now), std::move(otherInv));
 
 		// conclusion: invariant for left, right, other
 		auto conclusion = std::move(combine_to_annotation(invariant.instantiate(left), invariant.instantiate(right))->now);
@@ -1354,8 +1345,9 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 	// 		// do nothing: the assumption simply does not adhere to the expressions normal form we assume for assignments
 	// 	}
 	// }
-
-	pre->now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(cola::copy(*cmd.expr)));
+	
+	auto flat = plankton::flatten(cola::copy(*cmd.expr));
+	pre->now = plankton::conjoin(std::move(pre->now), std::move(flat));
 	return pre;	
 }
 

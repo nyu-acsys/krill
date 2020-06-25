@@ -137,8 +137,11 @@ struct DereferenceChecker : BaseVisitor {
 
 NodeInvariant::NodeInvariant(const cola::Program& source_) : source(source_) {
 	for (const auto& inv : source.invariants) {
-		if (inv->vars.size() != 1 || inv->vars.at(0)->type.sort != Sort::PTR) {
-			throw std::logic_error("Cannot construct node invariant from given program, invariant '" + inv->name + "' is malformed.");
+		if (inv->vars.size() > 1) {
+			throw std::logic_error("Cannot construct node invariant from given program, invariant '" + inv->name + "' is malformed: expected at most one variable but got " + std::to_string(inv->vars.size()) + ".");
+		}
+		if (inv->vars.size() == 1 && inv->vars.at(0)->type.sort != Sort::PTR) {
+			throw std::logic_error("Cannot construct node invariant from given program, invariant '" + inv->name + "' is malformed: variable is not of pointer sort.");
 		}
 		if (!DereferenceChecker::is_node_local(*inv->expr)) {
 			throw std::logic_error("Cannot construct node invariant from given program, invariant '" + inv->name + "' is not node-local.");
@@ -157,7 +160,13 @@ std::unique_ptr<ConjunctionFormula> NodeInvariant::instantiate(const VariableDec
 
 	auto result = std::make_unique<ConjunctionFormula>();
 	for (const auto& property : source.invariants) {
-		result->conjuncts.push_back(plankton::instantiate_property(*property, { var }));
+		std::unique_ptr<AxiomConjunctionFormula> inv;
+		if (property->vars.size() == 0) {
+			inv = plankton::instantiate_property_flatten(*property, { });
+		} else {
+			inv = plankton::instantiate_property_flatten(*property, { var });
+		}
+		result = plankton::conjoin(std::move(result), std::move(inv));
 	}
 	var2res[&var] = plankton::copy(*result);
 	return result;
