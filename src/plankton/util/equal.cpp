@@ -235,7 +235,7 @@ struct LogicSyntacticEqualityChecker : public LogicVisitor {
 
 };
 
-bool plankton::syntactically_equal(const SimpleFormula& formula, const SimpleFormula& other) {
+bool plankton::syntactically_equal(const Formula& formula, const Formula& other) {
 	static LogicSyntacticEqualityChecker visitor;
 	return visitor.is_equal(formula, other);
 

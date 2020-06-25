@@ -49,7 +49,7 @@ namespace plankton {
 	//
 
 	bool syntactically_equal(const cola::Expression& expression, const cola::Expression& other);
-	bool syntactically_equal(const SimpleFormula& formula, const SimpleFormula& other);
+	bool syntactically_equal(const Formula& formula, const Formula& other);
 	bool syntactically_contains_conjunct(const ConjunctionFormula& formula, const SimpleFormula& other);
 
 	template<typename T, typename U>
