@@ -1,6 +1,7 @@
 #include "plankton/verify.hpp"
 
 #include <map>
+#include <iostream> // TODO: remove
 #include "cola/util.hpp"
 #include "cola/visitors.hpp"
 #include "plankton/config.hpp"

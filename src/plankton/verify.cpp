@@ -100,6 +100,7 @@ struct DereferencedExpressionCollector : BaseVisitor {
 void Verifier::check_pointer_accesses(const Expression& expr) {
 	DereferencedExpressionCollector collector;
 	expr.accept(collector);
+
 	for (const Expression* expr : collector.exprs) {
 		if (!plankton::implies_nonnull(*current_annotation->now, *expr)) {
 			std::stringstream msg;

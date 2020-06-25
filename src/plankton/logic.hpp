@@ -154,7 +154,7 @@ namespace plankton {
 		ACCEPT_FORMULA_VISITOR
 	};
 
-	struct FlowAxiom : public Axiom {
+	struct FlowAxiom : public Axiom { // TODO: change to 'HasFlowAxiom' and 'FlowContainsAxiom'?
 		std::unique_ptr<cola::Expression> expr;
 		FlowValue flow;
 

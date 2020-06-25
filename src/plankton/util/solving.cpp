@@ -1,7 +1,9 @@
 #include "plankton/util.hpp"
 
 #include <iostream> // TODO: remove
+#include "z3++.h"
 #include "cola/util.hpp"
+#include "plankton/config.hpp"
 
 using namespace cola;
 using namespace plankton;
@@ -30,7 +32,6 @@ bool syntactically_contains(const std::deque<const SimpleFormula*>& container, c
 std::deque<const SimpleFormula*> quick_discharge(const std::deque<const SimpleFormula*>& premises, std::deque<const SimpleFormula*> conclusions) {
 	for (const SimpleFormula*& formula : conclusions) {
 		if (syntactically_contains(premises, *formula)) {
-			// TODO: does this work?
 			formula = conclusions.back();
 			conclusions.back() = nullptr;
 		}
@@ -47,6 +48,106 @@ std::deque<const SimpleFormula*> quick_discharge(const std::deque<const SimpleFo
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 
+struct EncodingInfo {
+	z3::context context;
+	z3::solver solver;
+	// TODO: variables and lookup maps
+
+	EncodingInfo() : solver(context) {}
+	
+	z3::expr mk_bool_val(bool value) {
+		return context.bool_val(value);
+	}
+
+	bool is_unsat() {
+		auto result = solver.check();
+		switch (result) {
+			case z3::unknown:
+				if (plankton::config.z3_handle_unknown_result) return false;
+				throw SolvingError("SMT solving failed: Z3 was unable to prove SAT/UNSAT, returned 'UNKNOWN'. Cannot recover.");
+			case z3::sat:
+				return false;
+			case z3::unsat:
+				return true;
+		}
+	}
+};
+
+struct Encoder : public BaseLogicVisitor {
+	EncodingInfo& info;
+	bool is_premise;
+	z3::expr result; // TODO: how to properly initialize?
+
+	Encoder(EncodingInfo& info, bool is_premise) : info(info), is_premise(is_premise), result(info.mk_bool_val(is_premise)) {}
+
+	z3::expr encode(const SimpleFormula& formula) {
+		formula.accept(*this);
+		return result;
+	}
+	
+	z3::expr encode(const Expression& /*formula*/) {
+		throw std::logic_error("not yet implemented: Encoder::encode(const Expression& formula)");
+	}
+
+	virtual void visit(const AxiomConjunctionFormula& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const AxiomConjunctionFormula&)"); }
+	virtual void visit(const ImplicationFormula& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const ImplicationFormula&)"); }
+	virtual void visit(const ConjunctionFormula& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const ConjunctionFormula&)"); }
+	virtual void visit(const NegatedAxiom& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const NegatedAxiom&)"); }
+	virtual void visit(const ExpressionAxiom& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const ExpressionAxiom&)"); }
+	virtual void visit(const OwnershipAxiom& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const OwnershipAxiom&)"); }
+	virtual void visit(const LogicallyContainedAxiom& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const LogicallyContainedAxiom&)"); }
+	virtual void visit(const KeysetContainsAxiom& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const KeysetContainsAxiom&)"); }
+	virtual void visit(const FlowAxiom& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const FlowAxiom&)"); }
+	virtual void visit(const ObligationAxiom& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const ObligationAxiom&)"); }
+	virtual void visit(const FulfillmentAxiom& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const FulfillmentAxiom&)"); }
+};
+
+std::deque<z3::expr> encode(EncodingInfo& info, const std::deque<const SimpleFormula*>& conjuncts, bool is_premise=false) {
+	std::deque<z3::expr> result;
+	Encoder encoder(info, is_premise);
+	for (const SimpleFormula* conjunct : conjuncts) {
+		conjunct->accept(encoder);
+		result.push_back(std::move(encoder.result));
+	}
+	return result;
+}
+
+void propagate_premises(EncodingInfo& info, const std::deque<const SimpleFormula*>& raw_premises) {
+	auto premises = encode(info, raw_premises, true);
+	for (auto z3expr : premises) {
+		info.solver.add(z3expr);
+	}
+}
+
+z3::expr make_conclusion_disjunction(EncodingInfo& info, std::deque<z3::expr> parts) {
+	z3::expr_vector vec(info.context);
+	for (auto z3expr : parts) {
+		vec.push_back(z3expr);
+	}
+	return z3::mk_or(vec);
+}
+
+bool check_conclusions(EncodingInfo& info, const std::deque<const SimpleFormula*>& raw_conclusions) {
+	auto conclusions = encode(info, raw_conclusions, false);
+
+	if (plankton::config.implies_holistic_check) {
+		auto big_conclusion = make_conclusion_disjunction(info, std::move(conclusions));
+		info.solver.add(big_conclusion);
+		return info.is_unsat();
+
+	} else {
+		for (auto z3expr : conclusions) {
+			info.solver.push();
+			info.solver.add(z3expr);
+			if (!info.is_unsat()) {
+				return false;
+			}
+			info.solver.pop();
+		}
+		return true;
+	}
+}
+
 bool check_implication(std::deque<const SimpleFormula*> premises, std::deque<const SimpleFormula*> conclusions) {
 	static ExpressionAxiom trueFormula(std::make_unique<BooleanValue>(true));
 
@@ -58,7 +159,9 @@ bool check_implication(std::deque<const SimpleFormula*> premises, std::deque<con
 	if (conclusions.empty()) return true;
 
 	// thoroughly check implication
-	throw std::logic_error("not yet implemented (check_implication)");
+	EncodingInfo info;
+	propagate_premises(info, premises);
+	return check_conclusions(info, conclusions);
 }
 
 
@@ -237,6 +340,13 @@ bool all_imply(const T& container, const Formula& conclusion, const Annotation* 
 }
 
 std::unique_ptr<Annotation> plankton::unify(std::vector<std::unique_ptr<Annotation>> annotations) {
+	std::cout << "################# UNIFY #################" << std::endl;
+	for (const auto& annotation : annotations) {
+		plankton::print(*annotation, std::cout);
+		std::cout << std::endl;
+	}
+	std::cout << std::endl;
+
 	auto result = std::make_unique<Annotation>();
 
 	auto now_iterator = iterator_for_simple_formulas(annotations);
