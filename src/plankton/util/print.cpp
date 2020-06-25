@@ -12,12 +12,7 @@ const std::string EMPTY_STR = "true";
 
 
 inline void print_spec(const SpecificationAxiom& spec, std::ostream& stream) {
-	switch (spec.kind) {
-		case SpecificationAxiom::Kind::CONTAINS: stream << "contains"; break;
-		case SpecificationAxiom::Kind::INSERT: stream << "insert"; break;
-		case SpecificationAxiom::Kind::DELETE: stream << "delete"; break;
-	}
-	stream << "(";
+	stream << plankton::to_string(spec.kind) << "(";
 	cola::print(*spec.key, stream);
 	stream << ")";
 }

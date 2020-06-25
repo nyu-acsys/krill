@@ -51,12 +51,55 @@ std::deque<const SimpleFormula*> quick_discharge(const std::deque<const SimpleFo
 struct EncodingInfo {
 	z3::context context;
 	z3::solver solver;
-	// TODO: variables and lookup maps
+	std::map<const VariableDeclaration*, z3::expr> var2expr;
+	std::map<std::string, z3::expr> special2expr;
 
-	EncodingInfo() : solver(context) {}
+	EncodingInfo() : solver(context) {
+		// TODO: set up sorts (pointers, data), heap function?
+	}
+
+	z3::expr get_var(const VariableDeclaration& /*decl*/) {
+		// TODO: get or create a z3 variable expression for the given variable declaration
+		throw std::logic_error("not yet implemented: EncodingInfo::get_var(const VariableDeclaration& decl)");
+	}
+
+	z3::expr get_var(std::string /*name*/) {
+		// TODO: get or create a z3 variable expression for the given special name
+		// TODO: should the variable sort be freely specifiable?
+		throw std::logic_error("not yet implemented: EncodingInfo::get_var(std::string name, Sort sort)");
+	}
+
+	z3::expr get_nullptr() {
+		throw std::logic_error("not yet implemented: EncodingInfo::get_nullptr()");
+	}
+
+	z3::expr get_min_value() {
+		throw std::logic_error("not yet implemented: EncodingInfo::get_min_value()");
+	}
+
+	z3::expr get_max_value() {
+		throw std::logic_error("not yet implemented: EncodingInfo::get_max_value()");
+	}
 	
 	z3::expr mk_bool_val(bool value) {
 		return context.bool_val(value);
+	}
+
+	template<typename T>
+	z3::expr_vector make_vector(T parts) {
+		z3::expr_vector vec(context);
+		for (auto z3expr : parts) {
+			vec.push_back(z3expr);
+		}
+		return vec;
+	}
+
+	z3::expr make_and(z3::expr_vector parts) {
+		return z3::mk_and(parts);
+	}
+
+	z3::expr make_or(std::deque<z3::expr> parts) {
+		return z3::mk_or(make_vector(parts));
 	}
 
 	bool is_unsat() {
@@ -73,41 +116,157 @@ struct EncodingInfo {
 	}
 };
 
-struct Encoder : public BaseLogicVisitor {
+struct Encoder : public BaseVisitor, public BaseLogicVisitor {
+	using BaseVisitor::visit;
+	using BaseLogicVisitor::visit;
+
 	EncodingInfo& info;
 	bool is_premise;
 	z3::expr result; // TODO: how to properly initialize?
 
 	Encoder(EncodingInfo& info, bool is_premise) : info(info), is_premise(is_premise), result(info.mk_bool_val(is_premise)) {}
 
-	z3::expr encode(const SimpleFormula& formula) {
+
+	z3::expr encode(const Expression& expression) {
+		expression.accept(*this);
+		return result;
+	}
+
+	void visit(const VariableDeclaration& node) override {
+		result = info.get_var(node);
+	}
+
+	void visit(const BooleanValue& node) override {
+		result = info.mk_bool_val(node.value);
+	}
+
+	void visit(const NullValue& /*node*/) override {
+		result = info.get_nullptr();
+	}
+
+	void visit(const EmptyValue& /*node*/) override {
+		throw SolvingError("Unsupported construct: instance of type 'EmptyValue' (aka 'EMPTY').");
+	}
+
+	void visit(const MaxValue& /*node*/) override {
+		result = info.get_max_value();
+	}
+
+	void visit(const MinValue& /*node*/) override {
+		result = info.get_min_value();
+	}
+
+	void visit(const NDetValue& /*node*/) override {
+		throw SolvingError("Unsupported construct: instance of type 'NDetValue' (aka '*').");
+	}
+
+	void visit(const VariableExpression& node) override {
+		result = info.get_var(node.decl);
+	}
+
+	void visit(const NegatedExpression& node) override {
+		result = !encode(*node.expr);
+	}
+
+	void visit(const BinaryExpression& node) override {
+		// TODO important: ImplicationFormula change behavior for premise/conclusion ==> we should do the same here because it could mimic an implication?
+		throw std::logic_error("not yet implemented: Encoder::visit(const BinaryExpression&)");
+		auto lhs = encode(*node.lhs);
+		auto rhs = encode(*node.rhs);
+		switch (node.op) {
+			case BinaryExpression::Operator::EQ:  result = (lhs == rhs); break;
+			case BinaryExpression::Operator::NEQ: result = (lhs != rhs); break;
+			case BinaryExpression::Operator::LEQ: result = (lhs <= rhs); break;
+			case BinaryExpression::Operator::LT:  result = (lhs < rhs);  break;
+			case BinaryExpression::Operator::GEQ: result = (lhs >= rhs); break;
+			case BinaryExpression::Operator::GT:  result = (lhs > rhs);  break;
+			case BinaryExpression::Operator::AND: result = (lhs && rhs); break;
+			case BinaryExpression::Operator::OR:  result = (lhs || rhs); break;
+		}
+	}
+
+	void visit(const Dereference& /*node*/) override {
+		// TODO: 'f(encode(node.expr),to_index(node.fieldname))' where f is a two-ary heap function
+		throw std::logic_error("not yet implemented: Encoder::visit(const Dereference&)");
+	}
+
+
+	z3::expr encode(const Formula& formula) {
 		formula.accept(*this);
 		return result;
 	}
-	
-	z3::expr encode(const Expression& /*formula*/) {
-		throw std::logic_error("not yet implemented: Encoder::encode(const Expression& formula)");
+
+	template<typename T>
+	void do_conjunction(const T& formula) {
+		z3::expr_vector vec(info.context);
+		for (const auto& conjunct : formula.conjuncts) {
+			vec.push_back(encode(*conjunct));
+		}
+		result = info.make_and(vec);
 	}
 
-	virtual void visit(const AxiomConjunctionFormula& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const AxiomConjunctionFormula&)"); }
-	virtual void visit(const ImplicationFormula& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const ImplicationFormula&)"); }
-	virtual void visit(const ConjunctionFormula& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const ConjunctionFormula&)"); }
-	virtual void visit(const NegatedAxiom& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const NegatedAxiom&)"); }
-	virtual void visit(const ExpressionAxiom& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const ExpressionAxiom&)"); }
-	virtual void visit(const OwnershipAxiom& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const OwnershipAxiom&)"); }
-	virtual void visit(const LogicallyContainedAxiom& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const LogicallyContainedAxiom&)"); }
-	virtual void visit(const KeysetContainsAxiom& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const KeysetContainsAxiom&)"); }
-	virtual void visit(const FlowAxiom& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const FlowAxiom&)"); }
-	virtual void visit(const ObligationAxiom& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const ObligationAxiom&)"); }
-	virtual void visit(const FulfillmentAxiom& /*formula*/) override { throw std::logic_error("not yet implemented: Encoder::visit(const FulfillmentAxiom&)"); }
+	void visit(const AxiomConjunctionFormula& formula) override {
+		do_conjunction(formula);
+	}
+
+	void visit(const ConjunctionFormula& formula) override {
+		do_conjunction(formula);
+	}
+
+	void visit(const NegatedAxiom& formula) override {
+		result = !encode(*formula.axiom);
+	}
+
+	void visit(const ExpressionAxiom& formula) override {
+		result = encode(*formula.expr);
+	}
+
+	void visit(const ImplicationFormula& formula) override {
+		bool was_premise = is_premise;
+		is_premise = true;
+		auto premise = encode(*formula.premise);
+		is_premise = false;
+		auto conclusion = encode(*formula.conclusion);
+		is_premise = was_premise;
+		result = z3::implies(premise, conclusion);
+	}
+	
+	void visit(const OwnershipAxiom& formula) override {
+		result = (info.get_var("OWNED_" + formula.expr->decl.name) == info.mk_bool_val(true));
+		if (is_premise) {
+			// TODO: add "no alias" and "no flow" knowledge
+			throw std::logic_error("not yet implemented: Encoder::visit(const OwnershipAxiom&)");
+		}
+	}
+
+	void visit(const LogicallyContainedAxiom& /*formula*/) override {
+		throw std::logic_error("not yet implemented: Encoder::visit(const LogicallyContainedAxiom&)");
+	}
+
+	void visit(const KeysetContainsAxiom& /*formula*/) override {
+		throw std::logic_error("not yet implemented: Encoder::visit(const KeysetContainsAxiom&)");
+	}
+
+	void visit(const FlowAxiom& /*formula*/) override {
+		throw std::logic_error("not yet implemented: Encoder::visit(const FlowAxiom&)");
+	}
+
+	void visit(const ObligationAxiom& formula) override {
+		result = (info.get_var("OBL_" + plankton::to_string(formula.kind) + "_" + formula.key->decl.name) == info.mk_bool_val(true));
+	}
+	
+	void visit(const FulfillmentAxiom& formula) override {
+		result = (info.get_var("FUL_" + plankton::to_string(formula.kind) + "_" + formula.key->decl.name + "_" + (formula.return_value ? "true" : "false")) == info.mk_bool_val(true));
+	}
+
 };
 
-std::deque<z3::expr> encode(EncodingInfo& info, const std::deque<const SimpleFormula*>& conjuncts, bool is_premise=false) {
+std::deque<z3::expr> encode(EncodingInfo& info, const std::deque<const SimpleFormula*>& conjuncts, bool is_premise) {
 	std::deque<z3::expr> result;
 	Encoder encoder(info, is_premise);
 	for (const SimpleFormula* conjunct : conjuncts) {
 		conjunct->accept(encoder);
-		result.push_back(std::move(encoder.result));
+		result.push_back(is_premise ? encoder.result : !encoder.result);
 	}
 	return result;
 }
@@ -119,19 +278,11 @@ void propagate_premises(EncodingInfo& info, const std::deque<const SimpleFormula
 	}
 }
 
-z3::expr make_conclusion_disjunction(EncodingInfo& info, std::deque<z3::expr> parts) {
-	z3::expr_vector vec(info.context);
-	for (auto z3expr : parts) {
-		vec.push_back(z3expr);
-	}
-	return z3::mk_or(vec);
-}
-
 bool check_conclusions(EncodingInfo& info, const std::deque<const SimpleFormula*>& raw_conclusions) {
 	auto conclusions = encode(info, raw_conclusions, false);
 
 	if (plankton::config.implies_holistic_check) {
-		auto big_conclusion = make_conclusion_disjunction(info, std::move(conclusions));
+		auto big_conclusion = info.make_or(std::move(conclusions));
 		info.solver.add(big_conclusion);
 		return info.is_unsat();
 

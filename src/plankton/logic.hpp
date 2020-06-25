@@ -170,6 +170,14 @@ namespace plankton {
 		SpecificationAxiom(Kind kind, std::unique_ptr<cola::VariableExpression> key);
 	};
 
+	inline std::string to_string(SpecificationAxiom::Kind kind) {
+		switch (kind) {
+			case SpecificationAxiom::Kind::CONTAINS: return "contains";
+			case SpecificationAxiom::Kind::INSERT: return "insert";
+			case SpecificationAxiom::Kind::DELETE: return "delete";
+		}
+	}
+
 	struct ObligationAxiom : public SpecificationAxiom {
 		ObligationAxiom(Kind kind, std::unique_ptr<cola::VariableExpression> key);
 		ACCEPT_FORMULA_VISITOR
