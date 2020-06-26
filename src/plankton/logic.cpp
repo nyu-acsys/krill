@@ -86,6 +86,10 @@ Annotation::Annotation(std::unique_ptr<ConjunctionFormula> now_) : now(std::move
 	assert(now);
 }
 
+Annotation::Annotation(std::unique_ptr<ConjunctionFormula> now_, std::deque<std::unique_ptr<TimePredicate>> time_) : now(std::move(now_)), time(std::move(time_)) {
+	assert(now);
+}
+
 inline std::unique_ptr<Annotation> mk_bool(bool value) {
 	auto result = std::make_unique<Annotation>();
 	result->now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BooleanValue>(value)));

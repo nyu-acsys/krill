@@ -124,6 +124,17 @@ namespace plankton {
 	  */
 	std::unique_ptr<Annotation> unify(std::vector<std::unique_ptr<Annotation>> annotations);
 
+	//
+	// Iterative Solving
+	//
+
+	struct IterativeImplicationSolver {
+		virtual ~IterativeImplicationSolver() = default;
+		virtual bool implies(const Formula& implied) = 0;
+	};
+
+	std::unique_ptr<IterativeImplicationSolver> make_solver_from_premise(const Formula& premise);
+
 } // namespace plankton
 
 #endif

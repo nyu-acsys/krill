@@ -720,11 +720,12 @@ std::unique_ptr<ConjunctionFormula> search_and_destroy_derefs(std::unique_ptr<Co
 	
 
 	// find all dereferences that may be affected (are not guaranteed to be destroyed)
+	auto solver = plankton::make_solver_from_premise(*now);
 	auto dereferences = DereferenceExtractor::extract(*now, lhs.fieldname);
 	for (auto& deref : dereferences) {
 		uptr = std::move(deref);
 		deref.reset();
-		if (!plankton::implies(*now, *inequality)) {
+		if (!solver->implies(*inequality)) {
 			deref = std::move(uptr);
 		}
 	}
@@ -773,12 +774,13 @@ bool has_no_flow(const Formula& now, const VariableExpression& var) {
 }
 
 bool has_enabled_future_predicate(const Formula& now, const Annotation& time, const Assignment& cmd) {
+	auto solver = plankton::make_solver_from_premise(now);
 	for (const auto& pred : time.time) {
 		auto [is_future, future_pred] = plankton::is_of_type<FuturePredicate>(*pred);
 		if (!is_future) continue;
 		if (!plankton::syntactically_equal(*future_pred->command->lhs, *cmd.lhs)) continue;
 		if (!plankton::syntactically_equal(*future_pred->command->rhs, *cmd.rhs)) continue;
-		if (plankton::implies(now, *future_pred->pre)) {
+		if (solver->implies(*future_pred->pre)) {
 			return true;
 		}
 	}

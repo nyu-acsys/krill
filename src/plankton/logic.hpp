@@ -223,6 +223,7 @@ namespace plankton {
 
 		Annotation();
 		Annotation(std::unique_ptr<ConjunctionFormula> now);
+		Annotation(std::unique_ptr<ConjunctionFormula> now, std::deque<std::unique_ptr<TimePredicate>> time);
 		static std::unique_ptr<Annotation> make_true();
 		static std::unique_ptr<Annotation> make_false();
 		ACCEPT_FORMULA_VISITOR
