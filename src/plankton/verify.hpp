@@ -64,8 +64,9 @@ namespace plankton {
 			std::vector<std::unique_ptr<Annotation>> breaking_annotations; // collects annotations breaking out of loops
 			std::vector<std::unique_ptr<Annotation>> returning_annotations; // collects annotations breaking out of loops
 			bool inside_atomic;
-			const cola::Program* theProgram;
-			std::unique_ptr<NodeInvariant> theInvariant;
+			// const cola::Program* theProgram;
+
+			void set_config(const cola::Program& program);
 
 			void visit_interface_function(const cola::Function& function); // performs proof for given interface function
 			void visit_macro_function(const cola::Function& function); // performs subproof for given macro function

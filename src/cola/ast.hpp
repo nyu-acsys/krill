@@ -100,16 +100,6 @@ namespace cola {
 		ACCEPT_COLA_VISITOR
 	};
 
-	struct Property : public AstNode {
-		std::string name;
-		std::vector<std::unique_ptr<VariableDeclaration>> vars;
-		std::unique_ptr<Expression> expr;
-		Property(std::string name_, std::unique_ptr<Expression> expr_) : name(name_), expr(std::move(expr_)) {
-			assert(expr);
-		}
-		ACCEPT_COLA_VISITOR
-	};
-
 	struct Program : public AstNode {
 		std::string name;
 		std::vector<std::unique_ptr<Type>> types;
@@ -117,8 +107,6 @@ namespace cola {
 		std::unique_ptr<Function> initializer;
 		std::vector<std::unique_ptr<Function>> functions;
 		std::map<std::string, std::string> options;
-		std::unique_ptr<Property> logically_contains;
-		std::vector<std::unique_ptr<Property>> invariants;
 		ACCEPT_COLA_VISITOR
 	};
 

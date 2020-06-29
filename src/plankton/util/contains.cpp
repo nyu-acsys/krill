@@ -83,8 +83,14 @@ struct ContainsChecker : public DefaultListener {
 		handle_expression(formula.value);
 	}
 
-	void enter(const FlowAxiom& formula) override {
+	void enter(const HasFlowAxiom& formula) override {
 		handle_expression(formula.expr);
+	}
+
+	void enter(const FlowContainsAxiom& formula) override {
+		handle_expression(formula.expr);
+		handle_expression(formula.low_value);
+		handle_expression(formula.high_value);
 	}
 
 	void enter(const ObligationAxiom& formula) override {

@@ -34,7 +34,8 @@ namespace plankton {
 	std::unique_ptr<OwnershipAxiom> copy(const OwnershipAxiom& formula);
 	std::unique_ptr<LogicallyContainedAxiom> copy(const LogicallyContainedAxiom& formula);
 	std::unique_ptr<KeysetContainsAxiom> copy(const KeysetContainsAxiom& formula);
-	std::unique_ptr<FlowAxiom> copy(const FlowAxiom& formula);
+	std::unique_ptr<HasFlowAxiom> copy(const HasFlowAxiom& formula);
+	std::unique_ptr<FlowContainsAxiom> copy(const FlowContainsAxiom& formula);
 	std::unique_ptr<ObligationAxiom> copy(const ObligationAxiom& formula);
 	std::unique_ptr<FulfillmentAxiom> copy(const FulfillmentAxiom& formula);
 	std::unique_ptr<PastPredicate> copy(const PastPredicate& formula);
@@ -89,30 +90,24 @@ namespace plankton {
 	std::unique_ptr<ConjunctionFormula> replace_expression(std::unique_ptr<ConjunctionFormula> formula, const cola::Expression& replace, const cola::Expression& with);
 	std::unique_ptr<TimePredicate> replace_expression(std::unique_ptr<TimePredicate> formula, const cola::Expression& replace, const cola::Expression& with);
 
-	std::unique_ptr<Axiom> instantiate_property(const cola::Property& property, std::vector<std::reference_wrapper<const cola::VariableDeclaration>> vars);
-	std::unique_ptr<AxiomConjunctionFormula> instantiate_property_flatten(const cola::Property& property, std::vector<std::reference_wrapper<const cola::VariableDeclaration>> vars);
-
 	std::unique_ptr<AxiomConjunctionFormula> flatten(std::unique_ptr<cola::Expression> expression);
 
 	//
 	// Solving
 	//
 
-	/** Returns true if 'formula ==> (expr != NULL)' is a tautology.
-	  */
-	bool implies_nonnull(const Formula& formula, const cola::Expression& expr);
+	bool implies_nonnull(const ConjunctionFormula& formula, const cola::Expression& expr);
+	bool implies_nonnull(const SimpleFormula& formula, const cola::Expression& expr);
 	
-	/** Returns true if 'formula ==> condition' is a tautology.
-	  */
-	bool implies(const Formula& formula, const cola::Expression& condition);
+	bool implies(const ConjunctionFormula& formula, const cola::Expression& condition);
+	bool implies(const SimpleFormula& formula, const cola::Expression& condition);
 
-	/** Returns true if 'formula ==> implied' is a tautology.
-	  */
-	bool implies(const Formula& formula, const Formula& implied);
+	bool implies(const ConjunctionFormula& formula, const ConjunctionFormula& implied);
+	bool implies(const ConjunctionFormula& formula, const SimpleFormula& implied);
+	bool implies(const SimpleFormula& formula, const ConjunctionFormula& implied);
+	bool implies(const SimpleFormula& formula, const SimpleFormula& implied);
 
-	/** Returns true if 'annotation ==> other' and 'other ==> annotation'.
-	  */
-	bool is_equal(const Annotation& /*annotation*/, const Annotation& /*other*/);
+	bool implies(const Annotation& annotation, const Annotation& implied);
 
 	/** Returns an annotation F such that the formulas 'annotation ==> F' and 'other ==> F' are tautologies.
 	  * Opts for the strongest such annotation F.
@@ -130,10 +125,12 @@ namespace plankton {
 
 	struct IterativeImplicationSolver {
 		virtual ~IterativeImplicationSolver() = default;
-		virtual bool implies(const Formula& implied) = 0;
+		virtual bool implies(const ConjunctionFormula& implied) = 0;
+		virtual bool implies(const SimpleFormula& implied) = 0;
 	};
 
-	std::unique_ptr<IterativeImplicationSolver> make_solver_from_premise(const Formula& premise);
+	std::unique_ptr<IterativeImplicationSolver> make_solver_from_premise(const ConjunctionFormula& premise);
+	std::unique_ptr<IterativeImplicationSolver> make_solver_from_premise(const SimpleFormula& premise);
 
 } // namespace plankton
 

@@ -41,7 +41,6 @@ namespace cola {
 	struct Macro;
 	struct CompareAndSwap;
 	struct Function;
-	struct Property;
 	struct Program;
 
 
@@ -76,7 +75,6 @@ namespace cola {
 		virtual void visit(const Assignment& node) = 0;
 		virtual void visit(const Macro& node) = 0;
 		virtual void visit(const CompareAndSwap& node) = 0;
-		virtual void visit(const Property& node) = 0;
 		virtual void visit(const Function& node) = 0;
 		virtual void visit(const Program& node) = 0;
 	};
@@ -112,7 +110,6 @@ namespace cola {
 		virtual void visit(Assignment& node) = 0;
 		virtual void visit(Macro& node) = 0;
 		virtual void visit(CompareAndSwap& node) = 0;
-		virtual void visit(Property& node) = 0;
 		virtual void visit(Function& node) = 0;
 		virtual void visit(Program& node) = 0;
 	};
@@ -165,7 +162,6 @@ namespace cola {
 		virtual void visit(const Assignment& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Assignment&"); }
 		virtual void visit(const Macro& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Macro&"); }
 		virtual void visit(const CompareAndSwap& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const CompareAndSwap&"); }
-		virtual void visit(const Property& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Property&"); }
 		virtual void visit(const Function& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Function&"); }
 		virtual void visit(const Program& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Program&"); }
 
@@ -204,7 +200,6 @@ namespace cola {
 		virtual void visit(Assignment& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseNonConstVisitor", "Assignment&"); }
 		virtual void visit(Macro& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseNonConstVisitor", "Macro&"); }
 		virtual void visit(CompareAndSwap& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseNonConstVisitor", "CompareAndSwap&"); }
-		virtual void visit(Property& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseNonConstVisitor", "Property&"); }
 		virtual void visit(Function& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseNonConstVisitor", "Function&"); }
 		virtual void visit(Program& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseNonConstVisitor", "Program&"); }
 

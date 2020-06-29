@@ -123,14 +123,14 @@ void throw_invariant_violation_if(bool flag, const Command& command, std::string
 }
 
 void Verifier::check_invariant_stability(const Assignment& command) {
-	throw_invariant_violation_if(!post_maintains_invariant(*current_annotation, *theInvariant, command, *theProgram), command);
+	throw_invariant_violation_if(!post_maintains_invariant(*current_annotation, command), command);
 }
 
 void Verifier::check_invariant_stability(const Malloc& command) {
 	if (command.lhs.is_shared) {
 		throw UnsupportedConstructError("allocation targeting shared variable '" + command.lhs.name + "'");
 	}
-	throw_invariant_violation_if(!plankton::post_maintains_invariant(*current_annotation, *theInvariant, command, *theProgram), command, " by newly allocated node");
+	throw_invariant_violation_if(!plankton::post_maintains_invariant(*current_annotation, command), command, " by newly allocated node");
 }
 
 struct VariableCollector : BaseVisitor {
@@ -155,8 +155,11 @@ struct VariableCollector : BaseVisitor {
 void Verifier::exploint_invariant(const cola::Command& command) {
 	VariableCollector collector;
 	command.accept(collector);
+	const auto& invariant = plankton::config->get_invariant();
+	const auto& argtype = invariant.vars.at(0)->type;
 	for (const VariableDeclaration* var : collector.vars) {
-		auto varinv = theInvariant->instantiate(*var);
+		if (!cola::assignable(argtype, var->type)) continue;
+		auto varinv = invariant.instantiate({ *var });
 		current_annotation->now = plankton::conjoin(std::move(current_annotation->now), std::move(varinv));
 	}
 }
@@ -166,28 +169,8 @@ void Verifier::exploint_invariant(const cola::Command& command) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<NodeInvariant> make_dummy_invariant(const Program& program) {
-	// TODO important: remove this
-	std::cout << "MAKING DUMMY INVARIANT" << std::endl;
-	Program* dummy = new Program(); // leak it :)
-	auto headNonNull = std::make_unique<BinaryExpression>(
-		BinaryExpression::Operator::NEQ, std::make_unique<VariableExpression>(*program.variables.at(0)), std::make_unique<NullValue>()
-	);
-	auto headNextNonNull = std::make_unique<BinaryExpression>(
-		BinaryExpression::Operator::NEQ, std::make_unique<Dereference>(std::make_unique<VariableExpression>(*program.variables.at(0)), "next"), std::make_unique<NullValue>()
-	);
-	auto combined = std::make_unique<BinaryExpression>(
-		BinaryExpression::Operator::AND, std::move(headNonNull), std::move(headNextNonNull)
-	);
-	dummy->invariants.push_back(std::make_unique<Property>("Head nonnull", std::move(combined)));
-	return std::make_unique<NodeInvariant>(*dummy);
-}
-
 void Verifier::visit(const Program& program) {
-	// setup
-	theProgram = &program;
-	theInvariant = std::make_unique<NodeInvariant>(program);
-	theInvariant = make_dummy_invariant(program);
+	set_config(program);
 
 	// TODO: check initializer
 	// compute fixed point
@@ -199,10 +182,6 @@ void Verifier::visit(const Program& program) {
 			}
 		}
 	} while (!is_interference_saturated);
-
-	// cleanup
-	theInvariant.reset();
-	theProgram = nullptr;
 }
 
 struct SpecStore {
@@ -272,7 +251,7 @@ struct FulfillmentSearcher : public DefaultListener {
 void establish_linearizability_or_fail(const Annotation& annotation, const Function& function, SpecStore spec) {
 	// check for false
 	static ExpressionAxiom falseFormula(std::make_unique<BooleanValue>(false));
-	if (plankton::implies(annotation, falseFormula)) {
+	if (plankton::implies(*annotation.now, falseFormula)) {
 		return;
 	}
 
@@ -294,8 +273,13 @@ void Verifier::visit_interface_function(const Function& function) {
 	auto spec = get_spec(function);
 	current_annotation = get_init_annotation(spec);
 
-	// handle body and check if obligation is fulfilled
+	// handle body
 	function.body->accept(*this);
+	std::cout << std::endl << "________" << std::endl << "Post annotation for function '" << function.name << "':" << std::endl;
+	plankton::print(*current_annotation, std::cout);
+	std::cout << std::endl << std::endl;
+
+	// check if obligation is fulfilled
 	establish_linearizability_or_fail(*current_annotation, function, spec);
 	for (const auto& returned : returning_annotations) {
 		establish_linearizability_or_fail(*returned, function, spec);
@@ -364,15 +348,19 @@ void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { //
 	}
 
 	auto outer_breaking_annotations = std::move(breaking_annotations);
+	std::size_t counter = 0;
 
 	while (true) {
+		std::cout << std::endl << std::endl << " ------ loop " << counter++ << " ------ " << std::endl;
+
 		breaking_annotations.clear();
-		auto previous_annotation = plankton::copy(*current_annotation);
+		auto before_annotation = plankton::copy(*current_annotation);
 		stmt.body->accept(*this);
-		if (plankton::is_equal(*previous_annotation, *current_annotation)) {
+
+		if (plankton::implies(*current_annotation, *before_annotation)) {
 			break;
 		}
-		current_annotation = plankton::unify(std::move(current_annotation), std::move(previous_annotation));
+		current_annotation = plankton::unify(std::move(before_annotation), std::move(current_annotation));
 		apply_interference(); // TODO important: needed?
 	}
 
@@ -415,7 +403,7 @@ void Verifier::visit(const Continue& /*cmd*/) {
 
 void Verifier::visit(const Assume& cmd) {
 	check_pointer_accesses(*cmd.expr);
-	current_annotation = plankton::post_full(std::move(current_annotation), cmd, *theProgram);
+	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
 	exploint_invariant(cmd);
 	if (has_effect(*cmd.expr)) apply_interference();
 }
@@ -438,7 +426,7 @@ void Verifier::visit(const Return& cmd) {
 
 void Verifier::visit(const Malloc& cmd) {
 	check_invariant_stability(cmd);
-	current_annotation = plankton::post_full(std::move(current_annotation), cmd, *theProgram);
+	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
 }
 
 void Verifier::visit(const Assignment& cmd) {
@@ -453,8 +441,7 @@ void Verifier::visit(const Assignment& cmd) {
 	}
 
 	// compute post annotation
-	assert(theProgram);
-	current_annotation = plankton::post_full(std::move(current_annotation), cmd, *theProgram);
+	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
 	exploint_invariant(cmd);
 	if (has_effect(*cmd.lhs) || has_effect(*cmd.rhs)) apply_interference();
 }
@@ -466,6 +453,8 @@ void Verifier::visit_macro_function(const Function& function) {
 	returning_annotations.clear();
 	
 	function.body->accept(*this);
+	returning_annotations.push_back(std::move(current_annotation));
+	current_annotation = plankton::unify(std::move(returning_annotations));
 
 	breaking_annotations = std::move(outer_breaking_annotations);
 	returning_annotations = std::move(outer_returning_annotations);

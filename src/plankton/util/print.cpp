@@ -95,11 +95,20 @@ struct FormulaPrinter : public LogicVisitor {
 		stream << ")";
 	}
 
-	void visit(const FlowAxiom& formula) override {
+	void visit(const HasFlowAxiom& formula) override {
 		stream << "@flow(";
 		cola::print(*formula.expr, stream);
-		stream << ") = ";
-		plankton::print(formula.flow, stream);
+		stream << ")≠⊥";
+	}
+
+	void visit(const FlowContainsAxiom& formula) override {
+		stream << "@flow(";
+		cola::print(*formula.expr, stream);
+		stream << ")⊇[]";
+		cola::print(*formula.low_value, stream);
+		stream << ", ";
+		cola::print(*formula.high_value, stream);
+		stream << "]";
 	}
 
 	void visit(const ObligationAxiom& formula) override {

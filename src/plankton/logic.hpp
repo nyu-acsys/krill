@@ -8,7 +8,6 @@
 #include <memory>
 #include "cola/ast.hpp"
 #include "cola/visitors.hpp"
-#include "plankton/flow.hpp"
 
 
 namespace plankton {
@@ -25,7 +24,8 @@ namespace plankton {
 	struct OwnershipAxiom;
 	struct LogicallyContainedAxiom;
 	struct KeysetContainsAxiom;
-	struct FlowAxiom;
+	struct HasFlowAxiom;
+	struct FlowContainsAxiom;
 	struct ObligationAxiom;
 	struct FulfillmentAxiom;
 	struct PastPredicate;
@@ -41,7 +41,8 @@ namespace plankton {
 		virtual void visit(const OwnershipAxiom& formula) = 0;
 		virtual void visit(const LogicallyContainedAxiom& formula) = 0;
 		virtual void visit(const KeysetContainsAxiom& formula) = 0;
-		virtual void visit(const FlowAxiom& formula) = 0;
+		virtual void visit(const HasFlowAxiom& formula) = 0;
+		virtual void visit(const FlowContainsAxiom& formula) = 0;
 		virtual void visit(const ObligationAxiom& formula) = 0;
 		virtual void visit(const FulfillmentAxiom& formula) = 0;
 		virtual void visit(const PastPredicate& formula) = 0;
@@ -58,7 +59,8 @@ namespace plankton {
 		virtual void visit(OwnershipAxiom& formula) = 0;
 		virtual void visit(LogicallyContainedAxiom& formula) = 0;
 		virtual void visit(KeysetContainsAxiom& formula) = 0;
-		virtual void visit(FlowAxiom& formula) = 0;
+		virtual void visit(HasFlowAxiom& formula) = 0;
+		virtual void visit(FlowContainsAxiom& formula) = 0;
 		virtual void visit(ObligationAxiom& formula) = 0;
 		virtual void visit(FulfillmentAxiom& formula) = 0;
 		virtual void visit(PastPredicate& formula) = 0;
@@ -154,11 +156,20 @@ namespace plankton {
 		ACCEPT_FORMULA_VISITOR
 	};
 
-	struct FlowAxiom : public Axiom { // TODO: change to 'HasFlowAxiom' and 'FlowContainsAxiom'?
+	struct HasFlowAxiom : public Axiom {
 		std::unique_ptr<cola::Expression> expr;
-		FlowValue flow;
 
-		FlowAxiom(std::unique_ptr<cola::Expression> expr, FlowValue flow);
+		HasFlowAxiom(std::unique_ptr<cola::Expression> expr);
+		ACCEPT_FORMULA_VISITOR
+	};
+
+	struct FlowContainsAxiom : public Axiom {
+		std::unique_ptr<cola::Expression> expr;
+		// value = intervale [low_value, high_value]
+		std::unique_ptr<cola::Expression> low_value;
+		std::unique_ptr<cola::Expression> high_value;
+
+		FlowContainsAxiom(std::unique_ptr<cola::Expression> expr, std::unique_ptr<cola::Expression> low_value, std::unique_ptr<cola::Expression> high_value);
 		ACCEPT_FORMULA_VISITOR
 	};
 
@@ -230,17 +241,6 @@ namespace plankton {
 	};
 
 	//
-	// Annotation
-	//
-
-	struct NodeInvariant {
-		const cola::Program& source;
-
-		NodeInvariant(const cola::Program& source);
-		std::unique_ptr<ConjunctionFormula> instantiate(const cola::VariableDeclaration& var) const;
-	};
-
-	//
 	// More Visitors
 	//
 
@@ -253,7 +253,8 @@ namespace plankton {
 		virtual void visit(const OwnershipAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const OwnershipAxiom&"); }
 		virtual void visit(const LogicallyContainedAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const LogicallyContainedAxiom&"); }
 		virtual void visit(const KeysetContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const KeysetContainsAxiom&"); }
-		virtual void visit(const FlowAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const FlowAxiom&"); }
+		virtual void visit(const HasFlowAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const HasFlowAxiom&"); }
+		virtual void visit(const FlowContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const FlowContainsAxiom&"); }
 		virtual void visit(const ObligationAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const ObligationAxiom&"); }
 		virtual void visit(const FulfillmentAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const FulfillmentAxiom&"); }
 		virtual void visit(const PastPredicate& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const PastPredicate&"); }
@@ -270,7 +271,8 @@ namespace plankton {
 		virtual void visit(OwnershipAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(OwnershipAxiom&"); }
 		virtual void visit(LogicallyContainedAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(LogicallyContainedAxiom&"); }
 		virtual void visit(KeysetContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(KeysetContainsAxiom&"); }
-		virtual void visit(FlowAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(FlowAxiom&"); }
+		virtual void visit(HasFlowAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(HasFlowAxiom&"); }
+		virtual void visit(FlowContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(FlowContainsAxiom&"); }
 		virtual void visit(ObligationAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(ObligationAxiom&"); }
 		virtual void visit(FulfillmentAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(FulfillmentAxiom&"); }
 		virtual void visit(PastPredicate& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(PastPredicate&"); }
@@ -334,7 +336,8 @@ namespace plankton {
 		void visit(const OwnershipAxiom& formula) override { enter(formula); exit(formula); }
 		void visit(const LogicallyContainedAxiom& formula) override { enter(formula); exit(formula); }
 		void visit(const KeysetContainsAxiom& formula) override { enter(formula); exit(formula); }
-		void visit(const FlowAxiom& formula) override { enter(formula); exit(formula); }
+		void visit(const HasFlowAxiom& formula) override { enter(formula); exit(formula); }
+		void visit(const FlowContainsAxiom& formula) override { enter(formula); exit(formula); }
 		void visit(const ObligationAxiom& formula) override { enter(formula); exit(formula); }
 		void visit(const FulfillmentAxiom& formula) override { enter(formula); exit(formula); }
 
@@ -347,7 +350,8 @@ namespace plankton {
 		virtual void enter(const OwnershipAxiom& formula) = 0;
 		virtual void enter(const LogicallyContainedAxiom& formula) = 0;
 		virtual void enter(const KeysetContainsAxiom& formula) = 0;
-		virtual void enter(const FlowAxiom& formula) = 0;
+		virtual void enter(const HasFlowAxiom& formula) = 0;
+		virtual void enter(const FlowContainsAxiom& formula) = 0;
 		virtual void enter(const ObligationAxiom& formula) = 0;
 		virtual void enter(const FulfillmentAxiom& formula) = 0;
 		virtual void enter(const PastPredicate& formula) = 0;
@@ -362,7 +366,8 @@ namespace plankton {
 		virtual void exit(const OwnershipAxiom& formula) = 0;
 		virtual void exit(const LogicallyContainedAxiom& formula) = 0;
 		virtual void exit(const KeysetContainsAxiom& formula) = 0;
-		virtual void exit(const FlowAxiom& formula) = 0;
+		virtual void exit(const HasFlowAxiom& formula) = 0;
+		virtual void exit(const FlowContainsAxiom& formula) = 0;
 		virtual void exit(const ObligationAxiom& formula) = 0;
 		virtual void exit(const FulfillmentAxiom& formula) = 0;
 		virtual void exit(const PastPredicate& formula) = 0;
@@ -379,7 +384,8 @@ namespace plankton {
 		virtual void enter(const OwnershipAxiom& /*formula*/) override {}
 		virtual void enter(const LogicallyContainedAxiom& /*formula*/) override {}
 		virtual void enter(const KeysetContainsAxiom& /*formula*/) override {}
-		virtual void enter(const FlowAxiom& /*formula*/) override {}
+		virtual void enter(const HasFlowAxiom& /*formula*/) override {}
+		virtual void enter(const FlowContainsAxiom& /*formula*/) override {}
 		virtual void enter(const ObligationAxiom& /*formula*/) override {}
 		virtual void enter(const FulfillmentAxiom& /*formula*/) override {}
 		virtual void enter(const PastPredicate& /*formula*/) override {}
@@ -394,7 +400,8 @@ namespace plankton {
 		virtual void exit(const OwnershipAxiom& /*formula*/) override {}
 		virtual void exit(const LogicallyContainedAxiom& /*formula*/) override {}
 		virtual void exit(const KeysetContainsAxiom& /*formula*/) override {}
-		virtual void exit(const FlowAxiom& /*formula*/) override {}
+		virtual void exit(const HasFlowAxiom& /*formula*/) override {}
+		virtual void exit(const FlowContainsAxiom& /*formula*/) override {}
 		virtual void exit(const ObligationAxiom& /*formula*/) override {}
 		virtual void exit(const FulfillmentAxiom& /*formula*/) override {}
 		virtual void exit(const PastPredicate& /*formula*/) override {}
@@ -454,7 +461,8 @@ namespace plankton {
 		void visit(OwnershipAxiom& formula) override { enter(formula); exit(formula); }
 		void visit(LogicallyContainedAxiom& formula) override { enter(formula); exit(formula); }
 		void visit(KeysetContainsAxiom& formula) override { enter(formula); exit(formula); }
-		void visit(FlowAxiom& formula) override { enter(formula); exit(formula); }
+		void visit(HasFlowAxiom& formula) override { enter(formula); exit(formula); }
+		void visit(FlowContainsAxiom& formula) override { enter(formula); exit(formula); }
 		void visit(ObligationAxiom& formula) override { enter(formula); exit(formula); }
 		void visit(FulfillmentAxiom& formula) override { enter(formula); exit(formula); }
 
@@ -467,7 +475,8 @@ namespace plankton {
 		virtual void enter(OwnershipAxiom& formula) = 0;
 		virtual void enter(LogicallyContainedAxiom& formula) = 0;
 		virtual void enter(KeysetContainsAxiom& formula) = 0;
-		virtual void enter(FlowAxiom& formula) = 0;
+		virtual void enter(HasFlowAxiom& formula) = 0;
+		virtual void enter(FlowContainsAxiom& formula) = 0;
 		virtual void enter(ObligationAxiom& formula) = 0;
 		virtual void enter(FulfillmentAxiom& formula) = 0;
 		virtual void enter(PastPredicate& formula) = 0;
@@ -482,7 +491,8 @@ namespace plankton {
 		virtual void exit(OwnershipAxiom& formula) = 0;
 		virtual void exit(LogicallyContainedAxiom& formula) = 0;
 		virtual void exit(KeysetContainsAxiom& formula) = 0;
-		virtual void exit(FlowAxiom& formula) = 0;
+		virtual void exit(HasFlowAxiom& formula) = 0;
+		virtual void exit(FlowContainsAxiom& formula) = 0;
 		virtual void exit(ObligationAxiom& formula) = 0;
 		virtual void exit(FulfillmentAxiom& formula) = 0;
 		virtual void exit(PastPredicate& formula) = 0;
@@ -499,7 +509,8 @@ namespace plankton {
 		virtual void enter(OwnershipAxiom& /*formula*/) override {}
 		virtual void enter(LogicallyContainedAxiom& /*formula*/) override {}
 		virtual void enter(KeysetContainsAxiom& /*formula*/) override {}
-		virtual void enter(FlowAxiom& /*formula*/) override {}
+		virtual void enter(HasFlowAxiom& /*formula*/) override {}
+		virtual void enter(FlowContainsAxiom& /*formula*/) override {}
 		virtual void enter(ObligationAxiom& /*formula*/) override {}
 		virtual void enter(FulfillmentAxiom& /*formula*/) override {}
 		virtual void enter(PastPredicate& /*formula*/) override {}
@@ -514,7 +525,8 @@ namespace plankton {
 		virtual void exit(OwnershipAxiom& /*formula*/) override {}
 		virtual void exit(LogicallyContainedAxiom& /*formula*/) override {}
 		virtual void exit(KeysetContainsAxiom& /*formula*/) override {}
-		virtual void exit(FlowAxiom& /*formula*/) override {}
+		virtual void exit(HasFlowAxiom& /*formula*/) override {}
+		virtual void exit(FlowContainsAxiom& /*formula*/) override {}
 		virtual void exit(ObligationAxiom& /*formula*/) override {}
 		virtual void exit(FulfillmentAxiom& /*formula*/) override {}
 		virtual void exit(PastPredicate& /*formula*/) override {}

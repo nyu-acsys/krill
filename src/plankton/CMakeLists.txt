@@ -22,11 +22,11 @@ set(SOURCES
 	util/copy.cpp
 	util/equal.cpp
 	util/flatten.cpp
-	util/instantiate.cpp
 	util/print.cpp
 	util/replace.cpp
 	util/solving.cpp
 	verify.cpp
+	verify_config.cpp
 	verify_interference.cpp
 	post.cpp
 )

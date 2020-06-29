@@ -136,7 +136,7 @@ void Verifier::apply_interference() {
 
 bool Verifier::is_interference_free(const ConjunctionFormula& formula){
 	for (const auto& effect : interference) {
-		if (!plankton::post_maintains_formula(*effect->precondition, formula, *effect->command, *theProgram)) {
+		if (!plankton::post_maintains_formula(*effect->precondition, formula, *effect->command)) {
 			return false;
 		}
 	}

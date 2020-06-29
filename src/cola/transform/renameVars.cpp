@@ -24,11 +24,6 @@ struct NameClashResolver : public BaseNonConstVisitor {
 		names.insert(node.name);
 	}
 
-	void visit(Property& node) {
-		for (auto& decl : node.vars) {
-			decl->name = "@" + decl->name;
-		}
-	}
 	void visit(Function& node) {
 		for (auto& decl : node.args) {
 			decl->accept(*this);
@@ -54,9 +49,6 @@ struct NameClashResolver : public BaseNonConstVisitor {
 				names = names_copy;
 				func->accept(*this);
 			}
-		}
-		if (node.logically_contains) {
-			node.logically_contains->accept(*this);
 		}
 	}
 

@@ -195,9 +195,17 @@ struct LogicSyntacticEqualityChecker : public LogicVisitor {
 		});
 	}
 
-	void visit(const FlowAxiom& formula) override {
+	void visit(const HasFlowAxiom& formula) override {
 		handle(formula, [](const auto& formula, const auto& other){
-			return plankton::syntactically_equal(*formula.expr, *other.expr) && is_flow_equal(formula.flow, other.flow);
+			return plankton::syntactically_equal(*formula.expr, *other.expr);
+		});
+	}
+
+	void visit(const FlowContainsAxiom& formula) override {
+		handle(formula, [](const auto& formula, const auto& other){
+			return plankton::syntactically_equal(*formula.expr, *other.expr)
+			    && plankton::syntactically_equal(*formula.low_value, *other.low_value)
+			    && plankton::syntactically_equal(*formula.high_value, *other.high_value);
 		});
 	}
 

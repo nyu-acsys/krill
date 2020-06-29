@@ -31,43 +31,38 @@ bool syntactically_contains(const C& container, const S& search) {
 	return false;
 }
 
-std::deque<const SimpleFormula*> quick_discharge(const std::deque<const SimpleFormula*>& premises, std::deque<const SimpleFormula*> conclusions) {
-	if (premises.empty()) {
-		return conclusions;
-	}
-	for (const SimpleFormula*& formula : conclusions) {
-		if (syntactically_contains(premises, *formula)) {
-			// TODO important: does this work?
-			formula = conclusions.back();
-			conclusions.back() = nullptr;
+bool quick_discharge(const std::deque<const SimpleFormula*>& premises, std::deque<const SimpleFormula*>& conclusions) {
+	if (premises.empty()) return conclusions.empty();
+	bool result = true;
+	for (auto it = conclusions.begin(); it != conclusions.end(); ++it) {
+		if (syntactically_contains(premises, **it)) {
+			*it = nullptr;
+		} else {
+			result = false;
 		}
-		// TODO: add more heuristics
 	}
-	while (!conclusions.empty() && conclusions.back() == nullptr) {
-		conclusions.pop_back();
-	}
-	return conclusions;
+	return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-
 struct EncodingInfo {
 	z3::context context;
 	z3::solver solver;
-	z3::sort ptr_sort;
-	z3::sort data_sort;
-	z3::sort sel_sort;
-	z3::expr null_ptr;
-	z3::expr min_val;
-	z3::expr max_val;
-	z3::func_decl heap;
+	z3::sort ptr_sort, data_sort, sel_sort;
+	z3::expr null_ptr, min_val, max_val;
+	z3::func_decl heap, flow, keyset, dskeys;
+
 	std::map<const VariableDeclaration*, z3::expr> var2expr;
 	std::map<std::string, z3::expr> special2expr;
 	std::map<std::pair<const Type*, std::string>, z3::expr> field2expr;
+	
 	int selector_count = 0;
+	int temporary_count = 0;
+
+	void initialize_solving_rules();
 
 	EncodingInfo() :
 		solver(context),
@@ -77,14 +72,16 @@ struct EncodingInfo {
 		null_ptr(context.constant("_NULL_", ptr_sort)), 
 		min_val(context.constant("_MIN_", data_sort)),
 		max_val(context.constant("_MAX_", data_sort)),
-		heap(context.function("$MEM", ptr_sort, sel_sort, ptr_sort)) // heap: <address> x <selector> -> <address>
+		heap(context.function("$MEM", ptr_sort, sel_sort, ptr_sort)), // free function: <address> x <selector> -> <address> + <data> + <bool>
+		flow(context.function("$MEM", ptr_sort, sel_sort, ptr_sort)), // free function: <address> x <data> -> <bool>
+		keyset(context.function("$MEM", ptr_sort, sel_sort, ptr_sort)), // free function: <data> -> <address>
+		dskeys(context.function("$MEM", ptr_sort, sel_sort, ptr_sort)) // free function: <data> -> <bool>
 	{
 		// TODO: currently null_ptr/min_val/max_valu are just some symbols that are not bound to a value
 		// TODO: ptr_sort and data_sort should not be comparable??
-		// TODO: heap function?
 	}
 
-	z3::sort get_sort(Sort sort) {
+	inline z3::sort get_sort(Sort sort) {
 		switch (sort) {
 			case Sort::PTR: return ptr_sort;
 			case Sort::DATA: return data_sort;
@@ -126,9 +123,18 @@ struct EncodingInfo {
 		});
 	}
 
-	z3::expr mk_deref(z3::expr expr, const Type& exprType, std::string fieldname) {
-		return heap(expr, get_sel(exprType, fieldname));
+	z3::expr get_tmp(Sort sort) {
+		std::string varname = "tmp$";
+		switch(sort) {
+			case Sort::PTR: varname += "ptr"; break;
+			case Sort::DATA: varname += "data"; break;
+			case Sort::BOOL: varname += "bool"; break;
+			case Sort::VOID: varname += "void"; break;
+		}
+		varname += std::to_string(temporary_count++);
+		return context.constant(varname.c_str(), get_sort(sort));
 	}
+
 
 	z3::expr mk_nullptr() {
 		return null_ptr;
@@ -145,6 +151,7 @@ struct EncodingInfo {
 	z3::expr mk_bool_val(bool value) {
 		return context.bool_val(value);
 	}
+
 
 	template<typename T>
 	z3::expr_vector mk_vector(T parts) {
@@ -171,11 +178,12 @@ struct EncodingInfo {
 		return z3::mk_or(mk_vector(parts));
 	}
 
+
 	bool is_unsat() {
 		auto result = solver.check();
 		switch (result) {
 			case z3::unknown:
-				if (plankton::config.z3_handle_unknown_result) return false;
+				if (plankton::config->z3_handle_unknown_result) return false;
 				throw SolvingError("SMT solving failed: Z3 was unable to prove SAT/UNSAT, returned 'UNKNOWN'. Cannot recover.");
 			case z3::sat:
 				return false;
@@ -186,8 +194,10 @@ struct EncodingInfo {
 
 	bool is_unsat(z3::expr expr) {
 		solver.push();
+		// std::cout << "Adding to solver " << &solver << ": " << expr << std::endl;
 		solver.add(expr);
 		auto result = is_unsat();
+		// std::cout << "is_unsat=" << (result ? "true" : "false") << std::endl;
 		solver.pop();
 		return result;
 	}
@@ -261,7 +271,9 @@ struct Encoder : public BaseVisitor, public BaseLogicVisitor {
 	}
 
 	void visit(const Dereference& node) override {
-		result = info.mk_deref(encode(*node.expr), node.expr->type(), node.fieldname);
+		auto expr = encode(*node.expr);
+		auto selector = info.get_sel(node.expr->type(), node.fieldname);
+		result = info.heap(expr, selector);
 	}
 
 
@@ -312,16 +324,21 @@ struct Encoder : public BaseVisitor, public BaseLogicVisitor {
 		}
 	}
 
-	void visit(const LogicallyContainedAxiom& /*formula*/) override {
+	void visit(const LogicallyContainedAxiom& formula) override {
+		result = (info.dskeys(encode(*formula.expr)) == info.mk_bool_val(true));
 		throw std::logic_error("not yet implemented: Encoder::visit(const LogicallyContainedAxiom&)");
 	}
 
-	void visit(const KeysetContainsAxiom& /*formula*/) override {
-		throw std::logic_error("not yet implemented: Encoder::visit(const KeysetContainsAxiom&)");
+	void visit(const KeysetContainsAxiom& formula) override {
+		result = (info.keyset(encode(*formula.value)) == encode(*formula.node));
 	}
 
-	void visit(const FlowAxiom& /*formula*/) override {
-		throw std::logic_error("not yet implemented: Encoder::visit(const FlowAxiom&)");
+	void visit(const HasFlowAxiom& /*formula*/) override {
+		throw std::logic_error("not yet implemented: Encoder::visit(const HasFlowAxiom&)");
+	}
+
+	void visit(const FlowContainsAxiom& /*formula*/) override {
+		throw std::logic_error("not yet implemented: Encoder::visit(const FlowContainsAxiom&)");
 	}
 
 	void visit(const ObligationAxiom& formula) override {
@@ -334,12 +351,74 @@ struct Encoder : public BaseVisitor, public BaseLogicVisitor {
 
 };
 
+z3::expr is_in_outflow(z3::expr /*node*/, z3::expr /*key*/) {
+	// returns an expression indicating whether 'key' is in the outflow of 'node' (via any selector)'
+	throw std::logic_error("not yet implemented: get_node_contains_key_predicate()");
+}
+
+z3::expr is_in_outflow_via_selector(z3::expr /*node*/, z3::expr /*key*/, const Type& /*nodeType*/, std::string /*fieldname*/) {
+	// returns an expression indicating whether 'key' is in the outflow of 'node' sent via selector 'fieldname'
+	throw std::logic_error("not yet implemented: get_outflow_predicate_selector()");
+}
+
+z3::expr is_in_node_keys(z3::expr /*node*/, z3::expr /*key*/) {
+	// returns an expression indicatin whether 'key' is stored/contained in 'node'
+	throw std::logic_error("not yet implemented: is_in_node_keys()");
+}
+
+void EncodingInfo::initialize_solving_rules() {
+	// enable 'model based quantifier instantiation'
+	// see: https://github.com/Z3Prover/z3/blob/master/examples/c%2B%2B/example.cpp#L366
+	z3::params params(context);
+	params.set("mbqi", true);
+	solver.set(params);
+
+	// temporary variables to quantify over
+	auto n = get_tmp(Sort::PTR);
+	auto o = get_tmp(Sort::PTR);
+	auto k = get_tmp(Sort::DATA);
+
+	// rule for flow
+	for (auto [type, field] : plankton::config->get_flow_transmitting_selectors()) {
+		auto selector = get_sel(type, field);
+		solver.add(z3::forall(n, k, z3::implies(
+			(z3::exists(o, (
+				(heap(o, selector) == n) && is_in_outflow_via_selector(o, k, type, field)
+			))),
+			(flow(n,k) == mk_bool_val(true))
+		)));
+	}
+
+	// rule for keyset
+	solver.add(z3::forall(n, k,
+		((flow(n, k) == mk_bool_val(true)) && (!is_in_outflow(n, k)))
+		== // iff
+		(keyset(k) == n)
+	));
+
+	// rule for dskeys
+	solver.add(z3::forall(k,
+		(z3::exists(n,
+			((keyset(k) == n) && is_in_node_keys(n, k))
+		))
+		== // iff
+		(dskeys(k) == mk_bool_val(true))
+	));
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 std::deque<z3::expr> encode(EncodingInfo& info, const std::deque<const SimpleFormula*>& conjuncts, bool is_premise) {
 	std::deque<z3::expr> result;
 	Encoder encoder(info, is_premise);
 	for (const SimpleFormula* conjunct : conjuncts) {
-		conjunct->accept(encoder);
-		result.push_back(is_premise ? encoder.result : !encoder.result);
+		if (conjunct) {
+			conjunct->accept(encoder);
+			result.push_back(is_premise ? encoder.result : !encoder.result);	
+		}
 	}
 	return result;
 }
@@ -347,7 +426,7 @@ std::deque<z3::expr> encode(EncodingInfo& info, const std::deque<const SimpleFor
 bool check_conclusions_semantically(EncodingInfo& info, const std::deque<const SimpleFormula*>& raw_conclusions) {
 	auto conclusions = encode(info, raw_conclusions, false);
 
-	if (plankton::config.implies_holistic_check) {
+	if (plankton::config->implies_holistic_check) {
 		auto big_conclusion = info.mk_or(std::move(conclusions));
 		return info.is_unsat(big_conclusion);
 
@@ -364,6 +443,7 @@ bool check_conclusions_semantically(EncodingInfo& info, const std::deque<const S
 
 std::deque<const SimpleFormula*> collect_conjuncts(const Formula& formula) {
 	// TODO: preprocess/simplify/normalize (remove double negations, move negations to lowest level, ...)?
+	// TODO: avoid casts
 	std::deque<const SimpleFormula*> result;
 
 	if (const SimpleFormula* form = dynamic_cast<const SimpleFormula*>(&formula)) {
@@ -380,7 +460,7 @@ std::deque<const SimpleFormula*> collect_conjuncts(const Formula& formula) {
 		}
 
 	} else {
-		throw SolvingError("Unsupported formula type for solving: '" + std::string(typeid(Formula).name()) + "'.");
+		throw SolvingError("Unsupported formula type for solving: unexpected subtype of 'Formula'.");
 	}
 
 	return result;
@@ -405,6 +485,7 @@ struct ImpStore {
 
 		} else {
 			for (auto z3expr : premises) {
+				// std::cout << "Adding to solver " << &info.solver << ": " << z3expr << std::endl;
 				info.solver.add(z3expr);
 			}
 		}
@@ -437,11 +518,13 @@ struct ImpStore {
 };
 
 bool check_implication(ImpStore& store, const Formula& implied) {
+	auto conclusions = collect_conjuncts(implied);
+
 	// do a quick check
-	auto conclusions = quick_discharge(store.raw_premises, collect_conjuncts(implied));
+	bool discharged = quick_discharge(store.raw_premises, conclusions);
 
 	// everything implies true
-	if (conclusions.empty()) return true;
+	if (discharged) return true;
 
 	// thoroughly check implication
 	return check_conclusions_semantically(store.info, std::move(conclusions));
@@ -463,9 +546,7 @@ bool check_implication(const Formula& formula, const Formula& implied) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-
-
-bool plankton::implies(const Formula& formula, const Formula& implied) {
+bool chk_implies(const Formula& formula, const Formula& implied) {
 	// std::cout << "################# CHECK IMPLIES #################" << std::endl;
 	// plankton::print(formula, std::cout);
 	// std::cout << std::endl << " ====> " << std::endl;
@@ -473,31 +554,71 @@ bool plankton::implies(const Formula& formula, const Formula& implied) {
 	// std::cout << std::endl;
 
 	auto result = check_implication(formula, implied);
-	// std::cout << " ~~> holds implication: " << (result ? "yes" : "no") << std::endl << std::endl;
+	// std::cout << std::endl << "||| chk_implies: " << (result ? "yes" : "no") << std::endl;
+	// std::cout << "  - "; plankton::print(formula, std::cout); std::cout << std::endl;
+	// std::cout << "  - "; plankton::print(implied, std::cout); std::cout << std::endl;
 	return result;
 }
 
-bool plankton::implies_nonnull(const Formula& formula, const cola::Expression& expr) {
-	// TODO: find more efficient implementation that avoids copying expr
-	ExpressionAxiom nonnull(std::make_unique<BinaryExpression>(BinaryExpression::Operator::NEQ, cola::copy(expr), std::make_unique<NullValue>()));
-	return plankton::implies(formula, nonnull);
+bool plankton::implies(const ConjunctionFormula& formula, const ConjunctionFormula& implied) {
+	return chk_implies(formula, implied);
 }
 
-bool plankton::implies(const Formula& formula, const Expression& implied) {
+bool plankton::implies(const ConjunctionFormula& formula, const SimpleFormula& implied) {
+	return chk_implies(formula, implied);
+}
+
+bool plankton::implies(const SimpleFormula& formula, const ConjunctionFormula& implied) {
+	return chk_implies(formula, implied);
+}
+
+bool plankton::implies(const SimpleFormula& formula, const SimpleFormula& implied) {
+	return chk_implies(formula, implied);
+}
+
+bool chk_implies_nonnull(const Formula& formula, const cola::Expression& expr) {
+	// TODO: find more efficient implementation that avoids copying expr
+	ExpressionAxiom nonnull(std::make_unique<BinaryExpression>(BinaryExpression::Operator::NEQ, cola::copy(expr), std::make_unique<NullValue>()));
+	return chk_implies(formula, nonnull);
+}
+
+bool plankton::implies_nonnull(const ConjunctionFormula& formula, const cola::Expression& expr) {
+	return chk_implies_nonnull(formula, expr);
+}
+
+bool plankton::implies_nonnull(const SimpleFormula& formula, const cola::Expression& expr) {
+	return chk_implies_nonnull(formula, expr);
+}
+
+bool chk_implies(const Formula& formula, const Expression& implied) {
 	// TODO: find more efficient implementation that avoids copying expr
 	ExpressionAxiom axiom(cola::copy(implied));
-	return plankton::implies(formula, axiom);
+	return chk_implies(formula, axiom);
+}
+
+bool plankton::implies(const ConjunctionFormula& formula, const Expression& implied) {
+	return chk_implies(formula, implied);
+}
+
+bool plankton::implies(const SimpleFormula& formula, const Expression& implied) {
+	return chk_implies(formula, implied);
 }
 
 struct IterSolver final : IterativeImplicationSolver {
 	ImpStore store;
 	IterSolver(const Formula& premise) : store(premise) {}
-	bool implies(const Formula& implied) override { return check_implication(store, implied); }
+	bool implies(const ConjunctionFormula& implied) override { return check_implication(store, implied); }
+	bool implies(const SimpleFormula& implied) override { return check_implication(store, implied); }
 };
 
-std::unique_ptr<IterativeImplicationSolver> plankton::make_solver_from_premise(const Formula& premise) {
+std::unique_ptr<IterativeImplicationSolver> plankton::make_solver_from_premise(const ConjunctionFormula& premise) {
 	return std::make_unique<IterSolver>(premise);
 }
+
+std::unique_ptr<IterativeImplicationSolver> plankton::make_solver_from_premise(const SimpleFormula& premise) {
+	return std::make_unique<IterSolver>(premise);
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -618,29 +739,31 @@ std::unique_ptr<ConjunctionFormula> unify_now(const std::vector<std::unique_ptr<
 }
 
 std::unique_ptr<Annotation> plankton::unify(std::vector<std::unique_ptr<Annotation>> annotations) {
-	std::cout << "################# UNIFY #################" << std::endl;
-	for (const auto& annotation : annotations) {
-		plankton::print(*annotation, std::cout);
-		std::cout << std::endl;
-	}
-	std::cout << std::endl;
 
+	std::cout << "≈≈≈ unify " << annotations.size() << std::endl;
+	// std::cout << "################# UNIFY #################" << std::endl;
+	// for (const auto& annotation : annotations) {
+	// 	plankton::print(*annotation, std::cout);
+	// 	std::cout << std::endl;
+	// }
+	// std::cout << std::endl;
+
+	if (annotations.size() == 0) return Annotation::make_true();
+	if (annotations.size() == 1) return std::move(annotations.at(0));
 	auto result = std::make_unique<Annotation>(unify_now(annotations), unify_time(annotations));
 
-	std::cout << "################# UNIFY RESULT #################" << std::endl;
-	plankton::print(*result, std::cout);
-	std::cout << std::endl;
+	// std::cout << "################# UNIFY RESULT #################" << std::endl;
+	// plankton::print(*result, std::cout);
+	// std::cout << std::endl;
 	return result;
 }
 
-bool annotation_implies(const Annotation& premise, const Annotation& conclusion) {
-	if (!plankton::implies(*premise.now, *conclusion.now)) return false;
-	for (const auto& pred : conclusion.time) {
-		if (!annotation_implies_time(premise, *pred)) return false;
+bool plankton::implies(const Annotation& annotation, const Annotation& implied) {
+	if (!plankton::implies(*annotation.now, *implied.now)) {
+		return false;
+	}
+	for (const auto& pred : implied.time) {
+		if (!annotation_implies_time(annotation, *pred)) return false;
 	}
 	return true;
-}
-
-bool plankton::is_equal(const Annotation& annotation, const Annotation& other) {
-	return annotation_implies(annotation, other) && annotation_implies(other, annotation);
 }

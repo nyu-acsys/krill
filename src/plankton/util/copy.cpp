@@ -46,8 +46,12 @@ std::unique_ptr<KeysetContainsAxiom> plankton::copy(const KeysetContainsAxiom& f
 	return std::make_unique<KeysetContainsAxiom>(cola::copy(*formula.node), cola::copy(*formula.value));
 }
 
-std::unique_ptr<FlowAxiom> plankton::copy(const FlowAxiom& formula) {
-	return std::make_unique<FlowAxiom>(cola::copy(*formula.expr), formula.flow);
+std::unique_ptr<HasFlowAxiom> plankton::copy(const HasFlowAxiom& formula) {
+	return std::make_unique<HasFlowAxiom>(cola::copy(*formula.expr));
+}
+
+std::unique_ptr<FlowContainsAxiom> plankton::copy(const FlowContainsAxiom& formula) {
+	return std::make_unique<FlowContainsAxiom>(cola::copy(*formula.expr), cola::copy(*formula.low_value), cola::copy(*formula.high_value));
 }
 
 std::unique_ptr<ObligationAxiom> plankton::copy(const ObligationAxiom& formula) {
@@ -104,7 +108,8 @@ struct CopyVisitor : public LogicVisitor {
 	void visit(const OwnershipAxiom& formula) { set_result(plankton::copy(formula)); }
 	void visit(const LogicallyContainedAxiom& formula) { set_result(plankton::copy(formula)); }
 	void visit(const KeysetContainsAxiom& formula) { set_result(plankton::copy(formula)); }
-	void visit(const FlowAxiom& formula) { set_result(plankton::copy(formula)); }
+	void visit(const HasFlowAxiom& formula) { set_result(plankton::copy(formula)); }
+	void visit(const FlowContainsAxiom& formula) { set_result(plankton::copy(formula)); }
 	void visit(const ObligationAxiom& formula) { set_result(plankton::copy(formula)); }
 	void visit(const FulfillmentAxiom& formula) { set_result(plankton::copy(formula)); }
 

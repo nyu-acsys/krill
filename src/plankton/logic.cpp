@@ -51,9 +51,18 @@ KeysetContainsAxiom::KeysetContainsAxiom(std::unique_ptr<Expression> node_, std:
 	assert(value->sort() == Sort::DATA);
 }
 
-FlowAxiom::FlowAxiom(std::unique_ptr<Expression> expr_, FlowValue flow_) : expr(std::move(expr_)), flow(flow_) {
+HasFlowAxiom::HasFlowAxiom(std::unique_ptr<Expression> expr_) : expr(std::move(expr_)) {
 	assert(expr);
 	assert(expr->sort() == Sort::PTR);
+}
+
+FlowContainsAxiom::FlowContainsAxiom(std::unique_ptr<cola::Expression> expr_, std::unique_ptr<cola::Expression> low_value_, std::unique_ptr<cola::Expression> high_value_) : expr(std::move(expr_)), low_value(std::move(low_value_)), high_value(std::move(high_value_)) {
+	assert(expr);
+	assert(expr->sort() == Sort::PTR);
+	assert(low_value);
+	assert(low_value->sort() == Sort::DATA);
+	assert(high_value);
+	assert(high_value->sort() == Sort::DATA);
 }
 
 SpecificationAxiom::SpecificationAxiom(Kind kind_, std::unique_ptr<cola::VariableExpression> key_) : kind(kind_), key(std::move(key_)) {
@@ -102,76 +111,4 @@ std::unique_ptr<Annotation> Annotation::make_true() {
 
 std::unique_ptr<Annotation> Annotation::make_false() {
 	return mk_bool(false);
-}
-
-
-struct DereferenceChecker : BaseVisitor {
-	bool result = true;
-	bool inside_deref = false;
-
-	static bool is_node_local(const Expression& expr) {
-		DereferenceChecker visitor;
-		expr.accept(visitor);
-		return visitor.result;
-	}
-
-	void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
-	void visit(const NullValue& /*node*/) override { /* do nothing */ }
-	void visit(const EmptyValue& /*node*/) override { /* do nothing */ }
-	void visit(const MaxValue& /*node*/) override { /* do nothing */ }
-	void visit(const MinValue& /*node*/) override { /* do nothing */ }
-	void visit(const NDetValue& /*node*/) override { /* do nothing */ }
-	void visit(const VariableExpression& /*node*/) override { /* do nothing */ }
-
-	void visit(const NegatedExpression& node) override {
-		if (result) node.expr->accept(*this);
-	}
-	void visit(const BinaryExpression& node) override {
-		if (result) node.lhs->accept(*this);
-		if (result) node.rhs->accept(*this);
-	}
-	void visit(const Dereference& node) override {
-		if (inside_deref) result = false;
-		if (!result) return;
-		inside_deref = true;
-		node.expr->accept(*this);
-		inside_deref = false;
-	}
-};
-
-NodeInvariant::NodeInvariant(const cola::Program& source_) : source(source_) {
-	for (const auto& inv : source.invariants) {
-		if (inv->vars.size() > 1) {
-			throw std::logic_error("Cannot construct node invariant from given program, invariant '" + inv->name + "' is malformed: expected at most one variable but got " + std::to_string(inv->vars.size()) + ".");
-		}
-		if (inv->vars.size() == 1 && inv->vars.at(0)->type.sort != Sort::PTR) {
-			throw std::logic_error("Cannot construct node invariant from given program, invariant '" + inv->name + "' is malformed: variable is not of pointer sort.");
-		}
-		if (!DereferenceChecker::is_node_local(*inv->expr)) {
-			throw std::logic_error("Cannot construct node invariant from given program, invariant '" + inv->name + "' is not node-local.");
-		}
-	}
-}
-
-std::unique_ptr<ConjunctionFormula> NodeInvariant::instantiate(const VariableDeclaration& var) const {
-	// TODO: should we really store them? With instantiations for dummy/temp variables this map might grow unnecessary large
-	static std::map<const VariableDeclaration*, std::unique_ptr<ConjunctionFormula>> var2res;
-
-	auto find = var2res.find(&var);
-	if (find != var2res.end()) {
-		return plankton::copy(*find->second);
-	}
-
-	auto result = std::make_unique<ConjunctionFormula>();
-	for (const auto& property : source.invariants) {
-		std::unique_ptr<AxiomConjunctionFormula> inv;
-		if (property->vars.size() == 0) {
-			inv = plankton::instantiate_property_flatten(*property, { });
-		} else {
-			inv = plankton::instantiate_property_flatten(*property, { var });
-		}
-		result = plankton::conjoin(std::move(result), std::move(inv));
-	}
-	var2res[&var] = plankton::copy(*result);
-	return result;
 }

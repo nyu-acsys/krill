@@ -83,8 +83,14 @@ struct ExpressionReplacer : public BaseNonConstVisitor, public DefaultNonConstLi
 		handle_expression(formula.value);
 	}
 
-	void enter(FlowAxiom& formula) override {
+	void enter(HasFlowAxiom& formula) override {
 		handle_expression(formula.expr);
+	}
+
+	void enter(FlowContainsAxiom& formula) override {
+		handle_expression(formula.expr);
+		handle_expression(formula.low_value);
+		handle_expression(formula.high_value);
 	}
 
 	void enter(ObligationAxiom& formula) override {
