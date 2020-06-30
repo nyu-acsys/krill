@@ -48,13 +48,35 @@ bool quick_discharge(const std::deque<const SimpleFormula*>& premises, std::dequ
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct EncodingInfo {
-	z3::context context;
-	z3::solver solver;
-	z3::sort ptr_sort, data_sort, sel_sort;
-	z3::expr null_ptr, min_val, max_val;
-	z3::func_decl heap, flow, keyset, dskeys;
+struct EncodingInfo;
 
+struct FlowBuilder {
+	z3::expr_vector keyset_vars, dskeys_vars;
+	z3::expr keyset_blueprint, dskeys_blueprint;
+
+	FlowBuilder(EncodingInfo& info);
+
+	z3::expr mk_keyset(z3::expr node, z3::expr key) {
+		z3::expr_vector replacement = keyset_vars;
+		replacement[0] = node;
+		replacement[1] = key;
+		return keyset_blueprint.substitute(keyset_vars, replacement);
+	}
+
+	z3::expr mk_dskeys(z3::expr key) {
+		z3::expr_vector replacement = dskeys_vars;
+		replacement[0] = key;
+		return dskeys_blueprint.substitute(dskeys_vars, replacement);
+	}
+
+	private:
+		FlowBuilder(std::tuple<z3::expr_vector, z3::expr_vector, z3::expr, z3::expr> tuple)
+		 : keyset_vars(std::get<0>(tuple)), dskeys_vars(std::get<1>(tuple)),
+		   keyset_blueprint(std::get<2>(tuple)), dskeys_blueprint(std::get<3>(tuple))
+		{}
+};
+
+struct EncodingInfo { // TODO: make EncodingInfo a singleton to avoid reconstructing it over and over again?
 	std::map<const VariableDeclaration*, z3::expr> var2expr;
 	std::map<std::string, z3::expr> special2expr;
 	std::map<std::pair<const Type*, std::string>, z3::expr> field2expr;
@@ -62,7 +84,12 @@ struct EncodingInfo {
 	int selector_count = 0;
 	int temporary_count = 0;
 
-	void initialize_solving_rules(); // TODO: make EncodingInfo a singleton to avoid reconstructing it over and over again?
+	z3::context context;
+	z3::solver solver;
+	z3::sort ptr_sort, data_sort, sel_sort;
+	z3::expr null_ptr, min_val, max_val;
+	z3::func_decl heap, flow;
+	FlowBuilder flow_builder;
 
 	EncodingInfo() :
 		solver(context),
@@ -73,13 +100,11 @@ struct EncodingInfo {
 		min_val(context.constant("_MIN_", data_sort)),
 		max_val(context.constant("_MAX_", data_sort)),
 		heap(context.function("$MEM", ptr_sort, sel_sort, ptr_sort)),            // free function: <address> x <selector> -> <address> + <data> + <bool>
-		flow(context.function("$FL", ptr_sort, data_sort, context.bool_sort())), // free function: <address> x <data> -> <bool>
-		keyset(context.function("$KS", data_sort, ptr_sort)),                    // free function: <data> -> <address>
-		dskeys(context.function("$DS", data_sort, context.bool_sort()))          // free function: <data> -> <bool>
+		flow(context.function("$FLOW", ptr_sort, data_sort, context.bool_sort())), // free function: <address> x <data> -> <bool>
+		flow_builder(*this)
 	{
 		// TODO: currently null_ptr/min_val/max_valu are just some symbols that are not bound to a value
 		// TODO: ptr_sort and data_sort should not be comparable??
-		initialize_solving_rules();
 	}
 
 	inline z3::sort get_sort(Sort sort) {
@@ -101,10 +126,11 @@ struct EncodingInfo {
 		return insert.first->second;
 	}
 
-	z3::expr get_var(const VariableDeclaration& decl, std::string prefix="var") {
+	z3::expr get_var(const VariableDeclaration& decl, bool quantified=false) {
 		// TODO: ensure that no two z3 constants with the same name are created (or rely on z3 doing the renaming?)
-		return get_or_create(var2expr, &decl, [this,&decl,&prefix](){
-			std::string name = prefix + "$" + decl.name;
+		return get_or_create(var2expr, &decl, [this,&decl,quantified](){
+			std::string name = quantified ? "qv" : "var";
+			name += "$" + decl.name;
 			return context.constant(name.c_str(), get_sort(decl.type.sort));
 		});
 	}
@@ -334,11 +360,12 @@ struct Encoder : public BaseVisitor, public BaseLogicVisitor {
 	}
 
 	void visit(const LogicallyContainedAxiom& formula) override {
-		result = (info.dskeys(encode(*formula.expr)) == info.mk_bool_val(true));
+		result = info.flow_builder.mk_dskeys(encode(*formula.expr));
 	}
 
 	void visit(const KeysetContainsAxiom& formula) override {
-		result = (info.keyset(encode(*formula.value)) == encode(*formula.node));
+		// result = (info.keyset(encode(*formula.value)) == encode(*formula.node));
+		result = info.flow_builder.mk_keyset(encode(*formula.node), encode(*formula.value));
 	}
 
 	void visit(const HasFlowAxiom& formula) override {
@@ -363,21 +390,22 @@ struct Encoder : public BaseVisitor, public BaseLogicVisitor {
 
 };
 
-using encoded_outflow = std::vector<std::tuple<z3::expr, z3::expr, z3::expr, z3::expr, z3::expr>>;
 
-inline encoded_outflow get_encoded_outflow(EncodingInfo& info) {
+using encoded_outflow_t = std::vector<std::tuple<z3::expr, z3::expr, z3::expr, z3::expr, z3::expr>>;
+
+inline encoded_outflow_t get_encoded_outflow(EncodingInfo& info) {
 	Encoder encoder(info, false);
-	encoded_outflow result;
+	encoded_outflow_t result;
 
 	for (const auto& out : plankton::config->get_outflow_info()) {
 		VariableDeclaration param_node("ptr", out.contains_key.vars.at(0)->type, false);
 		VariableDeclaration param_key("key", out.contains_key.vars.at(1)->type, false);
 		VariableDeclaration dummy_successor("suc", *out.node_type.field(out.fieldname), false);
 
-		auto node = info.get_var(param_node, "qv");
-		auto key = info.get_var(param_key, "qv");
+		auto node = info.get_var(param_node, true);
+		auto key = info.get_var(param_key, true);
 		auto selector = info.get_sel(out.node_type, out.fieldname);
-		auto successor = info.get_var(dummy_successor, "qv");
+		auto successor = info.get_var(dummy_successor, true);
 		auto key_flows_out = encoder.encode(*out.contains_key.instantiate(param_node, param_key));
 
 		result.push_back(std::make_tuple(node, key, selector, successor, key_flows_out));
@@ -385,8 +413,7 @@ inline encoded_outflow get_encoded_outflow(EncodingInfo& info) {
 
 	return result;
 }
-
-inline void add_rules_flow(EncodingInfo& info, const encoded_outflow& encoding) {
+inline void add_rules_flow(EncodingInfo& info, const encoded_outflow_t& encoding) {
 	for (auto [node, key, selector, successor, key_flows_out] : encoding) {
 		// forall node,key,successor:  node->{selector}=successor /\ key in flow(node) /\ key_flows_out(node, key) ==> key in flow(successor)
 		info.solver.add(z3::forall(node, key, successor, z3::implies(
@@ -396,16 +423,8 @@ inline void add_rules_flow(EncodingInfo& info, const encoded_outflow& encoding) 
 	}
 }
 
-inline z3::expr make_working_iff(z3::expr premise, z3::expr conclusion) {
-	// return premise == conclusion;
-
-	// NOTE: returning an "if and only if" formula seems to break Z3.
-	//       Hence, we use only an implication that---preferably the more important direction.
-	return z3::implies(premise, conclusion);
-}
-
-inline void add_rules_keyset(EncodingInfo& info, const encoded_outflow& encoding) {
-	// forall node,key:  key in flow(node) /\ key notin outflow(node) ==> key in keyset(node)
+inline std::pair<z3::expr_vector, z3::expr> make_rules_keyset(EncodingInfo& info, const encoded_outflow_t& encoding) {
+	// key in keyset(node)  :<==>  key in flow(node) /\ key notin outflow(node)
 	auto node = std::get<0>(encoding.at(0));
 	auto key = std::get<1>(encoding.at(0));
 
@@ -417,52 +436,56 @@ inline void add_rules_keyset(EncodingInfo& info, const encoded_outflow& encoding
 		conjuncts.push_back(!(renamed));
 	}
 
-	info.solver.add(z3::forall(node, key, make_working_iff(
-		(info.flow(node, key) == info.mk_bool_val(true)) && info.mk_and(conjuncts),
-		info.keyset(key) == node
-	)));
+	auto blueprint = (info.flow(node, key) == info.mk_bool_val(true)) && info.mk_and(conjuncts);
+	z3::expr_vector vars(info.context);
+	vars.push_back(node);
+	vars.push_back(key);
 
-	// info.solver.add(z3::forall(node, key, z3::implies(
-	// 	info.keyset(key) == node,
-	// 	info.flow(node, key) == info.mk_bool_val(true)
+	return std::make_pair(vars, blueprint);
+}
+
+inline std::pair<z3::expr_vector, z3::expr> make_rules_contents(EncodingInfo& info) {
+	// key in DS content  :<==>  (exists node:  key in keyset(node) /\ contains(node, key))
+	throw std::logic_error("not yet implemented: make_rules_contents");
+
+	// Encoder encoder(info, false);
+	// auto& property = plankton::config->get_logically_contains_key();
+
+	// VariableDeclaration param_node("ptr", property.vars.at(0)->type, false);
+	// VariableDeclaration param_key("key", property.vars.at(1)->type, false);
+
+	// auto node = info.get_var(param_node, true);
+	// auto key = info.get_var(param_key, true);
+	// auto contains = encoder.encode(*property.instantiate(param_node, param_key));
+
+	// info.solver.add(z3::forall(key, make_working_iff(
+	// 	z3::exists(node, ((info.keyset(key) == node) && contains)),
+	// 	(info.dskeys(key) == info.mk_bool_val(true))
 	// )));
 }
 
-inline void add_rules_contents(EncodingInfo& info) {
-	// forall key:  (exists node:  key in keyset(node) /\ contains(node, key)) ==> key in DS content
-	Encoder encoder(info, false);
-	auto& property = plankton::config->get_logically_contains_key();
-
-	VariableDeclaration param_node("ptr", property.vars.at(0)->type, false);
-	VariableDeclaration param_key("key", property.vars.at(1)->type, false);
-
-	auto node = info.get_var(param_node, "qv");
-	auto key = info.get_var(param_key, "qv");
-	auto contains = encoder.encode(*property.instantiate(param_node, param_key));
-
-	info.solver.add(z3::forall(key, make_working_iff(
-		z3::exists(node, ((info.keyset(key) == node) && contains)),
-		(info.dskeys(key) == info.mk_bool_val(true))
-	)));
-}
-
-void EncodingInfo::initialize_solving_rules() {
+std::tuple<z3::expr_vector, z3::expr_vector, z3::expr, z3::expr> make_flow_builder_initializer(EncodingInfo& info) {
 	// enable 'model based quantifier instantiation'
 	// see: https://github.com/Z3Prover/z3/blob/master/examples/c%2B%2B/example.cpp#L366
-	z3::params params(context);
+	z3::params params(info.context);
 	params.set("mbqi", true);
-	solver.set(params);
+	info.solver.set(params);
 
 	// encode
-	auto outflow_encoding = get_encoded_outflow(*this);
-	if (outflow_encoding.size() == 0) {
-		throw SolvingError("No flow found.");
-	}
+	auto encoded_outflow = get_encoded_outflow(info);
 
-	// add rules
-	add_rules_flow(*this, outflow_encoding);
-	add_rules_keyset(*this, outflow_encoding);
-	add_rules_contents(*this);
+	// add flow rules to solver
+	add_rules_flow(info, encoded_outflow);
+
+	// get keyset and content rules as blueprint
+	auto [ks_vars, ks_expr] = make_rules_keyset(info, encoded_outflow);
+	auto [ds_vars, ds_expr] = make_rules_contents(info);
+
+	// done
+	return std::make_tuple(ks_vars, ds_vars, ks_expr, ds_expr);
+}
+
+FlowBuilder::FlowBuilder(EncodingInfo& info) : FlowBuilder(make_flow_builder_initializer(info)) {
 }
 
 
