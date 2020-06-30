@@ -531,10 +531,10 @@ Expression* AstBuilder::mk_binary_expr(CoLaParser::ExpressionContext* lhsContext
 	bool is_equality = op == BinaryExpression::Operator::EQ || op == BinaryExpression::Operator::NEQ;
 
 	auto lhs = lhsContext->accept(this).as<Expression*>();
-	auto lhsType = lhs->type();
+	auto& lhsType = lhs->type();
 
 	auto rhs = rhsContext->accept(this).as<Expression*>();
-	auto rhsType = rhs->type();
+	auto& rhsType = rhs->type();
 
 	if (!comparable(lhsType, rhsType)) {
 		throw ParseError("Type error: cannot compare types '" + lhsType.name + "' and " + rhsType.name + "' using operator '" + toString(op) + "'.");
@@ -762,8 +762,8 @@ antlrcpp::Any AstBuilder::visitCmdCall(cola::CoLaParser::CmdCallContext* context
 
 	// check argument types
 	for (std::size_t i = 0; i < args.size(); i++) {
-		auto type_is = args.at(i)->type();
-		auto type_required = function.args.at(i)->type;
+		auto& type_is = args.at(i)->type();
+		auto& type_required = function.args.at(i)->type;
 		if (!assignable(type_required, type_is)) {
 			std::stringstream msg;
 			msg << "Function '" << function.name << "' requires '" << type_required.name << "' for " << i << "th argument, '";
@@ -788,8 +788,8 @@ antlrcpp::Any AstBuilder::visitCmdCall(cola::CoLaParser::CmdCallContext* context
 	}
 
 	for (std::size_t i = 0; i < lhs.size(); ++i) {
-		auto type_is = function.returns.at(i)->type;
-		auto type_required = lhs.at(i).get().type;
+		auto& type_is = function.returns.at(i)->type;
+		auto& type_required = lhs.at(i).get().type;
 		if (!assignable(type_required, type_is)) {
 			std::stringstream msg;
 			msg << "Function '" << function.name << "' returns '" << type_required.name << "' as the " << i << "th value, '";
@@ -833,8 +833,8 @@ static Statement* make_return(const Function& func, std::vector<std::unique_ptr<
 		throw ParseError("Number of return values does not match return type in function '" + func.name + "'.");
 	}
 	for (std::size_t i = 0; i < expressions.size(); ++i) {
-		auto type_is = expressions.at(i)->type();
-		auto type_required = func.returns.at(i)->type;
+		auto& type_is = expressions.at(i)->type();
+		auto& type_required = func.returns.at(i)->type;
 		if (!assignable(type_required, type_is)) {
 			std::stringstream msg;
 			msg << "The " << i << "th return value of '" << func.name << "' must be of type " << type_required.name << "', ";
@@ -873,9 +873,9 @@ static CompareAndSwap* make_cas(std::vector<std::unique_ptr<Expression>> dst, st
 
 	auto result = new CompareAndSwap();
 	for (std::size_t i = 0; i < dst.size(); ++i) {
-		auto typeDst = dst.at(i)->type();
-		auto typeCmp = cmp.at(i)->type();
-		auto typeScr = src.at(i)->type();
+		auto& typeDst = dst.at(i)->type();
+		auto& typeCmp = cmp.at(i)->type();
+		auto& typeScr = src.at(i)->type();
 		if (!comparable(typeDst, typeCmp)) {
 			throw ParseError("Type error: cannot compare types '" + typeDst.name + "' and " + typeCmp.name + "' in " + std::to_string(i) + "th argument of CAS.");
 		}

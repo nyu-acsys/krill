@@ -52,10 +52,15 @@ namespace plankton {
 		  */
 		struct OutFlowInfo {
 			const cola::Type& node_type;
-			const std::string fieldname;
-			const Predicate& contains_key;
+			std::string fieldname;
+			Predicate contains_key;
 
-			OutFlowInfo(const cola::Type& node, const std::string field, const Predicate& prop);
+			OutFlowInfo(const cola::Type& node_type_, std::string fieldname_, Predicate contains_key_)
+				: node_type(node_type_), fieldname(std::move(fieldname_)), contains_key(std::move(contains_key_))
+			{
+				assert(&node_type == &contains_key.vars.at(0)->type);
+				assert(node_type.field(fieldname));
+			}
 		};
 
 		/** Returns how flow is propagated.

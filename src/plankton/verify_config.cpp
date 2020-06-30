@@ -145,13 +145,9 @@ std::string extract_flow_field(const Type& nodeType) {
 }
 
 std::vector<OutFlowInfo> extract_outflow_info(const Program& program, const Type& nodeType, std::string fieldname) {
-	// auto pred = make_dummy_outflow(program, nodeType);
-	// std::cout << pred.vars.at(0)->type.name << std::endl;
-	// std::cout << nodeType.name << std::endl;
-	// std::cout << &pred.vars.at(0)->type.name << std::endl;
-	// std::cout << &nodeType.name << std::endl;
-	// OutFlowInfo(nodeType, fieldname, pred);
-	return { OutFlowInfo(nodeType, fieldname, make_dummy_outflow(program, nodeType)) };
+	std::vector<OutFlowInfo> result;
+	result.emplace_back(nodeType, fieldname, make_dummy_outflow(program, nodeType));
+	return result;
 
 	// TODO: check node locality
 	throw std::logic_error("not yet implemented: extract_outflow_predicate");
@@ -187,9 +183,9 @@ Invariant extract_invariant(const Program& program, const Type& nodeType) {
 struct VerificationConfig final : public PlanktonConfig {
 	const Type& node_type;
 	const std::string flow_field;
-	std::vector<OutFlowInfo> outflow_info;
-	Predicate contains;
-	Invariant invariant;
+	const std::vector<OutFlowInfo> outflow_info;
+	const Predicate contains;
+	const Invariant invariant;
 
 	VerificationConfig(const Program& program)
 		: node_type(extract_node_type(program)),

@@ -72,10 +72,10 @@ struct EncodingInfo {
 		null_ptr(context.constant("_NULL_", ptr_sort)), 
 		min_val(context.constant("_MIN_", data_sort)),
 		max_val(context.constant("_MAX_", data_sort)),
-		heap(context.function("$MEM", ptr_sort, sel_sort, ptr_sort)), // free function: <address> x <selector> -> <address> + <data> + <bool>
-		flow(context.function("$MEM", ptr_sort, sel_sort, ptr_sort)), // free function: <address> x <data> -> <bool>
-		keyset(context.function("$MEM", ptr_sort, sel_sort, ptr_sort)), // free function: <data> -> <address>
-		dskeys(context.function("$MEM", ptr_sort, sel_sort, ptr_sort)) // free function: <data> -> <bool>
+		heap(context.function("$MEM", ptr_sort, sel_sort, ptr_sort)),            // free function: <address> x <selector> -> <address> + <data> + <bool>
+		flow(context.function("$FL", ptr_sort, data_sort, context.bool_sort())), // free function: <address> x <data> -> <bool>
+		keyset(context.function("$KS", data_sort, ptr_sort)),                    // free function: <data> -> <address>
+		dskeys(context.function("$DS", data_sort, context.bool_sort()))          // free function: <data> -> <bool>
 	{
 		// TODO: currently null_ptr/min_val/max_valu are just some symbols that are not bound to a value
 		// TODO: ptr_sort and data_sort should not be comparable??
@@ -101,14 +101,16 @@ struct EncodingInfo {
 		return insert.first->second;
 	}
 
-	z3::expr get_var(const VariableDeclaration& decl) {
-		return get_or_create(var2expr, &decl, [this,&decl](){
-			std::string name = "var$" + decl.name;
+	z3::expr get_var(const VariableDeclaration& decl, std::string prefix="var") {
+		// TODO: ensure that no two z3 constants with the same name are created (or rely on z3 doing the renaming?)
+		return get_or_create(var2expr, &decl, [this,&decl,&prefix](){
+			std::string name = prefix + "$" + decl.name;
 			return context.constant(name.c_str(), get_sort(decl.type.sort));
 		});
 	}
 
 	z3::expr get_var(std::string name, Sort sort=Sort::BOOL) {
+		// TODO: ensure that no two z3 constants with the same name are created (or rely on z3 doing the renaming?)
 		return get_or_create(special2expr, name, [this,&name,&sort](){
 			std::string varname = "sym$" + name;
 			return context.constant(varname.c_str(), get_sort(sort));
@@ -195,10 +197,8 @@ struct EncodingInfo {
 
 	bool is_unsat(z3::expr expr) {
 		solver.push();
-		// std::cout << "Adding to solver " << &solver << ": " << expr << std::endl;
 		solver.add(expr);
 		auto result = is_unsat();
-		// std::cout << "is_unsat=" << (result ? "true" : "false") << std::endl;
 		solver.pop();
 		return result;
 	}
@@ -370,14 +370,14 @@ inline encoded_outflow get_encoded_outflow(EncodingInfo& info) {
 	encoded_outflow result;
 
 	for (const auto& out : plankton::config->get_outflow_info()) {
-		VariableDeclaration param_node("q\%ptr", out.contains_key.vars.at(0)->type, false);
-		VariableDeclaration param_key("q\%key", out.contains_key.vars.at(1)->type, false);
-		VariableDeclaration dummy_successor("q\%key", *out.node_type.field(out.fieldname), false);
+		VariableDeclaration param_node("ptr", out.contains_key.vars.at(0)->type, false);
+		VariableDeclaration param_key("key", out.contains_key.vars.at(1)->type, false);
+		VariableDeclaration dummy_successor("suc", *out.node_type.field(out.fieldname), false);
 
-		auto node = info.get_var(param_node);
-		auto key = info.get_var(param_key);
+		auto node = info.get_var(param_node, "qv");
+		auto key = info.get_var(param_key, "qv");
 		auto selector = info.get_sel(out.node_type, out.fieldname);
-		auto successor = info.get_var(dummy_successor);
+		auto successor = info.get_var(dummy_successor, "qv");
 		auto key_flows_out = encoder.encode(*out.contains_key.instantiate(param_node, param_key));
 
 		result.push_back(std::make_tuple(node, key, selector, successor, key_flows_out));
@@ -396,6 +396,14 @@ inline void add_rules_flow(EncodingInfo& info, const encoded_outflow& encoding) 
 	}
 }
 
+inline z3::expr make_working_iff(z3::expr premise, z3::expr conclusion) {
+	// return premise == conclusion;
+
+	// NOTE: returning an "if and only if" formula seems to break Z3.
+	//       Hence, we use only an implication that---preferably the more important direction.
+	return z3::implies(premise, conclusion);
+}
+
 inline void add_rules_keyset(EncodingInfo& info, const encoded_outflow& encoding) {
 	// forall node,key:  key in flow(node) /\ key notin outflow(node) ==> key in keyset(node)
 	auto node = std::get<0>(encoding.at(0));
@@ -409,11 +417,15 @@ inline void add_rules_keyset(EncodingInfo& info, const encoded_outflow& encoding
 		conjuncts.push_back(!(renamed));
 	}
 
-	info.solver.add(z3::forall(node, key,
-		((info.flow(node, key) == info.mk_bool_val(true)) && info.mk_and(conjuncts))
-		== // <==>
-		(info.keyset(key) == node)
-	));
+	info.solver.add(z3::forall(node, key, make_working_iff(
+		(info.flow(node, key) == info.mk_bool_val(true)) && info.mk_and(conjuncts),
+		info.keyset(key) == node
+	)));
+
+	// info.solver.add(z3::forall(node, key, z3::implies(
+	// 	info.keyset(key) == node,
+	// 	info.flow(node, key) == info.mk_bool_val(true)
+	// )));
 }
 
 inline void add_rules_contents(EncodingInfo& info) {
@@ -421,18 +433,17 @@ inline void add_rules_contents(EncodingInfo& info) {
 	Encoder encoder(info, false);
 	auto& property = plankton::config->get_logically_contains_key();
 
-	VariableDeclaration param_node("q\%ptr", property.vars.at(0)->type, false);
-	VariableDeclaration param_key("q\%key", property.vars.at(1)->type, false);
+	VariableDeclaration param_node("ptr", property.vars.at(0)->type, false);
+	VariableDeclaration param_key("key", property.vars.at(1)->type, false);
 
-	auto node = info.get_var(param_node);
-	auto key = info.get_var(param_key);
+	auto node = info.get_var(param_node, "qv");
+	auto key = info.get_var(param_key, "qv");
 	auto contains = encoder.encode(*property.instantiate(param_node, param_key));
 
-	info.solver.add(z3::forall(key,
-		z3::exists(node, ((info.keyset(key) == node) && contains))
-		== // <==>
+	info.solver.add(z3::forall(key, make_working_iff(
+		z3::exists(node, ((info.keyset(key) == node) && contains)),
 		(info.dskeys(key) == info.mk_bool_val(true))
-	));
+	)));
 }
 
 void EncodingInfo::initialize_solving_rules() {
@@ -535,7 +546,6 @@ struct ImpStore {
 
 		} else {
 			for (auto z3expr : premises) {
-				// std::cout << "Adding to solver " << &info.solver << ": " << z3expr << std::endl;
 				info.solver.add(z3expr);
 			}
 		}
@@ -791,20 +801,20 @@ std::unique_ptr<ConjunctionFormula> unify_now(const std::vector<std::unique_ptr<
 std::unique_ptr<Annotation> plankton::unify(std::vector<std::unique_ptr<Annotation>> annotations) {
 
 	std::cout << "≈≈≈ unify " << annotations.size() << std::endl;
-	// std::cout << "################# UNIFY #################" << std::endl;
-	// for (const auto& annotation : annotations) {
-	// 	plankton::print(*annotation, std::cout);
-	// 	std::cout << std::endl;
-	// }
-	// std::cout << std::endl;
+	std::cout << "################# UNIFY #################" << std::endl;
+	for (const auto& annotation : annotations) {
+		plankton::print(*annotation, std::cout);
+		std::cout << std::endl;
+	}
+	std::cout << std::endl;
 
 	if (annotations.size() == 0) return Annotation::make_true();
 	if (annotations.size() == 1) return std::move(annotations.at(0));
 	auto result = std::make_unique<Annotation>(unify_now(annotations), unify_time(annotations));
 
-	// std::cout << "################# UNIFY RESULT #################" << std::endl;
-	// plankton::print(*result, std::cout);
-	// std::cout << std::endl;
+	std::cout << "################# UNIFY RESULT #################" << std::endl;
+	plankton::print(*result, std::cout);
+	std::cout << std::endl;
 	return result;
 }
 
