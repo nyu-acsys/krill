@@ -41,6 +41,7 @@ namespace cola {
 		std::string name;
 		Sort sort;
 		std::map<std::string, std::reference_wrapper<const Type>> fields;
+		// Type(const Type& other) = delete;
 		Type(std::string name_, Sort sort_) : name(name_), sort(sort_) {}
 		const Type* field(std::string name) const {
 			auto it = fields.find(name);

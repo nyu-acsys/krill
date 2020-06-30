@@ -45,20 +45,22 @@ namespace plankton {
 		virtual bool is_flow_unlinking_local(const cola::Type& nodeType, std::string fieldname) = 0;
 
 
-		/** Returns all pairs of types T and selectors S of T where S is a pointer selector that may cause
-		  * flow being transmitted to its successor.
-		  */
-		virtual const std::vector<std::pair<std::reference_wrapper<const cola::Type>, std::string>>& get_flow_transmitting_selectors() = 0;
-
-		/** Returns a predicate 'pred(n,k)' deciding whether or not key 'k' is in the outflow of node 'n' (via any selector),
+		/** Structure encoding the outflow of nodes of type 'node_type' via selector 'fieldname'.
+		  * The amount of flow sent out is dictated by the 'contains_key' predicate; the predicate takes the
+		  * form 'pred(n,k)' and decides whether or not key 'k' is in the outflow of node 'n' via 'fieldname',
 		  * assuming that 'k' is the flow of 'n'.
 		  */
-		virtual const Predicate& get_outflow_contains_key() = 0;
+		struct OutFlowInfo {
+			const cola::Type& node_type;
+			const std::string fieldname;
+			const Predicate& contains_key;
 
-		/** Returns a predicate 'pred(n,k)' deciding whether or not key 'k' is in the outflow of node 'n' via selector 'fieldname',
-		  * assuming that 'k' is the flow of 'n'. Requires the caller to provide the type of node 'n'.
+			OutFlowInfo(const cola::Type& node, const std::string field, const Predicate& prop);
+		};
+
+		/** Returns how flow is propagated.
 		  */
-		virtual const Predicate& get_outflow_contains_key(const cola::Type& nodeType, std::string fieldname) = 0;
+		virtual const std::vector<OutFlowInfo>& get_outflow_info() = 0;
 
 		/** Returns a predicate 'pred(n,k)' deciding whether or not key 'k' is logically contained in node 'n'.
 		  */
@@ -84,16 +86,8 @@ namespace plankton {
 			throw IncompleteConfigurationError("Flow unlinking locality not configured.");
 		}
 
-		virtual const std::vector<std::pair<std::reference_wrapper<const cola::Type>, std::string>>& get_flow_transmitting_selectors() {
+		virtual const std::vector<OutFlowInfo>& get_outflow_info() {
 			throw IncompleteConfigurationError("Flow transmitting selectors not configured.");
-		}
-
-		virtual const Predicate& get_outflow_contains_key() {
-			throw IncompleteConfigurationError("Outflow not configured.");
-		}
-
-		virtual const Predicate& get_outflow_contains_key(const cola::Type&, std::string) {
-			throw IncompleteConfigurationError("Outflow per selector not configured.");
 		}
 
 		virtual const Predicate& get_logically_contains_key() {

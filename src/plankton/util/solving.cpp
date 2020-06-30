@@ -62,7 +62,7 @@ struct EncodingInfo {
 	int selector_count = 0;
 	int temporary_count = 0;
 
-	void initialize_solving_rules();
+	void initialize_solving_rules(); // TODO: make EncodingInfo a singleton to avoid reconstructing it over and over again?
 
 	EncodingInfo() :
 		solver(context),
@@ -79,6 +79,7 @@ struct EncodingInfo {
 	{
 		// TODO: currently null_ptr/min_val/max_valu are just some symbols that are not bound to a value
 		// TODO: ptr_sort and data_sort should not be comparable??
+		initialize_solving_rules();
 	}
 
 	inline z3::sort get_sort(Sort sort) {
@@ -153,7 +154,7 @@ struct EncodingInfo {
 	}
 
 
-	template<typename T>
+	template<typename T = std::vector<z3::expr>>
 	z3::expr_vector mk_vector(T parts) {
 		z3::expr_vector vec(context);
 		for (auto z3expr : parts) {
@@ -315,30 +316,41 @@ struct Encoder : public BaseVisitor, public BaseLogicVisitor {
 		auto conclusion = encode(*formula.conclusion);
 		result = z3::implies(premise, conclusion);
 	}
+
+	z3::expr mk_has_flow(const Expression& node_expr) {
+		auto node = encode(node_expr);
+		auto key = info.get_tmp(Sort::DATA);
+		return z3::exists(key, info.flow(node, key) == info.mk_bool_val(true));
+	}
 	
 	void visit(const OwnershipAxiom& formula) override {
 		result = (info.get_var("OWNED_" + formula.expr->decl.name) == info.mk_bool_val(true));
 		if (enhance_encoding) {
-			// TODO: add "no alias" and "no flow" knowledge
+			result = result && !mk_has_flow(*formula.expr);
+			// TODO: add "no alias"
 			throw std::logic_error("not yet implemented: Encoder::visit(const OwnershipAxiom&)");
+
 		}
 	}
 
 	void visit(const LogicallyContainedAxiom& formula) override {
 		result = (info.dskeys(encode(*formula.expr)) == info.mk_bool_val(true));
-		throw std::logic_error("not yet implemented: Encoder::visit(const LogicallyContainedAxiom&)");
 	}
 
 	void visit(const KeysetContainsAxiom& formula) override {
 		result = (info.keyset(encode(*formula.value)) == encode(*formula.node));
 	}
 
-	void visit(const HasFlowAxiom& /*formula*/) override {
-		throw std::logic_error("not yet implemented: Encoder::visit(const HasFlowAxiom&)");
+	void visit(const HasFlowAxiom& formula) override {
+		result = mk_has_flow(*formula.expr);
 	}
 
-	void visit(const FlowContainsAxiom& /*formula*/) override {
-		throw std::logic_error("not yet implemented: Encoder::visit(const FlowContainsAxiom&)");
+	void visit(const FlowContainsAxiom& formula) override {
+		auto node = encode(*formula.expr);
+		auto key = info.get_tmp(Sort::DATA);
+		auto low = encode(*formula.low_value);
+		auto high = encode(*formula.high_value);
+		result = z3::forall(key, z3::implies((low <= key) && (key <= high), info.flow(node, key) == info.mk_bool_val(true)));
 	}
 
 	void visit(const ObligationAxiom& formula) override {
@@ -351,19 +363,76 @@ struct Encoder : public BaseVisitor, public BaseLogicVisitor {
 
 };
 
-z3::expr is_in_outflow(z3::expr /*node*/, z3::expr /*key*/) {
-	// returns an expression indicating whether 'key' is in the outflow of 'node' (via any selector)'
-	throw std::logic_error("not yet implemented: get_node_contains_key_predicate()");
+using encoded_outflow = std::vector<std::tuple<z3::expr, z3::expr, z3::expr, z3::expr, z3::expr>>;
+
+inline encoded_outflow get_encoded_outflow(EncodingInfo& info) {
+	Encoder encoder(info, false);
+	encoded_outflow result;
+
+	for (const auto& out : plankton::config->get_outflow_info()) {
+		VariableDeclaration param_node("q\%ptr", out.contains_key.vars.at(0)->type, false);
+		VariableDeclaration param_key("q\%key", out.contains_key.vars.at(1)->type, false);
+		VariableDeclaration dummy_successor("q\%key", *out.node_type.field(out.fieldname), false);
+
+		auto node = info.get_var(param_node);
+		auto key = info.get_var(param_key);
+		auto selector = info.get_sel(out.node_type, out.fieldname);
+		auto successor = info.get_var(dummy_successor);
+		auto key_flows_out = encoder.encode(*out.contains_key.instantiate(param_node, param_key));
+
+		result.push_back(std::make_tuple(node, key, selector, successor, key_flows_out));
+	}
+
+	return result;
 }
 
-z3::expr is_in_outflow_via_selector(z3::expr /*node*/, z3::expr /*key*/, const Type& /*nodeType*/, std::string /*fieldname*/) {
-	// returns an expression indicating whether 'key' is in the outflow of 'node' sent via selector 'fieldname'
-	throw std::logic_error("not yet implemented: get_outflow_predicate_selector()");
+inline void add_rules_flow(EncodingInfo& info, const encoded_outflow& encoding) {
+	for (auto [node, key, selector, successor, key_flows_out] : encoding) {
+		// forall node,key,successor:  node->{selector}=successor /\ key in flow(node) /\ key_flows_out(node, key) ==> key in flow(successor)
+		info.solver.add(z3::forall(node, key, successor, z3::implies(
+			((info.heap(node, selector) == successor) && (info.flow(node, key) == info.mk_bool_val(true)) && key_flows_out),
+			(info.flow(successor, key) == info.mk_bool_val(true))
+		)));
+	}
 }
 
-z3::expr is_in_node_keys(z3::expr /*node*/, z3::expr /*key*/) {
-	// returns an expression indicatin whether 'key' is stored/contained in 'node'
-	throw std::logic_error("not yet implemented: is_in_node_keys()");
+inline void add_rules_keyset(EncodingInfo& info, const encoded_outflow& encoding) {
+	// forall node,key:  key in flow(node) /\ key notin outflow(node) ==> key in keyset(node)
+	auto node = std::get<0>(encoding.at(0));
+	auto key = std::get<1>(encoding.at(0));
+
+	z3::expr_vector conjuncts(info.context);
+	for (auto elem : encoding) {
+		auto src = info.mk_vector({ std::get<0>(elem), std::get<1>(elem) });
+		auto dst = info.mk_vector({ node, key });
+		auto renamed = std::get<4>(elem).substitute(src, dst);
+		conjuncts.push_back(!(renamed));
+	}
+
+	info.solver.add(z3::forall(node, key,
+		((info.flow(node, key) == info.mk_bool_val(true)) && info.mk_and(conjuncts))
+		== // <==>
+		(info.keyset(key) == node)
+	));
+}
+
+inline void add_rules_contents(EncodingInfo& info) {
+	// forall key:  (exists node:  key in keyset(node) /\ contains(node, key)) ==> key in DS content
+	Encoder encoder(info, false);
+	auto& property = plankton::config->get_logically_contains_key();
+
+	VariableDeclaration param_node("q\%ptr", property.vars.at(0)->type, false);
+	VariableDeclaration param_key("q\%key", property.vars.at(1)->type, false);
+
+	auto node = info.get_var(param_node);
+	auto key = info.get_var(param_key);
+	auto contains = encoder.encode(*property.instantiate(param_node, param_key));
+
+	info.solver.add(z3::forall(key,
+		z3::exists(node, ((info.keyset(key) == node) && contains))
+		== // <==>
+		(info.dskeys(key) == info.mk_bool_val(true))
+	));
 }
 
 void EncodingInfo::initialize_solving_rules() {
@@ -373,37 +442,16 @@ void EncodingInfo::initialize_solving_rules() {
 	params.set("mbqi", true);
 	solver.set(params);
 
-	// temporary variables to quantify over
-	auto n = get_tmp(Sort::PTR);
-	auto o = get_tmp(Sort::PTR);
-	auto k = get_tmp(Sort::DATA);
-
-	// rule for flow
-	for (auto [type, field] : plankton::config->get_flow_transmitting_selectors()) {
-		auto selector = get_sel(type, field);
-		solver.add(z3::forall(n, k, z3::implies(
-			(z3::exists(o, (
-				(heap(o, selector) == n) && is_in_outflow_via_selector(o, k, type, field)
-			))),
-			(flow(n,k) == mk_bool_val(true))
-		)));
+	// encode
+	auto outflow_encoding = get_encoded_outflow(*this);
+	if (outflow_encoding.size() == 0) {
+		throw SolvingError("No flow found.");
 	}
 
-	// rule for keyset
-	solver.add(z3::forall(n, k,
-		((flow(n, k) == mk_bool_val(true)) && (!is_in_outflow(n, k)))
-		== // iff
-		(keyset(k) == n)
-	));
-
-	// rule for dskeys
-	solver.add(z3::forall(k,
-		(z3::exists(n,
-			((keyset(k) == n) && is_in_node_keys(n, k))
-		))
-		== // iff
-		(dskeys(k) == mk_bool_val(true))
-	));
+	// add rules
+	add_rules_flow(*this, outflow_encoding);
+	add_rules_keyset(*this, outflow_encoding);
+	add_rules_contents(*this);
 }
 
 
@@ -416,8 +464,10 @@ std::deque<z3::expr> encode(EncodingInfo& info, const std::deque<const SimpleFor
 	Encoder encoder(info, is_premise);
 	for (const SimpleFormula* conjunct : conjuncts) {
 		if (conjunct) {
-			conjunct->accept(encoder);
-			result.push_back(is_premise ? encoder.result : !encoder.result);	
+			// conjunct->accept(encoder);
+			// result.push_back(is_premise ? encoder.result : !encoder.result);
+			auto encoded = encoder.encode(*conjunct);
+			result.push_back(is_premise ? encoded : !encoded);
 		}
 	}
 	return result;
