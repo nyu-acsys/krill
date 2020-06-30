@@ -56,17 +56,17 @@ struct FlowBuilder {
 
 	FlowBuilder(EncodingInfo& info);
 
-	z3::expr mk_keyset(z3::expr node, z3::expr key) {
+	z3::expr mk_keyset(z3::expr node, z3::expr key) const {
 		z3::expr_vector replacement = keyset_vars;
 		replacement[0] = node;
 		replacement[1] = key;
-		return keyset_blueprint.substitute(keyset_vars, replacement);
+		return z3::expr(keyset_blueprint).substitute(keyset_vars, replacement);
 	}
 
-	z3::expr mk_dskeys(z3::expr key) {
+	z3::expr mk_dskeys(z3::expr key) const {
 		z3::expr_vector replacement = dskeys_vars;
 		replacement[0] = key;
-		return dskeys_blueprint.substitute(dskeys_vars, replacement);
+		return z3::expr(dskeys_blueprint).substitute(dskeys_vars, replacement);
 	}
 
 	private:
@@ -429,10 +429,10 @@ inline std::pair<z3::expr_vector, z3::expr> make_rules_keyset(EncodingInfo& info
 	auto key = std::get<1>(encoding.at(0));
 
 	z3::expr_vector conjuncts(info.context);
-	for (auto elem : encoding) {
+	for (const auto& elem : encoding) {
 		auto src = info.mk_vector({ std::get<0>(elem), std::get<1>(elem) });
 		auto dst = info.mk_vector({ node, key });
-		auto renamed = std::get<4>(elem).substitute(src, dst);
+		auto renamed = z3::expr(std::get<4>(elem)).substitute(src, dst);
 		conjuncts.push_back(!(renamed));
 	}
 
@@ -444,24 +444,28 @@ inline std::pair<z3::expr_vector, z3::expr> make_rules_keyset(EncodingInfo& info
 	return std::make_pair(vars, blueprint);
 }
 
-inline std::pair<z3::expr_vector, z3::expr> make_rules_contents(EncodingInfo& info) {
+inline std::pair<z3::expr_vector, z3::expr> make_rules_contents(EncodingInfo& info, const z3::expr_vector& ks_vars, const z3::expr& ks_expr) {
 	// key in DS content  :<==>  (exists node:  key in keyset(node) /\ contains(node, key))
-	throw std::logic_error("not yet implemented: make_rules_contents");
+	Encoder encoder(info, false);
+	auto& property = plankton::config->get_logically_contains_key();
 
-	// Encoder encoder(info, false);
-	// auto& property = plankton::config->get_logically_contains_key();
+	VariableDeclaration param_node("ptr", property.vars.at(0)->type, false);
+	VariableDeclaration param_key("key", property.vars.at(1)->type, false);
 
-	// VariableDeclaration param_node("ptr", property.vars.at(0)->type, false);
-	// VariableDeclaration param_key("key", property.vars.at(1)->type, false);
+	auto node = info.get_var(param_node, true);
+	auto key = info.get_var(param_key, true);
+	auto logicallycontains = encoder.encode(*property.instantiate(param_node, param_key));
 
-	// auto node = info.get_var(param_node, true);
-	// auto key = info.get_var(param_key, true);
-	// auto contains = encoder.encode(*property.instantiate(param_node, param_key));
+	z3::expr_vector replacement(info.context);
+	replacement.push_back(node);
+	replacement.push_back(key);
+	auto keysetcontains = z3::expr(ks_expr).substitute(ks_vars, replacement);
 
-	// info.solver.add(z3::forall(key, make_working_iff(
-	// 	z3::exists(node, ((info.keyset(key) == node) && contains)),
-	// 	(info.dskeys(key) == info.mk_bool_val(true))
-	// )));
+	auto blueprint = z3::exists(node, keysetcontains && logicallycontains);
+	z3::expr_vector vars(info.context);
+	vars.push_back(key);
+
+	return std::make_pair(vars, blueprint);
 }
 
 std::tuple<z3::expr_vector, z3::expr_vector, z3::expr, z3::expr> make_flow_builder_initializer(EncodingInfo& info) {
@@ -479,7 +483,7 @@ std::tuple<z3::expr_vector, z3::expr_vector, z3::expr, z3::expr> make_flow_build
 
 	// get keyset and content rules as blueprint
 	auto [ks_vars, ks_expr] = make_rules_keyset(info, encoded_outflow);
-	auto [ds_vars, ds_expr] = make_rules_contents(info);
+	auto [ds_vars, ds_expr] = make_rules_contents(info, ks_vars, ks_expr);
 
 	// done
 	return std::make_tuple(ks_vars, ds_vars, ks_expr, ds_expr);
