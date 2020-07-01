@@ -602,6 +602,7 @@ std::deque<std::unique_ptr<TimePredicate>> container_search_and_destroy_time(std
 
 std::unique_ptr<Annotation> search_and_destroy_and_inline_var(std::unique_ptr<Annotation> pre, const VariableExpression& lhs, const Expression& rhs) {
 	// destroy knowledge about lhs
+	assert(pre);
 	auto now = destroy_ownership_and_non_local_knowledge(std::move(pre->now), rhs);
 	now->conjuncts = container_search_and_destroy(std::move(now->conjuncts), lhs);
 	pre->time = container_search_and_destroy_time(std::move(pre->time), lhs);
@@ -659,10 +660,10 @@ struct DereferenceExtractor : public BaseVisitor, public DefaultListener {
 	using DefaultListener::enter;
 
 	std::string search_field;
-	std::deque<std::unique_ptr<Expression>> result;
+	std::deque<const Dereference*> result;
 	DereferenceExtractor(std::string search) : search_field(search) {}
 
-	static std::deque<std::unique_ptr<Expression>> extract(const Formula& formula, std::string fieldname) {
+	static std::deque<const Dereference*> extract(const Formula& formula, std::string fieldname) {
 		DereferenceExtractor visitor(fieldname);
 		formula.accept(visitor);
 		return std::move(visitor.result);
@@ -670,7 +671,9 @@ struct DereferenceExtractor : public BaseVisitor, public DefaultListener {
 
 	void visit(const Dereference& node) override {
 		node.expr->accept(*this);
-		result.push_back(cola::copy(node));
+		if (node.fieldname == search_field) {
+			result.push_back(&node);
+		}
 	}
 	void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
 	void visit(const NullValue& /*node*/) override { /* do nothing */ }
@@ -693,27 +696,19 @@ struct DereferenceExtractor : public BaseVisitor, public DefaultListener {
 };
 
 std::unique_ptr<ConjunctionFormula> search_and_destroy_derefs(std::unique_ptr<ConjunctionFormula> now, const Dereference& lhs) {
-	auto expr = std::make_unique<BinaryExpression>(
-		BinaryExpression::Operator::NEQ, std::make_unique<Dereference>(std::make_unique<NullValue>(), lhs.fieldname), cola::copy(lhs)
-	);
-	auto& uptr = expr->lhs;
-	auto inequality = std::make_unique<ExpressionAxiom>(std::move(expr));
-	
+	assert(now);
 
-	// find all dereferences that may be affected (are not guaranteed to be destroyed)
 	auto solver = plankton::make_solver_from_premise(*now);
-	auto dereferences = DereferenceExtractor::extract(*now, lhs.fieldname);
-	for (auto& deref : dereferences) {
-		uptr = std::move(deref);
-		deref.reset();
-		if (!solver->implies(*inequality)) {
-			deref = std::move(uptr);
-		}
-	}
+	auto is_affected = [&solver,&lhs](const Dereference& deref){
+		ExpressionAxiom derefed_neq_lhs(std::make_unique<BinaryExpression>( // deref.expr != lhs
+			BinaryExpression::Operator::NEQ, cola::copy(*deref.expr), cola::copy(lhs)
+		));
+		return !solver->implies(derefed_neq_lhs);
+	};
 
-	// delete knowlege about potentially affected dereferences
-	for (auto& deref : dereferences) {
-		if (deref) {
+	auto dereferences = DereferenceExtractor::extract(*now, lhs.fieldname);
+	for (auto deref : dereferences) {
+		if (is_affected(*deref)) {
 			now->conjuncts = container_search_and_destroy(std::move(now->conjuncts), *deref);
 		}
 	}
@@ -723,6 +718,7 @@ std::unique_ptr<ConjunctionFormula> search_and_destroy_derefs(std::unique_ptr<Co
 
 std::unique_ptr<Annotation> search_and_destroy_and_inline_deref(std::unique_ptr<Annotation> pre, const Dereference& lhs, const Expression& rhs) {
 	// destroy knowledge about lhs (do not modify TimePredicates)
+	assert(pre);
 	auto now = destroy_ownership_and_non_local_knowledge(std::move(pre->now), rhs);
 	now = search_and_destroy_derefs(std::move(now), lhs);
 	// do not modify 
@@ -1095,13 +1091,13 @@ std::unique_ptr<Annotation> handle_purity(std::unique_ptr<Annotation> pre, const
 
 std::unique_ptr<Annotation> post_full_assign_derefptr_varimmi(std::unique_ptr<Annotation> pre, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs, bool check_purity=true) {
 	auto post = handle_purity<true>(std::move(pre), cmd, lhs, lhsVar, rhs, check_purity);
-	post = search_and_destroy_and_inline_deref(std::move(pre), lhs, rhs);
+	post = search_and_destroy_and_inline_deref(std::move(post), lhs, rhs);
 	return post;
 }
 
 std::unique_ptr<Annotation> post_full_assign_derefdata_varimmi(std::unique_ptr<Annotation> pre, const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs, bool check_purity=true) {
 	auto post = handle_purity<false>(std::move(pre), cmd, lhs, lhsVar, rhs, check_purity);
-	post = search_and_destroy_and_inline_deref(std::move(pre), lhs, rhs);
+	post = search_and_destroy_and_inline_deref(std::move(post), lhs, rhs);
 	return post;
 }
 
