@@ -1368,6 +1368,9 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 	pre->time = container_search_and_destroy_time(std::move(pre->time), lhs);
 
 	// add new knowledge about lhs
+	now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>( // lhs != NULL
+		BinaryExpression::Operator::NEQ, cola::copy(lhs), std::make_unique<NullValue>()
+	)));
 	now->conjuncts.push_back( // owned(lhs)
 		std::make_unique<OwnershipAxiom>(std::make_unique<VariableExpression>(cmd.lhs))
 	);
