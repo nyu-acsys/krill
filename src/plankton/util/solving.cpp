@@ -621,6 +621,11 @@ bool check_implication(ImpStore& store, const Formula& implied) {
 	return check_conclusions_semantically(store.info, std::move(conclusions));
 }
 
+bool check_implication(ImpStore& store, const Expression& implied) {
+	ExpressionAxiom axiom(cola::copy(implied));
+	return check_implication(store, axiom);
+}
+
 bool check_implication_negated(ImpStore& store, const Formula& implied) {
 	// note: no quick check possible
 	auto conclusion = store.info.mk_and(encode(store.info, collect_conjuncts(implied), true));
@@ -700,6 +705,7 @@ struct IterSolver final : IterativeImplicationSolver {
 	IterSolver(const Formula& premise) : store(premise) {}
 	bool implies(const ConjunctionFormula& implied) override { return check_implication(store, implied); }
 	bool implies(const SimpleFormula& implied) override { return check_implication(store, implied); }
+	bool implies(const Expression& implied) override { return check_implication(store, implied); }
 };
 
 std::unique_ptr<IterativeImplicationSolver> plankton::make_solver_from_premise(const ConjunctionFormula& premise) {

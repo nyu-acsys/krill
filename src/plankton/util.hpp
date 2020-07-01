@@ -127,6 +127,7 @@ namespace plankton {
 		virtual ~IterativeImplicationSolver() = default;
 		virtual bool implies(const ConjunctionFormula& implied) = 0;
 		virtual bool implies(const SimpleFormula& implied) = 0;
+		virtual bool implies(const cola::Expression& implied) = 0;
 	};
 
 	std::unique_ptr<IterativeImplicationSolver> make_solver_from_premise(const ConjunctionFormula& premise);

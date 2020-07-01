@@ -660,10 +660,10 @@ struct DereferenceExtractor : public BaseVisitor, public DefaultListener {
 	using DefaultListener::enter;
 
 	std::string search_field;
-	std::deque<const Dereference*> result;
+	std::deque<Dereference> result;
 	DereferenceExtractor(std::string search) : search_field(search) {}
 
-	static std::deque<const Dereference*> extract(const Formula& formula, std::string fieldname) {
+	static std::deque<Dereference> extract(const Formula& formula, std::string fieldname) {
 		DereferenceExtractor visitor(fieldname);
 		formula.accept(visitor);
 		return std::move(visitor.result);
@@ -672,7 +672,7 @@ struct DereferenceExtractor : public BaseVisitor, public DefaultListener {
 	void visit(const Dereference& node) override {
 		node.expr->accept(*this);
 		if (node.fieldname == search_field) {
-			result.push_back(&node);
+			result.emplace_back(cola::copy(*node.expr), node.fieldname);
 		}
 	}
 	void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
@@ -698,18 +698,24 @@ struct DereferenceExtractor : public BaseVisitor, public DefaultListener {
 std::unique_ptr<ConjunctionFormula> search_and_destroy_derefs(std::unique_ptr<ConjunctionFormula> now, const Dereference& lhs) {
 	assert(now);
 
+	// check for whether or not a dereference is affected by an assignment to 'lhs'
 	auto solver = plankton::make_solver_from_premise(*now);
-	auto is_affected = [&solver,&lhs](const Dereference& deref){
-		ExpressionAxiom derefed_neq_lhs(std::make_unique<BinaryExpression>( // deref.expr != lhs
-			BinaryExpression::Operator::NEQ, cola::copy(*deref.expr), cola::copy(lhs)
-		));
-		return !solver->implies(derefed_neq_lhs);
+	auto is_affected = [&solver,&lhs](Dereference& deref){
+		// this lambda leaves deref untouched, however, temporary steals its 'expr' member field for efficiency reasons
+		BinaryExpression derefed_neq_lhs( // deref.expr != lhs
+			BinaryExpression::Operator::NEQ, std::move(deref.expr), cola::copy(lhs)
+		);
+		auto result = !solver->implies(derefed_neq_lhs);
+		deref.expr = std::move(derefed_neq_lhs.lhs);
+		return result;
 	};
 
+	// go through over all dereferences in 'now'
+	// NOTE: operate on copies to avoid use-after-free errors in case of nested expressions
 	auto dereferences = DereferenceExtractor::extract(*now, lhs.fieldname);
-	for (auto deref : dereferences) {
-		if (is_affected(*deref)) {
-			now->conjuncts = container_search_and_destroy(std::move(now->conjuncts), *deref);
+	for (auto& deref : dereferences) {
+		if (is_affected(deref)) {
+			now->conjuncts = container_search_and_destroy(std::move(now->conjuncts), deref);
 		}
 	}
 
