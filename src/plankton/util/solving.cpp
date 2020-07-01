@@ -350,13 +350,18 @@ struct Encoder : public BaseVisitor, public BaseLogicVisitor {
 	}
 	
 	void visit(const OwnershipAxiom& formula) override {
-		result = (info.get_var("OWNED_" + formula.expr->decl.name) == info.mk_bool_val(true));
-		if (enhance_encoding) {
-			result = result && !mk_has_flow(*formula.expr);
-			// TODO: add "no alias"
-			throw std::logic_error("not yet implemented: Encoder::visit(const OwnershipAxiom&)");
+		z3::expr_vector conjuncts(info.context);
 
+		// add special variable indicating ownership
+		conjuncts.push_back(info.get_var("OWNED_" + formula.expr->decl.name) == info.mk_bool_val(true));
+		
+		// add more knowledge about ownership that may help reasoning
+		if (enhance_encoding) {
+			conjuncts.push_back(!mk_has_flow(*formula.expr)); // owned ==> no flow
+			// TODO: add "no alias"
 		}
+
+		result = info.mk_and(conjuncts);
 	}
 
 	void visit(const LogicallyContainedAxiom& formula) override {
@@ -364,7 +369,6 @@ struct Encoder : public BaseVisitor, public BaseLogicVisitor {
 	}
 
 	void visit(const KeysetContainsAxiom& formula) override {
-		// result = (info.keyset(encode(*formula.value)) == encode(*formula.node));
 		result = info.flow_builder.mk_keyset(encode(*formula.node), encode(*formula.value));
 	}
 

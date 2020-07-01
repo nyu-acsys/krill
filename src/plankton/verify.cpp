@@ -133,35 +133,20 @@ void Verifier::check_invariant_stability(const Malloc& command) {
 	throw_invariant_violation_if(!plankton::post_maintains_invariant(*current_annotation, command), command, " by newly allocated node");
 }
 
-struct VariableCollector : BaseVisitor {
-	std::set<const VariableDeclaration*> vars;
-
-	void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
-	void visit(const NullValue& /*node*/) override { /* do nothing */ }
-	void visit(const EmptyValue& /*node*/) override { /* do nothing */ }
-	void visit(const MaxValue& /*node*/) override { /* do nothing */ }
-	void visit(const MinValue& /*node*/) override { /* do nothing */ }
-	void visit(const NDetValue& /*node*/) override { /* do nothing */ }
-	void visit(const VariableExpression& node) override { vars.insert(&node.decl); }
-
-	void visit(const NegatedExpression& node) override { node.expr->accept(*this); }
-	void visit(const BinaryExpression& node) override { node.lhs->accept(*this); node.rhs->accept(*this); }
-	void visit(const Dereference& node) override { node.expr->accept(*this); }
-
-	void visit(const Assume& node) override { node.expr->accept(*this); }
-	void visit(const Assignment& node) override { node.lhs->accept(*this); node.rhs->accept(*this); }
-};
-
-void Verifier::exploint_invariant(const cola::Command& command) {
-	VariableCollector collector;
-	command.accept(collector);
+void Verifier::push_invariant_instantiation(const std::vector<std::unique_ptr<cola::VariableDeclaration>>& vars) {
 	const auto& invariant = plankton::config->get_invariant();
 	const auto& argtype = invariant.vars.at(0)->type;
-	for (const VariableDeclaration* var : collector.vars) {
-		if (!cola::assignable(argtype, var->type)) continue;
-		auto varinv = invariant.instantiate({ *var });
-		current_annotation->now = plankton::conjoin(std::move(current_annotation->now), std::move(varinv));
+	
+	for (const auto& var : vars) {
+		if (cola::assignable(argtype, var->type)) {
+			instantiated_invariant = plankton::conjoin(std::move(instantiated_invariant), invariant.instantiate(*var));
+		}	
 	}
+}
+
+void Verifier::exploint_invariant() { // TODO: delete parameter
+	assert(instantiated_invariant);
+	current_annotation->now = plankton::conjoin(std::move(current_annotation->now), plankton::copy(*instantiated_invariant));
 }
 
 
@@ -178,6 +163,9 @@ void Verifier::visit(const Program& program) {
 	do {
 		for (const auto& func : program.functions) {
 			if (func->kind == Function::Kind::INTERFACE) {
+				instantiated_invariant = std::make_unique<ConjunctionFormula>();
+				push_invariant_instantiation(program.variables);
+
 				visit_interface_function(*func);
 			}
 		}
@@ -194,12 +182,12 @@ SpecStore get_spec(const Function& function) {
 	SpecificationAxiom::Kind kind;
 	if (function.name == "contains") {
 		kind =  SpecificationAxiom::Kind::CONTAINS;
-	} else if (function.name == "insert") {
+	} else if (function.name == "insert" || function.name == "add") {
 		kind =  SpecificationAxiom::Kind::INSERT;
-	} else if (function.name == "delete") {
+	} else if (function.name == "delete" || function.name == "remove") {
 		kind =  SpecificationAxiom::Kind::DELETE;
 	} else {
-		throw UnsupportedConstructError("Specification for function '" + function.name + "' unknown, expected one of: 'contains', 'insert', 'delete'.");
+		throw UnsupportedConstructError("Specification for function '" + function.name + "' unknown, expected one of: 'contains', 'insert', 'add', 'delete', 'remove'.");
 	}
 	if (function.args.size() != 1) {
 		throw UnsupportedConstructError("Cannot verify function '" + function.name + "': expected 1 parameter, got " + std::to_string(function.args.size()) + ".");
@@ -262,10 +250,18 @@ void establish_linearizability_or_fail(const Annotation& annotation, const Funct
 		return;
 	}
 
-	throw VerificationError("Could not establish linearizability for function '" + function.name + "'.");
+	std::cout << "\% could not establish linearizability" << std::endl;
+	// throw VerificationError("Could not establish linearizability for function '" + function.name + "'.");
 }
 
 void Verifier::visit_interface_function(const Function& function) {
+	std::cout << "############################################################" << std::endl;
+	std::cout << "############################################################" << std::endl;
+	std::cout << "#################### " << function.name << std::endl;
+	std::cout << "############################################################" << std::endl;
+	std::cout << "############################################################" << std::endl;
+	std::cout << std::endl;
+
 	assert(function.kind == Function::Kind::INTERFACE);
 	inside_atomic = false;
 
@@ -297,7 +293,9 @@ void Verifier::visit(const Sequence& stmt) {
 }
 
 void Verifier::visit(const Scope& stmt) {
+	push_invariant_instantiation(stmt.variables);
 	stmt.body->accept(*this);
+	// TODO: should we reset 'instantiated_invariant' when variables go out of scope?
 }
 
 void Verifier::visit(const Atomic& stmt) {
@@ -402,13 +400,15 @@ void Verifier::visit(const Continue& /*cmd*/) {
 }
 
 void Verifier::visit(const Assume& cmd) {
+	exploint_invariant();
 	check_pointer_accesses(*cmd.expr);
 	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
-	exploint_invariant(cmd);
+	exploint_invariant();
 	if (has_effect(*cmd.expr)) apply_interference();
 }
 
 void Verifier::visit(const Assert& cmd) {
+	exploint_invariant();
 	check_pointer_accesses(*cmd.expr);
 	if (!plankton::implies(*current_annotation->now, *cmd.expr)) {
 		throw AssertionError(cmd);
@@ -418,6 +418,7 @@ void Verifier::visit(const Assert& cmd) {
 void Verifier::visit(const Return& cmd) {
 	// TODO: extend breaking_annotations?
 	for (const auto& expr : cmd.expressions) {
+		exploint_invariant();
 		check_pointer_accesses(*expr);
 	}
 	returning_annotations.push_back(std::move(current_annotation));
@@ -425,12 +426,13 @@ void Verifier::visit(const Return& cmd) {
 }
 
 void Verifier::visit(const Malloc& cmd) {
+	exploint_invariant();
 	check_invariant_stability(cmd);
 	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
 }
 
 void Verifier::visit(const Assignment& cmd) {
-	exploint_invariant(cmd);
+	exploint_invariant();
 	check_pointer_accesses(*cmd.lhs);
 	check_pointer_accesses(*cmd.rhs);
 
@@ -442,7 +444,7 @@ void Verifier::visit(const Assignment& cmd) {
 
 	// compute post annotation
 	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
-	exploint_invariant(cmd);
+	exploint_invariant();
 	if (has_effect(*cmd.lhs) || has_effect(*cmd.rhs)) apply_interference();
 }
 

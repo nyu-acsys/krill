@@ -22,7 +22,7 @@ std::string to_string(const T& obj) {
 	std::stringstream stream;
 	cola::print(obj, stream);
 	std::string result = stream.str();
-	// trim
+	// trim // TODO: properly trim (does not delete new lines currently)
 	std::stringstream trimmer;
 	trimmer << result;
 	result.clear();
@@ -1355,6 +1355,9 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 }
 
 std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Malloc& cmd) {
+	std::cout << std::endl << "ΩΩΩ post "; cola::print(cmd, std::cout); std::cout << "  ";
+	plankton::print(*pre->now, std::cout); std::cout << std::endl;
+
 	// TODO: do post for a dummy assignment 'lhs = lhs' to avoid code duplication?
 	VariableExpression lhs(cmd.lhs);
 	check_purity_var(lhs);
@@ -1373,19 +1376,22 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 	);
 	for (const auto& [fieldname, type] : lhs.type().fields) {
 		std::unique_ptr<Expression> default_value;
-		if (type.get().sort == Sort::PTR) {
-			default_value = std::make_unique<NullValue>();
-		} else if (type.get().sort == Sort::BOOL) {
-			default_value = std::make_unique<BooleanValue>(false);
+		switch (type.get().sort) {
+			case Sort::PTR: default_value = std::make_unique<NullValue>(); break;
+			case Sort::BOOL: default_value = std::make_unique<BooleanValue>(false); break;
+			// TODO: what about data?
+			default: break;
 		}
-		// TODO: what about data fields?
 		if (default_value) {
 			now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>( // lhs->{fieldname} = default_value
-				BinaryExpression::Operator::EQ, cola::copy(lhs), std::move(default_value)
+				BinaryExpression::Operator::EQ, std::make_unique<Dereference>(cola::copy(lhs), fieldname), std::move(default_value)
 			)));
 		}
 	}
 	// TODO: more knowledge needed?
+
+	std::cout << "  ~~> " << std::endl << "  ";
+	plankton::print(*now, std::cout); std::cout << std::endl;
 
 	pre->now = std::move(now);
 	return pre;
@@ -1397,19 +1403,8 @@ bool plankton::post_maintains_formula(const ConjunctionFormula& pre, const Conju
 	return plankton::implies(*post->now, maintained);
 }
 
-bool plankton::post_maintains_invariant(const Annotation& /*pre*/, const cola::Malloc& cmd) {
-	static std::map<const Invariant*, bool> inv2res;
-	const Invariant& invariant = plankton::config->get_invariant();
-
-	auto find = inv2res.find(&invariant);
-	if (find != inv2res.end()) {
-		return find->second;
-	}
-
-	auto post = plankton::post_full(Annotation::make_true(), cmd);
-	auto lhsinv = invariant.instantiate(cmd.lhs);
-	bool result = plankton::implies(*post->now, *lhsinv);
-
-	inv2res[&invariant] = result;
-	return result;
+bool plankton::post_maintains_invariant(const Annotation& pre, const cola::Malloc& cmd) {
+	auto post = plankton::post_full(std::make_unique<Annotation>(plankton::copy(*pre.now)), cmd);
+	auto lhsinv = plankton::config->get_invariant().instantiate(cmd.lhs);
+	return plankton::implies(*post->now, *lhsinv);
 }
