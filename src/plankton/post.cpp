@@ -700,13 +700,16 @@ std::unique_ptr<ConjunctionFormula> search_and_destroy_derefs(std::unique_ptr<Co
 
 	// check for whether or not a dereference is affected by an assignment to 'lhs'
 	auto solver = plankton::make_solver_from_premise(*now);
-	auto is_affected = [&solver,&lhs](Dereference& deref){
-		// this lambda leaves deref untouched, however, temporary steals its 'expr' member field for efficiency reasons
+	auto changed_expr = cola::copy(*lhs.expr);
+	auto is_affected = [&solver,&changed_expr](Dereference& deref){
+		// this lambda leaves 'deref' unchanged, however, temporarily steals its 'expr' member field for efficiency reasons (to avoid copying it)
+		// this lambda leaves 'changed_expr' unchanged, however, temporarily steals it for efficiency reasons (to avoid copying it)
 		BinaryExpression derefed_neq_lhs( // deref.expr != lhs
-			BinaryExpression::Operator::NEQ, std::move(deref.expr), cola::copy(lhs)
+			BinaryExpression::Operator::NEQ, std::move(deref.expr), std::move(changed_expr)
 		);
 		auto result = !solver->implies(derefed_neq_lhs);
 		deref.expr = std::move(derefed_neq_lhs.lhs);
+		changed_expr = std::move(derefed_neq_lhs.rhs);
 		return result;
 	};
 
