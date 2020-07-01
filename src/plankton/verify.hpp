@@ -83,6 +83,7 @@ namespace plankton {
 			void apply_interference(); // weakens current_annotation according to interference
 			bool is_interference_free(const ConjunctionFormula& formula);
 			bool has_effect(const cola::Expression& assignee);
+			bool has_effect(const SimpleFormula& formula);
 	};
 
 

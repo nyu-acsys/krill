@@ -654,25 +654,28 @@ std::unique_ptr<Annotation> post_full_assign_var_derefdata(std::unique_ptr<Annot
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+void store_deref(std::deque<std::unique_ptr<Dereference>>& container, const Dereference& deref) {
+	container.push_back(std::make_unique<Dereference>(cola::copy(*deref.expr), deref.fieldname));
+}
+
+void store_deref(std::deque<const Dereference*>& container, const Dereference& deref) {
+	container.push_back(&deref);
+}
+
+template<typename T>
 struct DereferenceExtractor : public BaseVisitor, public DefaultListener {
 	using BaseVisitor::visit;
 	using DefaultListener::visit;
 	using DefaultListener::enter;
 
 	std::string search_field;
-	std::deque<Dereference> result;
+	std::deque<T> result;
 	DereferenceExtractor(std::string search) : search_field(search) {}
-
-	static std::deque<Dereference> extract(const Formula& formula, std::string fieldname) {
-		DereferenceExtractor visitor(fieldname);
-		formula.accept(visitor);
-		return std::move(visitor.result);
-	}
 
 	void visit(const Dereference& node) override {
 		node.expr->accept(*this);
 		if (node.fieldname == search_field) {
-			result.emplace_back(cola::copy(*node.expr), node.fieldname);
+			store_deref(result, node);
 		}
 	}
 	void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
@@ -695,6 +698,13 @@ struct DereferenceExtractor : public BaseVisitor, public DefaultListener {
 	void enter(const FulfillmentAxiom& formula) override { formula.key->accept(*this); }
 };
 
+template<typename T = std::unique_ptr<Dereference>>
+static std::deque<T> extract_dereferences(const Formula& formula, std::string fieldname) {
+	DereferenceExtractor<T> visitor(fieldname);
+	formula.accept(visitor);
+	return std::move(visitor.result);
+}
+
 std::unique_ptr<ConjunctionFormula> search_and_destroy_derefs(std::unique_ptr<ConjunctionFormula> now, const Dereference& lhs) {
 	assert(now);
 
@@ -704,6 +714,9 @@ std::unique_ptr<ConjunctionFormula> search_and_destroy_derefs(std::unique_ptr<Co
 	auto is_affected = [&solver,&changed_expr](Dereference& deref){
 		// this lambda leaves 'deref' unchanged, however, temporarily steals its 'expr' member field for efficiency reasons (to avoid copying it)
 		// this lambda leaves 'changed_expr' unchanged, however, temporarily steals it for efficiency reasons (to avoid copying it)
+		assert(changed_expr);
+		assert(deref.expr);
+
 		BinaryExpression derefed_neq_lhs( // deref.expr != lhs
 			BinaryExpression::Operator::NEQ, std::move(deref.expr), std::move(changed_expr)
 		);
@@ -713,12 +726,19 @@ std::unique_ptr<ConjunctionFormula> search_and_destroy_derefs(std::unique_ptr<Co
 		return result;
 	};
 
-	// go through over all dereferences in 'now'
-	// NOTE: operate on copies to avoid use-after-free errors in case of nested expressions
-	auto dereferences = DereferenceExtractor::extract(*now, lhs.fieldname);
+	// go through all dereferences in 'now' and find those that are affected
+	auto dereferences = extract_dereferences(*now, lhs.fieldname);
 	for (auto& deref : dereferences) {
-		if (is_affected(deref)) {
-			now->conjuncts = container_search_and_destroy(std::move(now->conjuncts), deref);
+		if (!is_affected(*deref)) {
+			deref.reset(nullptr);
+		}
+	}
+
+	// remove affected dereferences
+	// NOTE: this must be done in a separate loop, because the removal might invalidate our 'solver'
+	for (const auto& deref : dereferences) {
+		if (deref) {
+			now->conjuncts = container_search_and_destroy(std::move(now->conjuncts), *deref);
 		}
 	}
 
@@ -728,6 +748,8 @@ std::unique_ptr<ConjunctionFormula> search_and_destroy_derefs(std::unique_ptr<Co
 std::unique_ptr<Annotation> search_and_destroy_and_inline_deref(std::unique_ptr<Annotation> pre, const Dereference& lhs, const Expression& rhs) {
 	// destroy knowledge about lhs (do not modify TimePredicates)
 	assert(pre);
+	assert(pre->now);
+
 	auto now = destroy_ownership_and_non_local_knowledge(std::move(pre->now), rhs);
 	now = search_and_destroy_derefs(std::move(now), lhs);
 	// do not modify 
@@ -1147,9 +1169,9 @@ std::unique_ptr<Annotation> make_post_full(std::unique_ptr<Annotation> pre, cons
 }
 
 std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Assignment& cmd) {
-	std::cout << std::endl << "ΩΩΩ post "; cola::print(cmd, std::cout); std::cout << "  ";
+	std::cout << std::endl << "ΩΩΩ post "; cola::print(cmd, std::cout); //std::cout << "  ";
 	// std::cout << "################# POST FOR #################" << std::endl;
-	plankton::print(*pre->now, std::cout); std::cout << std::endl;
+	// plankton::print(*pre->now, std::cout); std::cout << std::endl;
 	// std::cout << std::endl;
 	// cola::print(cmd, std::cout);
 	// std::cout << std::endl;
@@ -1157,8 +1179,8 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 	auto result = make_post_full(std::move(pre), cmd);
 
 	// std::cout << "################# POST RESULT #################" << std::endl;
-	std::cout << "  ~~> " << std::endl << "  ";
-	plankton::print(*result->now, std::cout); std::cout << std::endl;
+	// std::cout << "  ~~> " << std::endl << "  ";
+	// plankton::print(*result->now, std::cout); std::cout << std::endl;
 	// std::cout << std::endl << std::endl;
 
 	return result;
@@ -1241,6 +1263,8 @@ struct InvariantComputer : public AssignmentComputer<bool> {
 	}
 
 	bool derefptr_varimmi_insert(const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
+		std::cout << "checking invariant for insertion" << std::endl;
+
 		// ensure we are dealing with a one-nonde-insertion
 		if (!is_node_insertion_with_additional_checks(*pre.now, lhs, lhsVar, rhs, NO_CHECKS)) {
 			return false;
@@ -1280,6 +1304,20 @@ struct InvariantComputer : public AssignmentComputer<bool> {
 		return solve_invariant(std::move(partial_post), lhsVar.decl, rhs.decl, inbetween);
 	}
 
+	bool check_invariant_locally(const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) {
+		// ASSUMPTION: the caller ensured that the update is local, i.e., nodes other than 'lhsVar' are not influenced
+		
+		// check invariant on modified node (lhsVar)
+		auto partial_post = make_partial_post(lhs, rhs);
+		auto lhsVarInv = instantiate_invariant(lhsVar.decl);
+		return plankton::implies(*partial_post->now, *lhsVarInv);
+	}
+
+	bool derefptr_varimmi_owned(const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
+		return (is_owned(*pre.now, lhsVar) || has_no_flow(*pre.now, lhsVar))
+		    && check_invariant_locally(lhs, lhsVar, rhs);
+	}
+
 	bool derefptr_varimmi(const Assignment& cmd, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& rhs) override {
 		// handle NULL assignment
 		if (plankton::is_of_type<NullValue>(rhs).first) {
@@ -1294,7 +1332,8 @@ struct InvariantComputer : public AssignmentComputer<bool> {
 		}
 
 		auto& rhsVar = extract_or_fail(rhs, &lhs);
-		return derefptr_varimmi_insert(lhs, lhsVar, rhsVar)
+		return derefptr_varimmi_owned(lhs, lhsVar, rhsVar)
+		    || derefptr_varimmi_insert(lhs, lhsVar, rhsVar)
 		    || derefptr_varimmi_unlink(lhs, lhsVar, rhsVar)
 		    || has_enabled_future_predicate(*pre.now, pre, cmd);
 	}
@@ -1304,10 +1343,8 @@ struct InvariantComputer : public AssignmentComputer<bool> {
 			return false;
 		}
 
-		// check invariant on modified node (lhsVar) ==> other nodes are not influenced by above assumption check
-		auto partial_post = make_partial_post(lhs, rhs);
-		auto lhsVarInv = instantiate_invariant(lhsVar.decl);
-		if (plankton::implies(*partial_post->now, *lhsVarInv)) {
+		// check invariant on modified node (lhsVar) ==> update is local to lhsVar
+		if (check_invariant_locally(lhs, lhsVar, rhs)) {
 			return true;
 		}
 
@@ -1328,8 +1365,8 @@ bool plankton::post_maintains_invariant(const Annotation& pre, const cola::Assig
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Assume& cmd) {
-	std::cout << std::endl << "ΩΩΩ post "; cola::print(cmd, std::cout); std::cout << "  ";
-	plankton::print(*pre->now, std::cout); std::cout << std::endl;
+	std::cout << std::endl << "ΩΩΩ post "; cola::print(cmd, std::cout); //std::cout << "  ";
+	// plankton::print(*pre->now, std::cout); std::cout << std::endl;
 
 	// TODO important: enable the following?
 	// auto check = is_of_type<BinaryExpression>(*cmd.expr);
@@ -1353,15 +1390,15 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 	auto flat = plankton::flatten(cola::copy(*cmd.expr));
 	pre->now = plankton::conjoin(std::move(pre->now), std::move(flat));
 
-	std::cout << "  ~~> " << std::endl << "  ";
-	plankton::print(*pre->now, std::cout); std::cout << std::endl;
+	// std::cout << "  ~~> " << std::endl << "  ";
+	// plankton::print(*pre->now, std::cout); std::cout << std::endl;
 
 	return pre;	
 }
 
 std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Malloc& cmd) {
-	std::cout << std::endl << "ΩΩΩ post "; cola::print(cmd, std::cout); std::cout << "  ";
-	plankton::print(*pre->now, std::cout); std::cout << std::endl;
+	std::cout << std::endl << "ΩΩΩ post "; cola::print(cmd, std::cout); //std::cout << "  ";
+	// plankton::print(*pre->now, std::cout); std::cout << std::endl;
 
 	// TODO: do post for a dummy assignment 'lhs = lhs' to avoid code duplication?
 	VariableExpression lhs(cmd.lhs);
@@ -1398,21 +1435,74 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 	}
 	// TODO: more knowledge needed?
 
-	std::cout << "  ~~> " << std::endl << "  ";
-	plankton::print(*now, std::cout); std::cout << std::endl;
+	// std::cout << "  ~~> " << std::endl << "  ";
+	// plankton::print(*now, std::cout); std::cout << std::endl;
 
 	pre->now = std::move(now);
 	return pre;
-}
-
-bool plankton::post_maintains_formula(const ConjunctionFormula& pre, const ConjunctionFormula& maintained, const cola::Assignment& cmd) {
-	// TODO: one can probably implement an optimized (quick) check
-	auto post = make_post_full(combine_to_annotation(pre, maintained), cmd, false);
-	return plankton::implies(*post->now, maintained);
 }
 
 bool plankton::post_maintains_invariant(const Annotation& pre, const cola::Malloc& cmd) {
 	auto post = plankton::post_full(std::make_unique<Annotation>(plankton::copy(*pre.now)), cmd);
 	auto lhsinv = plankton::config->get_invariant().instantiate(cmd.lhs);
 	return plankton::implies(*post->now, *lhsinv);
+}
+
+
+
+// TODO: can the quick check be done more efficiently when tailoring towards interference scenario??
+struct MaintenanceQuickChecker : public AssignmentComputer<bool> {
+	const ConjunctionFormula& pre;
+	const ConjunctionFormula& maintained;
+	MaintenanceQuickChecker(const ConjunctionFormula& pre_, const ConjunctionFormula& maintained_) : pre(pre_), maintained(maintained_) {}
+
+	bool var_expr(const Assignment& /*cmd*/, const VariableExpression& lhs, const Expression& /*rhs*/) override {
+		return !contains_expression(maintained, lhs);
+	}
+
+	bool var_derefptr(const Assignment& /*cmd*/, const VariableExpression& lhs, const Dereference& /*rhs*/, const VariableExpression& /*rhsVar*/) override {
+		return !contains_expression(maintained, lhs);
+	}
+
+	bool var_derefdata(const Assignment& /*cmd*/, const VariableExpression& lhs, const Dereference& /*rhs*/, const VariableExpression& /*rhsVar*/) override {
+		return !contains_expression(maintained, lhs);
+	}
+
+	bool check_deref(const Dereference& lhs, const VariableExpression& lhsVar) {
+		// check if 'lhs.fieldname' is not used in 'maintained' ==> valuation remains unchanged
+		auto dereferences = extract_dereferences<const Dereference*>(maintained, lhs.fieldname);
+		if (dereferences.empty()) return true;
+
+		// check if 'lhsVar' is owned (has no alias) and not used in 'maintained' ==> valuation remains unchanged
+		if (!contains_expression(maintained, lhsVar) && is_owned(pre, lhsVar)) return true;
+
+		// go through all dereferences in maintained and check that thei are owned and unequal to 'lhsVar'
+		for (auto deref : dereferences) {
+			auto [is_var, var_ptr] = plankton::is_of_type<VariableExpression>(*deref->expr);
+			if (is_var && !syntactically_equal(lhsVar, *var_ptr) && is_owned(pre, *var_ptr)) continue;
+			return false;
+		}
+		return true;
+	}
+
+	bool derefptr_varimmi(const Assignment& /*cmd*/, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& /*rhs*/) override {
+		return check_deref(lhs, lhsVar);
+	}
+
+	bool derefdata_varimmi(const Assignment& /*cmd*/, const Dereference& lhs, const VariableExpression& lhsVar, const Expression& /*rhs*/) override {
+		return check_deref(lhs, lhsVar);
+	}
+};
+
+bool plankton::post_maintains_formula(const ConjunctionFormula& pre, const ConjunctionFormula& maintained, const cola::Assignment& cmd) {
+	auto combined = combine_to_annotation(pre, maintained);
+
+	// quick check
+	MaintenanceQuickChecker checker(*combined->now, maintained);
+	bool discharged = compute_assignment_switch(checker, cmd);
+	if (discharged) return true;
+
+	// deep check;
+	auto post = make_post_full(std::move(combined), cmd, false);
+	return plankton::implies(*post->now, maintained);
 }

@@ -123,6 +123,8 @@ namespace plankton {
 	// Iterative Solving
 	//
 
+	/** Remains valid only as long as the premises it was constructued with remain allocated.
+	  */
 	struct IterativeImplicationSolver {
 		virtual ~IterativeImplicationSolver() = default;
 		virtual bool implies(const ConjunctionFormula& implied) = 0;

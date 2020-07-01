@@ -24,6 +24,7 @@ struct SolvingError : public std::exception {
 template<typename C, typename S>
 bool syntactically_contains(const C& container, const S& search) {
 	for (const auto& elem : container) {
+		assert(elem);
 		if (plankton::syntactically_equal(*elem, search)) {
 			return true;
 		}
@@ -32,7 +33,9 @@ bool syntactically_contains(const C& container, const S& search) {
 }
 
 bool quick_discharge(const std::deque<const SimpleFormula*>& premises, std::deque<const SimpleFormula*>& conclusions) {
-	if (premises.empty()) return conclusions.empty();
+	if (conclusions.empty()) return true;
+	if (premises.empty()) return false;
+
 	bool result = true;
 	for (auto it = conclusions.begin(); it != conclusions.end(); ++it) {
 		if (syntactically_contains(premises, **it)) {
@@ -838,20 +841,20 @@ std::unique_ptr<ConjunctionFormula> unify_now(const std::vector<std::unique_ptr<
 std::unique_ptr<Annotation> plankton::unify(std::vector<std::unique_ptr<Annotation>> annotations) {
 
 	std::cout << "≈≈≈ unify " << annotations.size() << std::endl;
-	std::cout << "################# UNIFY #################" << std::endl;
-	for (const auto& annotation : annotations) {
-		plankton::print(*annotation, std::cout);
-		std::cout << std::endl;
-	}
-	std::cout << std::endl;
+	// std::cout << "################# UNIFY #################" << std::endl;
+	// for (const auto& annotation : annotations) {
+	// 	plankton::print(*annotation, std::cout);
+	// 	std::cout << std::endl;
+	// }
+	// std::cout << std::endl;
 
 	if (annotations.size() == 0) return Annotation::make_true();
 	if (annotations.size() == 1) return std::move(annotations.at(0));
 	auto result = std::make_unique<Annotation>(unify_now(annotations), unify_time(annotations));
 
-	std::cout << "################# UNIFY RESULT #################" << std::endl;
-	plankton::print(*result, std::cout);
-	std::cout << std::endl;
+	// std::cout << "################# UNIFY RESULT #################" << std::endl;
+	// plankton::print(*result, std::cout);
+	// std::cout << std::endl;
 	return result;
 }
 

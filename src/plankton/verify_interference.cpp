@@ -1,7 +1,6 @@
 #include "plankton/verify.hpp"
 
 #include <map>
-#include <iostream> // TODO: remove
 #include "cola/util.hpp"
 #include "cola/visitors.hpp"
 #include "plankton/config.hpp"
@@ -13,6 +12,12 @@ using namespace plankton;
 
 struct EffectSearcher : public BaseVisitor {
 	bool result = false;
+
+	static bool has_effect(const Expression& expr) {
+		EffectSearcher searcher;
+		expr.accept(searcher);
+		return searcher.result;
+	}
 
 	void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
 	void visit(const NullValue& /*node*/) override { /* do nothing */ }
@@ -28,8 +33,22 @@ struct EffectSearcher : public BaseVisitor {
 };
 
 bool Verifier::has_effect(const Expression& assignee) {
-	EffectSearcher searcher;
-	assignee.accept(searcher);
+	return EffectSearcher::has_effect(assignee);
+}
+
+struct LogicEffectSearcher : public DefaultListener {
+	bool result = false;
+
+	void enter(const ExpressionAxiom& formula) override { result |= EffectSearcher::has_effect(*formula.expr); }
+	void enter(const LogicallyContainedAxiom& /*formula*/) override { result = true; }
+	void enter(const KeysetContainsAxiom& /*formula*/) override { result = true; }
+	void enter(const HasFlowAxiom& /*formula*/) override { result = true; }
+	void enter(const FlowContainsAxiom& /*formula*/) override { result = true; }
+};
+
+bool Verifier::has_effect(const SimpleFormula& formula) {
+	LogicEffectSearcher searcher;
+	formula.accept(searcher);
 	return searcher.result;
 }
 
@@ -116,8 +135,10 @@ void Verifier::apply_interference() {
 			if (!conjunct) continue;
 
 			// add conjunct to stable
+			bool quick_check = !has_effect(*conjunct);
 			stable->conjuncts.push_back(std::move(conjunct));
 			conjunct.reset();
+			if (quick_check) continue;
 
 			// check if stable is still interference free; if not, move conjunct back again
 			if (!is_interference_free(*stable)) {
@@ -137,6 +158,7 @@ void Verifier::apply_interference() {
 bool Verifier::is_interference_free(const ConjunctionFormula& formula){
 	for (const auto& effect : interference) {
 		if (!plankton::post_maintains_formula(*effect->precondition, formula, *effect->command)) {
+			// std::cout << " ==> no" << std::endl;
 			return false;
 		}
 	}

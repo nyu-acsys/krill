@@ -53,7 +53,7 @@ const VariableDeclaration& RenamingInfo::rename(const VariableDeclaration& decl)
 		auto newDecl = std::make_unique<VariableDeclaration>(newName, decl.type, decl.is_shared);
 		replacement = newDecl.get();
 		variable2renamed[&decl] = replacement;
-		variable2renamed[replacement] = replacement; // prevent renamed variable from being renamed
+		variable2renamed[replacement] = replacement; // prevent renamed variable from being renamed // TODO: why?
 		renamed_variables.push_back(std::move(newDecl));
 	}
 
@@ -169,6 +169,7 @@ void Verifier::visit(const Program& program) {
 				visit_interface_function(*func);
 			}
 		}
+		throw std::logic_error("point du break");
 	} while (!is_interference_saturated);
 }
 
