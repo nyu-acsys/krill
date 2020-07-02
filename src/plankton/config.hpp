@@ -18,6 +18,7 @@ namespace plankton {
 
 
 	struct PlanktonConfig {
+		bool post_simplify = true;
 		bool conjoin_simplify = true;
 		bool implies_holistic_check = true;
 		bool z3_handle_unknown_result = false;

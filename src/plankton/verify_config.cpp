@@ -70,11 +70,18 @@ Predicate make_dummy_contains(const Program& /*program*/, const Type& nodeType) 
 
 Invariant make_dummy_invariant(const Program& program, const Type& nodeType) {
 	std::cout << "MAKING DUMMY INVARIANT" << std::endl;
-	return mk_invariant(nodeType, "^INVARIANT", [&program](const auto& /*node*/){
+	return mk_invariant(nodeType, "^INVARIANT", [&program](const auto& node){
 		auto result = std::make_unique<ConjunctionFormula>();
 		const auto& head = *program.variables.at(0);
 		result->conjuncts.push_back(mk_axiom(mk_non_null(std::make_unique<VariableExpression>(head))));
 		result->conjuncts.push_back(mk_axiom(mk_non_null(std::make_unique<Dereference>(std::make_unique<VariableExpression>(head), "next"))));
+		result->conjuncts.push_back(mk_axiom(std::make_unique<BinaryExpression>(
+			BinaryExpression::Operator::EQ, std::make_unique<Dereference>(std::make_unique<VariableExpression>(head), "val"), std::make_unique<MinValue>()
+		)));
+		result->conjuncts.push_back(std::make_unique<ImplicationFormula>(
+			mk_axiom(std::make_unique<BinaryExpression>(BinaryExpression::Operator::NEQ, std::make_unique<VariableExpression>(head), std::make_unique<VariableExpression>(node))),
+			mk_axiom(std::make_unique<BinaryExpression>(BinaryExpression::Operator::LT, std::make_unique<MinValue>(), std::make_unique<Dereference>(std::make_unique<VariableExpression>(node), "val")))
+		));
 		return result;
 	});
 }

@@ -38,6 +38,183 @@ void check_config_unchanged() {
 	}
 }
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<ConjunctionFormula> remove_copies(std::unique_ptr<ConjunctionFormula> now) {
+	auto result = std::make_unique<ConjunctionFormula>();
+	for (auto& conjunct : now->conjuncts) {
+		if (!plankton::syntactically_contains_conjunct(*result, *conjunct)) {
+			result->conjuncts.push_back(std::move(conjunct));
+		}
+	}
+	return result;
+}
+
+inline bool is_false(const Axiom& axiom) {
+	if (auto expr = dynamic_cast<const ExpressionAxiom*>(&axiom)) {
+		if (auto binary = dynamic_cast<const BinaryExpression*>(expr->expr.get())) {
+			if (binary->op == BinaryExpression::Operator::NEQ && syntactically_equal(*binary->lhs, *binary->rhs)) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+inline bool is_useless(const SimpleFormula& formula) {
+	if (auto imp = dynamic_cast<const ImplicationFormula*>(&formula)) {
+		for (const auto& premise : imp->premise->conjuncts) {
+			if (is_false(*premise)) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+inline std::unique_ptr<ConjunctionFormula> simply(std::unique_ptr<ConjunctionFormula> now) {
+	if (!plankton::config->post_simplify) {
+		return now;
+	}
+
+	auto result = std::make_unique<ConjunctionFormula>();
+	for (auto& conjunct : now->conjuncts) {
+		if (!is_useless(*conjunct)) {
+			result->conjuncts.push_back(std::move(conjunct));
+		}
+	}
+
+	return remove_copies(std::move(result));
+}
+
+struct DataNormalizer : public BaseVisitor, public BaseLogicVisitor {
+	using BaseVisitor::visit;
+	using BaseLogicVisitor::visit;
+
+	std::unique_ptr<ConjunctionFormula> normalized = std::make_unique<ConjunctionFormula>();
+
+	void add_with_changed_op(const BinaryExpression& expr, BinaryExpression::Operator new_op) {
+		normalized->conjuncts.push_back(std::make_unique<ExpressionAxiom>(
+			std::make_unique<BinaryExpression>(new_op, cola::copy(*expr.lhs), cola::copy(*expr.rhs))
+		));
+	}
+	void add_with_changed_op(const BinaryExpression& expr, BinaryExpression::Operator new_op, BinaryExpression::Operator more_new_op) {
+		add_with_changed_op(expr, new_op);
+		add_with_changed_op(expr, more_new_op);
+	}
+	bool normalize_expr(const BinaryExpression& expr) {
+		if (expr.op == BinaryExpression::Operator::AND) {
+			auto lhs = std::make_unique<ExpressionAxiom>(cola::copy(*expr.lhs));
+			auto rhs = std::make_unique<ExpressionAxiom>(cola::copy(*expr.rhs));
+			normalized->conjuncts.push_back(std::move(lhs));
+			normalized->conjuncts.push_back(std::move(rhs));
+			return true;
+		
+		}
+
+		if (expr.lhs->sort() == Sort::DATA && expr.rhs->sort() == Sort::DATA) {
+			switch (expr.op) {
+				case BinaryExpression::Operator::EQ: add_with_changed_op(expr, BinaryExpression::Operator::LEQ, BinaryExpression::Operator::GEQ); return false;
+				case BinaryExpression::Operator::LT: add_with_changed_op(expr, BinaryExpression::Operator::LEQ); return false;
+				case BinaryExpression::Operator::GT: add_with_changed_op(expr, BinaryExpression::Operator::GEQ); return false;
+				default: return false;
+			}
+		}
+
+		return false;
+	}
+
+	void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
+	void visit(const NullValue& /*node*/) override { /* do nothing */ }
+	void visit(const EmptyValue& /*node*/) override { /* do nothing */ }
+	void visit(const MaxValue& /*node*/) override { /* do nothing */ }
+	void visit(const MinValue& /*node*/) override { /* do nothing */ }
+	void visit(const NDetValue& /*node*/) override { /* do nothing */ }
+	void visit(const VariableExpression& /*node*/) override { /* do nothing */ }
+	void visit(const Dereference& /*node*/) override { /* do nothing */ }
+	void visit(const NegatedExpression& /*node*/) override { /* do nothing */ }
+	void visit(const BinaryExpression& node) override {
+		auto descende = normalize_expr(node);
+		if (descende) {
+			node.lhs->accept(*this);
+			node.rhs->accept(*this);
+		}
+	}
+	
+	void visit(const ImplicationFormula& /*formula*/) override { /* do nothing */ }
+	void visit(const NegatedAxiom& /*formula*/) override { /* do nothing */ }
+	void visit(const OwnershipAxiom& /*formula*/) override { /* do nothing */ }
+	void visit(const LogicallyContainedAxiom& /*formula*/) override { /* do nothing */ }
+	void visit(const KeysetContainsAxiom& /*formula*/) override { /* do nothing */ }
+	void visit(const HasFlowAxiom& /*formula*/) override { /* do nothing */ }
+	void visit(const FlowContainsAxiom& /*formula*/) override { /* do nothing */ }
+	void visit(const ObligationAxiom& /*formula*/) override { /* do nothing */ }
+	void visit(const FulfillmentAxiom& /*formula*/) override { /* do nothing */ }
+	void visit(const Annotation& formula) override { formula.now->accept(*this); }
+	void visit(const ConjunctionFormula& formula) override {
+		for (const auto& conjunct : formula.conjuncts) {
+			conjunct->accept(*this);
+		}
+	}
+	void visit(const ExpressionAxiom& formula) override {
+		formula.expr->accept(*this);
+	}
+};
+
+struct ExpressionNormalizer : public BaseNonConstVisitor, public DefaultNonConstListener {
+	using BaseNonConstVisitor::visit;
+	using DefaultNonConstListener::visit;
+	using DefaultNonConstListener::enter;
+
+	void enter(ExpressionAxiom& formula) override {
+		formula.expr->accept(*this);
+	}
+	
+	void visit(BooleanValue& /*node*/) override { /* do nothing */ }
+	void visit(NullValue& /*node*/) override { /* do nothing */ }
+	void visit(EmptyValue& /*node*/) override { /* do nothing */ }
+	void visit(MaxValue& /*node*/) override { /* do nothing */ }
+	void visit(MinValue& /*node*/) override { /* do nothing */ }
+	void visit(NDetValue& /*node*/) override { /* do nothing */ }
+	void visit(VariableExpression& /*node*/) override { /* do nothing */ }
+	void visit(NegatedExpression& node) override { node.expr->accept(*this); }
+	void visit(Dereference& node) override { node.expr->accept(*this); }
+	void visit(BinaryExpression& node) override {
+		node.lhs->accept(*this);
+		node.rhs->accept(*this);
+
+		switch (node.op) {
+			case BinaryExpression::Operator::GT:
+				node.lhs.swap(node.rhs);
+				node.op = BinaryExpression::Operator::LT;
+				break;
+
+			case BinaryExpression::Operator::GEQ:
+				node.lhs.swap(node.rhs);
+				node.op = BinaryExpression::Operator::LEQ;
+				break;
+
+			default: break;;
+		}
+	}
+};
+
+std::unique_ptr<Annotation> post_process(std::unique_ptr<Annotation> annotation) {
+	DataNormalizer normalizer;
+	annotation->accept(normalizer);
+	annotation->now = plankton::conjoin(std::move(annotation->now), std::move(normalizer.normalized));
+
+	ExpressionNormalizer visitor;
+	annotation->accept(visitor);
+
+	annotation->now = simply(std::move(annotation->now));
+	return annotation;
+}
+
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1173,7 +1350,9 @@ struct FullPostComputer : public AssignmentComputer<std::unique_ptr<Annotation>>
 
 std::unique_ptr<Annotation> make_post_full(std::unique_ptr<Annotation> pre, const Assignment& cmd, bool check_purity=true) {
 	FullPostComputer computer(std::move(pre), check_purity);
-	return compute_assignment_switch(computer, cmd);
+	auto post = compute_assignment_switch(computer, cmd);
+	post = post_process(std::move(post));
+	return post;
 }
 
 std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Assignment& cmd) {
@@ -1374,6 +1553,89 @@ bool plankton::post_maintains_invariant(const Annotation& pre, const cola::Assig
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+inline void make_shallow_inlining(ConjunctionFormula& dst,
+	BinaryExpression::Operator op, const Expression& lhs, const Expression& rhs, // source expression
+	BinaryExpression::Operator iop, const Expression& ilhs, const Expression& irhs) // to be inlined
+{
+	// TODO: de-uglify 
+	using Op = BinaryExpression::Operator;
+
+	switch (op) {
+		case Op::GT: make_shallow_inlining(dst, Op::LT, rhs, lhs, iop, ilhs, irhs); return;
+		case Op::GEQ: make_shallow_inlining(dst, Op::LEQ, rhs, lhs, iop, ilhs, irhs); return;
+		case Op::NEQ: return;
+		default: break;
+	}
+	switch (iop) {
+		case Op::GT: make_shallow_inlining(dst, op, lhs, rhs, Op::LT, irhs, ilhs); return;
+		case Op::GEQ: make_shallow_inlining(dst, op, lhs, rhs, Op::LEQ, irhs, ilhs); return;
+		case Op::NEQ: return;
+		default: break;
+	}
+
+	auto new_op = Op::EQ;
+	if (op == Op::LT || iop == Op::LT) new_op = Op::LT;
+	else if (op == Op::LEQ || iop == Op::LEQ) new_op = Op::LEQ;
+	auto mk_rel = [new_op](const Expression& lhs, const Expression& rhs) {
+		return std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(new_op, cola::copy(lhs), cola::copy(rhs)));
+	};
+
+	if (plankton::syntactically_equal(rhs, ilhs)) {
+		dst.conjuncts.push_back(mk_rel(lhs, irhs));
+	}
+	if (plankton::syntactically_equal(lhs, irhs)) {
+		dst.conjuncts.push_back(mk_rel(ilhs, rhs));
+	}
+
+	if (op == Op::EQ && iop == Op::EQ) {
+		if (plankton::syntactically_equal(lhs, ilhs)) {
+			dst.conjuncts.push_back(mk_rel(rhs, irhs));
+		}
+		if (plankton::syntactically_equal(rhs, irhs)) {
+			dst.conjuncts.push_back(mk_rel(lhs, ilhs));
+		}
+	}
+}
+
+std::unique_ptr<ConjunctionFormula> shallow_inline(const ConjunctionFormula& now, const AxiomConjunctionFormula& flat) {
+	// TODO: de-uglify 
+
+	// extraction
+	auto extract = [](const SimpleFormula& formula) -> std::tuple<bool, BinaryExpression::Operator, const Expression*, const Expression*>{
+		if (auto axiom = dynamic_cast<const ExpressionAxiom*>(&formula)) {
+			if (auto binary = dynamic_cast<const BinaryExpression*>(axiom->expr.get())) {
+				if (binary->op != BinaryExpression::Operator::AND && binary->op != BinaryExpression::Operator::OR) {
+					return std::make_tuple(true, binary->op, binary->lhs.get(), binary->rhs.get());
+				}
+			}
+		}
+		return std::make_tuple(false, BinaryExpression::Operator::EQ, nullptr, nullptr);
+	};
+
+	// extract from 'flat' only once
+	std::vector<std::tuple<BinaryExpression::Operator, const Expression*, const Expression*>> prepared;
+	prepared.reserve(flat.conjuncts.size());
+	for (const auto& conjunct : flat.conjuncts) {
+		auto [is_binary, op, lhs, rhs] = extract(*conjunct);
+		if (is_binary) {
+			prepared.push_back(std::make_tuple(op, lhs, rhs));
+		}
+	}
+
+	// inspect 'now'
+	auto result = std::make_unique<ConjunctionFormula>();
+	for (const auto& conjunct : now.conjuncts) {
+		auto [is_binary, op, lhs, rhs] = extract(*conjunct);
+		if (is_binary) {
+			for (auto [iop, ilhs, irhs] : prepared) {
+				make_shallow_inlining(*result, op, *lhs, *rhs, iop, *ilhs, *irhs);
+			}
+		}
+	}
+	return result;
+}
+
+
 std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Assume& cmd) {
 	std::cout << std::endl << "ΩΩΩ post "; cola::print(cmd, std::cout); std::cout << "  ";
 	plankton::print(*pre->now, std::cout); std::cout << std::endl;
@@ -1398,7 +1660,9 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 	// }
 	
 	auto flat = plankton::flatten(cola::copy(*cmd.expr));
-	pre->now = plankton::conjoin(std::move(pre->now), std::move(flat));
+	auto inlined = shallow_inline(*pre->now, *flat);
+	pre->now = plankton::conjoin(std::move(pre->now), plankton::conjoin(std::move(inlined), std::move(flat)));
+	pre = post_process(std::move(pre));
 
 	std::cout << "  ~~> " << std::endl << "  ";
 	plankton::print(*pre->now, std::cout); std::cout << std::endl;

@@ -347,12 +347,21 @@ void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { //
 	}
 
 	auto outer_breaking_annotations = std::move(breaking_annotations);
+	breaking_annotations.clear();
 	std::size_t counter = 0;
+
+	// peel first loop iteration
+	std::cout << std::endl << std::endl << " ------ loop " << counter++ << " (peeled) ------ " << std::endl;
+	stmt.body->accept(*this);
+	auto first_breaking_annotations = std::move(breaking_annotations);
+	auto outer_returning_annotations = std::move(returning_annotations);
 
 	while (true) {
 		std::cout << std::endl << std::endl << " ------ loop " << counter++ << " ------ " << std::endl;
 
 		breaking_annotations.clear();
+		returning_annotations.clear();
+
 		auto before_annotation = plankton::copy(*current_annotation);
 		stmt.body->accept(*this);
 
@@ -362,11 +371,47 @@ void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { //
 		current_annotation = plankton::unify(std::move(before_annotation), std::move(current_annotation));
 		apply_interference(); // TODO important: needed?
 	}
-
+	
+	breaking_annotations.insert(breaking_annotations.begin(),
+		std::make_move_iterator(first_breaking_annotations.begin()), std::make_move_iterator(first_breaking_annotations.end())
+	);
 	current_annotation = plankton::unify(std::move(breaking_annotations));
+
 	breaking_annotations = std::move(outer_breaking_annotations);
+	returning_annotations.insert(returning_annotations.begin(),
+		std::make_move_iterator(outer_returning_annotations.begin()), std::make_move_iterator(outer_returning_annotations.end())
+	);
+
 	apply_interference(); // TODO important: needed?
 }
+
+// void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { // consider peelFirst a suggestion
+// 	if (dynamic_cast<const BooleanValue*>(stmt.expr.get()) == nullptr || !dynamic_cast<const BooleanValue*>(stmt.expr.get())->value) {
+// 		// TODO: make check semantic --> if (!plankton::implies(current_annotation, stmt.expr)) 
+// 		throw UnsupportedConstructError("while/do-while loop with condition other than 'true'");
+// 	}
+
+// 	auto outer_breaking_annotations = std::move(breaking_annotations);
+// 	std::size_t counter = 0;
+
+// 	while (true) {
+// 		std::cout << std::endl << std::endl << " ------ loop " << counter++ << " ------ " << std::endl;
+
+// 		breaking_annotations.clear();
+// 		auto before_annotation = plankton::copy(*current_annotation);
+// 		stmt.body->accept(*this);
+
+// 		if (plankton::implies(*current_annotation, *before_annotation)) {
+// 			break;
+// 		}
+// 		current_annotation = plankton::unify(std::move(before_annotation), std::move(current_annotation));
+// 		apply_interference(); // TODO important: needed?
+// 	}
+
+// 	current_annotation = plankton::unify(std::move(breaking_annotations));
+// 	breaking_annotations = std::move(outer_breaking_annotations);
+// 	apply_interference(); // TODO important: needed?
+// }
 
 void Verifier::visit(const Loop& /*stmt*/) {
 	throw UnsupportedConstructError("non-det loop");
