@@ -853,8 +853,8 @@ std::unique_ptr<Annotation> plankton::unify(std::vector<std::unique_ptr<Annotati
 	auto result = std::make_unique<Annotation>(unify_now(annotations), unify_time(annotations));
 
 	// std::cout << "################# UNIFY RESULT #################" << std::endl;
-	// plankton::print(*result, std::cout);
-	// std::cout << std::endl;
+	plankton::print(*result, std::cout);
+	std::cout << std::endl;
 	return result;
 }
 

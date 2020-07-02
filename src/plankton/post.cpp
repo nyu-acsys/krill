@@ -923,7 +923,15 @@ bool is_node_insertion_with_additional_checks(const ConjunctionFormula& now, con
 	conclusion->conjuncts.push_back(std::move(parts.second));
 
 	// solve
-	return plankton::implies(*premise, *conclusion);
+	std::cout << std::endl << "SOLVE for is_node_insertion_with_additional_checks" << std::endl;
+	plankton::print(*premise, std::cout);
+	std::cout << std::endl << " => " << std::endl;
+	plankton::print(*conclusion, std::cout);
+	std::cout << std::endl;
+
+	auto result = plankton::implies(*premise, *conclusion);
+	std::cout << " ~~ " << result << std::endl;
+	return result;
 }
 
 bool is_pure_node_insertion(const ConjunctionFormula& now, const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
@@ -1171,7 +1179,7 @@ std::unique_ptr<Annotation> make_post_full(std::unique_ptr<Annotation> pre, cons
 std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Assignment& cmd) {
 	std::cout << std::endl << "ΩΩΩ post "; cola::print(cmd, std::cout); //std::cout << "  ";
 	// std::cout << "################# POST FOR #################" << std::endl;
-	// plankton::print(*pre->now, std::cout); std::cout << std::endl;
+	plankton::print(*pre->now, std::cout); std::cout << std::endl;
 	// std::cout << std::endl;
 	// cola::print(cmd, std::cout);
 	// std::cout << std::endl;
@@ -1179,8 +1187,8 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 	auto result = make_post_full(std::move(pre), cmd);
 
 	// std::cout << "################# POST RESULT #################" << std::endl;
-	// std::cout << "  ~~> " << std::endl << "  ";
-	// plankton::print(*result->now, std::cout); std::cout << std::endl;
+	std::cout << "  ~~> " << std::endl << "  ";
+	plankton::print(*result->now, std::cout); std::cout << std::endl;
 	// std::cout << std::endl << std::endl;
 
 	return result;
@@ -1264,9 +1272,11 @@ struct InvariantComputer : public AssignmentComputer<bool> {
 
 	bool derefptr_varimmi_insert(const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
 		std::cout << "checking invariant for insertion" << std::endl;
+		plankton::print(*pre.now, std::cout); std::cout << std::endl << std::endl;
 
 		// ensure we are dealing with a one-nonde-insertion
 		if (!is_node_insertion_with_additional_checks(*pre.now, lhs, lhsVar, rhs, NO_CHECKS)) {
+			std::cout << "  ==> it not an insertion" << std::endl;
 			return false;
 		}
 
@@ -1365,8 +1375,8 @@ bool plankton::post_maintains_invariant(const Annotation& pre, const cola::Assig
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Assume& cmd) {
-	std::cout << std::endl << "ΩΩΩ post "; cola::print(cmd, std::cout); //std::cout << "  ";
-	// plankton::print(*pre->now, std::cout); std::cout << std::endl;
+	std::cout << std::endl << "ΩΩΩ post "; cola::print(cmd, std::cout); std::cout << "  ";
+	plankton::print(*pre->now, std::cout); std::cout << std::endl;
 
 	// TODO important: enable the following?
 	// auto check = is_of_type<BinaryExpression>(*cmd.expr);
@@ -1390,10 +1400,42 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 	auto flat = plankton::flatten(cola::copy(*cmd.expr));
 	pre->now = plankton::conjoin(std::move(pre->now), std::move(flat));
 
-	// std::cout << "  ~~> " << std::endl << "  ";
-	// plankton::print(*pre->now, std::cout); std::cout << std::endl;
+	std::cout << "  ~~> " << std::endl << "  ";
+	plankton::print(*pre->now, std::cout); std::cout << std::endl;
 
 	return pre;	
+}
+
+inline void add_default_field_value_ptr(ConjunctionFormula& dst, std::unique_ptr<Dereference> field) {
+	assert(field);
+	dst.conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+		BinaryExpression::Operator::EQ, std::move(field), std::make_unique<NullValue>()
+	)));
+}
+inline void add_default_field_value_bool(ConjunctionFormula& dst, std::unique_ptr<Dereference> field) {
+	assert(field);
+	dst.conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+		BinaryExpression::Operator::EQ, std::move(field), std::make_unique<BooleanValue>(false)
+	)));
+}
+inline void add_default_field_value_data(ConjunctionFormula& dst, std::unique_ptr<Dereference> field) {
+	assert(field);
+	dst.conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+		BinaryExpression::Operator::LT, std::make_unique<MinValue>(), cola::copy(*field)
+	)));
+	assert(field);
+	dst.conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+		BinaryExpression::Operator::LT, std::move(field), std::make_unique<MaxValue>()
+	)));
+}
+
+inline void add_default_field_value(ConjunctionFormula& dst, std::unique_ptr<Dereference> field) {
+	switch (field->sort()) {
+		case Sort::PTR: add_default_field_value_ptr(dst, std::move(field)); break;
+		case Sort::DATA: add_default_field_value_data(dst, std::move(field)); break;
+		case Sort::BOOL: add_default_field_value_bool(dst, std::move(field)); break;
+		case Sort::VOID: break;
+	}
 }
 
 std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre, const Malloc& cmd) {
@@ -1420,18 +1462,7 @@ std::unique_ptr<Annotation> plankton::post_full(std::unique_ptr<Annotation> pre,
 		std::make_unique<NegatedAxiom>(std::make_unique<HasFlowAxiom>(std::make_unique<VariableExpression>(cmd.lhs)))
 	);
 	for (const auto& [fieldname, type] : lhs.type().fields) {
-		std::unique_ptr<Expression> default_value;
-		switch (type.get().sort) {
-			case Sort::PTR: default_value = std::make_unique<NullValue>(); break;
-			case Sort::BOOL: default_value = std::make_unique<BooleanValue>(false); break;
-			// TODO: what about data?
-			default: break;
-		}
-		if (default_value) {
-			now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>( // lhs->{fieldname} = default_value
-				BinaryExpression::Operator::EQ, std::make_unique<Dereference>(cola::copy(lhs), fieldname), std::move(default_value)
-			)));
-		}
+		add_default_field_value(*now, std::make_unique<Dereference>(cola::copy(lhs), fieldname));
 	}
 	// TODO: more knowledge needed?
 

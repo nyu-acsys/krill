@@ -252,7 +252,7 @@ void establish_linearizability_or_fail(const Annotation& annotation, const Funct
 	}
 
 	std::cout << "\% could not establish linearizability" << std::endl;
-	// throw VerificationError("Could not establish linearizability for function '" + function.name + "'.");
+	throw VerificationError("Could not establish linearizability for function '" + function.name + "'.");
 }
 
 void Verifier::visit_interface_function(const Function& function) {
