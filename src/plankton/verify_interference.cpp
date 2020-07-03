@@ -114,6 +114,7 @@ void Verifier::extend_interference(std::unique_ptr<Effect> effect) {
 }
 
 void Verifier::extend_interference(const cola::Assignment& command) {
+	// TODO: exploit_invariant() or remove_invariant()?
 	auto transformer = interference_renaming_info.as_transformer();
 
 	// make effect: (rename(current_annotation.now), rename(command)) where rename(x) renames the local variables in x
@@ -145,6 +146,7 @@ void Verifier::apply_interference() {
 	}
 
 	// deep check
+	// TODO: remove_invariant()?
 	bool changed;
 	do {
 		changed = false;

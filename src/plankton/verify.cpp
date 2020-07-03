@@ -144,11 +144,20 @@ void Verifier::push_invariant_instantiation(const std::vector<std::unique_ptr<co
 	}
 }
 
-void Verifier::exploint_invariant() { // TODO: delete parameter
+void Verifier::exploint_invariant() {
 	assert(instantiated_invariant);
 	current_annotation->now = plankton::conjoin(std::move(current_annotation->now), plankton::copy(*instantiated_invariant));
 }
 
+void Verifier::remove_invariant() {
+	auto source = std::move(current_annotation->now->conjuncts);
+	current_annotation->now->conjuncts.clear();
+	for (auto& conjunct : source) {
+		if (!plankton::syntactically_contains_conjunct(*instantiated_invariant, *conjunct)) {
+			current_annotation->now->conjuncts.push_back(std::move(conjunct));
+		}
+	}
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -284,12 +293,44 @@ void Verifier::visit_interface_function(const Function& function) {
 	for (const auto& returned : returning_annotations) {
 		establish_linearizability_or_fail(*returned, function, spec);
 	}
+
+	throw std::logic_error("breakpoint");
 }
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+// std::unique_ptr<Annotation> do_the_unify(const ConjunctionFormula& invariant, std::vector<std::unique_ptr<Annotation>> annotations) {
+// 	// delete invariant from annotations
+// 	std::vector<std::unique_ptr<Annotation>> modified;
+// 	for (auto& annotation : annotations) {
+// 		auto mod = std::make_unique<Annotation>();
+// 		mod->time = std::move(annotation->time);
+// 		for (auto& conjunct : annotation->now->conjuncts) {
+// 			if (!plankton::syntactically_contains_conjunct(invariant, *conjunct)) {
+// 				mod->now->conjuncts.push_back(std::move(conjunct));
+// 			}
+// 		}
+// 		modified.push_back(std::move(mod));
+// 	}
+
+// 	// unify
+// 	auto unified = plankton::unify(std::move(modified));
+
+// 	// push invariant again?
+
+// 	return unified;
+// }
+
+// std::unique_ptr<Annotation> do_the_unify(const ConjunctionFormula& invariant, std::unique_ptr<Annotation> annotation, std::unique_ptr<Annotation> other) {
+// 	std::vector<std::unique_ptr<Annotation>> vec;
+// 	vec.push_back(std::move(annotation));
+// 	vec.push_back(std::move(other));
+// 	return do_the_unify(invariant, std::move(vec));
+// }
+
 
 void Verifier::visit(const Sequence& stmt) {
 	stmt.first->accept(*this);
@@ -437,9 +478,11 @@ void Verifier::visit(const DoWhile& stmt) {
 
 void Verifier::visit(const Skip& /*cmd*/) {
 	/* do nothing */
+	remove_invariant();
 }
 
 void Verifier::visit(const Break& /*cmd*/) {
+	remove_invariant();
 	breaking_annotations.push_back(std::move(current_annotation));
 	current_annotation = Annotation::make_false();
 }
@@ -452,8 +495,8 @@ void Verifier::visit(const Assume& cmd) {
 	exploint_invariant();
 	check_pointer_accesses(*cmd.expr);
 	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
-	exploint_invariant();
 	if (has_effect(*cmd.expr)) apply_interference();
+	remove_invariant();
 }
 
 void Verifier::visit(const Assert& cmd) {
@@ -462,14 +505,15 @@ void Verifier::visit(const Assert& cmd) {
 	if (!plankton::implies(*current_annotation->now, *cmd.expr)) {
 		throw AssertionError(cmd);
 	}
+	remove_invariant();
 }
 
 void Verifier::visit(const Return& cmd) {
-	// TODO: extend breaking_annotations?
+	if (!cmd.expressions.empty()) exploint_invariant();
 	for (const auto& expr : cmd.expressions) {
-		exploint_invariant();
 		check_pointer_accesses(*expr);
 	}
+	remove_invariant();
 	returning_annotations.push_back(std::move(current_annotation));
 	current_annotation = Annotation::make_false();
 }
@@ -477,6 +521,7 @@ void Verifier::visit(const Return& cmd) {
 void Verifier::visit(const Malloc& cmd) {
 	exploint_invariant();
 	check_invariant_stability(cmd);
+	remove_invariant();
 	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
 }
 
@@ -493,8 +538,8 @@ void Verifier::visit(const Assignment& cmd) {
 
 	// compute post annotation
 	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
-	exploint_invariant();
 	if (has_effect(*cmd.lhs) || has_effect(*cmd.rhs)) apply_interference();
+	remove_invariant();
 }
 
 void Verifier::visit_macro_function(const Function& function) {
@@ -504,6 +549,7 @@ void Verifier::visit_macro_function(const Function& function) {
 	returning_annotations.clear();
 	
 	function.body->accept(*this);
+	remove_invariant();
 	returning_annotations.push_back(std::move(current_annotation));
 	current_annotation = plankton::unify(std::move(returning_annotations));
 
@@ -532,6 +578,8 @@ void Verifier::visit(const Macro& cmd) {
 		assert(!has_effect(*dummy->lhs));
 		dummy->accept(*this);
 	}
+
+	remove_invariant();
 }
 
 void Verifier::visit(const CompareAndSwap& /*cmd*/) {

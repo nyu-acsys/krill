@@ -82,6 +82,10 @@ Invariant make_dummy_invariant(const Program& program, const Type& nodeType) {
 			mk_axiom(std::make_unique<BinaryExpression>(BinaryExpression::Operator::NEQ, std::make_unique<VariableExpression>(head), std::make_unique<VariableExpression>(node))),
 			mk_axiom(std::make_unique<BinaryExpression>(BinaryExpression::Operator::LT, std::make_unique<MinValue>(), std::make_unique<Dereference>(std::make_unique<VariableExpression>(node), "val")))
 		));
+		result->conjuncts.push_back(std::make_unique<ImplicationFormula>(
+			std::make_unique<NegatedAxiom>(std::make_unique<OwnershipAxiom>(std::make_unique<VariableExpression>(node))),
+			std::make_unique<KeysetContainsAxiom>(std::make_unique<VariableExpression>(node), std::make_unique<Dereference>(std::make_unique<VariableExpression>(node), "val"))
+		));
 		return result;
 	});
 }

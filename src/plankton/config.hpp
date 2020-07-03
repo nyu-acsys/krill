@@ -25,6 +25,7 @@ namespace plankton {
 		bool interference_after_unification = false; // TODO: required?
 		bool interference_exhaustive_repetition = false;
 		bool post_maintains_formula_quick_check = true;
+		bool semantic_unification = true;
 
 		virtual ~PlanktonConfig() = default;
 
@@ -43,8 +44,8 @@ namespace plankton {
 
 		/** Returns true if unlinking a node, i.e., updating the heap from 'n1->{fieldname}=n2 /\ n2->{fieldname}=n3'
 		  * to 'n1->{fieldname}=n3', deletes the keys of 'n2' from the data structure and leaves all other nodes unchaged,
-		  * provided the keys contained in 'n2' are all strictly larger than the ones in 'n1' and strictly smaller than
-		  * the ones in 'n3'.
+		  * provided the keys contained in 'n3' are all contained in the keyset of 'n3'.
+		  * // TODO: does this boil down to only 'fieldname' is distributing flow?
 		  */
 		virtual bool is_flow_unlinking_local(const cola::Type& nodeType, std::string fieldname) = 0;
 

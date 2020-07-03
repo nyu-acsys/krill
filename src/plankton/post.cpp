@@ -1083,6 +1083,7 @@ bool is_node_insertion_with_additional_checks(const ConjunctionFormula& now, con
 	//         max-content(lhs) < min-content(rhs) /\ max-content(rhs) < min-content(successor)
 	//     ==> insertion of content(rhs) /\ rest remains unchanged
 	if (!plankton::config->is_flow_insertion_inbetween_local(lhsVar.type(), lhs.fieldname)) {
+		// TODO: can this be done by requiring "keyset(inbetween) disjoint with contents(rhs)" instead? If so, should we really phrase it that way? maybe not..
 		return false;
 	}
 
@@ -1176,8 +1177,8 @@ bool is_node_unlinking_with_additional_checks(const ConjunctionFormula& now, con
 		return false;
 	}
 
-	// Assume that the keys inserted into the rhs keyset do not extend its logical content:
-	//         max-content(lhs) < min-content(rhs) /\ max-content(rhs) < min-content(successor)
+	// Assume that only 'rhs' is affected by unlinking node 'inbetween' from between 'lhsVar' and 'rhs':
+	//         contents(rhs) ⊆ keyset(rhs)
 	//     ==> deletion of content(inbetween) /\ rest remains unchanged
 	if (!plankton::config->is_flow_unlinking_local(lhsVar.type(), lhs.fieldname)) {
 		return false;
@@ -1186,7 +1187,7 @@ bool is_node_unlinking_with_additional_checks(const ConjunctionFormula& now, con
 	// create dummy variables for solving
 	VariableDeclaration inbetween("post#dummy-ptr-unklink", lhs.type(), false);
 	VariableDeclaration key("post#dummy-key-unklink", Type::data_type(), false); // TODO: is the type correct? or create dummy data type?
-	VariableDeclaration otherKey("post#dummy-otherKey-unlink", Type::data_type(), false);
+	// VariableDeclaration otherKey("post#dummy-otherKey-unlink", Type::data_type(), false);
 
 	// solving premise: now /\ lhs = inbetween
 	auto premise = plankton::copy(now);
@@ -1204,10 +1205,11 @@ bool is_node_unlinking_with_additional_checks(const ConjunctionFormula& now, con
 		std::make_unique<Dereference>(std::make_unique<VariableExpression>(inbetween), lhs.fieldname),
 		cola::copy(rhs)
 	)));
-	// content(lhs) < content(rhs)< content(successor)
-	auto parts = make_key_inbetween_formulas(lhsVar.decl, inbetween, rhs.decl, key, otherKey);
-	conclusion->conjuncts.push_back(std::move(parts.first));
-	conclusion->conjuncts.push_back(std::move(parts.second));
+	// contents(rhs) ⊆ keyset(rhs)
+	conclusion->conjuncts.push_back(std::make_unique<ImplicationFormula>(
+		get_purity_checker().make_contains_predicate(rhs.decl, key),
+		std::make_unique<KeysetContainsAxiom>(std::make_unique<VariableExpression>(rhs.decl), std::make_unique<VariableExpression>(key))
+	));
 
 	// solve
 	std::cout << std::endl << "@is_node_unlinking_with_additional_checks" << std::endl;
@@ -1219,7 +1221,6 @@ bool is_node_unlinking_with_additional_checks(const ConjunctionFormula& now, con
 		plankton::print(*conjunct, std::cout);
 		std::cout << std::endl << "~~~>> " << (is_implied ? "yes" : "no") << std::endl << std::endl;
 	}
-
 
 	return plankton::implies(*premise, *conclusion);
 }
@@ -1523,6 +1524,7 @@ struct InvariantComputer : public AssignmentComputer<bool> {
 		auto partial_post = make_partial_post(std::move(now), lhs, rhs, true);
 
 		// solve
+		std::cout << std::endl << "almost done checking invariant for unlinking:  solving remains" << std::endl << std::endl;
 		return solve_invariant(std::move(partial_post), lhsVar.decl, rhs.decl, inbetween);
 	}
 

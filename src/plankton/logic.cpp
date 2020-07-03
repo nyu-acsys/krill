@@ -34,7 +34,7 @@ ExpressionAxiom::ExpressionAxiom(std::unique_ptr<cola::Expression> expr_) : expr
 
 OwnershipAxiom::OwnershipAxiom(std::unique_ptr<VariableExpression> expr_) : expr(std::move(expr_)) {
 	assert(expr);
-	assert(!expr->decl.is_shared);
+	// assert(!expr->decl.is_shared); // no, we want to have negated ownership of shared, for instance
 	assert(expr->decl.type.sort == Sort::PTR);
 }
 

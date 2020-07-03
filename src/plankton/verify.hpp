@@ -77,6 +77,7 @@ namespace plankton {
 			void check_invariant_stability(const cola::Malloc& command);
 			void push_invariant_instantiation(const std::vector<std::unique_ptr<cola::VariableDeclaration>>& vars);
 			void exploint_invariant();
+			void remove_invariant();
 			
 			void extend_interference(const cola::Assignment& command); // calls extend_interferenceadds with renamed (current_annotation, command)
 			void extend_interference(std::unique_ptr<Effect> effect); // adds effect to interference; updates is_interference_saturated

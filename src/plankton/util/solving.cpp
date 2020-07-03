@@ -815,27 +815,56 @@ std::deque<std::unique_ptr<TimePredicate>> unify_time(const std::vector<std::uni
 	return result;
 }
 
-std::unique_ptr<ConjunctionFormula> unify_now(const std::vector<std::unique_ptr<Annotation>>& annotations) {
-	// disjunction of annotations.now
-	std::deque<const Formula*> nows;
-	std::transform(annotations.begin(), annotations.cend(), std::back_inserter(nows), [](const auto& elem) { return elem->now.get(); });
-	ImpStore now_store(nows, false);
-
-	// copy everything that is implied by all annotations.now
-	auto now_result = std::make_unique<ConjunctionFormula>();
+std::unique_ptr<ConjunctionFormula> unify_now(const std::vector<std::unique_ptr<Annotation>>& annotations, std::deque<ImpStore>& stores) {
+	std::deque<const SimpleFormula*> candidates;
 	for (const auto& annotation : annotations) {
 		for (const auto& conjunct : annotation->now->conjuncts) {
-			if (!syntactically_contains(now_result->conjuncts, *conjunct)) {
-				if (check_implication(now_store, *conjunct)) {
-					now_result->conjuncts.push_back(plankton::copy(*conjunct));
-				}
+			if (!syntactically_contains(candidates, *conjunct)) {
+				candidates.push_back(conjunct.get());
 			}
 		}
 	}
 
-	// done
-	return now_result;
+	bool semantic = plankton::config->semantic_unification;
+	for (auto& store : stores) {
+		for (const SimpleFormula*& candidate : candidates) {
+			if (!candidate) continue;
+			if (!semantic && syntactically_contains(store.raw_premises, *candidate)) continue;
+			if (semantic && check_implication(store, *candidate)) continue;
+			candidate = nullptr;
+		}
+	}
+
+	auto result = std::make_unique<ConjunctionFormula>();
+	for (const SimpleFormula* candidate : candidates) {
+		if (!candidate) continue;
+		result->conjuncts.push_back(plankton::copy(*candidate));
+	}
+	return result;
 }
+
+// std::unique_ptr<ConjunctionFormula> unify_now(const std::vector<std::unique_ptr<Annotation>>& annotations) {
+// 	// disjunction of annotations.now
+// 	std::deque<const Formula*> nows;
+// 	std::transform(annotations.begin(), annotations.cend(), std::back_inserter(nows), [](const auto& elem) { return elem->now.get(); });
+// 	ImpStore now_store(nows, false);
+// 	// TODO: should we have an independent ImpStore for every annotation? It would allow for quickcheck
+
+// 	// copy everything that is implied by all annotations.now
+// 	auto now_result = std::make_unique<ConjunctionFormula>();
+// 	for (const auto& annotation : annotations) {
+// 		for (const auto& conjunct : annotation->now->conjuncts) {
+// 			if (!syntactically_contains(now_result->conjuncts, *conjunct)) {
+// 				if (check_implication(now_store, *conjunct)) {
+// 					now_result->conjuncts.push_back(plankton::copy(*conjunct));
+// 				}
+// 			}
+// 		}
+// 	}
+
+// 	// done
+// 	return now_result;
+// }
 
 std::unique_ptr<Annotation> plankton::unify(std::vector<std::unique_ptr<Annotation>> annotations) {
 
@@ -847,9 +876,22 @@ std::unique_ptr<Annotation> plankton::unify(std::vector<std::unique_ptr<Annotati
 	// }
 	// std::cout << std::endl;
 
-	if (annotations.size() == 0) return Annotation::make_false();
-	if (annotations.size() == 1) return std::move(annotations.at(0));
-	auto result = std::make_unique<Annotation>(unify_now(annotations), unify_time(annotations));
+	std::vector<std::unique_ptr<Annotation>> preprocessed;
+	std::deque<ImpStore> stores;
+	for (auto& annotation : annotations) {
+		stores.emplace_back(*annotation->now);
+		preprocessed.push_back(std::move(annotation));
+
+		static ExpressionAxiom falseForm(std::make_unique<BooleanValue>(false));
+		if (check_implication(stores.back(), falseForm)) {
+			stores.pop_back();
+			preprocessed.pop_back();
+		}
+	}
+
+	if (preprocessed.size() == 0) return Annotation::make_false();
+	if (preprocessed.size() == 1) return std::move(preprocessed.at(0));
+	auto result = std::make_unique<Annotation>(unify_now(preprocessed, stores), unify_time(preprocessed));
 
 	// std::cout << "################# UNIFY RESULT #################" << std::endl;
 	// plankton::print(*result, std::cout);
