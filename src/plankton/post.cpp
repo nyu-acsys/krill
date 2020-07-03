@@ -72,6 +72,7 @@ inline bool is_useless(const SimpleFormula& formula) {
 			}
 		}
 	}
+	// TODO: remove equalities of the form 'expr = expr'
 	return false;
 }
 
@@ -945,7 +946,7 @@ std::unique_ptr<Annotation> search_and_destroy_and_inline_deref(std::unique_ptr<
 }
 
 bool is_heap_homogeneous(const Dereference& deref) {
-	return deref.type().field(deref.fieldname) != &deref.type();
+	return deref.type().field(deref.fieldname) == &deref.type();
 }
 
 inline bool check_ownership(const ConjunctionFormula& now, const VariableExpression& var, bool quick) {
@@ -1209,6 +1210,17 @@ bool is_node_unlinking_with_additional_checks(const ConjunctionFormula& now, con
 	conclusion->conjuncts.push_back(std::move(parts.second));
 
 	// solve
+	std::cout << std::endl << "@is_node_unlinking_with_additional_checks" << std::endl;
+	plankton::print(*premise, std::cout);
+	std::cout << std::endl << std::endl;
+	for (const auto& conjunct : conclusion->conjuncts) {
+		bool is_implied = plankton::implies(*premise, *conjunct);
+		std::cout << "===>> ";
+		plankton::print(*conjunct, std::cout);
+		std::cout << std::endl << "~~~>> " << (is_implied ? "yes" : "no") << std::endl << std::endl;
+	}
+
+
 	return plankton::implies(*premise, *conclusion);
 }
 
@@ -1485,9 +1497,17 @@ struct InvariantComputer : public AssignmentComputer<bool> {
 	}
 
 	bool derefptr_varimmi_unlink(const Dereference& lhs, const VariableExpression& lhsVar, const VariableExpression& rhs) {
-		std::cout << "checking invariant for unlinking" << std::endl;
+		std::cout << std::endl << "checking invariant for unlinking:  ";
+		cola::print(lhs, std::cout);
+		std::cout << " := ";
+		cola::print(rhs, std::cout);
+		std::cout << std::endl;
+		plankton::print(pre, std::cout);
+		std::cout << std::endl << std::endl << std::endl;
+
 		// ensure we are dealing with a one-nonde-insertion
 		if (!is_node_unlinking_with_additional_checks(*pre.now, lhs, lhsVar, rhs, NO_CHECKS)) {
+			std::cout << " -> it's not an unlinking" << std::endl;
 			return false;
 		}
 
