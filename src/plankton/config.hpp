@@ -22,6 +22,9 @@ namespace plankton {
 		bool conjoin_simplify = true;
 		bool implies_holistic_check = true;
 		bool z3_handle_unknown_result = false;
+		bool interference_after_unification = false; // TODO: required?
+		bool interference_exhaustive_repetition = false;
+		bool post_maintains_formula_quick_check = true;
 
 		virtual ~PlanktonConfig() = default;
 

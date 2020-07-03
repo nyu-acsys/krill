@@ -241,6 +241,7 @@ void establish_linearizability_or_fail(const Annotation& annotation, const Funct
 	// check for false
 	static ExpressionAxiom falseFormula(std::make_unique<BooleanValue>(false));
 	if (plankton::implies(*annotation.now, falseFormula)) {
+		std::cout << "\% successfully established linearizability (vacuously fulfilled)" << std::endl;
 		return;
 	}
 
@@ -248,14 +249,16 @@ void establish_linearizability_or_fail(const Annotation& annotation, const Funct
 	FulfillmentSearcher listener(annotation, spec);
 	annotation.now->accept(listener);
 	if (listener.result) {
+		std::cout << "\% successfully established linearizability (found fulfillment)" << std::endl;
 		return;
 	}
 
 	std::cout << "\% could not establish linearizability" << std::endl;
-	throw VerificationError("Could not establish linearizability for function '" + function.name + "'.");
+	// throw VerificationError("Could not establish linearizability for function '" + function.name + "'.");
 }
 
 void Verifier::visit_interface_function(const Function& function) {
+	std::cout << std::endl << std::endl << std::endl << std::endl << std::endl;
 	std::cout << "############################################################" << std::endl;
 	std::cout << "############################################################" << std::endl;
 	std::cout << "#################### " << function.name << std::endl;
@@ -318,7 +321,7 @@ void Verifier::visit(const Choice& stmt) {
 	}
 	
 	current_annotation = plankton::unify(std::move(post_conditions));
-	apply_interference(); // TODO important: needed?
+	if (plankton::config->interference_after_unification) apply_interference();
 }
 
 void Verifier::visit(const IfThenElse& stmt) {
@@ -337,7 +340,7 @@ void Verifier::visit(const IfThenElse& stmt) {
 	stmt.elseBranch->accept(*this);
 
 	current_annotation = plankton::unify(std::move(current_annotation), std::move(postIf));
-	apply_interference(); // TODO important: needed?
+	if (plankton::config->interference_after_unification) apply_interference();
 }
 
 void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { // consider peelFirst a suggestion
@@ -369,7 +372,7 @@ void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { //
 			break;
 		}
 		current_annotation = plankton::unify(std::move(before_annotation), std::move(current_annotation));
-		apply_interference(); // TODO important: needed?
+		if (plankton::config->interference_after_unification) apply_interference();
 	}
 	
 	breaking_annotations.insert(breaking_annotations.begin(),
@@ -382,7 +385,7 @@ void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { //
 		std::make_move_iterator(outer_returning_annotations.begin()), std::make_move_iterator(outer_returning_annotations.end())
 	);
 
-	apply_interference(); // TODO important: needed?
+	if (plankton::config->interference_after_unification) apply_interference();
 }
 
 // void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { // consider peelFirst a suggestion

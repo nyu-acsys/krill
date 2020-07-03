@@ -839,7 +839,7 @@ std::unique_ptr<ConjunctionFormula> unify_now(const std::vector<std::unique_ptr<
 
 std::unique_ptr<Annotation> plankton::unify(std::vector<std::unique_ptr<Annotation>> annotations) {
 
-	std::cout << "≈≈≈ unify " << annotations.size() << std::endl;
+	std::cout << std::endl << "≈≈≈ unify " << annotations.size() << std::endl;
 	// std::cout << "################# UNIFY #################" << std::endl;
 	// for (const auto& annotation : annotations) {
 	// 	plankton::print(*annotation, std::cout);
@@ -847,13 +847,13 @@ std::unique_ptr<Annotation> plankton::unify(std::vector<std::unique_ptr<Annotati
 	// }
 	// std::cout << std::endl;
 
-	if (annotations.size() == 0) return Annotation::make_true();
+	if (annotations.size() == 0) return Annotation::make_false();
 	if (annotations.size() == 1) return std::move(annotations.at(0));
 	auto result = std::make_unique<Annotation>(unify_now(annotations), unify_time(annotations));
 
 	// std::cout << "################# UNIFY RESULT #################" << std::endl;
-	plankton::print(*result, std::cout);
-	std::cout << std::endl;
+	// plankton::print(*result, std::cout);
+	// std::cout << std::endl;
 	return result;
 }
 

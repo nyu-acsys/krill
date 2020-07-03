@@ -1,5 +1,6 @@
 #include "plankton/verify.hpp"
 
+#include <iostream> // TODO: delete
 #include <map>
 #include "cola/util.hpp"
 #include "cola/visitors.hpp"
@@ -26,8 +27,13 @@ struct EffectSearcher : public BaseVisitor {
 	void visit(const MinValue& /*node*/) override { /* do nothing */ }
 	void visit(const NDetValue& /*node*/) override { /* do nothing */ }
 
+	bool is_owned(const Expression& /*expr*/) {
+		// TODO: return !("node.expr is var" && is_owned(node.expr))
+		return false;
+	}
+
 	void visit(const VariableExpression& node) override { result |= node.decl.is_shared; }
-	void visit(const Dereference& /*node*/) override { result = true; }
+	void visit(const Dereference& node) override { result |= !is_owned(*node.expr); }
 	void visit(const NegatedExpression& node) override { node.expr->accept(*this); }
 	void visit(const BinaryExpression& node) override { node.lhs->accept(*this); node.rhs->accept(*this); }
 };
@@ -125,33 +131,46 @@ void Verifier::extend_interference(const cola::Assignment& command) {
 
 void Verifier::apply_interference() {
 	if (inside_atomic) return;
-	
-	// find strongest formula that is interference
 	auto stable = std::make_unique<ConjunctionFormula>();
+
+	std::cout << std::endl << "∆∆∆ applying interference " << current_annotation->now->conjuncts.size() << std::endl;
+	std::size_t counter = 0;
+
+	// quick check
+	for (auto& conjunct : current_annotation->now->conjuncts) {
+		if (!has_effect(*conjunct)) {
+			stable->conjuncts.push_back(std::move(conjunct));
+			conjunct.reset();
+		}
+	}
+
+	// deep check
 	bool changed;
 	do {
 		changed = false;
 		for (auto& conjunct : current_annotation->now->conjuncts) {
 			if (!conjunct) continue;
+			++counter;
 
 			// add conjunct to stable
-			bool quick_check = !has_effect(*conjunct);
 			stable->conjuncts.push_back(std::move(conjunct));
 			conjunct.reset();
-			if (quick_check) continue;
 
 			// check if stable is still interference free; if not, move conjunct back again
 			if (!is_interference_free(*stable)) {
 				conjunct = std::move(stable->conjuncts.back());
 				stable->conjuncts.pop_back();
+
 			} else {
 				changed = true;
 			}
 		}
-	} while(changed);
+	} while(changed && plankton::config->interference_exhaustive_repetition);
 
 	// keep interference-free part
 	current_annotation->now = std::move(stable);
+
+	std::cout << "    => number of interference freedom checks: " << counter << std::endl;
 }
 
 
