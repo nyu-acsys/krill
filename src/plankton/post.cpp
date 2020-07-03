@@ -966,6 +966,7 @@ bool is_owned(const ConjunctionFormula& now, const VariableExpression& var) {
 
 bool has_no_flow(const ConjunctionFormula& now, const VariableExpression& var) {
 	NegatedAxiom flow(std::make_unique<HasFlowAxiom>(cola::copy(var)));
+	if (plankton::syntactically_contains_conjunct(now, flow)) return true;
 	return plankton::implies(now, flow);
 }
 
