@@ -1,6 +1,6 @@
 #pragma once
-#ifndef PLANKTON_POST
-#define PLANKTON_POST
+#ifndef PLANKTON_OLDPOST
+#define PLANKTON_OLDPOST
 
 
 #include <memory>

@@ -17,6 +17,9 @@ set(SOURCES
 	config.cpp
 	error.cpp
 	logic.cpp
+	verify.cpp
+	verify_interference.cpp
+	# util
 	util/conjoin.cpp
 	util/contains.cpp
 	util/copy.cpp
@@ -24,11 +27,17 @@ set(SOURCES
 	util/flatten.cpp
 	util/print.cpp
 	util/replace.cpp
-	util/solving.cpp
-	verify.cpp
-	verify_config.cpp
-	verify_interference.cpp
-	post.cpp
+	# post
+	solver/encoder.cpp
+	solver/mk_rules.cpp
+	solver/mk_solver.cpp
+	solver/solver.cpp
+	solver/solverimpl.cpp
+	solver/scopes.cpp
+	solver/invariants.cpp
+	solver/implication.cpp
+	solver/join.cpp
+	solver/post.cpp
 )
 
 add_library(Plankton ${SOURCES})

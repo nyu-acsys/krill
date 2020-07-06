@@ -8,7 +8,7 @@ using namespace plankton;
 
 template<typename U, typename V>
 std::unique_ptr<ConjunctionFormula> make_conjunction(std::unique_ptr<U> formula, std::unique_ptr<V> other) {
-	if (!plankton::config->conjoin_simplify) {
+	if (!plankton::config.conjoin_simplify) {
 		// just copy 'other' over to 'formula'
 		formula->conjuncts.insert(
 			formula->conjuncts.end(),

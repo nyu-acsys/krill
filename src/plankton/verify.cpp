@@ -5,7 +5,6 @@
 #include <iostream> // TODO:remove
 #include "cola/util.hpp"
 #include "plankton/config.hpp"
-#include "plankton/post.hpp"
 
 using namespace cola;
 using namespace plankton;
@@ -95,76 +94,47 @@ struct DereferencedExpressionCollector : BaseVisitor {
 		exprs.insert(node.expr.get());
 		node.expr->accept(*this);
 	}
+
+	void visit(const Skip& /*node*/) override { /* do nothing */ }
+	void visit(const Break& /*node*/) override { /* do nothing */ }
+	void visit(const Continue& /*node*/) override { /* do nothing */ }
+	void visit(const Malloc& /*node*/) override { /* do nothing */ }
+	void visit(const Assume& node) override { node.expr->accept(*this); }
+	void visit(const Assert& node) override { node.expr->accept(*this); }
+	void visit(const Return& node) override {
+		for (const auto& expr : node.expressions) {
+			expr->accept(*this);
+		}
+	}
+	void visit(const Assignment& node) override { node.lhs->accept(*this); node.rhs->accept(*this);}
+	void visit(const CompareAndSwap& node) override {
+		for (const auto& elem : node.elems) {
+			elem.dst->accept(*this);
+			elem.cmp->accept(*this);
+			elem.src->accept(*this);
+		}
+	}
 };
 
-void Verifier::check_pointer_accesses(const Expression& expr) {
+void Verifier::check_pointer_accesses(const Command& command) {
 	DereferencedExpressionCollector collector;
-	expr.accept(collector);
+	command.accept(collector);
 
 	for (const Expression* expr : collector.exprs) {
-		if (!plankton::implies_nonnull(*current_annotation->now, *expr)) {
-			std::stringstream msg;
-			msg << "Unsafe dereference: '";
-			cola::print(*expr, msg);
-			msg << "' might be 'NULL'.";
-			throw VerificationError(msg.str());
+		if (!solver->ImpliesNonNull(*current_annotation, *expr)) {
+			throw UnsafeDereferenceError(*expr, command);
 		}
 	}
 }
 
-void throw_invariant_violation_if(bool flag, const Command& command, std::string more_message="") {
-	if (flag) {
-		std::stringstream msg;
-		msg << "Invariant violated" << more_message << ", at '";
-		cola::print(command, msg);
-		msg << "'.";
-		throw VerificationError(msg.str());
-	}
-}
-
-void Verifier::check_invariant_stability(const Assignment& command) {
-	throw_invariant_violation_if(!post_maintains_invariant(*current_annotation, command), command);
-}
-
-void Verifier::check_invariant_stability(const Malloc& command) {
-	if (command.lhs.is_shared) {
-		throw UnsupportedConstructError("allocation targeting shared variable '" + command.lhs.name + "'");
-	}
-	throw_invariant_violation_if(!plankton::post_maintains_invariant(*current_annotation, command), command, " by newly allocated node");
-}
-
-void Verifier::push_invariant_instantiation(const std::vector<std::unique_ptr<cola::VariableDeclaration>>& vars) {
-	const auto& invariant = plankton::config->get_invariant();
-	const auto& argtype = invariant.vars.at(0)->type;
-	
-	for (const auto& var : vars) {
-		if (cola::assignable(argtype, var->type)) {
-			instantiated_invariant = plankton::conjoin(std::move(instantiated_invariant), invariant.instantiate(*var));
-		}	
-	}
-}
-
-void Verifier::exploint_invariant() {
-	assert(instantiated_invariant);
-	current_annotation->now = plankton::conjoin(std::move(current_annotation->now), plankton::copy(*instantiated_invariant));
-}
-
-void Verifier::remove_invariant() {
-	auto source = std::move(current_annotation->now->conjuncts);
-	current_annotation->now->conjuncts.clear();
-	for (auto& conjunct : source) {
-		if (!plankton::syntactically_contains_conjunct(*instantiated_invariant, *conjunct)) {
-			current_annotation->now->conjuncts.push_back(std::move(conjunct));
-		}
-	}
-}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void Verifier::visit(const Program& program) {
-	set_config(program);
+	solver = plankton::MakeLinearizabilitySolver(program);
+	solver->EnterScope(program);
 
 	// TODO: check initializer
 	// compute fixed point
@@ -172,14 +142,13 @@ void Verifier::visit(const Program& program) {
 	do {
 		for (const auto& func : program.functions) {
 			if (func->kind == Function::Kind::INTERFACE) {
-				instantiated_invariant = std::make_unique<ConjunctionFormula>();
-				push_invariant_instantiation(program.variables);
-
 				visit_interface_function(*func);
 			}
 		}
 		throw std::logic_error("point du break");
 	} while (!is_interference_saturated);
+
+	solver->LeaveScope();
 }
 
 struct SpecStore {
@@ -227,35 +196,36 @@ std::unique_ptr<Annotation> get_init_annotation(SpecStore spec) {
 }
 
 struct FulfillmentSearcher : public DefaultListener {
-	const Annotation& annotation;
-	SpecStore spec;
+	std::unique_ptr<ImplicationChecker> checker;
+	SpecStore specification;
 	bool result = false;
 
-	FulfillmentSearcher(const Annotation& annotation, SpecStore spec) : annotation(annotation), spec(spec) {}
+	FulfillmentSearcher(std::unique_ptr<ImplicationChecker> checker_, SpecStore spec_) : checker(std::move(checker_)), specification(spec_) {}
 
 	void exit(const FulfillmentAxiom& formula) override {
 		if (result) return;
-		if (formula.kind == spec.kind && &formula.key->decl == &spec.searchKey) {
+		if (formula.kind == specification.kind && &formula.key->decl == &specification.searchKey) {
 			auto conclusion = std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
 				BinaryExpression::Operator::EQ,
-				std::make_unique<VariableExpression>(spec.returnedVar),
+				std::make_unique<VariableExpression>(specification.returnedVar),
 				std::make_unique<BooleanValue>(formula.return_value)
 			));
-			result = plankton::implies(*annotation.now, *conclusion);
+			result = checker->Implies(*conclusion);
 		}
 	}
 };
 
-void establish_linearizability_or_fail(const Annotation& annotation, const Function& function, SpecStore spec) {
+inline void establish_linearizability_or_fail(const Solver& solver, const Annotation& annotation, const Function& function, SpecStore spec) {
+	auto checker = solver.MakeImplicationChecker(annotation);
+
 	// check for false
-	static ExpressionAxiom falseFormula(std::make_unique<BooleanValue>(false));
-	if (plankton::implies(*annotation.now, falseFormula)) {
+	if (checker->ImpliesFalse()) {
 		std::cout << "\% successfully established linearizability (vacuously fulfilled)" << std::endl;
 		return;
 	}
 
 	// search for fulfillment
-	FulfillmentSearcher listener(annotation, spec);
+	FulfillmentSearcher listener(std::move(checker), spec);
 	annotation.now->accept(listener);
 	if (listener.result) {
 		std::cout << "\% successfully established linearizability (found fulfillment)" << std::endl;
@@ -263,8 +233,8 @@ void establish_linearizability_or_fail(const Annotation& annotation, const Funct
 	}
 
 	std::cout << "\% could not establish linearizability" << std::endl;
-	// throw VerificationError("Could not establish linearizability for function '" + function.name + "'.");
-}
+	throw VerificationError("Could not establish linearizability for function '" + function.name + "'.");
+}	
 
 void Verifier::visit_interface_function(const Function& function) {
 	std::cout << std::endl << std::endl << std::endl << std::endl << std::endl;
@@ -281,6 +251,7 @@ void Verifier::visit_interface_function(const Function& function) {
 	// extract specification info and initial annotation
 	auto spec = get_spec(function);
 	current_annotation = get_init_annotation(spec);
+	solver->EnterScope(function);
 
 	// handle body
 	function.body->accept(*this);
@@ -289,11 +260,13 @@ void Verifier::visit_interface_function(const Function& function) {
 	std::cout << std::endl << std::endl;
 
 	// check if obligation is fulfilled
-	establish_linearizability_or_fail(*current_annotation, function, spec);
+	returning_annotations.push_back(std::move(current_annotation));
 	for (const auto& returned : returning_annotations) {
-		establish_linearizability_or_fail(*returned, function, spec);
+		establish_linearizability_or_fail(*solver, *returned, function, spec);
 	}
 
+	current_annotation = Annotation::make_false();
+	solver->LeaveScope();
 	throw std::logic_error("breakpoint");
 }
 
@@ -302,45 +275,15 @@ void Verifier::visit_interface_function(const Function& function) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-// std::unique_ptr<Annotation> do_the_unify(const ConjunctionFormula& invariant, std::vector<std::unique_ptr<Annotation>> annotations) {
-// 	// delete invariant from annotations
-// 	std::vector<std::unique_ptr<Annotation>> modified;
-// 	for (auto& annotation : annotations) {
-// 		auto mod = std::make_unique<Annotation>();
-// 		mod->time = std::move(annotation->time);
-// 		for (auto& conjunct : annotation->now->conjuncts) {
-// 			if (!plankton::syntactically_contains_conjunct(invariant, *conjunct)) {
-// 				mod->now->conjuncts.push_back(std::move(conjunct));
-// 			}
-// 		}
-// 		modified.push_back(std::move(mod));
-// 	}
-
-// 	// unify
-// 	auto unified = plankton::unify(std::move(modified));
-
-// 	// push invariant again?
-
-// 	return unified;
-// }
-
-// std::unique_ptr<Annotation> do_the_unify(const ConjunctionFormula& invariant, std::unique_ptr<Annotation> annotation, std::unique_ptr<Annotation> other) {
-// 	std::vector<std::unique_ptr<Annotation>> vec;
-// 	vec.push_back(std::move(annotation));
-// 	vec.push_back(std::move(other));
-// 	return do_the_unify(invariant, std::move(vec));
-// }
-
-
 void Verifier::visit(const Sequence& stmt) {
 	stmt.first->accept(*this);
 	stmt.second->accept(*this);
 }
 
 void Verifier::visit(const Scope& stmt) {
-	push_invariant_instantiation(stmt.variables);
+	solver->EnterScope(stmt);
 	stmt.body->accept(*this);
-	// TODO: should we reset 'instantiated_invariant' when variables go out of scope?
+	solver->LeaveScope();
 }
 
 void Verifier::visit(const Atomic& stmt) {
@@ -361,8 +304,8 @@ void Verifier::visit(const Choice& stmt) {
 		post_conditions.push_back(std::move(current_annotation));
 	}
 	
-	current_annotation = plankton::unify(std::move(post_conditions));
-	if (plankton::config->interference_after_unification) apply_interference();
+	current_annotation = solver->Join(std::move(post_conditions));
+	if (plankton::config.interference_after_unification) apply_interference();
 }
 
 void Verifier::visit(const IfThenElse& stmt) {
@@ -380,8 +323,8 @@ void Verifier::visit(const IfThenElse& stmt) {
 	dummyElse.accept(*this);
 	stmt.elseBranch->accept(*this);
 
-	current_annotation = plankton::unify(std::move(current_annotation), std::move(postIf));
-	if (plankton::config->interference_after_unification) apply_interference();
+	current_annotation = solver->Join(std::move(current_annotation), std::move(postIf));
+	if (plankton::config.interference_after_unification) apply_interference();
 }
 
 void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { // consider peelFirst a suggestion
@@ -409,53 +352,25 @@ void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { //
 		auto before_annotation = plankton::copy(*current_annotation);
 		stmt.body->accept(*this);
 
-		if (plankton::implies(*current_annotation, *before_annotation)) {
+		if (solver->Implies(*current_annotation, *before_annotation)) {
 			break;
 		}
-		current_annotation = plankton::unify(std::move(before_annotation), std::move(current_annotation));
-		if (plankton::config->interference_after_unification) apply_interference();
+		current_annotation = solver->Join(std::move(before_annotation), std::move(current_annotation));
+		if (plankton::config.interference_after_unification) apply_interference();
 	}
 	
 	breaking_annotations.insert(breaking_annotations.begin(),
 		std::make_move_iterator(first_breaking_annotations.begin()), std::make_move_iterator(first_breaking_annotations.end())
 	);
-	current_annotation = plankton::unify(std::move(breaking_annotations));
+	current_annotation = solver->Join(std::move(breaking_annotations));
 
 	breaking_annotations = std::move(outer_breaking_annotations);
 	returning_annotations.insert(returning_annotations.begin(),
 		std::make_move_iterator(outer_returning_annotations.begin()), std::make_move_iterator(outer_returning_annotations.end())
 	);
 
-	if (plankton::config->interference_after_unification) apply_interference();
+	if (plankton::config.interference_after_unification) apply_interference();
 }
-
-// void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { // consider peelFirst a suggestion
-// 	if (dynamic_cast<const BooleanValue*>(stmt.expr.get()) == nullptr || !dynamic_cast<const BooleanValue*>(stmt.expr.get())->value) {
-// 		// TODO: make check semantic --> if (!plankton::implies(current_annotation, stmt.expr)) 
-// 		throw UnsupportedConstructError("while/do-while loop with condition other than 'true'");
-// 	}
-
-// 	auto outer_breaking_annotations = std::move(breaking_annotations);
-// 	std::size_t counter = 0;
-
-// 	while (true) {
-// 		std::cout << std::endl << std::endl << " ------ loop " << counter++ << " ------ " << std::endl;
-
-// 		breaking_annotations.clear();
-// 		auto before_annotation = plankton::copy(*current_annotation);
-// 		stmt.body->accept(*this);
-
-// 		if (plankton::implies(*current_annotation, *before_annotation)) {
-// 			break;
-// 		}
-// 		current_annotation = plankton::unify(std::move(before_annotation), std::move(current_annotation));
-// 		apply_interference(); // TODO important: needed?
-// 	}
-
-// 	current_annotation = plankton::unify(std::move(breaking_annotations));
-// 	breaking_annotations = std::move(outer_breaking_annotations);
-// 	apply_interference(); // TODO important: needed?
-// }
 
 void Verifier::visit(const Loop& /*stmt*/) {
 	throw UnsupportedConstructError("non-det loop");
@@ -474,15 +389,11 @@ void Verifier::visit(const DoWhile& stmt) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-// TODO: whenever a next field is accessed, ensure that the dereference is safe (not null)
-
 void Verifier::visit(const Skip& /*cmd*/) {
 	/* do nothing */
-	remove_invariant();
 }
 
 void Verifier::visit(const Break& /*cmd*/) {
-	remove_invariant();
 	breaking_annotations.push_back(std::move(current_annotation));
 	current_annotation = Annotation::make_false();
 }
@@ -492,54 +403,39 @@ void Verifier::visit(const Continue& /*cmd*/) {
 }
 
 void Verifier::visit(const Assume& cmd) {
-	exploint_invariant();
-	check_pointer_accesses(*cmd.expr);
-	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
+	check_pointer_accesses(cmd);
+	current_annotation = solver->Post(*current_annotation, cmd);
 	if (has_effect(*cmd.expr)) apply_interference();
-	remove_invariant();
 }
 
 void Verifier::visit(const Assert& cmd) {
-	exploint_invariant();
-	check_pointer_accesses(*cmd.expr);
-	if (!plankton::implies(*current_annotation->now, *cmd.expr)) {
+	check_pointer_accesses(cmd);
+	if (!solver->Implies(*current_annotation->now, *cmd.expr)) {
 		throw AssertionError(cmd);
 	}
-	remove_invariant();
 }
 
 void Verifier::visit(const Return& cmd) {
-	if (!cmd.expressions.empty()) exploint_invariant();
-	for (const auto& expr : cmd.expressions) {
-		check_pointer_accesses(*expr);
-	}
-	remove_invariant();
+	check_pointer_accesses(cmd);
 	returning_annotations.push_back(std::move(current_annotation));
 	current_annotation = Annotation::make_false();
 }
 
 void Verifier::visit(const Malloc& cmd) {
-	exploint_invariant();
-	check_invariant_stability(cmd);
-	remove_invariant();
-	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
+	current_annotation = solver->Post(*current_annotation, cmd);
 }
 
 void Verifier::visit(const Assignment& cmd) {
-	exploint_invariant();
-	check_pointer_accesses(*cmd.lhs);
-	check_pointer_accesses(*cmd.rhs);
+	check_pointer_accesses(cmd);
 
 	// check invariant and extend interference for effectful commands
 	if (has_effect(*cmd.lhs)) {
-		check_invariant_stability(cmd);
 		extend_interference(cmd);
 	}
 
 	// compute post annotation
-	current_annotation = plankton::post_full(std::move(current_annotation), cmd);
+	current_annotation = solver->Post(*current_annotation, cmd);
 	if (has_effect(*cmd.lhs) || has_effect(*cmd.rhs)) apply_interference();
-	remove_invariant();
 }
 
 void Verifier::visit_macro_function(const Function& function) {
@@ -549,9 +445,8 @@ void Verifier::visit_macro_function(const Function& function) {
 	returning_annotations.clear();
 	
 	function.body->accept(*this);
-	remove_invariant();
 	returning_annotations.push_back(std::move(current_annotation));
-	current_annotation = plankton::unify(std::move(returning_annotations));
+	current_annotation = solver->Join(std::move(returning_annotations));
 
 	breaking_annotations = std::move(outer_breaking_annotations);
 	returning_annotations = std::move(outer_returning_annotations);
@@ -560,26 +455,20 @@ void Verifier::visit_macro_function(const Function& function) {
 void Verifier::visit(const Macro& cmd) {
 	// pass arguments to function (treated as assignments)
 	for (std::size_t i = 0; i < cmd.args.size(); ++i) {
-		auto dummy = std::make_unique<Assignment>(
-			std::make_unique<VariableExpression>(*cmd.decl.args.at(i)), cola::copy(*cmd.args.at(i))
-		);
-		assert(!has_effect(*dummy->lhs));
-		dummy->accept(*this);
+		VariableExpression lhs(*cmd.decl.args.at(i));
+		const Expression& rhs = *cmd.args.at(i);
+		current_annotation = solver->PostAssignment(*current_annotation, lhs, rhs);
 	}
 
 	// descend into function call
-	cmd.decl.body->accept(*this);
+	visit_macro_function(cmd.decl);
 
 	// get returned values (treated as assignments)
 	for (std::size_t i = 0; i < cmd.lhs.size(); ++i) {
-		auto dummy = std::make_unique<Assignment>(
-			std::make_unique<VariableExpression>(cmd.lhs.at(i).get()), std::make_unique<VariableExpression>(*cmd.decl.returns.at(i))
-		);
-		assert(!has_effect(*dummy->lhs));
-		dummy->accept(*this);
+		VariableExpression lhs(cmd.lhs.at(i).get());
+		VariableExpression rhs(*cmd.decl.returns.at(i));
+		current_annotation = solver->PostAssignment(*current_annotation, lhs, rhs);
 	}
-
-	remove_invariant();
 }
 
 void Verifier::visit(const CompareAndSwap& /*cmd*/) {

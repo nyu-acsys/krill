@@ -11,6 +11,7 @@
 #include "plankton/error.hpp"
 #include "plankton/logic.hpp"
 #include "plankton/util.hpp"
+#include "plankton/solver.hpp"
 
 
 namespace plankton {
@@ -64,20 +65,12 @@ namespace plankton {
 			std::vector<std::unique_ptr<Annotation>> breaking_annotations; // collects annotations breaking out of loops
 			std::vector<std::unique_ptr<Annotation>> returning_annotations; // collects annotations breaking out of loops
 			bool inside_atomic;
-			std::unique_ptr<ConjunctionFormula> instantiated_invariant;
-			// const cola::Program* theProgram;
-
-			void set_config(const cola::Program& program);
+			std::unique_ptr<Solver> solver;
 
 			void visit_interface_function(const cola::Function& function); // performs proof for given interface function
 			void visit_macro_function(const cola::Function& function); // performs subproof for given macro function
 			void handle_loop(const cola::ConditionalLoop& loop, bool peelFirst=false); // uniformly handles While/DoWhile
-			void check_pointer_accesses(const cola::Expression& expr); // ensures null is not dereferenced in expr
-			void check_invariant_stability(const cola::Assignment& command);
-			void check_invariant_stability(const cola::Malloc& command);
-			void push_invariant_instantiation(const std::vector<std::unique_ptr<cola::VariableDeclaration>>& vars);
-			void exploint_invariant();
-			void remove_invariant();
+			void check_pointer_accesses(const cola::Command& command); // ensures null is not dereferenced in command
 			
 			void extend_interference(const cola::Assignment& command); // calls extend_interferenceadds with renamed (current_annotation, command)
 			void extend_interference(std::unique_ptr<Effect> effect); // adds effect to interference; updates is_interference_saturated

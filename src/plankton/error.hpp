@@ -24,6 +24,15 @@ namespace plankton {
 		AssertionError(const cola::Assert& cmd);
 	};
 
+	struct UnsafeDereferenceError : public VerificationError {
+		UnsafeDereferenceError(const cola::Expression& expr);
+		UnsafeDereferenceError(const cola::Expression& expr, const cola::Command& where);
+	};
+
+	struct SolvingError : public VerificationError {
+		SolvingError(std::string cause_);
+	};
+
 } // namespace plankton
 
 #endif

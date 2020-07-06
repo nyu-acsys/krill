@@ -40,6 +40,7 @@ namespace plankton {
 			: name(std::move(name_)), vars(std::move(vars_)), blueprint(std::move(blueprint_))
 		{
 			assert(blueprint);
+			// TODO: ensure that the variables contained in 'blueprint' are either shared or contained in 'vars'
 		}
 
 		std::unique_ptr<T> instantiate(std::array<std::reference_wrapper<const cola::VariableDeclaration>, N> decls) const {
@@ -77,7 +78,7 @@ namespace plankton {
 	};
 
 
-	using Predicate = Property<2, Axiom>;
+	using Predicate = Property<2, AxiomConjunctionFormula>;
 	using Invariant = Property<1, ConjunctionFormula>;
 
 } // namespace plankton

@@ -1,30 +1,29 @@
-#include "plankton/verify.hpp"
+#include "plankton/solver.hpp"
 
 #include <iostream> // TODO: delete
-#include "plankton/config.hpp"
+#include "plankton/solver/solverimpl.hpp"
 
 using namespace cola;
 using namespace plankton;
-using OutFlowInfo = plankton::PlanktonConfig::OutFlowInfo;
 
 
 template<typename F>
-Invariant mk_invariant(const Type& nodeType, std::string name, F make_blueprint) {
+std::unique_ptr<Invariant> mk_invariant(const Type& nodeType, std::string name, F make_blueprint) {
 	std::array<std::unique_ptr<VariableDeclaration>, 1> vars {
 		std::make_unique<VariableDeclaration>("\%ptr", nodeType, false)
 	};
 	auto blueprint = make_blueprint(*vars.at(0));
-	return Invariant(name, std::move(vars), std::move(blueprint));
+	return std::make_unique<Invariant>(name, std::move(vars), std::move(blueprint));
 }
 
 template<typename F>
-Predicate mk_predicate(const Type& nodeType, std::string name, F make_blueprint) {
+std::unique_ptr<Predicate> mk_predicate(const Type& nodeType, std::string name, F make_blueprint) {
 	std::array<std::unique_ptr<VariableDeclaration>, 2> vars {
 		std::make_unique<VariableDeclaration>("\%ptr", nodeType, false),
 		std::make_unique<VariableDeclaration>("\%key", Type::data_type(), false)
 	};
 	auto blueprint = make_blueprint(*vars.at(0), *vars.at(1));
-	return Predicate(name, std::move(vars), std::move(blueprint));
+	return std::make_unique<Predicate>(name, std::move(vars), std::move(blueprint));
 }
 
 
@@ -42,18 +41,25 @@ std::unique_ptr<ExpressionAxiom> mk_axiom(std::unique_ptr<Expression> expr) {
 	return std::make_unique<ExpressionAxiom>(std::move(expr));
 }
 
-Predicate make_dummy_outflow(const Program& /*program*/, const Type& nodeType) {
+std::unique_ptr<Predicate> make_dummy_outflow(const Program& /*program*/, const Type& nodeType) {
 	std::cout << "MAKING DUMMY OUTFLOW PREDICATE" << std::endl;
 	return mk_predicate(nodeType, "^OUTFLOW", [](const auto& node, const auto& key){
-		return mk_axiom(std::make_unique<BinaryExpression>(
+		auto result = std::make_unique<AxiomConjunctionFormula>();
+		result->conjuncts.push_back(mk_axiom(std::make_unique<BinaryExpression>(
 			BinaryExpression::Operator::LT,
 			std::make_unique<Dereference>(std::make_unique<VariableExpression>(node), "val"),
 			std::make_unique<VariableExpression>(key)
+		)));
+		result->conjuncts.push_back(std::make_unique<FlowContainsAxiom>(
+			std::make_unique<VariableExpression>(node),
+			std::make_unique<VariableExpression>(key),
+			std::make_unique<VariableExpression>(key)
 		));
+		return result;
 	});
 }
 
-Predicate make_dummy_contains(const Program& /*program*/, const Type& nodeType) {
+std::unique_ptr<Predicate> make_dummy_contains(const Program& /*program*/, const Type& nodeType) {
 	std::cout << "MAKING DUMMY CONTAINS PREDICATE" << std::endl;
 	return mk_predicate(nodeType, "^CONTAINS", [](const auto& node, const auto& key){
 		auto equals = std::make_unique<BinaryExpression>(
@@ -62,13 +68,15 @@ Predicate make_dummy_contains(const Program& /*program*/, const Type& nodeType) 
 			std::make_unique<VariableExpression>(key)
 		);
 		auto unmarked = mk_non_null(std::make_unique<Dereference>(std::make_unique<VariableExpression>(node), "next"));
-		return mk_axiom(std::make_unique<BinaryExpression>(
+		auto result = std::make_unique<AxiomConjunctionFormula>();
+		result->conjuncts.push_back(mk_axiom(std::make_unique<BinaryExpression>(
 			BinaryExpression::Operator::AND, std::move(equals), std::move(unmarked)
-		));
+		)));
+		return result;
 	});
 }
 
-Invariant make_dummy_invariant(const Program& program, const Type& nodeType) {
+std::unique_ptr<Invariant> make_dummy_invariant(const Program& program, const Type& nodeType) {
 	std::cout << "MAKING DUMMY INVARIANT" << std::endl;
 	return mk_invariant(nodeType, "^INVARIANT", [&program](const auto& node){
 		auto result = std::make_unique<ConjunctionFormula>();
@@ -137,34 +145,32 @@ const Type& extract_node_type(const Program& program) {
 	return *program.types.at(0);
 }
 
-std::string extract_flow_field(const Type& nodeType) {
-	std::string fieldname;
-	bool found = false;
-	for (auto [name, fieldtype] : nodeType.fields) {
-		if (&fieldtype.get() == &nodeType) {
-			fieldname = name;
-			if (found) {
-				throw std::logic_error("Incompatible node type: too many pointer fields.");
-			}
-			found = true;
-		}
-	}
-	if (!found) {
-		throw std::logic_error("Cannot find pointer field in node type.");
-	}
-	return fieldname;
-}
+// std::string extract_flow_field(const Type& nodeType) {
+// 	std::string fieldname;
+// 	bool found = false;
+// 	for (auto [name, fieldtype] : nodeType.fields) {
+// 		if (&fieldtype.get() == &nodeType) {
+// 			fieldname = name;
+// 			if (found) {
+// 				throw std::logic_error("Incompatible node type: too many pointer fields.");
+// 			}
+// 			found = true;
+// 		}
+// 	}
+// 	if (!found) {
+// 		throw std::logic_error("Cannot find pointer field in node type.");
+// 	}
+// 	return fieldname;
+// }
 
-std::vector<OutFlowInfo> extract_outflow_info(const Program& program, const Type& nodeType, std::string fieldname) {
-	std::vector<OutFlowInfo> result;
-	result.emplace_back(nodeType, fieldname, make_dummy_outflow(program, nodeType));
-	return result;
+std::unique_ptr<Predicate> extract_outflow_predicate(const Program& program, const Type& nodeType) {
+	return make_dummy_outflow(program, nodeType);
 
 	// TODO: check node locality
 	throw std::logic_error("not yet implemented: extract_outflow_predicate");
 }
 
-Predicate extract_contains_predicate(const Program& program, const Type& nodeType) {
+std::unique_ptr<Predicate> extract_contains_predicate(const Program& program, const Type& nodeType) {
 	return make_dummy_contains(program, nodeType);
 
 	// TODO: check node locality
@@ -172,7 +178,7 @@ Predicate extract_contains_predicate(const Program& program, const Type& nodeTyp
 }
 
 
-Invariant extract_invariant(const Program& program, const Type& nodeType) {
+std::unique_ptr<Invariant> extract_invariant(const Program& program, const Type& nodeType) {
 	return make_dummy_invariant(program, nodeType);
 
 	// TODO: check node locality
@@ -190,50 +196,22 @@ Invariant extract_invariant(const Program& program, const Type& nodeType) {
 	// }
 }
 
+struct KeysetFlow : public FlowDomain {
+	std::unique_ptr<Predicate> outflowContains;
 
-struct VerificationConfig final : public PlanktonConfig {
-	const Type& node_type;
-	const std::string flow_field;
-	const std::vector<OutFlowInfo> outflow_info;
-	const Predicate contains;
-	const Invariant invariant;
+	KeysetFlow(std::unique_ptr<Predicate> predicate) : outflowContains(std::move(predicate)) {}
 
-	VerificationConfig(const Program& program)
-		: node_type(extract_node_type(program)),
-		  flow_field(extract_flow_field(node_type)),
-		  outflow_info(extract_outflow_info(program, node_type, flow_field)),
-		  contains(extract_contains_predicate(program, node_type)),
-		  invariant(extract_invariant(program, node_type))
-	{}
-	
-	bool is_flow_field_local(const Type& /*nodeType*/, std::string /*fieldname*/) override {
-		return true;
-	}
-
-	bool is_flow_insertion_inbetween_local(const Type& /*nodeType*/, std::string /*fieldname*/) override {
-		return true;
-	}
-
-	bool is_flow_unlinking_local(const Type& /*nodeType*/, std::string /*fieldname*/) override {
-		return true;
-	}
-
-	const std::vector<OutFlowInfo>& get_outflow_info() override {
-		return outflow_info;
-	}
-
-	const Predicate& get_logically_contains_key() override {
-		return contains;
-	}
-
-	const Invariant& get_invariant() override {
-		return invariant;
-	}
+	const Predicate& GetOutFlowContains() const override { return *outflowContains; }
 };
 
-
-void Verifier::set_config(const Program& program) {
-	plankton::config = std::make_unique<VerificationConfig>(program);
+std::unique_ptr<Solver> plankton::MakeLinearizabilitySolver(const Program& program) {
+	auto& nodeType = extract_node_type(program);
+	PostConfig config {
+		std::make_unique<KeysetFlow>(extract_outflow_predicate(program, nodeType)),
+		extract_contains_predicate(program, nodeType),
+		extract_invariant(program, nodeType)
+	};
+	return std::make_unique<SolverImpl>(std::move(config));
 }
 
 

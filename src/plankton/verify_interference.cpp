@@ -5,7 +5,6 @@
 #include "cola/util.hpp"
 #include "cola/visitors.hpp"
 #include "plankton/config.hpp"
-#include "plankton/post.hpp"
 
 using namespace cola;
 using namespace plankton;
@@ -86,11 +85,12 @@ void Verifier::extend_interference(std::unique_ptr<Effect> effect) {
 			continue;
 		}
 
-		if (plankton::implies(*effect->precondition, *other->precondition)) {
+		// TODO: implement iterative solving => extend effects with an ImplicationChecker?
+		if (solver->Implies(*effect->precondition, *other->precondition)) {
 			is_effect_new = false;
 			break;
 		}
-		if (plankton::implies(*other->precondition, *effect->precondition)) {
+		if (solver->Implies(*other->precondition, *effect->precondition)) {
 			other.reset();
 			effect_pruned = true;
 		}
@@ -114,7 +114,7 @@ void Verifier::extend_interference(std::unique_ptr<Effect> effect) {
 }
 
 void Verifier::extend_interference(const cola::Assignment& command) {
-	// TODO: exploit_invariant() or remove_invariant()?
+	current_annotation = solver->AddInvariant(std::move(current_annotation));
 	auto transformer = interference_renaming_info.as_transformer();
 
 	// make effect: (rename(current_annotation.now), rename(command)) where rename(x) renames the local variables in x
@@ -133,6 +133,7 @@ void Verifier::extend_interference(const cola::Assignment& command) {
 void Verifier::apply_interference() {
 	if (inside_atomic) return;
 	auto stable = std::make_unique<ConjunctionFormula>();
+	current_annotation = solver->StripInvariant(std::move(current_annotation));
 
 	std::cout << std::endl << "∆∆∆ applying interference " << current_annotation->now->conjuncts.size() << std::endl;
 	std::size_t counter = 0;
@@ -146,7 +147,6 @@ void Verifier::apply_interference() {
 	}
 
 	// deep check
-	// TODO: remove_invariant()?
 	bool changed;
 	do {
 		changed = false;
@@ -167,7 +167,7 @@ void Verifier::apply_interference() {
 				changed = true;
 			}
 		}
-	} while(changed && plankton::config->interference_exhaustive_repetition);
+	} while(changed && plankton::config.interference_exhaustive_repetition);
 
 	// keep interference-free part
 	current_annotation->now = std::move(stable);
@@ -178,7 +178,7 @@ void Verifier::apply_interference() {
 
 bool Verifier::is_interference_free(const ConjunctionFormula& formula){
 	for (const auto& effect : interference) {
-		if (!plankton::post_maintains_formula(*effect->precondition, formula, *effect->command)) {
+		if (!solver->PostEntails(*effect->precondition, *effect->command, formula)) {
 			// std::cout << " ==> no" << std::endl;
 			return false;
 		}

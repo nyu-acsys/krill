@@ -10,11 +10,7 @@ using namespace cola;
 using namespace plankton;
 
 
-struct SolvingError : public std::exception {
-	const std::string cause;
-	SolvingError(std::string cause_) : cause(std::move(cause_)) {}
-	virtual const char* what() const noexcept { return cause.c_str(); }
-};
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
