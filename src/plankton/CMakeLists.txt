@@ -29,7 +29,6 @@ set(SOURCES
 	util/replace.cpp
 	# post
 	solver/encoder.cpp
-	solver/mk_rules.cpp
 	solver/mk_solver.cpp
 	solver/solver.cpp
 	solver/solverimpl.cpp

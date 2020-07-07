@@ -104,7 +104,7 @@ struct FormulaPrinter : public LogicVisitor {
 	void visit(const FlowContainsAxiom& formula) override {
 		stream << "@flow(";
 		cola::print(*formula.expr, stream);
-		stream << ")⊇[]";
+		stream << ")⊇[";
 		cola::print(*formula.low_value, stream);
 		stream << ", ";
 		cola::print(*formula.high_value, stream);

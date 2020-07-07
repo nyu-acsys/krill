@@ -17,10 +17,6 @@ namespace plankton {
 
 	using selector_t = std::pair<const cola::Type*, std::string>;
 
-
-	void AddSolvingRulesToSolver(z3::solver solver);
-
-
 	class Encoder : public cola::BaseVisitor, public BaseLogicVisitor {
 		private:
 			using cola::BaseVisitor::visit;
@@ -46,7 +42,7 @@ namespace plankton {
 
 			z3::expr EncodeInternal(const Formula& formula);
 			z3::expr EncodeInternal(const cola::Expression& expression);
-			z3::expr EncodeInternalHasFlow(const cola::Expression& expression);
+			z3::expr EncodeInternalHasFlow(z3::expr node);
 			z3::expr EncodeInternalPredicate(const Predicate& predicate, z3::expr arg1, z3::expr arg2);
 			z3::expr EncodeInternalKeysetContains(z3::expr node, z3::expr key);
 
@@ -77,6 +73,7 @@ namespace plankton {
 			z3::expr_vector EncodeVector(const std::deque<z3::expr>& exprs);
 			z3::expr_vector EncodeVector(const std::vector<z3::expr>& exprs);
 			z3::expr EncodeHeap(z3::expr pointer, selector_t selector);
+			z3::expr EncodeHeap(z3::expr pointer, selector_t selector, z3::expr value);
 			z3::expr EncodeFlow(z3::expr pointer, z3::expr value, bool containsValue=true);
 			z3::expr EncodePremise(const Formula& formula);
 			z3::expr EncodePremise(const cola::Expression& formula);

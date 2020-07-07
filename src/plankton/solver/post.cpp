@@ -7,19 +7,19 @@ using namespace plankton;
 
 
 std::unique_ptr<Annotation> SolverImpl::Post(const Formula& /*pre*/, const cola::Assume& /*cmd*/) const {
-	throw std::logic_error("not yet implemented: SolverImpl::Post");
+	throw std::logic_error("not yet implemented: SolverImpl::Post Assume");
 }
 
 std::unique_ptr<Annotation> SolverImpl::Post(const Formula& /*pre*/, const cola::Malloc& /*cmd*/) const {
-	throw std::logic_error("not yet implemented: SolverImpl::Post");
+	throw std::logic_error("not yet implemented: SolverImpl::Post Malloc");
 }
 
 std::unique_ptr<Annotation> SolverImpl::Post(const Formula& /*pre*/, const cola::Assignment& /*cmd*/) const {
-	throw std::logic_error("not yet implemented: SolverImpl::Post");
+	throw std::logic_error("not yet implemented: SolverImpl::Post Assignment");
 }
 
-std::unique_ptr<Annotation> SolverImpl::PostAssignment(const Formula& /*pre*/, const cola::Expression& /*assignee*/, const cola::Expression& /*src*/) const {
-	throw std::logic_error("not yet implemented: SolverImpl::PostAssignment");
+std::unique_ptr<Annotation> SolverImpl::Post(const Formula& /*pre*/, parallel_assignment_t /*assignment*/) const {
+	throw std::logic_error("not yet implemented: SolverImpl::Post parallel_assignment_t");
 }
 
 

@@ -3,8 +3,6 @@
 #define PLANKTON_SOLVERIMPL
 
 
-#include <set>
-#include <stack>
 #include <deque>
 #include "plankton/solver.hpp"
 #include "plankton/solver/encoder.hpp"
@@ -30,15 +28,17 @@ namespace plankton {
 	class SolverImpl final : public Solver {
 		private:
 			mutable Encoder encoder;
-			std::stack<std::unique_ptr<ConjunctionFormula>> instantiatedInvariants;
-			std::stack<std::unique_ptr<ConjunctionFormula>> candidateFormulas;
-			std::stack<std::set<const cola::VariableDeclaration*>> variablesInScope;
+			std::deque<std::unique_ptr<ConjunctionFormula>> candidateFormulas;
+			std::deque<std::unique_ptr<ConjunctionFormula>> instantiatedInvariants;
+			std::deque<std::deque<const cola::VariableDeclaration*>> variablesInScope;
 
-			void PushScope();
+			void PushInnerScope();
+			void PushOuterScope();
 			void ExtendCurrentScope(const std::vector<std::unique_ptr<cola::VariableDeclaration>>& vars);
 
 		public:
-			SolverImpl(PostConfig config_) : Solver(std::move(config_)), encoder(config) {}
+			SolverImpl(PostConfig config_) : Solver(std::move(config_)), encoder(config) {
+			}
 
 			std::unique_ptr<ImplicationChecker> MakeImplicationChecker(const Formula& formula) const override {
 				return std::make_unique<ImplicationCheckerImpl>(encoder, formula);
@@ -58,7 +58,7 @@ namespace plankton {
 			std::unique_ptr<Annotation> Post(const Formula& pre, const cola::Assume& cmd) const override;
 			std::unique_ptr<Annotation> Post(const Formula& pre, const cola::Malloc& cmd) const override;
 			std::unique_ptr<Annotation> Post(const Formula& pre, const cola::Assignment& cmd) const override;
-			std::unique_ptr<Annotation> PostAssignment(const Formula& pre, const cola::Expression& assignee, const cola::Expression& src) const override;
+			std::unique_ptr<Annotation> Post(const Formula& pre, parallel_assignment_t assignment) const override;
 
 			bool PostEntails(const Formula& pre, const cola::Assume& cmd, const Formula& post) const override;
 			bool PostEntails(const Formula& pre, const cola::Malloc& cmd, const Formula& post) const override;

@@ -76,7 +76,7 @@ struct PlanktonConfig {
 	std::string program_path;
 	bool quiet, verbose;
 	bool print_gist;
-} config;
+} myconfig;
 
 struct PlanktonOutput {
 	// verification results, time, ...
@@ -92,7 +92,7 @@ static void read_input() {
 	// parse program
 	try {
 		std::cout << std::endl << "Parsing file... " << std::flush;
-		config.program = cola::parse_program(config.program_path);
+		myconfig.program = cola::parse_program(myconfig.program_path);
 		std::cout << "done" << std::endl;
 
 	} catch (ParseError err) {
@@ -105,7 +105,7 @@ static void read_input() {
 	}
 
 	// handle program options
-	Program& program = *config.program;
+	Program& program = *myconfig.program;
 	// TODO: extract/handle program options
 	
 	// preprocess program
@@ -129,7 +129,7 @@ static void print_program() {
 	return; // TODO: reenable
 	// print program
 	std::cout << std::endl << std::endl;
-	cola::print(*config.program, std::cout);
+	cola::print(*myconfig.program, std::cout);
 	std::cout << std::endl << std::endl;
 }
 
@@ -138,8 +138,8 @@ static void print_program() {
 // VERIFICATION
 //
 static void verify() {
-	assert(config.program);
-	plankton::check_linearizability(*config.program);
+	assert(myconfig.program);
+	plankton::check_linearizability(*myconfig.program);
 	throw std::logic_error("not yet implement (verify)");
 }
 
@@ -148,7 +148,7 @@ static void verify() {
 // OUTPUT
 //
 static void print_summary() {
-	if (config.quiet) { return; }
+	if (myconfig.quiet) { return; }
 	std::cout << std::endl << std::endl;
 	std::cout << "# Summary:" << std::endl;
 	std::cout << "# ========" << std::endl;
@@ -157,7 +157,7 @@ static void print_summary() {
 }
 
 static void print_gist() {
-	if (!config.print_gist) { return; }
+	if (!myconfig.print_gist) { return; }
 	throw std::logic_error("not yet implement (print_gist");
 }
 
@@ -176,24 +176,24 @@ int main(int argc, char** argv) {
 		UnlabeledValueArg<std::string> program_arg("program", "Input program file to analyze", true, "", is_program_constraint.get(), cmd);
 
 		cmd.parse(argc, argv);
-		config.program_path = program_arg.getValue();
-		config.quiet = quiet_switch.getValue();
-		config.verbose = verbose_switch.getValue();
-		config.print_gist = gist_switch.getValue();
+		myconfig.program_path = program_arg.getValue();
+		myconfig.quiet = quiet_switch.getValue();
+		myconfig.verbose = verbose_switch.getValue();
+		myconfig.print_gist = gist_switch.getValue();
 
 		// sanity checks
-		fail_if(config.quiet && config.verbose, cmd, "Quiet and verbose mode cannot be used together.");
+		fail_if(myconfig.quiet && myconfig.verbose, cmd, "Quiet and verbose mode cannot be used together.");
 
 	} catch (ArgException &e) {
 		std::cerr << "error: " << e.error() << " for arg " << e.argId() << std::endl;
 		return -1;
 	}
 
-	if (config.verbose) { throw std::logic_error("Verbose mode not yet implemented"); }
-	if (config.quiet) { throw std::logic_error("Quiet mode not yet implemented"); }
+	if (myconfig.verbose) { throw std::logic_error("Verbose mode not yet implemented"); }
+	if (myconfig.quiet) { throw std::logic_error("Quiet mode not yet implemented"); }
 
 	read_input();
-	if (!config.program) { return -1; }
+	if (!myconfig.program) { return -1; }
 	print_program();
 
 	verify();

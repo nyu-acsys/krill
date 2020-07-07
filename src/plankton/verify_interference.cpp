@@ -169,6 +169,8 @@ void Verifier::apply_interference() {
 		}
 	} while(changed && plankton::config.interference_exhaustive_repetition);
 
+	// TODO important: take non-interference-free stuff and (1) see if an implication helps to make it interference-free, (2) put it into a Hist
+
 	// keep interference-free part
 	current_annotation->now = std::move(stable);
 

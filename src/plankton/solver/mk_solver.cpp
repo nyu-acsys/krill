@@ -197,17 +197,25 @@ std::unique_ptr<Invariant> extract_invariant(const Program& program, const Type&
 }
 
 struct KeysetFlow : public FlowDomain {
+	const Type& nodeType;
 	std::unique_ptr<Predicate> outflowContains;
 
-	KeysetFlow(std::unique_ptr<Predicate> predicate) : outflowContains(std::move(predicate)) {}
+	KeysetFlow(const Type& type_, std::unique_ptr<Predicate> predicate) : nodeType(type_), outflowContains(std::move(predicate)) {}
 
-	const Predicate& GetOutFlowContains() const override { return *outflowContains; }
+	const Type& GetNodeType() const override {
+		return nodeType;
+	}
+
+	const Predicate& GetOutFlowContains(std::string fieldname) const override {
+		if (fieldname != "next") throw std::logic_error("KeysetFlow error: FlowDomain.GetOutFlowContains(std::string) expected 'next' but got '" + fieldname + "'.");
+		return *outflowContains;
+	}
 };
 
 std::unique_ptr<Solver> plankton::MakeLinearizabilitySolver(const Program& program) {
 	auto& nodeType = extract_node_type(program);
 	PostConfig config {
-		std::make_unique<KeysetFlow>(extract_outflow_predicate(program, nodeType)),
+		std::make_unique<KeysetFlow>(nodeType, extract_outflow_predicate(program, nodeType)),
 		extract_contains_predicate(program, nodeType),
 		extract_invariant(program, nodeType)
 	};

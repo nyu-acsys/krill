@@ -3,7 +3,7 @@
 #define PLANKTON_LOGIC
 
 
-#include <vector>
+#include <array>
 #include <deque>
 #include <memory>
 #include "cola/ast.hpp"
@@ -175,6 +175,7 @@ namespace plankton {
 
 	struct SpecificationAxiom : public Axiom {
 		enum struct Kind { CONTAINS, INSERT, DELETE };
+		static constexpr std::array<Kind, 3> KindIteratable { Kind::CONTAINS, Kind::INSERT, Kind::DELETE };
 		Kind kind;
 		std::unique_ptr<cola::VariableExpression> key;
 

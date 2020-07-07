@@ -24,7 +24,7 @@ namespace plankton {
 			}
 		}
 		PropertyInstantiationError(std::string name, std::size_t index, const cola::Type& expected, const cola::Type& got) : cause(
-			"Instantiation of property '" + name + "' failed: expected " + to_th(index+1) + " argument to be of type '" + expected.name + "' but got incompatible '" + got.name + "'." 
+			"Instantiation of property '" + name + "' failed: expected " + to_th(index+1) + " argument to be of type '" + expected.name + "' but got incompatible type '" + got.name + "'." 
 		) {}
 		virtual const char* what() const noexcept { return cause.c_str(); }
 	};
@@ -78,8 +78,8 @@ namespace plankton {
 	};
 
 
-	using Predicate = Property<2, AxiomConjunctionFormula>;
 	using Invariant = Property<1, ConjunctionFormula>;
+	using Predicate = Property<2, AxiomConjunctionFormula>;
 
 } // namespace plankton
 

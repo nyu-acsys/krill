@@ -7,7 +7,7 @@ using namespace plankton;
 
 
 template<typename U, typename V>
-std::unique_ptr<ConjunctionFormula> make_conjunction(std::unique_ptr<U> formula, std::unique_ptr<V> other) {
+std::unique_ptr<U> make_conjunction(std::unique_ptr<U> formula, std::unique_ptr<V> other) {
 	if (!plankton::config.conjoin_simplify) {
 		// just copy 'other' over to 'formula'
 		formula->conjuncts.insert(
@@ -32,5 +32,9 @@ std::unique_ptr<ConjunctionFormula> plankton::conjoin(std::unique_ptr<Conjunctio
 }
 
 std::unique_ptr<ConjunctionFormula> plankton::conjoin(std::unique_ptr<ConjunctionFormula> formula, std::unique_ptr<AxiomConjunctionFormula> other) {
+	return make_conjunction(std::move(formula), std::move(other));
+}
+
+std::unique_ptr<AxiomConjunctionFormula> plankton::conjoin(std::unique_ptr<AxiomConjunctionFormula> formula, std::unique_ptr<AxiomConjunctionFormula> other) {
 	return make_conjunction(std::move(formula), std::move(other));
 }

@@ -6,12 +6,12 @@ using namespace plankton;
 
 
 std::unique_ptr<Annotation> SolverImpl::AddInvariant(std::unique_ptr<Annotation> annotation) const {
-	annotation->now = plankton::conjoin(std::move(annotation->now), plankton::copy(*instantiatedInvariants.top()));
+	annotation->now = plankton::conjoin(std::move(annotation->now), plankton::copy(*instantiatedInvariants.back()));
 	return annotation;
 }
 
 std::unique_ptr<Annotation> SolverImpl::StripInvariant(std::unique_ptr<Annotation> annotation) const {
-	const auto& invariant = *instantiatedInvariants.top();
+	const auto& invariant = *instantiatedInvariants.back();
 
 	auto source = std::move(annotation->now->conjuncts);
 	annotation->now->conjuncts.clear();

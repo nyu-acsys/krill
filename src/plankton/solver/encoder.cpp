@@ -44,6 +44,7 @@ z3::expr Encoder::EncodeVariable(Sort sort, std::string name) {
 }
 
 z3::expr Encoder::EncodeVariable(Sort sort) {
+	// TODO: remove nameless variables as they spoil the lookup table
 	std::string name = "-tmp";
 	switch(sort) {
 		case Sort::PTR: name += "ptr"; break;
@@ -90,14 +91,12 @@ z3::expr Encoder::EncodeHeap(z3::expr pointer, selector_t selector) {
 	return heap(pointer, EncodeSelector(selector));
 }
 
-z3::expr Encoder::EncodeFlow(z3::expr pointer, z3::expr value, bool containsValue) {
-	return flow(pointer, value) == MakeBool(containsValue);
+z3::expr Encoder::EncodeHeap(z3::expr pointer, selector_t selector, z3::expr value) {
+	return EncodeHeap(pointer, selector) == value;
 }
 
-z3::solver Encoder::MakeSolver() {
-	auto result = z3::solver(context);
-	AddSolvingRulesToSolver(result);
-	return result;
+z3::expr Encoder::EncodeFlow(z3::expr pointer, z3::expr value, bool containsValue) {
+	return flow(pointer, value) == MakeBool(containsValue);
 }
 
 z3::expr Encoder::MakeAnd(const z3::expr_vector& conjuncts) {
@@ -259,8 +258,7 @@ void Encoder::visit(const ImplicationFormula& formula) {
 	result = MakeImplication(premise, conclusion);
 }
 
-z3::expr Encoder::EncodeInternalHasFlow(const Expression& node_expr) {
-	auto node = EncodeInternal(node_expr);
+z3::expr Encoder::EncodeInternalHasFlow(z3::expr node) {
 	auto key = EncodeVariable(Sort::DATA);
 	return z3::exists(key, EncodeFlow(node, key));
 }
@@ -273,7 +271,7 @@ void Encoder::visit(const OwnershipAxiom& formula) {
 	
 	// add more knowledge about ownership that may help reasoning
 	if (enhance_encoding) {
-		conjuncts.push_back(!EncodeInternalHasFlow(*formula.expr)); // owned ==> no flow
+		conjuncts.push_back(!EncodeInternalHasFlow(EncodeInternal(*formula.expr))); // owned ==> no flow
 		// TODO: add "no alias"
 	}
 
@@ -281,7 +279,7 @@ void Encoder::visit(const OwnershipAxiom& formula) {
 }
 
 void Encoder::visit(const HasFlowAxiom& formula) {
-	result = EncodeInternalHasFlow(*formula.expr);
+	result = EncodeInternalHasFlow(EncodeInternal(*formula.expr));
 }
 
 void Encoder::visit(const FlowContainsAxiom& formula) {
@@ -322,8 +320,13 @@ z3::expr Encoder::EncodeInternalPredicate(const Predicate& predicate, z3::expr a
 }
 
 z3::expr Encoder::EncodeInternalKeysetContains(z3::expr node, z3::expr key) {
-	auto& outflowPredicate = postConfig.flowDomain->GetOutFlowContains();
-	return EncodeFlow(node, key) && !EncodeInternalPredicate(outflowPredicate, node, key);
+	z3::expr_vector vec(context);
+	for (auto [fieldName, fieldType] : postConfig.flowDomain->GetNodeType().fields) {
+		if (fieldType.get().sort != Sort::PTR) continue;
+		vec.push_back(EncodeInternalPredicate(postConfig.flowDomain->GetOutFlowContains(fieldName), node, key));
+	}
+	z3::expr keyInOutflow = MakeOr(vec);
+	return EncodeFlow(node, key) && !keyInOutflow;
 }
 
 void Encoder::visit(const KeysetContainsAxiom& formula) {
@@ -338,4 +341,37 @@ void Encoder::visit(const LogicallyContainedAxiom& formula) {
 	auto logicallyContains = EncodeInternalPredicate(*postConfig.logicallyContainsKey, node, key);
 	auto keysetContains = EncodeInternalKeysetContains(node, key);
 	result = z3::exists(node, keysetContains && logicallyContains);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+z3::solver Encoder::MakeSolver() {
+	// create solver
+	auto result = z3::solver(context);
+
+	// add rule for solving flow
+	// forall node,selector,successor,key:  node->{selector}=successor /\ key in flow(node) /\ key_flows_out(node, key) ==> key in flow(successor)
+	const Type& nodeType = postConfig.flowDomain->GetNodeType();
+	for (auto [fieldName, fieldType] : nodeType.fields) {
+		if (fieldType.get().sort != Sort::PTR) continue;
+
+		auto key = EncodeVariable(nodeType.sort, "flow-" + fieldName + "key");
+		auto node = EncodeVariable(Sort::DATA, "flow-" + fieldName + "node");
+		auto successor = EncodeVariable(fieldType.get().sort, "flow-" + fieldName + "successor");
+		auto selector = std::make_pair(&nodeType, fieldName);
+
+		result.add(z3::forall(node, key, successor, MakeImplication(
+			EncodeHeap(node, selector, successor) &&
+			EncodeInternalHasFlow(node) &&
+			EncodeInternalPredicate(postConfig.flowDomain->GetOutFlowContains(fieldName), node, key),
+			/* ==> */
+			EncodeFlow(successor, key)
+		)));
+	}
+
+	// done
+	return result;
 }

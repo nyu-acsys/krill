@@ -44,6 +44,7 @@ namespace plankton {
 
 	std::unique_ptr<ConjunctionFormula> conjoin(std::unique_ptr<ConjunctionFormula> formula, std::unique_ptr<ConjunctionFormula> other);
 	std::unique_ptr<ConjunctionFormula> conjoin(std::unique_ptr<ConjunctionFormula> formula, std::unique_ptr<AxiomConjunctionFormula> other);
+	std::unique_ptr<AxiomConjunctionFormula> conjoin(std::unique_ptr<AxiomConjunctionFormula> formula, std::unique_ptr<AxiomConjunctionFormula> other);
 
 	//
 	// Inspection
@@ -52,6 +53,7 @@ namespace plankton {
 	bool syntactically_equal(const cola::Expression& expression, const cola::Expression& other);
 	bool syntactically_equal(const Formula& formula, const Formula& other);
 	bool syntactically_contains_conjunct(const ConjunctionFormula& formula, const SimpleFormula& other);
+	bool syntactically_contains_conjunct(const AxiomConjunctionFormula& formula, const SimpleFormula& other);
 
 	template<typename T, typename U>
 	std::pair<bool, const T*> is_of_type(const U& formula) {

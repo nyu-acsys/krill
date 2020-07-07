@@ -125,11 +125,20 @@ std::pair<bool, bool> plankton::contains_expression_obligation(const Formula& fo
 	return ContainsChecker::contains(formula, search);
 }
 
-bool plankton::syntactically_contains_conjunct(const ConjunctionFormula& formula, const SimpleFormula& other) {
+template<typename T>
+bool chk_contains_conjunct(const T& formula, const SimpleFormula& other) {
 	for (const auto& conjunct : formula.conjuncts) {
 		if (plankton::syntactically_equal(*conjunct, other)) {
 			return true;
 		}
 	}
-	return false;
+	return false;	
+}
+
+bool plankton::syntactically_contains_conjunct(const ConjunctionFormula& formula, const SimpleFormula& other) {
+	return chk_contains_conjunct(formula, other);
+}
+
+bool plankton::syntactically_contains_conjunct(const AxiomConjunctionFormula& formula, const SimpleFormula& other) {
+	return chk_contains_conjunct(formula, other);
 }

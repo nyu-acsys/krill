@@ -11,24 +11,43 @@
 
 namespace plankton {
 
+	/** Flow domain base class to parametrize a solvers in (almost) arbitrary flows.
+	  *
+	  * ASSUMPTION: heaps are homogeneous, i.e., consist of a single type of nodes only.
+	  */
 	struct FlowDomain {
 		virtual ~FlowDomain() = default;
 
-		/** Provides a predicate 'P(node, key)' computing whether or not 'key' is in the outflow of 'node'.
-		  * Note: if the outflow contains 'key' only if 'key' is contained in the flow of 'node', then the
-		  *       predicate 'P' has to ensure this itself.
-		  *
-		  * ASSUMPTION: heap are homogeneous, i.e., consist of a single type of nodes only or at least behave
-		  *             all equivalently wrt. to the returned outflow predicate.
+		/** The type of nodes in the heap. Thou shalt have no other nodes before this.
 		  */
-		virtual const Predicate& GetOutFlowContains() const = 0;
+		virtual const cola::Type& GetNodeType() const = 0;
 
-		// TODO: have another predicate 'P(node, key, succ)' computing whether or not 'node' sends flow containing 'key' to 'succ' (or GetOutFlowContains per selector?)
+		/** Provides a predicate 'P(node, key)' computing whether or not 'key' is in the outflow of 'node'
+		  * via the field named 'fieldname'. This predicate encodes the edge function.
+		  * The function will be called for 'fieldname's of pointer sort only.
+		  * // TODO: characterize the overall edge function in terms of predicate 'P'
+		  *
+		  * NOTE: if the outflow contains 'key' only if 'key' is contained in the flow of 'node', then the
+		  *       predicate 'P' has to ensure this itself. // TODO: needed?
+		  *
+		  * ASSUMPTION: edge functions are node-local, i.e., may only access the fields of 'node'.
+		  */
+		virtual const Predicate& GetOutFlowContains(std::string fieldname) const = 0;
 	};
 
+	/** Configuration object for solvers.
+	  */
 	struct PostConfig {
+		/** The underlying flow domain.
+		  */
 		std::unique_ptr<FlowDomain> flowDomain;
+
+		/** A predicate 'P(node, key)' computing whether or not 'node' logically contains 'key'.
+		  */
 		std::unique_ptr<Predicate> logicallyContainsKey;
+
+		/** An invariant 'I(node)' that is implicitly universally quantified over all nodes in the
+		  */
 		std::unique_ptr<Invariant> invariant;
 	};
 
@@ -79,7 +98,9 @@ namespace plankton {
 		virtual std::unique_ptr<Annotation> Post(const Formula& pre, const cola::Assume& cmd) const = 0;
 		virtual std::unique_ptr<Annotation> Post(const Formula& pre, const cola::Malloc& cmd) const = 0;
 		virtual std::unique_ptr<Annotation> Post(const Formula& pre, const cola::Assignment& cmd) const = 0;
-		virtual std::unique_ptr<Annotation> PostAssignment(const Formula& pre, const cola::Expression& assignee, const cola::Expression& src) const = 0;
+
+		using parallel_assignment_t = std::vector<std::pair<std::reference_wrapper<const cola::Expression>, std::reference_wrapper<const cola::Expression>>>;
+		virtual std::unique_ptr<Annotation> Post(const Formula& pre, parallel_assignment_t assignment) const = 0;
 
 		virtual bool PostEntails(const Formula& pre, const cola::Assume& cmd, const Formula& post) const;
 		virtual bool PostEntails(const Formula& pre, const cola::Malloc& cmd, const Formula& post) const;

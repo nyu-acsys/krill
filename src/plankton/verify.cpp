@@ -452,24 +452,76 @@ void Verifier::visit_macro_function(const Function& function) {
 	returning_annotations = std::move(outer_returning_annotations);
 }
 
-void Verifier::visit(const Macro& cmd) {
-	// pass arguments to function (treated as assignments)
-	for (std::size_t i = 0; i < cmd.args.size(); ++i) {
-		VariableExpression lhs(*cmd.decl.args.at(i));
-		const Expression& rhs = *cmd.args.at(i);
-		current_annotation = solver->PostAssignment(*current_annotation, lhs, rhs);
+
+inline std::pair<const Expression*, std::unique_ptr<Expression>> prepare(const VariableDeclaration& decl) {
+	std::pair<const Expression*, std::unique_ptr<Expression>> result;
+	result.second = std::make_unique<VariableExpression>(decl);
+	result.first = result.second.get();
+	return result;
+}
+
+inline std::pair<const Expression*, std::unique_ptr<Expression>> prepare(const std::unique_ptr<VariableDeclaration>& decl) {
+	std::pair<const Expression*, std::unique_ptr<Expression>> result;
+	result.second = std::make_unique<VariableExpression>(*decl);
+	result.first = result.second.get();
+	return result;
+}
+
+inline std::pair<const Expression*, std::unique_ptr<Expression>> prepare(const std::unique_ptr<Expression>& expr) {
+	std::pair<const Expression*, std::unique_ptr<Expression>> result;
+	result.first = expr.get();
+	return result;
+}
+
+template<typename U, typename V>
+inline std::unique_ptr<Annotation> execute_parallel_assignment(const Solver& solver, const Annotation& pre, const std::vector<U>& lhs, const std::vector<V>& rhs) {
+	assert(lhs.size() == rhs.size());
+
+	std::deque<std::unique_ptr<Expression>> dummy_storage;
+	plankton::Solver::parallel_assignment_t assignment;
+
+	for (std::size_t index = 0; index < lhs.size(); ++index) {
+		auto [leftExpr, leftOwn] = prepare(lhs.at(index));
+		auto [rightExpr, rightOwn] = prepare(rhs.at(index));
+		if (leftOwn) dummy_storage.push_back(std::move(leftOwn));
+		if (rightOwn) dummy_storage.push_back(std::move(rightOwn));
+		assignment.push_back(std::make_pair(std::cref(*leftExpr), std::cref(*rightExpr)));
 	}
+
+	return solver.Post(pre, assignment);
+}
+
+void Verifier::visit(const Macro& cmd) {
+	// pass arguments
+	solver->EnterScope(cmd.decl);
+	current_annotation = execute_parallel_assignment(*solver, *current_annotation, cmd.decl.args, cmd.args);
 
 	// descend into function call
 	visit_macro_function(cmd.decl);
 
-	// get returned values (treated as assignments)
-	for (std::size_t i = 0; i < cmd.lhs.size(); ++i) {
-		VariableExpression lhs(cmd.lhs.at(i).get());
-		VariableExpression rhs(*cmd.decl.returns.at(i));
-		current_annotation = solver->PostAssignment(*current_annotation, lhs, rhs);
-	}
+	// grab returns
+	solver->LeaveScope();
+	current_annotation = execute_parallel_assignment(*solver, *current_annotation, cmd.lhs, cmd.decl.returns);
 }
+
+// void Verifier::visit(const Macro& cmd) {
+// 	// pass arguments to function (treated as assignments)
+// 	for (std::size_t i = 0; i < cmd.args.size(); ++i) {
+// 		VariableExpression lhs(*cmd.decl.args.at(i));
+// 		const Expression& rhs = *cmd.args.at(i);
+// 		current_annotation = solver->PostAssignment(*current_annotation, lhs, rhs);
+// 	}
+
+// 	// descend into function call
+// 	visit_macro_function(cmd.decl);
+
+// 	// get returned values (treated as assignments)
+// 	for (std::size_t i = 0; i < cmd.lhs.size(); ++i) {
+// 		VariableExpression lhs(cmd.lhs.at(i).get());
+// 		VariableExpression rhs(*cmd.decl.returns.at(i));
+// 		current_annotation = solver->PostAssignment(*current_annotation, lhs, rhs);
+// 	}
+// }
 
 void Verifier::visit(const CompareAndSwap& /*cmd*/) {
 	throw UnsupportedConstructError("CompareAndSwap");
