@@ -33,6 +33,10 @@ namespace plankton {
 		SolvingError(std::string cause_);
 	};
 
+	struct EncodingError : public VerificationError {
+		EncodingError(std::string cause_);
+	};
+
 } // namespace plankton
 
 #endif

@@ -38,3 +38,5 @@ UnsafeDereferenceError::UnsafeDereferenceError(const Expression& expr) : Verific
 UnsafeDereferenceError::UnsafeDereferenceError(const Expression& expr, const Command& cmd) : VerificationError(mk_deref_msg(expr, &cmd)) {}
 
 SolvingError::SolvingError(std::string cause) : VerificationError(std::move(cause)) {}
+
+EncodingError::EncodingError(std::string cause) : VerificationError(std::move(cause)) {}

@@ -7,12 +7,65 @@ using namespace cola;
 using namespace plankton;
 
 
-z3::sort Encoder::EncodeSort(Sort sort) {
+Encoder::Encoder(const PostConfig& config) :
+	intSort(context.int_sort()),
+	boolSort(context.bool_sort()),
+	nullPtr(context.constant("_NULL_", intSort)), 
+	minVal(context.constant("_MIN_", intSort)),
+	maxVal(context.constant("_MAX_", intSort)),
+	heap(context.function("$MEM", intSort, intSort, intSort)),
+	flow(context.function("$FLOW", intSort, intSort, boolSort)),
+	ownership(context.function("$OWN", intSort, boolSort)),
+	postConfig(config)
+{
+	// TODO: currently nullPtr/minVal/maxValu are just some symbols that are not bound to a value
+}
+
+z3::expr Encoder::GetNullPtr() {
+	return nullPtr;
+}
+z3::expr Encoder::GetMinValue() {
+	return minVal;
+}
+z3::expr Encoder::GetMaxValue() {
+	return maxVal;
+}
+
+z3::expr Encoder::MakeBool(bool value) {
+	return context.bool_val(value);
+}
+
+z3::expr Encoder::MakeTrue() {
+	return MakeBool(true);
+}
+
+z3::expr Encoder::MakeFalse() {
+	return MakeBool(false);
+}
+
+z3::expr Encoder::MakeImplication(z3::expr premise, z3::expr conclusion) {
+	return z3::implies(premise, conclusion);
+}
+
+z3::expr Encoder::MakeAnd(const z3::expr_vector& conjuncts) {
+	return z3::mk_and(conjuncts);
+}
+
+z3::expr Encoder::MakeOr(const z3::expr_vector& disjuncts) {
+	return z3::mk_or(disjuncts);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+z3::sort Encoder::EncodeSort(StepTag /*tag*/, Sort sort) {
 	switch (sort) {
 		case Sort::PTR: return intSort;
 		case Sort::DATA: return intSort;
 		case Sort::BOOL: return boolSort;
-		case Sort::VOID: throw SolvingError("Cannot represent cola::Sort::VOID as z3::sort.");
+		case Sort::VOID: throw EncodingError("Cannot represent cola::Sort::VOID as z3::sort.");
 	}
 }
 
@@ -27,287 +80,75 @@ z3::expr get_or_create(M& map, const K& key, F make_new) {
 	return insert.first->second;
 }
 
-z3::expr Encoder::EncodeVariable(const VariableDeclaration& decl) {
-	// TODO: ensure that no two z3 constants with the same name are created (or rely on z3 doing the renaming?)
-	return get_or_create(decl2expr, &decl, [this,&decl](){
-		std::string name = "var$" + decl.name;
-		return context.constant(name.c_str(), EncodeSort(decl.type.sort));
+inline std::string mk_name(Encoder::StepTag tag, const VariableDeclaration& decl) {
+	std::string result = tag == Encoder::NEXT ? "var-p$" : "var$";
+	result += decl.name;
+	return result;
+}
+
+inline std::string mk_name(Encoder::StepTag tag, std::string name) {
+	std::string result = tag == Encoder::NEXT ? "sym-p$" : "sym$";
+	result += name;
+	return result;
+}
+
+z3::expr Encoder::EncodeVariable(StepTag tag, const VariableDeclaration& decl) {
+	auto key = std::make_pair(&decl, tag);
+	return get_or_create(decl2expr, key, [this,tag,&decl](){
+		return context.constant(mk_name(tag, decl).c_str(), EncodeSort(tag, decl.type.sort));
 	});
 }
 
-z3::expr Encoder::EncodeVariable(Sort sort, std::string name) {
-	// TODO: ensure that no two z3 constants with the same name are created (or rely on z3 doing the renaming?)
-	return get_or_create(name2expr, name, [this,&name,&sort](){
-		std::string varname = "sym$" + name;
-		return context.constant(varname.c_str(), EncodeSort(sort));
+z3::expr Encoder::EncodeVariable(StepTag tag, Sort sort, std::string name) {
+	auto key = std::make_pair(name, tag);
+	return get_or_create(name2expr, key, [this,tag,&name,&sort](){
+		return context.constant(mk_name(tag, name).c_str(), EncodeSort(tag, sort));
 	});
 }
 
-z3::expr Encoder::EncodeVariable(Sort sort) {
-	// TODO: remove nameless variables as they spoil the lookup table
-	std::string name = "-tmp";
-	switch(sort) {
-		case Sort::PTR: name += "ptr"; break;
-		case Sort::DATA: name += "data"; break;
-		case Sort::BOOL: name += "bool"; break;
-		case Sort::VOID: name += "void"; break;
-	}
-	name += "-" + std::to_string(temporary_count++);
-	return EncodeVariable(sort, name);
-}
-
-z3::expr Encoder::EncodeSelector(selector_t selector) {
+z3::expr Encoder::EncodeSelector(StepTag /*tag*/, selector_t selector) {
 	auto [type, fieldname] = selector;
 	if (!type->has_field(fieldname)) {
-		throw SolvingError("Cannot encode selector: type '" + type->name + "' has no field '" + fieldname + "'.");
+		throw EncodingError("Cannot encode selector: type '" + type->name + "' has no field '" + fieldname + "'.");
 	}
-	return get_or_create(selector2expr, std::make_pair(type, fieldname), [this](){
+	auto key = std::make_pair(type, fieldname);
+	return get_or_create(selector2expr, key, [this](){
 		return context.int_val(selector_count++);
 	});
 }
 
-template<typename T = std::vector<z3::expr>>
-inline z3::expr_vector mk_z3_vector(z3::context& context, T container) {
-	z3::expr_vector vec(context);
-	for (auto z3expr : container) {
-		vec.push_back(z3expr);
-	}
-	return vec;
+z3::expr Encoder::EncodeHeap(StepTag tag, z3::expr pointer, selector_t selector) {
+	if (tag == NEXT) throw std::logic_error("not yet implemented: NEXT"); // TODO: implement post heap
+	return heap(pointer, EncodeSelector(tag, selector));
 }
 
-z3::expr_vector Encoder::EncodeVector(const std::list<z3::expr>& exprs) {
-	return mk_z3_vector(context, std::move(exprs));
+z3::expr Encoder::EncodeHeap(StepTag tag, z3::expr pointer, selector_t selector, z3::expr value) {
+	return EncodeHeap(tag, pointer, selector) == value;
 }
 
-z3::expr_vector Encoder::EncodeVector(const std::deque<z3::expr>& exprs) {
-	return mk_z3_vector(context, std::move(exprs));
-}
-
-z3::expr_vector Encoder::EncodeVector(const std::vector<z3::expr>& exprs) {
-	return mk_z3_vector(context, std::move(exprs));
-}
-
-z3::expr Encoder::EncodeHeap(z3::expr pointer, selector_t selector) {
-	return heap(pointer, EncodeSelector(selector));
-}
-
-z3::expr Encoder::EncodeHeap(z3::expr pointer, selector_t selector, z3::expr value) {
-	return EncodeHeap(pointer, selector) == value;
-}
-
-z3::expr Encoder::EncodeFlow(z3::expr pointer, z3::expr value, bool containsValue) {
+z3::expr Encoder::EncodeFlow(StepTag tag, z3::expr pointer, z3::expr value, bool containsValue) {
+	if (tag == NEXT) throw std::logic_error("not yet implemented: NEXT"); // TODO: implement post flow
 	return flow(pointer, value) == MakeBool(containsValue);
 }
 
-z3::expr Encoder::MakeAnd(const z3::expr_vector& conjuncts) {
-	return z3::mk_and(conjuncts);
+z3::expr Encoder::EncodeOwnership(StepTag tag, z3::expr pointer, bool owned) {
+	if (tag == NEXT) throw std::logic_error("not yet implemented: NEXT"); // TODO: implement post ownership
+	return ownership(pointer) == MakeBool(owned);
 }
 
-z3::expr Encoder::MakeAnd(const std::list<z3::expr>& conjuncts) {
-	return MakeAnd(EncodeVector(std::move(conjuncts)));
+z3::expr Encoder::EncodeHasFlow(StepTag tag, z3::expr node) {
+	auto key = EncodeVariable(tag, Sort::DATA, "qv-key"); // TODO: does this avoid name clashes?
+	return z3::exists(key, EncodeFlow(tag, node, key));
 }
 
-z3::expr Encoder::MakeAnd(const std::deque<z3::expr>& conjuncts) {
-	return MakeAnd(EncodeVector(std::move(conjuncts)));
-}
-
-z3::expr Encoder::MakeAnd(const std::vector<z3::expr>& conjuncts) {
-	return MakeAnd(EncodeVector(std::move(conjuncts)));
-}
-
-z3::expr Encoder::MakeOr(const z3::expr_vector& disjuncts) {
-	return z3::mk_or(disjuncts);
-}
-
-z3::expr Encoder::MakeOr(const std::list<z3::expr>& disjuncts) {
-	return MakeOr(EncodeVector(std::move(disjuncts)));
-}
-
-z3::expr Encoder::MakeOr(const std::deque<z3::expr>& disjuncts) {
-	return MakeOr(EncodeVector(std::move(disjuncts)));
-}
-
-z3::expr Encoder::MakeOr(const std::vector<z3::expr>& disjuncts) {
-	return MakeOr(EncodeVector(std::move(disjuncts)));
-}
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-z3::expr Encoder::EncodePremise(const Formula& formula) {
-	enhance_encoding = true;
-	return EncodeInternal(formula);
-}
-
-z3::expr Encoder::EncodePremise(const Expression& expression) {
-	enhance_encoding = true;
-	return EncodeInternal(expression);
-}
-
-z3::expr Encoder::Encode(const Formula& formula) {
-	enhance_encoding = false;
-	return EncodeInternal(formula);
-}
-
-z3::expr Encoder::Encode(const Expression& expression) {
-	enhance_encoding = false;
-	return EncodeInternal(expression);
-}
-
-
-z3::expr Encoder::EncodeInternal(const Expression& expression) {
-	expression.accept(*this);
-	return result;
-}
-
-void Encoder::visit(const VariableDeclaration& node) {
-	result = EncodeVariable(node);
-}
-
-void Encoder::visit(const BooleanValue& node) {
-	result = MakeBool(node.value);
-}
-
-void Encoder::visit(const NullValue& /*node*/) {
-	result = GetNullPtr();
-}
-
-void Encoder::visit(const EmptyValue& /*node*/) {
-	throw SolvingError("Unsupported construct: instance of type 'EmptyValue' (aka 'EMPTY').");
-}
-
-void Encoder::visit(const MaxValue& /*node*/) {
-	result = GetMaxValue();
-}
-
-void Encoder::visit(const MinValue& /*node*/) {
-	result = GetMinValue();
-}
-
-void Encoder::visit(const NDetValue& /*node*/) {
-	throw SolvingError("Unsupported construct: instance of type 'NDetValue' (aka '*').");
-}
-
-void Encoder::visit(const VariableExpression& node) {
-	result = EncodeVariable(node.decl);
-}
-
-void Encoder::visit(const NegatedExpression& node) {
-	result = !EncodeInternal(*node.expr);
-}
-
-void Encoder::visit(const BinaryExpression& node) {
-	auto lhs = EncodeInternal(*node.lhs);
-	auto rhs = EncodeInternal(*node.rhs);
-	switch (node.op) {
-		case BinaryExpression::Operator::EQ:  result = (lhs == rhs); break;
-		case BinaryExpression::Operator::NEQ: result = (lhs != rhs); break;
-		case BinaryExpression::Operator::LEQ: result = (lhs <= rhs); break;
-		case BinaryExpression::Operator::LT:  result = (lhs < rhs);  break;
-		case BinaryExpression::Operator::GEQ: result = (lhs >= rhs); break;
-		case BinaryExpression::Operator::GT:  result = (lhs > rhs);  break;
-		case BinaryExpression::Operator::AND: result = (lhs && rhs); break;
-		case BinaryExpression::Operator::OR:  result = (lhs || rhs); break;
-	}
-}
-
-void Encoder::visit(const Dereference& node) {
-	auto expr = EncodeInternal(*node.expr);
-	auto selector = std::make_pair(&node.type(), node.fieldname);
-	result = EncodeHeap(expr, selector);
-}
-
-
-z3::expr Encoder::EncodeInternal(const Formula& formula) {
-	formula.accept(*this);
-	return result;
-}
-
-void Encoder::visit(const AxiomConjunctionFormula& formula) {
-	z3::expr_vector vec(context);
-	for (const auto& conjunct : formula.conjuncts) {
-		vec.push_back(EncodeInternal(*conjunct));
-	}
-	result = MakeAnd(vec);
-}
-
-void Encoder::visit(const ConjunctionFormula& formula) {
-	z3::expr_vector vec(context);
-	for (const auto& conjunct : formula.conjuncts) {
-		vec.push_back(EncodeInternal(*conjunct));
-	}
-	result = MakeAnd(vec);
-}
-
-void Encoder::visit(const NegatedAxiom& formula) {
-	result = !EncodeInternal(*formula.axiom);
-}
-
-void Encoder::visit(const ExpressionAxiom& formula) {
-	result = EncodeInternal(*formula.expr);
-}
-
-void Encoder::visit(const ImplicationFormula& formula) {
-	bool enhance = enhance_encoding;
-	enhance_encoding = !enhance;
-	auto premise = EncodeInternal(*formula.premise);
-	enhance_encoding = enhance;
-	auto conclusion = EncodeInternal(*formula.conclusion);
-	result = MakeImplication(premise, conclusion);
-}
-
-z3::expr Encoder::EncodeInternalHasFlow(z3::expr node) {
-	auto key = EncodeVariable(Sort::DATA);
-	return z3::exists(key, EncodeFlow(node, key));
-}
-
-void Encoder::visit(const OwnershipAxiom& formula) {
-	z3::expr_vector conjuncts(context);
-
-	// add special variable indicating ownership
-	conjuncts.push_back(EncodeVariable(Sort::BOOL, "OWNED_" + formula.expr->decl.name) == MakeTrue());
-	
-	// add more knowledge about ownership that may help reasoning
-	if (enhance_encoding) {
-		conjuncts.push_back(!EncodeInternalHasFlow(EncodeInternal(*formula.expr))); // owned ==> no flow
-		// TODO: add "no alias"
-	}
-
-	result = MakeAnd(conjuncts);
-}
-
-void Encoder::visit(const HasFlowAxiom& formula) {
-	result = EncodeInternalHasFlow(EncodeInternal(*formula.expr));
-}
-
-void Encoder::visit(const FlowContainsAxiom& formula) {
-	auto node = EncodeInternal(*formula.expr);
-	auto key = EncodeVariable(Sort::DATA);
-	auto low = EncodeInternal(*formula.low_value);
-	auto high = EncodeInternal(*formula.high_value);
-	result = z3::forall(key, MakeImplication((low <= key) && (key <= high), EncodeFlow(node, key)));
-}
-
-void Encoder::visit(const ObligationAxiom& formula) {
-	std::string varname = "OBL_" + plankton::to_string(formula.kind) + "_" + formula.key->decl.name;
-	result = EncodeVariable(Sort::BOOL, varname) == MakeTrue();
-}
-
-void Encoder::visit(const FulfillmentAxiom& formula) {
-	std::string varname = "FUL_" + plankton::to_string(formula.kind) + "_" + formula.key->decl.name + "_" + (formula.return_value ? "true" : "false");
-	result = (EncodeVariable(Sort::BOOL, varname) == MakeTrue());
-}
-
-z3::expr Encoder::EncodeInternalPredicate(const Predicate& predicate, z3::expr arg1, z3::expr arg2) {
+z3::expr Encoder::EncodePredicate(StepTag tag, const Predicate& predicate, z3::expr arg1, z3::expr arg2) {
 	// we cannot instantiate 'predicate' with 'arg1' and 'arg2' directly (works only for 'VariableDeclaration's)
-	auto blueprint = EncodeInternal(*predicate.blueprint);
+	auto blueprint = Encode(tag, *predicate.blueprint);
 
 	// get blueprint vars
 	z3::expr_vector blueprint_vars(context);
 	for (const auto& decl : predicate.vars) {
-		blueprint_vars.push_back(EncodeVariable(*decl));
+		blueprint_vars.push_back(EncodeVariable(tag, *decl));
 	}
 
 	// get actual values
@@ -319,28 +160,158 @@ z3::expr Encoder::EncodeInternalPredicate(const Predicate& predicate, z3::expr a
 	return blueprint.substitute(blueprint_vars, replacement);
 }
 
-z3::expr Encoder::EncodeInternalKeysetContains(z3::expr node, z3::expr key) {
+z3::expr Encoder::EncodeKeysetContains(StepTag tag, z3::expr node, z3::expr key) {
 	z3::expr_vector vec(context);
 	for (auto [fieldName, fieldType] : postConfig.flowDomain->GetNodeType().fields) {
 		if (fieldType.get().sort != Sort::PTR) continue;
-		vec.push_back(EncodeInternalPredicate(postConfig.flowDomain->GetOutFlowContains(fieldName), node, key));
+		vec.push_back(EncodePredicate(tag, postConfig.flowDomain->GetOutFlowContains(fieldName), node, key));
 	}
 	z3::expr keyInOutflow = MakeOr(vec);
-	return EncodeFlow(node, key) && !keyInOutflow;
+	return EncodeFlow(tag, node, key) && !keyInOutflow;
 }
 
-void Encoder::visit(const KeysetContainsAxiom& formula) {
-	auto node = EncodeInternal(*formula.node);
-	auto value = EncodeInternal(*formula.value);
-	result = EncodeInternalKeysetContains(node, value);
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+z3::expr Encoder::Encode(const Formula& formula, StepTag tag) {
+	return EncoderCallback(*this, tag).Encode(formula);
 }
 
-void Encoder::visit(const LogicallyContainedAxiom& formula) {
-	auto node = EncodeVariable(Sort::PTR);
-	auto key = EncodeInternal(*formula.expr);
-	auto logicallyContains = EncodeInternalPredicate(*postConfig.logicallyContainsKey, node, key);
-	auto keysetContains = EncodeInternalKeysetContains(node, key);
-	result = z3::exists(node, keysetContains && logicallyContains);
+z3::expr Encoder::Encode(const Expression& expression, StepTag tag) {
+	return EncoderCallback(*this, tag).Encode(expression);
+}
+
+
+z3::expr Encoder::Encode(StepTag tag, const VariableDeclaration& node) {
+	return EncodeVariable(tag, node);
+}
+
+z3::expr Encoder::Encode(StepTag /*tag*/, const BooleanValue& node) {
+	return MakeBool(node.value);
+}
+
+z3::expr Encoder::Encode(StepTag /*tag*/, const NullValue& /*node*/) {
+	return GetNullPtr(); // TODO: do we need a next version?
+}
+
+z3::expr Encoder::Encode(StepTag /*tag*/, const EmptyValue& /*node*/) {
+	throw EncodingError("Unsupported construct: instance of type 'EmptyValue' (aka 'EMPTY').");
+}
+
+z3::expr Encoder::Encode(StepTag /*tag*/, const MaxValue& /*node*/) {
+	return GetMaxValue(); // TODO: do we need a next version?
+}
+
+z3::expr Encoder::Encode(StepTag /*tag*/, const MinValue& /*node*/) {
+	return GetMinValue(); // TODO: do we need a next version?
+}
+
+z3::expr Encoder::Encode(StepTag /*tag*/, const NDetValue& /*node*/) {
+	throw EncodingError("Unsupported construct: instance of type 'NDetValue' (aka '*').");
+}
+
+z3::expr Encoder::Encode(StepTag tag, const VariableExpression& node) {
+	return EncodeVariable(tag, node.decl);
+}
+
+z3::expr Encoder::Encode(StepTag tag, const NegatedExpression& node) {
+	return !Encode(*node.expr, tag);
+}
+
+z3::expr Encoder::Encode(StepTag tag, const BinaryExpression& node) {
+	auto lhs = Encode(*node.lhs, tag);
+	auto rhs = Encode(*node.rhs, tag);
+	switch (node.op) {
+		case BinaryExpression::Operator::EQ:  return (lhs == rhs);
+		case BinaryExpression::Operator::NEQ: return (lhs != rhs);
+		case BinaryExpression::Operator::LEQ: return (lhs <= rhs);
+		case BinaryExpression::Operator::LT:  return (lhs < rhs);
+		case BinaryExpression::Operator::GEQ: return (lhs >= rhs);
+		case BinaryExpression::Operator::GT:  return (lhs > rhs);
+		case BinaryExpression::Operator::AND: return (lhs && rhs);
+		case BinaryExpression::Operator::OR:  return (lhs || rhs);
+	}
+}
+
+z3::expr Encoder::Encode(StepTag tag, const Dereference& node) {
+	auto expr = Encode(*node.expr, tag);
+	auto selector = std::make_pair(&node.type(), node.fieldname);
+	return EncodeHeap(tag, expr, selector);
+}
+
+
+z3::expr Encoder::Encode(StepTag tag, const AxiomConjunctionFormula& formula) {
+	z3::expr_vector vec(context);
+	for (const auto& conjunct : formula.conjuncts) {
+		vec.push_back(Encode(*conjunct, tag));
+	}
+	return MakeAnd(vec);
+}
+
+z3::expr Encoder::Encode(StepTag tag, const ConjunctionFormula& formula) {
+	z3::expr_vector vec(context);
+	for (const auto& conjunct : formula.conjuncts) {
+		vec.push_back(Encode(*conjunct, tag));
+	}
+	return MakeAnd(vec);
+}
+
+z3::expr Encoder::Encode(StepTag tag, const NegatedAxiom& formula) {
+	return !Encode(*formula.axiom, tag);
+}
+
+z3::expr Encoder::Encode(StepTag tag, const ExpressionAxiom& formula) {
+	return Encode(*formula.expr, tag);
+}
+
+z3::expr Encoder::Encode(StepTag tag, const ImplicationFormula& formula) {
+	auto premise = Encode(*formula.premise, tag);
+	auto conclusion = Encode(*formula.conclusion, tag);
+	return MakeImplication(premise, conclusion);
+}
+
+z3::expr Encoder::Encode(StepTag tag, const OwnershipAxiom& formula) {
+	// return EncodeVariable(tag, Sort::BOOL, "OWNED_" + formula.expr->decl.name) == MakeTrue();
+	return EncodeOwnership(tag, Encode(*formula.expr, tag));
+}
+
+z3::expr Encoder::Encode(StepTag tag, const HasFlowAxiom& formula) {
+	return EncodeHasFlow(tag, Encode(*formula.expr, tag));
+}
+
+z3::expr Encoder::Encode(StepTag tag, const FlowContainsAxiom& formula) {
+	auto node = Encode(*formula.expr, tag);
+	auto key = EncodeVariable(tag, Sort::DATA, "qv-key"); // TODO: does this avoid name clashes?
+	auto low = Encode(*formula.low_value, tag);
+	auto high = Encode(*formula.high_value, tag);
+	return z3::forall(key, MakeImplication((low <= key) && (key <= high), EncodeFlow(tag, node, key)));
+}
+
+z3::expr Encoder::Encode(StepTag tag, const ObligationAxiom& formula) {
+	std::string varname = "OBL_" + plankton::to_string(formula.kind) + "_" + formula.key->decl.name;
+	return EncodeVariable(tag, Sort::BOOL, varname) == MakeTrue();
+}
+
+z3::expr Encoder::Encode(StepTag tag, const FulfillmentAxiom& formula) {
+	std::string varname = "FUL_" + plankton::to_string(formula.kind) + "_" + formula.key->decl.name + "_" + (formula.return_value ? "true" : "false");
+	return (EncodeVariable(tag, Sort::BOOL, varname) == MakeTrue());
+}
+
+z3::expr Encoder::Encode(StepTag tag, const KeysetContainsAxiom& formula) {
+	auto node = Encode(*formula.node, tag);
+	auto value = Encode(*formula.value, tag);
+	return EncodeKeysetContains(tag, node, value);
+}
+
+z3::expr Encoder::Encode(StepTag tag, const LogicallyContainedAxiom& formula) {
+	auto node = EncodeVariable(tag, Sort::PTR, "qv-ptr"); // TODO: does this avoid name clashes?
+	auto key = Encode(*formula.expr, tag);
+	auto logicallyContains = EncodePredicate(tag, *postConfig.logicallyContainsKey, node, key);
+	auto keysetContains = EncodeKeysetContains(tag, node, key);
+	return z3::exists(node, keysetContains && logicallyContains);
 }
 
 
@@ -352,24 +323,48 @@ z3::solver Encoder::MakeSolver() {
 	// create solver
 	auto result = z3::solver(context);
 
-	// add rule for solving flow
-	// forall node,selector,successor,key:  node->{selector}=successor /\ key in flow(node) /\ key_flows_out(node, key) ==> key in flow(successor)
 	const Type& nodeType = postConfig.flowDomain->GetNodeType();
-	for (auto [fieldName, fieldType] : nodeType.fields) {
-		if (fieldType.get().sort != Sort::PTR) continue;
+	for (auto tag : { NOW, NEXT }) {
 
-		auto key = EncodeVariable(nodeType.sort, "flow-" + fieldName + "key");
-		auto node = EncodeVariable(Sort::DATA, "flow-" + fieldName + "node");
-		auto successor = EncodeVariable(fieldType.get().sort, "flow-" + fieldName + "successor");
-		auto selector = std::make_pair(&nodeType, fieldName);
+		// add rule for solving flow
+		// forall node,selector,successor,key:  node->{selector}=successor /\ key in flow(node) /\ key_flows_out(node, key) ==> key in flow(successor)
+		for (auto [fieldName, fieldType] : nodeType.fields) {
+			if (fieldType.get().sort != Sort::PTR) continue;
 
-		result.add(z3::forall(node, key, successor, MakeImplication(
-			EncodeHeap(node, selector, successor) &&
-			EncodeInternalHasFlow(node) &&
-			EncodeInternalPredicate(postConfig.flowDomain->GetOutFlowContains(fieldName), node, key),
-			/* ==> */
-			EncodeFlow(successor, key)
+			auto key = EncodeVariable(tag, Sort::DATA, "qv-flow-" + fieldName + "-key");
+			auto node = EncodeVariable(tag, nodeType.sort, "qv-flow-" + fieldName + "-node");
+			auto successor = EncodeVariable(tag, fieldType.get().sort, "qv-flow-" + fieldName + "-successor");
+			auto selector = std::make_pair(&nodeType, fieldName);
+
+			result.add(z3::forall(node, key, successor, MakeImplication(
+				EncodeHeap(tag, node, selector, successor) &&
+				EncodeHasFlow(tag, node) &&
+				EncodePredicate(tag, postConfig.flowDomain->GetOutFlowContains(fieldName), node, key),
+				/* ==> */
+				EncodeFlow(tag, successor, key)
+			)));
+		}
+
+		// add rule for solving ownership
+		// forall node:  owned(node) ==> !hasFlow(node)
+		auto node = EncodeVariable(tag, Sort::PTR, "qv-owner-ptr");
+		result.add(z3::forall(node, MakeImplication(
+			EncodeOwnership(tag, node), /* ==> */ !EncodeHasFlow(tag, node)
 		)));
+
+		// add rule for solving ownership
+		// forall node,other,selector:  owned(node) ==> other->{selector} != node
+		for (auto [fieldName, fieldType] : nodeType.fields) {
+			if (fieldType.get().sort != Sort::PTR) continue;
+
+			auto node = EncodeVariable(tag, nodeType.sort, "qv-owner-node");
+			auto other = EncodeVariable(tag, fieldType.get().sort, "qv-owner-other");
+			auto selector = std::make_pair(&nodeType, fieldName);
+
+			result.add(z3::forall(node, other, MakeImplication(
+				EncodeOwnership(tag, node), /* ==> */ !EncodeHeap(tag, other, selector, node)
+			)));
+		}
 	}
 
 	// done
