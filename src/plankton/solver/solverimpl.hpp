@@ -14,11 +14,13 @@ namespace plankton {
 		private:
 			Encoder& encoder;
 			mutable z3::solver solver;
+			Encoder::StepTag encodingTag = Encoder::StepTag::NOW;
 
 			bool Implies(z3::expr expr) const;
 
 		public:
 			ImplicationCheckerImpl(Encoder& encoder, const Formula& premise);
+			ImplicationCheckerImpl(Encoder& encoder, z3::solver solver, Encoder::StepTag tag); 
 
 			bool ImpliesFalse() const override;
 			bool Implies(const Formula& implied) const override;
@@ -43,19 +45,24 @@ namespace plankton {
 			void PushOuterScope();
 			void ExtendCurrentScope(const std::vector<std::unique_ptr<cola::VariableDeclaration>>& vars);
 
+			std::unique_ptr<Annotation> PostAssign(const Annotation& pre, const cola::Expression& lhs, const cola::Expression& rhs) const;
+			std::unique_ptr<Annotation> PostAssign(const Annotation& pre, const cola::VariableExpression& lhs, const cola::Expression& rhs) const;
+			std::unique_ptr<Annotation> PostAssign(const Annotation& pre, const cola::Dereference& lhs, const cola::VariableExpression& lhsVar, const cola::Expression& rhs) const;
+
+			void ExtendSolverWithStackRules(z3::solver& solver, const cola::VariableDeclaration* changedVar=nullptr) const;
+			void ExtendSolverWithSpecificationCheckRules(z3::solver& solver, z3::expr_vector footprint) const;
+
+			// TODO: remove unused functions
+			std::unique_ptr<ConjunctionFormula> ExtendExhaustively(std::unique_ptr<ConjunctionFormula> formula, bool removeNonCandidates=false) const;
+			std::unique_ptr<ConjunctionFormula> PruneNonCandidates(std::unique_ptr<ConjunctionFormula> formula) const;
+
 		public:
-			SolverImpl(PostConfig config_) : Solver(std::move(config_)), encoder(config) {
-			}
+			SolverImpl(PostConfig config_);
 
-			std::unique_ptr<ImplicationChecker> MakeImplicationChecker(const Formula& formula) const override {
-				return std::make_unique<ImplicationCheckerImpl>(encoder, formula);
-			}
-
-			std::unique_ptr<Annotation> Join(std::vector<std::unique_ptr<Annotation>> annotations) const override; // TODO: strip invariant, join, then add invariant
-
+			std::unique_ptr<ImplicationChecker> MakeImplicationChecker(const Formula& formula) const override;
+			std::unique_ptr<Annotation> Join(std::vector<std::unique_ptr<Annotation>> annotations) const override;
 			std::unique_ptr<Annotation> AddInvariant(std::unique_ptr<Annotation> annotation) const override;
 			std::unique_ptr<Annotation> StripInvariant(std::unique_ptr<Annotation> annotation) const override;
-
 
 			void EnterScope(const cola::Scope& scope) override;
 			void EnterScope(const cola::Function& function) override;
@@ -66,7 +73,6 @@ namespace plankton {
 			std::unique_ptr<Annotation> Post(const Annotation& pre, const cola::Malloc& cmd) const override;
 			std::unique_ptr<Annotation> Post(const Annotation& pre, const cola::Assignment& cmd) const override;
 			std::unique_ptr<Annotation> Post(const Annotation& pre, parallel_assignment_t assignment) const override;
-
 			bool PostEntails(const ConjunctionFormula& pre, const cola::Assignment& cmd, const ConjunctionFormula& post) const override;
 	};
 

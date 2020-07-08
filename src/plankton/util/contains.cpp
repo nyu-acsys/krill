@@ -121,6 +121,10 @@ bool plankton::contains_expression(const Formula& formula, const Expression& sea
 	return ContainsChecker::contains(formula, search, false).first;
 }
 
+bool plankton::contains_expression(const Expression& expression, const Expression& search) {
+	return ExpressionContainsVisitor(search).contains(expression);
+}
+
 std::pair<bool, bool> plankton::contains_expression_obligation(const Formula& formula, const Expression& search) {
 	return ContainsChecker::contains(formula, search);
 }

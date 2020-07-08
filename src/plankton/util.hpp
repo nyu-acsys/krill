@@ -65,6 +65,7 @@ namespace plankton {
 	/** Test whether 'formula' contains 'search' as subexpression somewhere.
 	  */
 	bool contains_expression(const Formula& formula, const cola::Expression& search);
+	bool contains_expression(const cola::Expression& expression, const cola::Expression& search);
 
 	/** Test whether 'formula' contains 'search' as subexpression.
 	  * Returns a pair 'p' where 'p.first' indicates whether 'search' was found somewhere
@@ -77,6 +78,7 @@ namespace plankton {
 	//
 
 	using transformer_t = std::function<std::pair<bool,std::unique_ptr<cola::Expression>>(const cola::Expression&)>;
+	template<typename T> using unary_t = std::function<bool(const T&)>;
 
 	std::unique_ptr<cola::Expression> replace_expression(std::unique_ptr<cola::Expression> expression, transformer_t transformer);
 	std::unique_ptr<Formula> replace_expression(std::unique_ptr<Formula> formula, transformer_t transformer);
@@ -93,6 +95,8 @@ namespace plankton {
 	std::unique_ptr<TimePredicate> replace_expression(std::unique_ptr<TimePredicate> formula, const cola::Expression& replace, const cola::Expression& with);
 
 	std::unique_ptr<AxiomConjunctionFormula> flatten(std::unique_ptr<cola::Expression> expression);
+
+	std::unique_ptr<ConjunctionFormula> remove_conjuncts_if(std::unique_ptr<ConjunctionFormula> formula, unary_t<SimpleFormula> unaryPredicate);
 
 } // namespace plankton
 

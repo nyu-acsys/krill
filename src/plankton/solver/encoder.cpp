@@ -21,6 +21,18 @@ Encoder::Encoder(const PostConfig& config) :
 	// TODO: currently nullPtr/minVal/maxValu are just some symbols that are not bound to a value
 }
 
+const std::vector<std::pair<std::string, const Type*>>& Encoder::GetNodeTypePointerFields() {
+	if (!pointerFields.has_value()) {
+		std::vector<std::pair<std::string, const Type*>> result;
+		for (auto [fieldName, fieldType] : postConfig.flowDomain->GetNodeType().fields) {
+			if (fieldType.get().sort != Sort::PTR) continue;
+			result.push_back(std::make_pair(fieldName, &fieldType.get()));
+		}
+		pointerFields = std::move(result);
+	}
+	return pointerFields.value();
+}
+
 z3::expr Encoder::MakeNullPtr() {
 	return nullPtr;
 }
@@ -60,7 +72,7 @@ z3::expr Encoder::MakeOr(const z3::expr_vector& disjuncts) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-z3::sort Encoder::EncodeSort(StepTag /*tag*/, Sort sort) {
+z3::sort Encoder::EncodeSort(Sort sort) {
 	switch (sort) {
 		case Sort::PTR: return intSort;
 		case Sort::DATA: return intSort;
@@ -92,21 +104,21 @@ inline std::string mk_name(Encoder::StepTag tag, std::string name) {
 	return result;
 }
 
-z3::expr Encoder::EncodeVariable(StepTag tag, const VariableDeclaration& decl) {
+z3::expr Encoder::EncodeVariable(const VariableDeclaration& decl, StepTag tag) {
 	auto key = std::make_pair(&decl, tag);
 	return get_or_create(decl2expr, key, [this,tag,&decl](){
-		return context.constant(mk_name(tag, decl).c_str(), EncodeSort(tag, decl.type.sort));
+		return context.constant(mk_name(tag, decl).c_str(), EncodeSort(decl.type.sort));
 	});
 }
 
-z3::expr Encoder::EncodeVariable(StepTag tag, Sort sort, std::string name) {
+z3::expr Encoder::EncodeVariable(Sort sort, std::string name, StepTag tag) {
 	auto key = std::make_pair(name, tag);
 	return get_or_create(name2expr, key, [this,tag,&name,&sort](){
-		return context.constant(mk_name(tag, name).c_str(), EncodeSort(tag, sort));
+		return context.constant(mk_name(tag, name).c_str(), EncodeSort(sort));
 	});
 }
 
-z3::expr Encoder::EncodeSelector(StepTag /*tag*/, selector_t selector) {
+z3::expr Encoder::EncodeSelector(selector_t selector, StepTag /*tag*/) {
 	auto [type, fieldname] = selector;
 	if (!type->has_field(fieldname)) {
 		throw EncodingError("Cannot encode selector: type '" + type->name + "' has no field '" + fieldname + "'.");
@@ -117,38 +129,38 @@ z3::expr Encoder::EncodeSelector(StepTag /*tag*/, selector_t selector) {
 	});
 }
 
-z3::expr Encoder::EncodeHeap(StepTag tag, z3::expr pointer, selector_t selector) {
+z3::expr Encoder::EncodeHeap(z3::expr pointer, selector_t selector, StepTag tag) {
 	if (tag == NEXT) throw std::logic_error("not yet implemented: NEXT"); // TODO: implement post heap
-	return heap(pointer, EncodeSelector(tag, selector));
+	return heap(pointer, EncodeSelector(selector, tag));
 }
 
-z3::expr Encoder::EncodeHeap(StepTag tag, z3::expr pointer, selector_t selector, z3::expr value) {
-	return EncodeHeap(tag, pointer, selector) == value;
+z3::expr Encoder::EncodeHeap(z3::expr pointer, selector_t selector, z3::expr value, StepTag tag) {
+	return EncodeHeap(pointer, selector, tag) == value;
 }
 
-z3::expr Encoder::EncodeFlow(StepTag tag, z3::expr pointer, z3::expr value, bool containsValue) {
+z3::expr Encoder::EncodeFlow(z3::expr pointer, z3::expr value, bool containsValue, StepTag tag) {
 	if (tag == NEXT) throw std::logic_error("not yet implemented: NEXT"); // TODO: implement post flow
 	return flow(pointer, value) == MakeBool(containsValue);
 }
 
-z3::expr Encoder::EncodeOwnership(StepTag tag, z3::expr pointer, bool owned) {
+z3::expr Encoder::EncodeOwnership(z3::expr pointer, bool owned, StepTag tag) {
 	if (tag == NEXT) throw std::logic_error("not yet implemented: NEXT"); // TODO: implement post ownership
 	return ownership(pointer) == MakeBool(owned);
 }
 
-z3::expr Encoder::EncodeHasFlow(StepTag tag, z3::expr node) {
-	auto key = EncodeVariable(tag, Sort::DATA, "qv-key"); // TODO: does this avoid name clashes?
-	return z3::exists(key, EncodeFlow(tag, node, key));
+z3::expr Encoder::EncodeHasFlow(z3::expr node, StepTag tag) {
+	auto key = EncodeVariable(Sort::DATA, "qv-key", tag); // TODO: does this avoid name clashes?
+	return z3::exists(key, EncodeFlow(node, key, tag));
 }
 
-z3::expr Encoder::EncodePredicate(StepTag tag, const Predicate& predicate, z3::expr arg1, z3::expr arg2) {
+z3::expr Encoder::EncodePredicate(const Predicate& predicate, z3::expr arg1, z3::expr arg2, StepTag tag) {
 	// we cannot instantiate 'predicate' with 'arg1' and 'arg2' directly (works only for 'VariableDeclaration's)
 	auto blueprint = Encode(tag, *predicate.blueprint);
 
 	// get blueprint vars
 	z3::expr_vector blueprint_vars(context);
 	for (const auto& decl : predicate.vars) {
-		blueprint_vars.push_back(EncodeVariable(tag, *decl));
+		blueprint_vars.push_back(EncodeVariable(*decl, tag));
 	}
 
 	// get actual values
@@ -160,14 +172,14 @@ z3::expr Encoder::EncodePredicate(StepTag tag, const Predicate& predicate, z3::e
 	return blueprint.substitute(blueprint_vars, replacement);
 }
 
-z3::expr Encoder::EncodeKeysetContains(StepTag tag, z3::expr node, z3::expr key) {
+z3::expr Encoder::EncodeKeysetContains(z3::expr node, z3::expr key, StepTag tag) {
 	z3::expr_vector vec(context);
 	for (auto [fieldName, fieldType] : postConfig.flowDomain->GetNodeType().fields) {
 		if (fieldType.get().sort != Sort::PTR) continue;
-		vec.push_back(EncodePredicate(tag, postConfig.flowDomain->GetOutFlowContains(fieldName), node, key));
+		vec.push_back(EncodePredicate(postConfig.flowDomain->GetOutFlowContains(fieldName), node, key, tag));
 	}
 	z3::expr keyInOutflow = MakeOr(vec);
-	return EncodeFlow(tag, node, key) && !keyInOutflow;
+	return EncodeFlow(node, key, tag) && !keyInOutflow;
 }
 
 
@@ -186,7 +198,7 @@ z3::expr Encoder::Encode(const Expression& expression, StepTag tag) {
 
 
 z3::expr Encoder::Encode(StepTag tag, const VariableDeclaration& node) {
-	return EncodeVariable(tag, node);
+	return EncodeVariable(node, tag);
 }
 
 z3::expr Encoder::Encode(StepTag /*tag*/, const BooleanValue& node) {
@@ -214,7 +226,7 @@ z3::expr Encoder::Encode(StepTag /*tag*/, const NDetValue& /*node*/) {
 }
 
 z3::expr Encoder::Encode(StepTag tag, const VariableExpression& node) {
-	return EncodeVariable(tag, node.decl);
+	return EncodeVariable(node.decl, tag);
 }
 
 z3::expr Encoder::Encode(StepTag tag, const NegatedExpression& node) {
@@ -238,8 +250,8 @@ z3::expr Encoder::Encode(StepTag tag, const BinaryExpression& node) {
 
 z3::expr Encoder::Encode(StepTag tag, const Dereference& node) {
 	auto expr = Encode(*node.expr, tag);
-	auto selector = std::make_pair(&node.type(), node.fieldname);
-	return EncodeHeap(tag, expr, selector);
+	auto selector = std::make_pair(&node.expr->type(), node.fieldname);
+	return EncodeHeap(expr, selector, tag);
 }
 
 
@@ -275,42 +287,42 @@ z3::expr Encoder::Encode(StepTag tag, const ImplicationFormula& formula) {
 
 z3::expr Encoder::Encode(StepTag tag, const OwnershipAxiom& formula) {
 	// return EncodeVariable(tag, Sort::BOOL, "OWNED_" + formula.expr->decl.name) == MakeTrue();
-	return EncodeOwnership(tag, Encode(*formula.expr, tag));
+	return EncodeOwnership(Encode(*formula.expr, tag), tag);
 }
 
 z3::expr Encoder::Encode(StepTag tag, const HasFlowAxiom& formula) {
-	return EncodeHasFlow(tag, Encode(*formula.expr, tag));
+	return EncodeHasFlow(Encode(*formula.expr, tag), tag);
 }
 
 z3::expr Encoder::Encode(StepTag tag, const FlowContainsAxiom& formula) {
 	auto node = Encode(*formula.expr, tag);
-	auto key = EncodeVariable(tag, Sort::DATA, "qv-key"); // TODO: does this avoid name clashes?
+	auto key = EncodeVariable(Sort::DATA, "qv-key", tag); // TODO: does this avoid name clashes?
 	auto low = Encode(*formula.low_value, tag);
 	auto high = Encode(*formula.high_value, tag);
-	return z3::forall(key, MakeImplication((low <= key) && (key <= high), EncodeFlow(tag, node, key)));
+	return z3::forall(key, MakeImplication((low <= key) && (key <= high), EncodeFlow(node, key, tag)));
 }
 
 z3::expr Encoder::Encode(StepTag tag, const ObligationAxiom& formula) {
 	std::string varname = "OBL_" + plankton::to_string(formula.kind) + "_" + formula.key->decl.name;
-	return EncodeVariable(tag, Sort::BOOL, varname) == MakeTrue();
+	return EncodeVariable(Sort::BOOL, varname, tag) == MakeTrue();
 }
 
 z3::expr Encoder::Encode(StepTag tag, const FulfillmentAxiom& formula) {
 	std::string varname = "FUL_" + plankton::to_string(formula.kind) + "_" + formula.key->decl.name + "_" + (formula.return_value ? "true" : "false");
-	return (EncodeVariable(tag, Sort::BOOL, varname) == MakeTrue());
+	return (EncodeVariable(Sort::BOOL, varname, tag) == MakeTrue());
 }
 
 z3::expr Encoder::Encode(StepTag tag, const KeysetContainsAxiom& formula) {
 	auto node = Encode(*formula.node, tag);
 	auto value = Encode(*formula.value, tag);
-	return EncodeKeysetContains(tag, node, value);
+	return EncodeKeysetContains(node, value, tag);
 }
 
 z3::expr Encoder::Encode(StepTag tag, const LogicallyContainedAxiom& formula) {
-	auto node = EncodeVariable(tag, Sort::PTR, "qv-ptr"); // TODO: does this avoid name clashes?
+	auto node = EncodeVariable(Sort::PTR, "qv-ptr", tag); // TODO: does this avoid name clashes?
 	auto key = Encode(*formula.expr, tag);
-	auto logicallyContains = EncodePredicate(tag, *postConfig.logicallyContainsKey, node, key);
-	auto keysetContains = EncodeKeysetContains(tag, node, key);
+	auto logicallyContains = EncodePredicate(*postConfig.logicallyContainsKey, node, key, tag);
+	auto keysetContains = EncodeKeysetContains(node, key, tag);
 	return z3::exists(node, keysetContains && logicallyContains);
 }
 
@@ -340,45 +352,87 @@ z3::solver Encoder::MakeSolver() {
 
 		// add rule for solving flow
 		// forall node,selector,successor,key:  node->{selector}=successor /\ key in flow(node) /\ key_flows_out(node, key) ==> key in flow(successor)
-		for (auto [fieldName, fieldType] : nodeType.fields) {
-			if (fieldType.get().sort != Sort::PTR) continue;
-
-			auto key = EncodeVariable(tag, Sort::DATA, "qv-flow-" + fieldName + "-key");
-			auto node = EncodeVariable(tag, nodeType.sort, "qv-flow-" + fieldName + "-node");
-			auto successor = EncodeVariable(tag, fieldType.get().sort, "qv-flow-" + fieldName + "-successor");
+		for (auto [fieldName, fieldType] : GetNodeTypePointerFields()) {
+			auto key = EncodeVariable(Sort::DATA, "qv-flow-" + fieldName + "-key", tag);
+			auto node = EncodeVariable(nodeType.sort, "qv-flow-" + fieldName + "-node", tag);
+			auto successor = EncodeVariable(fieldType->sort, "qv-flow-" + fieldName + "-successor", tag);
 			auto selector = std::make_pair(&nodeType, fieldName);
 
 			result.add(z3::forall(node, key, successor, MakeImplication(
-				EncodeHeap(tag, node, selector, successor) &&
-				EncodeHasFlow(tag, node) &&
-				EncodePredicate(tag, postConfig.flowDomain->GetOutFlowContains(fieldName), node, key),
+				EncodeHeap(node, selector, successor, tag) &&
+				EncodeHasFlow(node, tag) &&
+				EncodePredicate(postConfig.flowDomain->GetOutFlowContains(fieldName), node, key, tag),
 				/* ==> */
-				EncodeFlow(tag, successor, key)
+				EncodeFlow(successor, key, tag)
 			)));
 		}
 
 		// add rule for solving ownership
 		// forall node:  owned(node) ==> !hasFlow(node)
-		auto node = EncodeVariable(tag, Sort::PTR, "qv-owner-ptr");
+		auto node = EncodeVariable(Sort::PTR, "qv-owner-ptr", tag);
 		result.add(z3::forall(node, MakeImplication(
-			EncodeOwnership(tag, node), /* ==> */ !EncodeHasFlow(tag, node)
+			EncodeOwnership(node, tag), /* ==> */ !EncodeHasFlow(node, tag)
 		)));
 
 		// add rule for solving ownership
 		// forall node,other,selector:  owned(node) ==> other->{selector} != node
-		for (auto [fieldName, fieldType] : nodeType.fields) {
-			if (fieldType.get().sort != Sort::PTR) continue;
-
-			auto node = EncodeVariable(tag, nodeType.sort, "qv-owner-node");
-			auto other = EncodeVariable(tag, fieldType.get().sort, "qv-owner-other");
+		for (auto [fieldName, fieldType] : GetNodeTypePointerFields()) {
+			auto node = EncodeVariable(nodeType.sort, "qv-owner-node", tag);
+			auto other = EncodeVariable(fieldType->sort, "qv-owner-other", tag);
 			auto selector = std::make_pair(&nodeType, fieldName);
 
 			result.add(z3::forall(node, other, MakeImplication(
-				EncodeOwnership(tag, node), /* ==> */ !EncodeHeap(tag, other, selector, node)
+				EncodeOwnership(node, tag), /* ==> */ !EncodeHeap(other, selector, node, tag)
 			)));
 		}
 	}
 
 	// done
 	return result;
+}
+
+std::pair<z3::solver, z3::expr_vector> Encoder::MakePostSolver(std::size_t footprintSize) {
+	// create solver
+	auto solver = MakeSolver();
+
+	// create pointers into footprint
+	z3::expr_vector footprint(context);
+	for (std::size_t index = 0; index < footprintSize; ++index) {
+		std::string name = "fp$ptr-" + std::to_string(index);
+		auto var = context.constant(name.c_str(), EncodeSort(Sort::PTR));
+		footprint.push_back(var);
+	}
+
+	// footprint pointers are all distinct
+	solver.add(z3::distinct(footprint));
+
+	// helper to check footprint containedness
+	auto notInFootprint = [this,footprint](z3::expr expr){
+		z3::expr_vector vec(this->context);
+		for (auto node : footprint) {
+			vec.push_back(expr != node);
+		}
+		return this->MakeAnd(vec);
+	};
+
+	// everything in the heap except 'footprint' remains unchanged (selectors, flow)
+	// note: we do not care for stack variables, this must be done elsewhere
+	// note: we do not handle purity nor obligations/fulfillments, this must be done elsewhere
+	const Type& nodeType = postConfig.flowDomain->GetNodeType();
+	auto node = EncodeVariable(nodeType.sort, "qv-rule-ptr", NOW);
+	auto key = EncodeVariable(nodeType.sort, "qv-rule-key", NOW);
+	for (auto [fieldName, fieldType] : postConfig.flowDomain->GetNodeType().fields) { // heap
+		auto selector = std::make_pair(&nodeType, fieldName);
+		solver.add(z3::forall(node, MakeImplication(
+			notInFootprint(node), /* ==> */ EncodeHeap(node, selector) == EncodeNextHeap(node, selector)
+		)));
+	}
+	solver.add(z3::forall(node, key, MakeImplication( // flow
+		notInFootprint(node), /* ==> */ EncodeFlow(node, key) == EncodeNextFlow(node, key)
+	)));
+	solver.add(z3::forall(node, MakeImplication( // ownership
+		notInFootprint(node), /* ==> */ EncodeOwnership(node) == EncodeNextOwnership(node)
+	)));
+
+	return std::make_pair(solver, footprint);
 }

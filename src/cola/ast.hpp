@@ -120,39 +120,42 @@ namespace cola {
 		Sort sort() const { return type().sort; }
 	};
 
-	struct BooleanValue : public Expression {
+	struct SimpleExpression : public Expression {
+	};
+
+	struct BooleanValue : public SimpleExpression {
 		bool value;
 		BooleanValue(bool value_) : value(value_) {};
 		const Type& type() const override { return Type::bool_type(); }
 		ACCEPT_COLA_VISITOR
 	};
 
-	struct NullValue : public Expression {
+	struct NullValue : public SimpleExpression {
 		const Type& type() const override { return Type::null_type(); }
 		ACCEPT_COLA_VISITOR
 	};
 
-	struct EmptyValue : public Expression {
+	struct EmptyValue : public SimpleExpression {
 		const Type& type() const override { return Type::data_type(); }
 		ACCEPT_COLA_VISITOR
 	};
 
-	struct MaxValue : public Expression {
+	struct MaxValue : public SimpleExpression {
 		const Type& type() const override { return Type::data_type(); }
 		ACCEPT_COLA_VISITOR
 	};
 
-	struct MinValue : public Expression {
+	struct MinValue : public SimpleExpression {
 		const Type& type() const override { return Type::data_type(); }
 		ACCEPT_COLA_VISITOR
 	};
 
-	struct NDetValue : public Expression {
+	struct NDetValue : public SimpleExpression {
 		const Type& type() const override { return Type::data_type(); }
 		ACCEPT_COLA_VISITOR
 	};
 
-	struct VariableExpression : public Expression {
+	struct VariableExpression : public SimpleExpression {
 		const VariableDeclaration& decl;
 		VariableExpression(const VariableDeclaration& decl_) : decl(decl_) {}
 		const Type& type() const override { return decl.type; }

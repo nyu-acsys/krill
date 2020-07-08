@@ -21,15 +21,30 @@ namespace plankton {
 
 	class Encoder {
 		public:
+			using selector_t = std::pair<const cola::Type*, std::string>;
 			enum StepTag { NOW, NEXT };
 			Encoder(const PostConfig& config);
 
 			z3::expr Encode(const Formula& formula, StepTag tag = NOW);
 			z3::expr Encode(const cola::Expression& expression, StepTag tag = NOW);
+			z3::expr EncodeHeap(z3::expr pointer, selector_t selector, StepTag tag = NOW);
+			z3::expr EncodeHeap(z3::expr pointer, selector_t selector, z3::expr value, StepTag tag = NOW);
+			z3::expr EncodeFlow(z3::expr pointer, z3::expr value, bool containsValue=true, StepTag tag = NOW);
+			z3::expr EncodeHasFlow(z3::expr node, StepTag tag = NOW);
+			z3::expr EncodeVariable(const cola::VariableDeclaration& decl, StepTag tag = NOW);
+			z3::expr EncodeOwnership(z3::expr pointer, bool owned=true, StepTag tag = NOW);
+
 			inline z3::expr EncodeNext(const Formula& formula) { return Encode(formula, NEXT); }
 			inline z3::expr EncodeNext(const cola::Expression& expression) { return Encode(expression, NEXT); }
+			inline z3::expr EncodeNextHeap(z3::expr pointer, selector_t selector) { return EncodeHeap(pointer, selector, NEXT); }
+			inline z3::expr EncodeNextHeap(z3::expr pointer, selector_t selector, z3::expr value) { return EncodeHeap(pointer, selector, value, NEXT); }
+			inline z3::expr EncodeNextFlow(z3::expr pointer, z3::expr value, bool containsValue=true) { return EncodeFlow(pointer, value, containsValue, NEXT); }
+			inline z3::expr EncodeNextHasFlow(z3::expr node) { return EncodeHasFlow(node, NEXT); }
+			inline z3::expr EncodeNextVariable(const cola::VariableDeclaration& decl) { return EncodeVariable(decl, NEXT); }
+			inline z3::expr EncodeNextOwnership(z3::expr pointer, bool owned=true) { return EncodeOwnership(pointer, owned, NEXT); }
 
 			z3::solver MakeSolver();
+			std::pair<z3::solver, z3::expr_vector> MakePostSolver(std::size_t footPrintSize);
 
 			z3::expr MakeNullPtr();
 			z3::expr MakeMinValue();
@@ -44,7 +59,6 @@ namespace plankton {
 			z3::expr MakeImplication(z3::expr premise, z3::expr conclusion);
 
 		private:
-			using selector_t = std::pair<const cola::Type*, std::string>;
 			template<typename T> using expr_map_t = std::map<T, z3::expr>;
 			template<typename T> using tagged_expr_map_t = std::map<std::pair<T, StepTag>, z3::expr>;
 
@@ -61,19 +75,16 @@ namespace plankton {
 			z3::func_decl ownership; // free function: Int -> Bool; 'ownership(x) = true' iff 'x' is owned
 
 			const PostConfig& postConfig;
+			std::optional<std::vector<std::pair<std::string, const cola::Type*>>> pointerFields;
 
 		private:
-			z3::sort EncodeSort(StepTag tag, cola::Sort sort);
-			z3::expr EncodeVariable(StepTag tag, cola::Sort sort, std::string name);
-			z3::expr EncodeVariable(StepTag tag, const cola::VariableDeclaration& decl);
-			z3::expr EncodeSelector(StepTag tag, selector_t selector);
-			z3::expr EncodeHeap(StepTag tag, z3::expr pointer, selector_t selector);
-			z3::expr EncodeHeap(StepTag tag, z3::expr pointer, selector_t selector, z3::expr value);
-			z3::expr EncodeFlow(StepTag tag, z3::expr pointer, z3::expr value, bool containsValue=true);
-			z3::expr EncodeOwnership(StepTag tag, z3::expr pointer, bool owned=true);
-			z3::expr EncodeHasFlow(StepTag tag, z3::expr node);
-			z3::expr EncodePredicate(StepTag tag, const Predicate& predicate, z3::expr arg1, z3::expr arg2);
-			z3::expr EncodeKeysetContains(StepTag tag, z3::expr node, z3::expr key);
+			const std::vector<std::pair<std::string, const cola::Type*>>& GetNodeTypePointerFields();
+
+			z3::sort EncodeSort(cola::Sort sort);
+			z3::expr EncodeVariable(cola::Sort sort, std::string name, StepTag tag);
+			z3::expr EncodeSelector(selector_t selector, StepTag tag);
+			z3::expr EncodePredicate(const Predicate& predicate, z3::expr arg1, z3::expr arg2, StepTag tag);
+			z3::expr EncodeKeysetContains(z3::expr node, z3::expr key, StepTag tag);
 
 			z3::expr Encode(StepTag tag, const cola::VariableDeclaration& node);
 			z3::expr Encode(StepTag tag, const cola::BooleanValue& node);

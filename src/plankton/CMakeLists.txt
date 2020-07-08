@@ -26,10 +26,11 @@ set(SOURCES
 	util/equal.cpp
 	util/flatten.cpp
 	util/print.cpp
+	util/remove.cpp
 	util/replace.cpp
-	# post
+	# solver
 	solver/encoder.cpp
-	solver/mk_solver.cpp
+	solver/mksolver.cpp
 	solver/solver.cpp
 	solver/solverimpl.cpp
 	solver/scopes.cpp
