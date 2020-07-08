@@ -15,6 +15,8 @@ namespace plankton {
 			Encoder& encoder;
 			mutable z3::solver solver;
 
+			bool Implies(z3::expr expr) const;
+
 		public:
 			ImplicationCheckerImpl(Encoder& encoder, const Formula& premise);
 
@@ -31,6 +33,11 @@ namespace plankton {
 			std::deque<std::unique_ptr<ConjunctionFormula>> candidateFormulas;
 			std::deque<std::unique_ptr<ConjunctionFormula>> instantiatedInvariants;
 			std::deque<std::deque<const cola::VariableDeclaration*>> variablesInScope;
+
+		private:
+			inline const ConjunctionFormula& GetCandidates() const { return *candidateFormulas.back(); }
+			inline const ConjunctionFormula& GetInstantiatedInvariant() const { return *instantiatedInvariants.back(); }
+			inline const std::deque<const cola::VariableDeclaration*>& GetVariablesInScope() const { return variablesInScope.back(); }
 
 			void PushInnerScope();
 			void PushOuterScope();
@@ -55,14 +62,12 @@ namespace plankton {
 			void EnterScope(const cola::Program& program) override;
 			void LeaveScope() override;
 
-			std::unique_ptr<Annotation> Post(const Formula& pre, const cola::Assume& cmd) const override;
-			std::unique_ptr<Annotation> Post(const Formula& pre, const cola::Malloc& cmd) const override;
-			std::unique_ptr<Annotation> Post(const Formula& pre, const cola::Assignment& cmd) const override;
-			std::unique_ptr<Annotation> Post(const Formula& pre, parallel_assignment_t assignment) const override;
+			std::unique_ptr<Annotation> Post(const Annotation& pre, const cola::Assume& cmd) const override;
+			std::unique_ptr<Annotation> Post(const Annotation& pre, const cola::Malloc& cmd) const override;
+			std::unique_ptr<Annotation> Post(const Annotation& pre, const cola::Assignment& cmd) const override;
+			std::unique_ptr<Annotation> Post(const Annotation& pre, parallel_assignment_t assignment) const override;
 
-			bool PostEntails(const Formula& pre, const cola::Assume& cmd, const Formula& post) const override;
-			bool PostEntails(const Formula& pre, const cola::Malloc& cmd, const Formula& post) const override;
-			bool PostEntails(const Formula& pre, const cola::Assignment& cmd, const Formula& post) const override;
+			bool PostEntails(const ConjunctionFormula& pre, const cola::Assignment& cmd, const ConjunctionFormula& post) const override;
 	};
 
 } // namespace plankton

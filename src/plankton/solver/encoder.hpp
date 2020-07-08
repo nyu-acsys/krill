@@ -15,6 +15,10 @@
 
 namespace plankton {
 
+	// TODO: allow for parallel solving
+	// NOTE: for using multiple solver is parallel, the context needs to be duplicated as well; and expressions need to be converted among contexts
+	//       for copying a solver, see: https://z3prover.github.io/api/html/classz3_1_1solver.html#a17c7db98d5ca41022de0d37ae6623aeb
+
 	class Encoder {
 		public:
 			enum StepTag { NOW, NEXT };
@@ -27,9 +31,9 @@ namespace plankton {
 
 			z3::solver MakeSolver();
 
-			z3::expr GetNullPtr();
-			z3::expr GetMinValue();
-			z3::expr GetMaxValue();
+			z3::expr MakeNullPtr();
+			z3::expr MakeMinValue();
+			z3::expr MakeMaxValue();
 
 			z3::expr MakeBool(bool value);
 			z3::expr MakeTrue();
@@ -95,6 +99,9 @@ namespace plankton {
 			z3::expr Encode(StepTag tag, const FlowContainsAxiom& formula);
 			z3::expr Encode(StepTag tag, const ObligationAxiom& formula);
 			z3::expr Encode(StepTag tag, const FulfillmentAxiom& formula);
+			z3::expr Encode(StepTag tag, const PastPredicate& formula);
+			z3::expr Encode(StepTag tag, const FuturePredicate& formula);
+			z3::expr Encode(StepTag tag, const Annotation& formula);
 
 
 		friend struct EncoderCallback;
@@ -136,6 +143,9 @@ namespace plankton {
 		void visit(const FlowContainsAxiom& formula) override { result = encoder.Encode(tag, formula); }
 		void visit(const ObligationAxiom& formula) override { result = encoder.Encode(tag, formula); }
 		void visit(const FulfillmentAxiom& formula) override { result = encoder.Encode(tag, formula); }
+		void visit(const PastPredicate& formula) override { result = encoder.Encode(tag, formula); }
+		void visit(const FuturePredicate& formula) override { result = encoder.Encode(tag, formula); }
+		void visit(const Annotation& formula) override { result = encoder.Encode(tag, formula); }
 	};
 
 } // namespace plankton

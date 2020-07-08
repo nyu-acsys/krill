@@ -21,13 +21,13 @@ Encoder::Encoder(const PostConfig& config) :
 	// TODO: currently nullPtr/minVal/maxValu are just some symbols that are not bound to a value
 }
 
-z3::expr Encoder::GetNullPtr() {
+z3::expr Encoder::MakeNullPtr() {
 	return nullPtr;
 }
-z3::expr Encoder::GetMinValue() {
+z3::expr Encoder::MakeMinValue() {
 	return minVal;
 }
-z3::expr Encoder::GetMaxValue() {
+z3::expr Encoder::MakeMaxValue() {
 	return maxVal;
 }
 
@@ -194,7 +194,7 @@ z3::expr Encoder::Encode(StepTag /*tag*/, const BooleanValue& node) {
 }
 
 z3::expr Encoder::Encode(StepTag /*tag*/, const NullValue& /*node*/) {
-	return GetNullPtr(); // TODO: do we need a next version?
+	return MakeNullPtr(); // TODO: do we need a next version?
 }
 
 z3::expr Encoder::Encode(StepTag /*tag*/, const EmptyValue& /*node*/) {
@@ -202,11 +202,11 @@ z3::expr Encoder::Encode(StepTag /*tag*/, const EmptyValue& /*node*/) {
 }
 
 z3::expr Encoder::Encode(StepTag /*tag*/, const MaxValue& /*node*/) {
-	return GetMaxValue(); // TODO: do we need a next version?
+	return MakeMaxValue(); // TODO: do we need a next version?
 }
 
 z3::expr Encoder::Encode(StepTag /*tag*/, const MinValue& /*node*/) {
-	return GetMinValue(); // TODO: do we need a next version?
+	return MakeMinValue(); // TODO: do we need a next version?
 }
 
 z3::expr Encoder::Encode(StepTag /*tag*/, const NDetValue& /*node*/) {
@@ -312,6 +312,18 @@ z3::expr Encoder::Encode(StepTag tag, const LogicallyContainedAxiom& formula) {
 	auto logicallyContains = EncodePredicate(tag, *postConfig.logicallyContainsKey, node, key);
 	auto keysetContains = EncodeKeysetContains(tag, node, key);
 	return z3::exists(node, keysetContains && logicallyContains);
+}
+
+z3::expr Encoder::Encode(StepTag /*tag*/, const PastPredicate& /*formula*/) {
+	throw EncodingError("Cannot encode 'PastPredicate'.");
+}
+
+z3::expr Encoder::Encode(StepTag /*tag*/, const FuturePredicate& /*formula*/) {
+	throw EncodingError("Cannot encode 'FuturePredicate'.");
+}
+
+z3::expr Encoder::Encode(StepTag tag, const Annotation& formula) {
+	return Encode(tag, *formula.now);
 }
 
 

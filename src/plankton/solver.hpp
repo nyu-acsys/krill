@@ -95,16 +95,14 @@ namespace plankton {
 		virtual void LeaveScope() = 0;
 		virtual void LeaveScope(std::size_t amount);
 
-		virtual std::unique_ptr<Annotation> Post(const Formula& pre, const cola::Assume& cmd) const = 0;
-		virtual std::unique_ptr<Annotation> Post(const Formula& pre, const cola::Malloc& cmd) const = 0;
-		virtual std::unique_ptr<Annotation> Post(const Formula& pre, const cola::Assignment& cmd) const = 0;
+		virtual std::unique_ptr<Annotation> Post(const Annotation& pre, const cola::Assume& cmd) const = 0;
+		virtual std::unique_ptr<Annotation> Post(const Annotation& pre, const cola::Malloc& cmd) const = 0;
+		virtual std::unique_ptr<Annotation> Post(const Annotation& pre, const cola::Assignment& cmd) const = 0;
 
 		using parallel_assignment_t = std::vector<std::pair<std::reference_wrapper<const cola::Expression>, std::reference_wrapper<const cola::Expression>>>;
-		virtual std::unique_ptr<Annotation> Post(const Formula& pre, parallel_assignment_t assignment) const = 0;
+		virtual std::unique_ptr<Annotation> Post(const Annotation& pre, parallel_assignment_t assignment) const = 0;
 
-		virtual bool PostEntails(const Formula& pre, const cola::Assume& cmd, const Formula& post) const;
-		virtual bool PostEntails(const Formula& pre, const cola::Malloc& cmd, const Formula& post) const;
-		virtual bool PostEntails(const Formula& pre, const cola::Assignment& cmd, const Formula& post) const;
+		virtual bool PostEntails(const ConjunctionFormula& pre, const cola::Assignment& cmd, const ConjunctionFormula& post) const;
 	};
 
 

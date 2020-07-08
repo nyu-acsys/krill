@@ -126,19 +126,10 @@ std::unique_ptr<Annotation> Solver::Join(std::unique_ptr<Annotation> annotation,
 	return Join(std::move(vec));
 }
 
-bool Solver::PostEntails(const Formula& pre, const Assume& cmd, const Formula& post) const {
-	auto post_annotation = this->Post(pre, cmd);
-	return Implies(*post_annotation, post);
-}
-
-bool Solver::PostEntails(const Formula& pre, const Malloc& cmd, const Formula& post) const {
-	auto post_annotation = this->Post(pre, cmd);
-	return Implies(*post_annotation, post);
-}
-
-bool Solver::PostEntails(const Formula& pre, const Assignment& cmd, const Formula& post) const {
-	auto post_annotation = this->Post(pre, cmd);
-	return Implies(*post_annotation, post);
+bool Solver::PostEntails(const ConjunctionFormula& pre, const Assignment& cmd, const ConjunctionFormula& post) const {
+	Annotation preAnnotation(plankton::copy(pre));
+	auto postAnnotation = this->Post(preAnnotation, cmd);
+	return Implies(*postAnnotation, post);
 }
 
 void Solver::LeaveScope(std::size_t amount) {
