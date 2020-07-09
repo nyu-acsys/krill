@@ -9,19 +9,17 @@ using namespace plankton;
 
 template<typename F>
 std::unique_ptr<Invariant> mk_invariant(const Type& nodeType, std::string name, F make_blueprint) {
-	std::array<std::unique_ptr<VariableDeclaration>, 1> vars {
-		std::make_unique<VariableDeclaration>("\%ptr", nodeType, false)
-	};
+	std::vector<std::unique_ptr<VariableDeclaration>> vars;
+	vars.push_back(std::make_unique<VariableDeclaration>("\%ptr", nodeType, false));
 	auto blueprint = make_blueprint(*vars.at(0));
 	return std::make_unique<Invariant>(name, std::move(vars), std::move(blueprint));
 }
 
 template<typename F>
 std::unique_ptr<Predicate> mk_predicate(const Type& nodeType, std::string name, F make_blueprint) {
-	std::array<std::unique_ptr<VariableDeclaration>, 2> vars {
-		std::make_unique<VariableDeclaration>("\%ptr", nodeType, false),
-		std::make_unique<VariableDeclaration>("\%key", Type::data_type(), false)
-	};
+	std::vector<std::unique_ptr<VariableDeclaration>> vars;
+	vars.push_back(std::make_unique<VariableDeclaration>("\%ptr", nodeType, false));
+	vars.push_back(std::make_unique<VariableDeclaration>("\%key", Type::data_type(), false));
 	auto blueprint = make_blueprint(*vars.at(0), *vars.at(1));
 	return std::make_unique<Predicate>(name, std::move(vars), std::move(blueprint));
 }

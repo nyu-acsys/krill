@@ -101,6 +101,8 @@ Solver::Solver(PostConfig config_) : config(std::move(config_)) {
 		if (fieldType.get().sort != Sort::PTR) continue;
 		checker.check(config.flowDomain->GetOutFlowContains(fieldName));
 	}
+
+	// TODO important: check tactics
 }
 
 bool Solver::ImpliesFalse(const Formula& formula) const {

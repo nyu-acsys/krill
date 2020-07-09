@@ -15,9 +15,10 @@ ImplicationCheckerImpl::ImplicationCheckerImpl(Encoder& encoder_, const Formula&
 	solver.add(encoder.Encode(premise_, encodingTag));
 }
 
-ImplicationCheckerImpl::ImplicationCheckerImpl(Encoder& encoder_, z3::solver solver_, Encoder::StepTag tag_)
+ImplicationCheckerImpl::ImplicationCheckerImpl(Encoder& encoder_, const Formula& premise_, z3::solver solver_, Encoder::StepTag tag_)
 	: encoder(encoder_), solver(solver_), encodingTag(tag_)
 {
+	solver.add(encoder.Encode(premise_, encodingTag));
 }
 
 bool ImplicationCheckerImpl::Implies(z3::expr expr) const {

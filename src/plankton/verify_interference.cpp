@@ -139,6 +139,7 @@ void Verifier::apply_interference() {
 	std::size_t counter = 0;
 
 	// quick check
+	// TODO: remove SpecificationAxioms and add them back at the end
 	for (auto& conjunct : current_annotation->now->conjuncts) {
 		if (!has_effect(*conjunct)) {
 			stable->conjuncts.push_back(std::move(conjunct));
@@ -180,6 +181,7 @@ void Verifier::apply_interference() {
 
 bool Verifier::is_interference_free(const ConjunctionFormula& formula){
 	for (const auto& effect : interference) {
+		// TODO important: should we combine effect->precondition and formula?
 		if (!solver->PostEntails(*effect->precondition, *effect->command, formula)) {
 			// std::cout << " ==> no" << std::endl;
 			return false;

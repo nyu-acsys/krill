@@ -4,6 +4,7 @@
 
 
 #include <deque>
+#include <type_traits>
 #include "plankton/solver.hpp"
 #include "plankton/solver/encoder.hpp"
 
@@ -18,7 +19,7 @@ namespace plankton {
 		public:
 			const Encoder::StepTag encodingTag;
 			ImplicationCheckerImpl(Encoder& encoder, const Formula& premise);
-			ImplicationCheckerImpl(Encoder& encoder, z3::solver solver, Encoder::StepTag tag); 
+			ImplicationCheckerImpl(Encoder& encoder, const Formula& premise, z3::solver solver, Encoder::StepTag tag); 
 
 			bool ImpliesFalse() const override;
 			bool Implies(const Formula& implied) const override;
@@ -46,13 +47,6 @@ namespace plankton {
 			void ExtendCurrentScope(const std::vector<std::unique_ptr<cola::VariableDeclaration>>& vars);
 
 			std::unique_ptr<Annotation> PostAssign(const Annotation& pre, const cola::Expression& lhs, const cola::Expression& rhs) const;
-			std::unique_ptr<Annotation> PostAssign(const Annotation& pre, const cola::VariableExpression& lhs, const cola::Expression& rhs) const;
-			std::unique_ptr<Annotation> PostAssign(const Annotation& pre, const cola::Dereference& lhs, const cola::Expression& rhs) const;
-
-			// void ExtendSolverWithStackRules(z3::solver& solver, const cola::VariableDeclaration* changedVar=nullptr) const;
-			// void ExtendSolverWithSpecificationCheckRules(z3::solver& solver, z3::expr_vector footprint, cola::Sort sort) const;
-			// ImplicationCheckerImpl MakePostChecker(const cola::VariableExpression& lhs) const;
-			// std::pair<ImplicationCheckerImpl, z3::expr_vector> MakePostChecker(const cola::Dereference& lhs, std::size_t footprintSize) const;
 
 			// TODO: remove unused functions
 			// std::unique_ptr<ConjunctionFormula> ComputeAllImpliedCandidates(const ImplicationCheckerImpl& checker) const;

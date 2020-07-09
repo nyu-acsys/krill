@@ -12,7 +12,7 @@ namespace plankton {
 
 	struct VerificationError : public std::exception {
 		const std::string cause;
-		VerificationError(std::string cause_) : cause(std::move(cause_)) {}
+		VerificationError(std::string cause);
 		virtual const char* what() const noexcept { return cause.c_str(); }
 	};
 
@@ -30,11 +30,24 @@ namespace plankton {
 	};
 
 	struct SolvingError : public VerificationError {
-		SolvingError(std::string cause_);
+		SolvingError(std::string cause);
 	};
 
 	struct EncodingError : public VerificationError {
-		EncodingError(std::string cause_);
+		EncodingError(std::string cause);
+	};
+
+	struct InvariantViolationError : public VerificationError {
+		InvariantViolationError(std::string cause);
+	};
+
+	struct PropertyConstructionError : public VerificationError {
+		PropertyConstructionError(std::string name, std::size_t expected, std::size_t got, std::string cmp="");
+	};
+
+	struct PropertyInstantiationError : public VerificationError {
+		PropertyInstantiationError(std::string name, std::size_t expected, std::size_t got);
+		PropertyInstantiationError(std::string name, std::size_t index, const cola::Type& expected, const cola::Type& got);
 	};
 
 } // namespace plankton

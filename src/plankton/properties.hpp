@@ -4,46 +4,44 @@
 
 
 #include <map>
-#include <array>
+#include <vector>
 #include <memory>
 #include <type_traits>
 #include "cola/ast.hpp"
-#include "plankton/util.hpp"
+#include "plankton/error.hpp"
 #include "plankton/logic.hpp"
+#include "plankton/util.hpp"
 
 
 namespace plankton {
 
-	struct PropertyInstantiationError : public std::exception {
-		const std::string cause;
-		std::string to_th(std::size_t index) {
-			switch (index) {
-				case 1: return "1st";
-				case 2: return "2nd";
-				default: return std::to_string(index) + "th";
-			}
-		}
-		PropertyInstantiationError(std::string name, std::size_t index, const cola::Type& expected, const cola::Type& got) : cause(
-			"Instantiation of property '" + name + "' failed: expected " + to_th(index+1) + " argument to be of type '" + expected.name + "' but got incompatible type '" + got.name + "'." 
-		) {}
-		virtual const char* what() const noexcept { return cause.c_str(); }
-	};
+	enum struct PropertyArity { ONE, TWO, ONE_OR_MORE, ANY };
+
+	void check_property(std::string name, PropertyArity arity, const std::vector<std::unique_ptr<cola::VariableDeclaration>>& vars, const Formula& blueprint);
 
 
-	template<std::size_t N, typename T = ConjunctionFormula, EXTENDS_FORMULA(T)>
+	template<PropertyArity arity = PropertyArity::ANY, typename T = ConjunctionFormula, EXTENDS_FORMULA(T)>
 	struct Property {
 		std::string name;
-		std::array<std::unique_ptr<cola::VariableDeclaration>, N> vars;
+		std::vector<std::unique_ptr<cola::VariableDeclaration>> vars;
 		std::unique_ptr<T> blueprint;
 
-		Property(std::string name_, std::array<std::unique_ptr<cola::VariableDeclaration>, N> vars_, std::unique_ptr<T> blueprint_)
+		Property(std::string name_, std::vector<std::unique_ptr<cola::VariableDeclaration>> vars_, std::unique_ptr<T> blueprint_)
 			: name(std::move(name_)), vars(std::move(vars_)), blueprint(std::move(blueprint_))
 		{
 			assert(blueprint);
-			// TODO: ensure that the variables contained in 'blueprint' are either shared or contained in 'vars'
+			check_property(name, arity, vars, *blueprint);
 		}
 
-		std::unique_ptr<T> instantiate(std::array<std::reference_wrapper<const cola::VariableDeclaration>, N> decls) const {
+		std::size_t get_arity() const {
+			return vars.size();
+		}
+
+		std::unique_ptr<T> instantiate(std::vector<std::reference_wrapper<const cola::VariableDeclaration>> decls) const {
+			if (vars.size() != decls.size()) {
+				throw PropertyInstantiationError(name, vars.size(), decls.size());
+			}
+
 			// create lookup map
 			std::map<const cola::VariableDeclaration*, const cola::VariableDeclaration*> dummy2real;
 			for (std::size_t index = 0; index < vars.size(); ++index) {
@@ -70,16 +68,15 @@ namespace plankton {
 
 		template<typename... Targs>
 		std::unique_ptr<T> instantiate(const Targs&... args) const {
-			std::array<std::reference_wrapper<const cola::VariableDeclaration>, N> decls { args... };
+			std::vector<std::reference_wrapper<const cola::VariableDeclaration>> decls { args... };
 			return instantiate(std::move(decls));
 		}
-
-
 	};
 
 
-	using Invariant = Property<1, ConjunctionFormula>;
-	using Predicate = Property<2, AxiomConjunctionFormula>;
+	using Invariant = Property<PropertyArity::ONE, ConjunctionFormula>;
+	using Predicate = Property<PropertyArity::TWO, AxiomConjunctionFormula>;
+	// using FootprintPredicate = Property<PropertyArity::ONE_OR_MORE, AxiomConjunctionFormula>;
 
 } // namespace plankton
 

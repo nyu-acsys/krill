@@ -11,9 +11,6 @@
 
 namespace plankton {
 
-	inline std::vector<std::reference_wrapper<const Tactic>> GetDefaultTactics();
-
-
 	/** Flow domain base class to parametrize a solvers in (almost) arbitrary flows.
 	  *
 	  * ASSUMPTION: heaps are homogeneous, i.e., consist of a single type of nodes only.
@@ -47,12 +44,6 @@ namespace plankton {
 		  *             the fields of which change independent of the fact whether or not their flow changes.
 		  */
 		virtual std::size_t GetFootprintSize(const Annotation& pre, const cola::Dereference& lhs, const cola::Expression& rhs) const = 0;
-
-		/** TODO: doc
-		  */
-		virtual std::vector<std::reference_wrapper<const Tactic>> GetTactics() const {
-			return GetDefaultTactics();
-		}
 	};
 
 
@@ -91,7 +82,7 @@ namespace plankton {
 	  * The solver works relative to an invariant that it implicitly assumes and enforces.
 	  */
 	struct Solver {
-		PostConfig config;
+		PostConfig config; // TODO: const?
 
 		virtual ~Solver() = default;
 		Solver(PostConfig config);
@@ -123,6 +114,9 @@ namespace plankton {
 		using parallel_assignment_t = std::vector<std::pair<std::reference_wrapper<const cola::Expression>, std::reference_wrapper<const cola::Expression>>>;
 		virtual std::unique_ptr<Annotation> Post(const Annotation& pre, parallel_assignment_t assignment) const = 0;
 
+		/** May ignore invariant and specification, i.e., implementation may decide to not establish the invariant for the post
+		  * state and may decide to ignore specification violations.
+		  */
 		virtual bool PostEntails(const ConjunctionFormula& pre, const cola::Assignment& cmd, const ConjunctionFormula& post) const;
 	};
 

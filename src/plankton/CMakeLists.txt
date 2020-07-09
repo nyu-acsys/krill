@@ -17,6 +17,7 @@ set(SOURCES
 	config.cpp
 	error.cpp
 	logic.cpp
+	properties.cpp
 	verify.cpp
 	verify_interference.cpp
 	# util

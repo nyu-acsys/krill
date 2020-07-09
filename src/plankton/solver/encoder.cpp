@@ -153,8 +153,8 @@ z3::expr Encoder::EncodeHasFlow(z3::expr node, StepTag tag) {
 	return z3::exists(key, EncodeFlow(node, key, tag));
 }
 
-template<std::size_t N, typename T>
-inline z3::expr EncodeProperty(Encoder& encoder, z3::context& context, const Property<N, T>& property, std::array<z3::expr, N> args, Encoder::StepTag tag) {
+template<PropertyArity N, typename T>
+inline z3::expr EncodeProperty(Encoder& encoder, z3::context& context, const Property<N, T>& property, std::vector<z3::expr> args, Encoder::StepTag tag) {
 	// we cannot instantiate 'property' with 'args' directly (works only for 'VariableDeclaration's)
 	auto blueprint = encoder.Encode(*property.blueprint, tag);
 
