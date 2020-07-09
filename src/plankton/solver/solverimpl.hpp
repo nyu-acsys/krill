@@ -14,11 +14,9 @@ namespace plankton {
 		private:
 			Encoder& encoder;
 			mutable z3::solver solver;
-			Encoder::StepTag encodingTag = Encoder::StepTag::NOW;
-
-			bool Implies(z3::expr expr) const;
 
 		public:
+			const Encoder::StepTag encodingTag;
 			ImplicationCheckerImpl(Encoder& encoder, const Formula& premise);
 			ImplicationCheckerImpl(Encoder& encoder, z3::solver solver, Encoder::StepTag tag); 
 
@@ -26,6 +24,8 @@ namespace plankton {
 			bool Implies(const Formula& implied) const override;
 			bool Implies(const cola::Expression& implied) const override;
 			bool ImpliesNonNull(const cola::Expression& nonnull) const override;
+
+			bool Implies(z3::expr expr) const;
 	};
 
 
@@ -47,12 +47,15 @@ namespace plankton {
 
 			std::unique_ptr<Annotation> PostAssign(const Annotation& pre, const cola::Expression& lhs, const cola::Expression& rhs) const;
 			std::unique_ptr<Annotation> PostAssign(const Annotation& pre, const cola::VariableExpression& lhs, const cola::Expression& rhs) const;
-			std::unique_ptr<Annotation> PostAssign(const Annotation& pre, const cola::Dereference& lhs, const cola::VariableExpression& lhsVar, const cola::Expression& rhs) const;
+			std::unique_ptr<Annotation> PostAssign(const Annotation& pre, const cola::Dereference& lhs, const cola::Expression& rhs) const;
 
-			void ExtendSolverWithStackRules(z3::solver& solver, const cola::VariableDeclaration* changedVar=nullptr) const;
-			void ExtendSolverWithSpecificationCheckRules(z3::solver& solver, z3::expr_vector footprint) const;
+			// void ExtendSolverWithStackRules(z3::solver& solver, const cola::VariableDeclaration* changedVar=nullptr) const;
+			// void ExtendSolverWithSpecificationCheckRules(z3::solver& solver, z3::expr_vector footprint, cola::Sort sort) const;
+			// ImplicationCheckerImpl MakePostChecker(const cola::VariableExpression& lhs) const;
+			// std::pair<ImplicationCheckerImpl, z3::expr_vector> MakePostChecker(const cola::Dereference& lhs, std::size_t footprintSize) const;
 
 			// TODO: remove unused functions
+			// std::unique_ptr<ConjunctionFormula> ComputeAllImpliedCandidates(const ImplicationCheckerImpl& checker) const;
 			std::unique_ptr<ConjunctionFormula> ExtendExhaustively(std::unique_ptr<ConjunctionFormula> formula, bool removeNonCandidates=false) const;
 			std::unique_ptr<ConjunctionFormula> PruneNonCandidates(std::unique_ptr<ConjunctionFormula> formula) const;
 

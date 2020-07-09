@@ -153,23 +153,34 @@ z3::expr Encoder::EncodeHasFlow(z3::expr node, StepTag tag) {
 	return z3::exists(key, EncodeFlow(node, key, tag));
 }
 
-z3::expr Encoder::EncodePredicate(const Predicate& predicate, z3::expr arg1, z3::expr arg2, StepTag tag) {
-	// we cannot instantiate 'predicate' with 'arg1' and 'arg2' directly (works only for 'VariableDeclaration's)
-	auto blueprint = Encode(tag, *predicate.blueprint);
+template<std::size_t N, typename T>
+inline z3::expr EncodeProperty(Encoder& encoder, z3::context& context, const Property<N, T>& property, std::array<z3::expr, N> args, Encoder::StepTag tag) {
+	// we cannot instantiate 'property' with 'args' directly (works only for 'VariableDeclaration's)
+	auto blueprint = encoder.Encode(*property.blueprint, tag);
 
 	// get blueprint vars
 	z3::expr_vector blueprint_vars(context);
-	for (const auto& decl : predicate.vars) {
-		blueprint_vars.push_back(EncodeVariable(*decl, tag));
+	for (const auto& decl : property.vars) {
+		blueprint_vars.push_back(encoder.EncodeVariable(*decl, tag));
 	}
 
 	// get actual values
 	z3::expr_vector replacement(context);
-	replacement.push_back(arg1);
-	replacement.push_back(arg2);
+	for (auto arg : args) {
+		replacement.push_back(arg);
+	}
 
 	// instantiate with desired values
+	assert(blueprint_vars.size() == replacement.size());
 	return blueprint.substitute(blueprint_vars, replacement);
+}
+
+z3::expr Encoder::EncodeInvariant(const Invariant& invariant, z3::expr arg, StepTag tag) {
+	return EncodeProperty(*this, context, invariant, { arg }, tag);
+}
+
+z3::expr Encoder::EncodePredicate(const Predicate& predicate, z3::expr arg1, z3::expr arg2, StepTag tag) {
+	return EncodeProperty(*this, context, predicate, { arg1, arg2 }, tag);
 }
 
 z3::expr Encoder::EncodeKeysetContains(z3::expr node, z3::expr key, StepTag tag) {
@@ -405,6 +416,7 @@ std::pair<z3::solver, z3::expr_vector> Encoder::MakePostSolver(std::size_t footp
 
 	// footprint pointers are all distinct
 	solver.add(z3::distinct(footprint));
+	// TODO important: pairwise distinct or null?
 
 	// helper to check footprint containedness
 	auto notInFootprint = [this,footprint](z3::expr expr){

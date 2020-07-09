@@ -33,6 +33,7 @@ namespace plankton {
 			z3::expr EncodeHasFlow(z3::expr node, StepTag tag = NOW);
 			z3::expr EncodeVariable(const cola::VariableDeclaration& decl, StepTag tag = NOW);
 			z3::expr EncodeOwnership(z3::expr pointer, bool owned=true, StepTag tag = NOW);
+			z3::expr EncodeInvariant(const Invariant& invariant, z3::expr arg, StepTag tag = NOW);
 
 			inline z3::expr EncodeNext(const Formula& formula) { return Encode(formula, NEXT); }
 			inline z3::expr EncodeNext(const cola::Expression& expression) { return Encode(expression, NEXT); }
@@ -42,6 +43,7 @@ namespace plankton {
 			inline z3::expr EncodeNextHasFlow(z3::expr node) { return EncodeHasFlow(node, NEXT); }
 			inline z3::expr EncodeNextVariable(const cola::VariableDeclaration& decl) { return EncodeVariable(decl, NEXT); }
 			inline z3::expr EncodeNextOwnership(z3::expr pointer, bool owned=true) { return EncodeOwnership(pointer, owned, NEXT); }
+			inline z3::expr EncodeNextInvariant(const Invariant& invariant, z3::expr arg) { return EncodeInvariant(invariant, arg, NEXT); }
 
 			z3::solver MakeSolver();
 			std::pair<z3::solver, z3::expr_vector> MakePostSolver(std::size_t footPrintSize);

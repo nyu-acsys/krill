@@ -8,13 +8,17 @@ using namespace cola;
 using namespace plankton;
 
 
-ImplicationCheckerImpl::ImplicationCheckerImpl(Encoder& encoder_, const Formula& premise_) : encoder(encoder_), solver(encoder.MakeSolver()) {
+ImplicationCheckerImpl::ImplicationCheckerImpl(Encoder& encoder_, const Formula& premise_)
+	: encoder(encoder_), solver(encoder.MakeSolver()), encodingTag(Encoder::StepTag::NOW)
+{
 	// TODO: should we store 'premise' and do some purely syntactical quick checks, or simply rely on z3?
 	solver.add(encoder.Encode(premise_, encodingTag));
 }
 
 ImplicationCheckerImpl::ImplicationCheckerImpl(Encoder& encoder_, z3::solver solver_, Encoder::StepTag tag_)
-	: encoder(encoder_), solver(solver_), encodingTag(tag_) {}
+	: encoder(encoder_), solver(solver_), encodingTag(tag_)
+{
+}
 
 bool ImplicationCheckerImpl::Implies(z3::expr expr) const {
 	// add negated 'expr' and check satisfiability
@@ -31,6 +35,7 @@ bool ImplicationCheckerImpl::Implies(z3::expr expr) const {
 		case z3::sat:
 			return false;
 		case z3::unsat:
+			// TODO important: solver.add(expr) ?
 			return true;
 	}
 }

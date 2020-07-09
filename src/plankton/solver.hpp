@@ -11,6 +11,9 @@
 
 namespace plankton {
 
+	inline std::vector<std::reference_wrapper<const Tactic>> GetDefaultTactics();
+
+
 	/** Flow domain base class to parametrize a solvers in (almost) arbitrary flows.
 	  *
 	  * ASSUMPTION: heaps are homogeneous, i.e., consist of a single type of nodes only.
@@ -33,7 +36,25 @@ namespace plankton {
 		  * ASSUMPTION: edge functions are node-local, i.e., may only access the fields of 'node'.
 		  */
 		virtual const Predicate& GetOutFlowContains(std::string fieldname) const = 0;
+
+		/** Provides the footprint size, i.e., the number of nodes that are affected by the assignment 'lhs = rhs'
+		  * under the configuration characterized by 'pre'.
+		  *
+		  * NOTE: variable assignments are implicitly assumed to have a footprint size of '0'. To ensure this,
+		  *       a solver will most certainly disallow assignments to shared variables.
+		  * 
+		  * ASSUMPTION: the footprint size accounts for all nodes the flow of which changes and for all nodes
+		  *             the fields of which change independent of the fact whether or not their flow changes.
+		  */
+		virtual std::size_t GetFootprintSize(const Annotation& pre, const cola::Dereference& lhs, const cola::Expression& rhs) const = 0;
+
+		/** TODO: doc
+		  */
+		virtual std::vector<std::reference_wrapper<const Tactic>> GetTactics() const {
+			return GetDefaultTactics();
+		}
 	};
+
 
 	/** Configuration object for solvers.
 	  */

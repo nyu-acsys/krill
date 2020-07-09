@@ -210,6 +210,10 @@ struct KeysetFlow : public FlowDomain {
 		if (fieldname != "next") throw std::logic_error("KeysetFlow error: FlowDomain.GetOutFlowContains(std::string) expected 'next' but got '" + fieldname + "'.");
 		return *outflowContains;
 	}
+
+	std::size_t GetFootprintSize(const Annotation& /*pre*/, const Dereference& lhs, const Expression& /*rhs*/) const override {
+		return lhs.sort() == Sort::PTR ? 3 : 1;
+	}
 };
 
 std::unique_ptr<Solver> plankton::MakeLinearizabilitySolver(const Program& program) {
