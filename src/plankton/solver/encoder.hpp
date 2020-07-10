@@ -3,7 +3,7 @@
 #define PLANKTON_ENCODER
 
 
-#include <list>
+#include <set>
 #include <deque>
 #include <vector>
 #include "z3++.h"
@@ -45,6 +45,10 @@ namespace plankton {
 			inline z3::expr EncodeNextOwnership(z3::expr pointer, bool owned=true) { return EncodeOwnership(pointer, owned, NEXT); }
 			inline z3::expr EncodeNextInvariant(const Invariant& invariant, z3::expr arg) { return EncodeInvariant(invariant, arg, NEXT); }
 
+			z3::expr EncodeTransitionMaintainsHeap(z3::expr node, const cola::Type& nodeType, std::set<std::string> excludedSelectors = {});
+			z3::expr EncodeTransitionMaintainsFlow(z3::expr node, z3::expr key);
+			z3::expr EncodeTransitionMaintainsOwnership(z3::expr node);
+
 			z3::solver MakeSolver();
 			std::pair<z3::solver, z3::expr_vector> MakePostSolver(std::size_t footPrintSize);
 
@@ -72,9 +76,9 @@ namespace plankton {
 			z3::context context;
 			z3::sort intSort, boolSort;
 			z3::expr nullPtr, minVal, maxVal;
-			z3::func_decl heap; // free function: Int x Int -> Int; 'heap(x, sel) = y' means that field 'sel' of node 'x' is 'y'
-			z3::func_decl flow; // free function: Int x Int -> Bool; 'flow(x, k) = true' iff the flow in node 'x' contains 'k'
-			z3::func_decl ownership; // free function: Int -> Bool; 'ownership(x) = true' iff 'x' is owned
+			z3::func_decl heapNow, heapNext; // free function: Int x Int -> Int; 'heap(x, sel) = y' means that field 'sel' of node 'x' is 'y'
+			z3::func_decl flowNow, flowNext; // free function: Int x Int -> Bool; 'flow(x, k) = true' iff the flow in node 'x' contains 'k'
+			z3::func_decl ownershipNow, ownershipNext; // free function: Int -> Bool; 'ownership(x) = true' iff 'x' is owned
 
 			const PostConfig& postConfig;
 			std::optional<std::vector<std::pair<std::string, const cola::Type*>>> pointerFields;

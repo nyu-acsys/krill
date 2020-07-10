@@ -13,9 +13,12 @@ Encoder::Encoder(const PostConfig& config) :
 	nullPtr(context.constant("_NULL_", intSort)), 
 	minVal(context.constant("_MIN_", intSort)),
 	maxVal(context.constant("_MAX_", intSort)),
-	heap(context.function("$MEM", intSort, intSort, intSort)),
-	flow(context.function("$FLOW", intSort, intSort, boolSort)),
-	ownership(context.function("$OWN", intSort, boolSort)),
+	heapNow(context.function("$MEM-now", intSort, intSort, intSort)),
+	heapNext(context.function("$MEM-next", intSort, intSort, intSort)),
+	flowNow(context.function("$FLOW-now", intSort, intSort, boolSort)),
+	flowNext(context.function("$FLOW-next", intSort, intSort, boolSort)),
+	ownershipNow(context.function("$OWN-now", intSort, boolSort)),
+	ownershipNext(context.function("$OWN-next", intSort, boolSort)),
 	postConfig(config)
 {
 	// TODO: currently nullPtr/minVal/maxValu are just some symbols that are not bound to a value
@@ -130,8 +133,10 @@ z3::expr Encoder::EncodeSelector(selector_t selector, StepTag /*tag*/) {
 }
 
 z3::expr Encoder::EncodeHeap(z3::expr pointer, selector_t selector, StepTag tag) {
-	if (tag == NEXT) throw std::logic_error("not yet implemented: NEXT"); // TODO: implement post heap
-	return heap(pointer, EncodeSelector(selector, tag));
+	switch (tag) {
+		case NOW: return heapNow(pointer, EncodeSelector(selector, tag));
+		case NEXT: return heapNext(pointer, EncodeSelector(selector, tag));
+	}
 }
 
 z3::expr Encoder::EncodeHeap(z3::expr pointer, selector_t selector, z3::expr value, StepTag tag) {
@@ -139,13 +144,17 @@ z3::expr Encoder::EncodeHeap(z3::expr pointer, selector_t selector, z3::expr val
 }
 
 z3::expr Encoder::EncodeFlow(z3::expr pointer, z3::expr value, bool containsValue, StepTag tag) {
-	if (tag == NEXT) throw std::logic_error("not yet implemented: NEXT"); // TODO: implement post flow
-	return flow(pointer, value) == MakeBool(containsValue);
+	switch (tag) {
+		case NOW: return flowNow(pointer, value) == MakeBool(containsValue);
+		case NEXT: return flowNext(pointer, value) == MakeBool(containsValue);
+	}
 }
 
 z3::expr Encoder::EncodeOwnership(z3::expr pointer, bool owned, StepTag tag) {
-	if (tag == NEXT) throw std::logic_error("not yet implemented: NEXT"); // TODO: implement post ownership
-	return ownership(pointer) == MakeBool(owned);
+	switch (tag) {
+		case NOW: return ownershipNow(pointer) == MakeBool(owned);
+		case NEXT: return ownershipNext(pointer) == MakeBool(owned);
+	}
 }
 
 z3::expr Encoder::EncodeHasFlow(z3::expr node, StepTag tag) {
@@ -193,6 +202,22 @@ z3::expr Encoder::EncodeKeysetContains(z3::expr node, z3::expr key, StepTag tag)
 	return EncodeFlow(node, key, tag) && !keyInOutflow;
 }
 
+z3::expr Encoder::EncodeTransitionMaintainsHeap(z3::expr node, const Type& nodeType, std::set<std::string> excludedSelectors) {
+	z3::expr_vector vec(context);
+	for (auto [fieldName, fieldType] : nodeType.fields) {
+		if (excludedSelectors.count(fieldName) != 0) continue;
+		auto selector = std::make_pair(&nodeType, fieldName);
+		vec.push_back(EncodeHeap(node, selector) == EncodeNextHeap(node, selector));
+	}
+	return MakeAnd(vec);
+}
+
+z3::expr Encoder::EncodeTransitionMaintainsFlow(z3::expr node, z3::expr key) {
+	return EncodeFlow(node, key) == EncodeNextFlow(node, key);
+}
+z3::expr Encoder::EncodeTransitionMaintainsOwnership(z3::expr node) {
+	return EncodeOwnership(node) == EncodeNextOwnership(node);
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -415,17 +440,10 @@ std::pair<z3::solver, z3::expr_vector> Encoder::MakePostSolver(std::size_t footp
 	}
 
 	// footprint pointers are all distinct
-	solver.add(z3::distinct(footprint));
-	// TODO important: pairwise distinct or null?
-
-	// helper to check footprint containedness
-	auto notInFootprint = [this,footprint](z3::expr expr){
-		z3::expr_vector vec(this->context);
-		for (auto node : footprint) {
-			vec.push_back(expr != node);
-		}
-		return this->MakeAnd(vec);
-	};
+	if (footprintSize != 0) {
+		// TODO important: needed? pairwise distinct or null?
+		solver.add(z3::distinct(footprint));
+	}
 
 	// everything in the heap except 'footprint' remains unchanged (selectors, flow)
 	// note: we do not care for stack variables, this must be done elsewhere
@@ -433,17 +451,19 @@ std::pair<z3::solver, z3::expr_vector> Encoder::MakePostSolver(std::size_t footp
 	const Type& nodeType = postConfig.flowDomain->GetNodeType();
 	auto node = EncodeVariable(nodeType.sort, "qv-rule-ptr", NOW);
 	auto key = EncodeVariable(nodeType.sort, "qv-rule-key", NOW);
-	for (auto [fieldName, fieldType] : postConfig.flowDomain->GetNodeType().fields) { // heap
-		auto selector = std::make_pair(&nodeType, fieldName);
-		solver.add(z3::forall(node, MakeImplication(
-			notInFootprint(node), /* ==> */ EncodeHeap(node, selector) == EncodeNextHeap(node, selector)
-		)));
+
+	z3::expr_vector vec(context);
+	for (auto changed : footprint) {
+		vec.push_back(changed != node);
 	}
-	solver.add(z3::forall(node, key, MakeImplication( // flow
-		notInFootprint(node), /* ==> */ EncodeFlow(node, key) == EncodeNextFlow(node, key)
-	)));
-	solver.add(z3::forall(node, MakeImplication( // ownership
-		notInFootprint(node), /* ==> */ EncodeOwnership(node) == EncodeNextOwnership(node)
+	auto nodeNotInFootprint = MakeAnd(vec);
+
+	solver.add(z3::forall(node, MakeImplication(
+		nodeNotInFootprint,
+		/* ==> */
+		EncodeTransitionMaintainsHeap(node, nodeType) &&
+		EncodeTransitionMaintainsOwnership(node) &&
+		z3::forall(key, EncodeTransitionMaintainsFlow(node, key))
 	)));
 
 	return std::make_pair(solver, footprint);

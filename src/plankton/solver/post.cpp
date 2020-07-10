@@ -97,6 +97,12 @@ class AssignmentPostComputer {
 		std::unique_ptr<Annotation> MakePost();
 };
 
+
+// GetFootprintSize
+// ExtendSolverWithStackRules
+// CheckInvariant
+// MakePostTime
+
 template<>
 std::size_t AssignmentPostComputer<VariableExpression>::GetFootprintSize() {
 	return 0;
@@ -280,6 +286,7 @@ std::unique_ptr<Annotation> SolverImpl::Post(const Annotation& pre, parallel_ass
 		}
 	}
 
+	throw std::logic_error("not yet implemlent parallel_assignment_t"); // TODO: doing it sequentially does not work because of scopes
 	// execute parallel assignment sequentially
 	auto result = plankton::copy(pre);
 	for (const auto [lhs, rhs] : assignments) {
