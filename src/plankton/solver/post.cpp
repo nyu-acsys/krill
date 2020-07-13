@@ -9,6 +9,7 @@
 
 using namespace cola;
 using namespace plankton;
+using parallel_assignment_t = Solver::parallel_assignment_t;
 
 
 template<typename T>
@@ -18,20 +19,38 @@ inline std::string ColaToString(const T& obj) {
 	return result.str();
 }
 
+template<typename T>
+inline std::string ColaContainerToString(const T& container) {
+	std::stringstream result;
+	bool first = true;
+	for (const auto& elem : container) {
+		if (!first) result << ", ";
+		else first = false;
+		cola::print(*elem, result);
+	}
+	return result.str();
+}
+
 inline std::string AssignmentString(const Expression& lhs, const Expression& rhs) {
 	return ColaToString(lhs) + " = " + ColaToString(rhs);
+}
+
+template<typename U, typename V>
+inline std::string AssignmentString(const std::vector<const U*>& lhs, const std::vector<const V*>& rhs) {
+	return ColaContainerToString(lhs) + " = " + ColaContainerToString(rhs);
 }
 
 inline void ThrowUnsupportedAssignmentError(const Expression& lhs, const Expression& rhs, std::string moreReason) {
 	throw UnsupportedConstructError("Cannot compute post image for assignment '" + AssignmentString(lhs, rhs) + "': " + moreReason + ".");
 }
 
-inline void ThrowUnsupportedAllocationError(const VariableDeclaration& lhs, std::string moreReason) {
-	throw UnsupportedConstructError("Cannot compute post image for allocation targeting '" + lhs.name + "': " + moreReason + ".");
+template<typename U, typename V>
+inline void ThrowUnsupportedAssignmentError(const std::vector<const U*>& lhs, const std::vector<const V*>& rhs, std::string moreReason) {
+	throw UnsupportedConstructError("Cannot compute post image for assignment '" + AssignmentString(lhs, rhs) + "': " + moreReason + ".");
 }
 
-inline void ThrowUnsupportedParallelAssignmentError(std::string reason) {
-	throw UnsupportedConstructError("Malformed parallel assignment: " + reason + ".");
+inline void ThrowUnsupportedAllocationError(const VariableDeclaration& lhs, std::string moreReason) {
+	throw UnsupportedConstructError("Cannot compute post image for allocation targeting '" + lhs.name + "': " + moreReason + ".");
 }
 
 
@@ -63,189 +82,52 @@ std::unique_ptr<Annotation> PostProcess(std::unique_ptr<Annotation> /*post*/, co
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-template<typename T>
-class AssignmentPostComputer {
-	private:
-		const PostConfig& config;
-		Encoder& encoder;
-		const ConjunctionFormula& candidates;
-		const std::deque<const cola::VariableDeclaration*>& variablesInScope;
-		const Annotation& pre;
-		const T& lhs;
-		const cola::Expression& rhs;
-		bool justEntailment;
+struct PostInfo {
+	using time_container_t = decltype(Annotation::time);
+	static const time_container_t& GetDummyContainer() { static time_container_t dummy; return dummy; }
 
-	private:
-		std::size_t GetFootprintSize();
-		void ExtendSolverWithStackRules(z3::solver& solver);
-		void ExtendSolverWithHeapRules(z3::solver& solver, z3::expr_vector footprint);
-		std::pair<ImplicationCheckerImpl, z3::expr_vector> MakePostChecker();
-		std::unique_ptr<ConjunctionFormula> ComputeAllImpliedCandidates(const ImplicationCheckerImpl& checker);
-		std::unique_ptr<ConjunctionFormula> ComputePostSpecification(const ImplicationCheckerImpl& checker);
-		void CheckInvariant(const ImplicationCheckerImpl& checker, z3::expr_vector footprint);
-		std::unique_ptr<ConjunctionFormula> MakePostNow();
-		std::unique_ptr<Annotation> MakePostTime(std::unique_ptr<ConjunctionFormula> now);
+	const SolverImpl& solver;
+	const ConjunctionFormula& preNow;
+	const time_container_t& preTime;
+	const ConjunctionFormula& candidates;
+	bool implicationCheck; // if true: do not check invariant nor specification, may abort if not all candidates are implied
 
-	public:
-		AssignmentPostComputer(const PostConfig& config, Encoder& encoder, const ConjunctionFormula& candidates,
-			const std::deque<const cola::VariableDeclaration*>& variablesInScope, const Annotation& pre,
-			const T& lhs, const cola::Expression& rhs, bool justEntailment=false)
-		: config(config), encoder(encoder), candidates(candidates), variablesInScope(variablesInScope), pre(pre),
-		  lhs(lhs), rhs(rhs), justEntailment(justEntailment)
-		{}
+	PostInfo(const SolverImpl& solver, const Annotation& pre)
+		: solver(solver), preNow(*pre.now), preTime(pre.time), candidates(solver.GetCandidates()), implicationCheck(false) {}
+	PostInfo(const SolverImpl& solver, const ConjunctionFormula& pre, const ConjunctionFormula& candidates)
+		: solver(solver), preNow(pre), preTime(GetDummyContainer()), candidates(candidates), implicationCheck(true) {}
 
-		std::unique_ptr<Annotation> MakePost();
+	std::unique_ptr<ConjunctionFormula> ComputeImpliedCandidates(const ImplicationChecker& checker);
+};
+
+struct VarPostComputer {
+	PostInfo info;
+	const parallel_assignment_t& assignment;
+
+	VarPostComputer(PostInfo info_, const parallel_assignment_t& assignment) : info(std::move(info_)), assignment(assignment) {}
+	std::unique_ptr<Annotation> MakePost();
+
+	std::unique_ptr<ConjunctionFormula> MakePostNow();
+	std::map<const Expression*, const VariableDeclaration*> MakeReplacementMap();
+	std::unique_ptr<ConjunctionFormula> MakeInterimPostNow();
+
+	std::unique_ptr<Annotation> MakePostTime();
+};
+
+struct DerefPostComputer {
+	PostInfo info;
+	const Dereference& lhs;
+	const Expression& rhs;
+
+	template<typename... Args>
+	DerefPostComputer(PostInfo info_, const Dereference& lhs, const Expression& rhs) : info(std::move(info_)), lhs(lhs), rhs(rhs) {}
+	std::unique_ptr<Annotation> MakePost();
 };
 
 
-// GetFootprintSize
-// ExtendSolverWithStackRules
-// CheckInvariant
-// MakePostTime
-
-template<>
-std::size_t AssignmentPostComputer<VariableExpression>::GetFootprintSize() {
-	return 0;
-}
-
-template<>
-std::size_t AssignmentPostComputer<Dereference>::GetFootprintSize() {
-	auto size = config.flowDomain->GetFootprintSize(pre, lhs, rhs);
-	if (size == 0) throw SolvingError("Heap updates cannot have an empty footprint.");
-	return size;
-}
-
-template<typename T>
-void AssignmentPostComputer<T>::ExtendSolverWithHeapRules(z3::solver& /*solver*/, z3::expr_vector /*footprint*/) {
-	if (std::is_same_v<T, VariableExpression>) return;
-
-	// TODO: add lhs.expr->{selector} changes/non-changes
-	// TODO: invoke invariant for footprint?
-	throw std::logic_error("not yet implemented: ExtendSolverWithSpecificationCheckRules");
-}
-
-template<>
-void AssignmentPostComputer<VariableExpression>::ExtendSolverWithStackRules(z3::solver& solver) {
-	solver.add(encoder.EncodeNext(lhs) == encoder.Encode(rhs));
-	for (auto var : variablesInScope) {
-		if (var == &lhs.decl) continue;
-		solver.add(encoder.EncodeVariable(*var) == encoder.EncodeNextVariable(*var));
-	}
-}
-
-template<>
-void AssignmentPostComputer<Dereference>::ExtendSolverWithStackRules(z3::solver& solver) {
-	for (auto var : variablesInScope) {
-		solver.add(encoder.EncodeVariable(*var) == encoder.EncodeNextVariable(*var));
-	}
-}
-
-template<typename T>
-std::pair<ImplicationCheckerImpl, z3::expr_vector> AssignmentPostComputer<T>::MakePostChecker() {
-	auto footprintSize = GetFootprintSize();
-	auto [solver, footprint] = encoder.MakePostSolver(footprintSize);
-	ExtendSolverWithStackRules(solver);
-	ExtendSolverWithHeapRules(solver, footprint);
-	return { ImplicationCheckerImpl(encoder, *pre.now, std::move(solver), Encoder::StepTag::NEXT), std::move(footprint) };
-}
-
-inline bool SkipForEntailmentCheck(const SimpleFormula& formula) {
-	return plankton::is_of_type<SpecificationAxiom>(formula).first;
-}
-
-template<typename T>
-std::unique_ptr<ConjunctionFormula> AssignmentPostComputer<T>::ComputeAllImpliedCandidates(const ImplicationCheckerImpl& checker) {
-	auto result = std::make_unique<ConjunctionFormula>();
-	for (const auto& candidate : candidates.conjuncts) {
-		if (!checker.Implies(*candidate)) {
-			if (!justEntailment) continue;
-			if (SkipForEntailmentCheck(*candidate)) continue;
-			break;
-		}
-		result->conjuncts.push_back(plankton::copy(*candidate));
-	}
-	return result;
-}
-
-template<typename T>
-std::unique_ptr<ConjunctionFormula> AssignmentPostComputer<T>::ComputePostSpecification(const ImplicationCheckerImpl& /*checker*/) {
-	// TODO: manually handle obligations/fulfillments?
-	throw std::logic_error("not yet implemented: AssignmentPostComputer<T>::ComputePostSpecification");
-}
-
-template<>
-void AssignmentPostComputer<VariableExpression>::CheckInvariant(const ImplicationCheckerImpl& /*checker*/, z3::expr_vector /*footprint*/) {
-	if (lhs.decl.is_shared) {
-		ThrowUnsupportedAssignmentError(lhs, rhs, "expected left-hand side to be a local variable, not shared");
-	}
-}
-
-template<>
-void AssignmentPostComputer<Dereference>::CheckInvariant(const ImplicationCheckerImpl& checker, z3::expr_vector footprint) {
-	for (auto node : footprint) {
-		if (checker.Implies(encoder.EncodeInvariant(*config.invariant, node, checker.encodingTag))) continue;
-		ThrowInvariantViolationError(lhs, rhs);
-	}
-}
-
-template<typename T>
-std::unique_ptr<ConjunctionFormula> AssignmentPostComputer<T>::MakePostNow() {
-	auto [checker, footprint] = MakePostChecker();
-	if (!justEntailment) CheckInvariant(checker, footprint);
-
-	auto post = ComputeAllImpliedCandidates(checker);
-	if (justEntailment) return post;
-
-	auto spec = ComputePostSpecification(checker);
-	return plankton::conjoin(std::move(post), std::move(spec));
-}
-
-template<>
-std::unique_ptr<Annotation> AssignmentPostComputer<VariableExpression>::MakePostTime(std::unique_ptr<ConjunctionFormula> now) {
-	auto result = std::make_unique<Annotation>(std::move(now));
-	throw std::logic_error("not yet implemented: AssignmentPostComputer<>::MakePostTime");
-	// TODO: fastpath for pre.time.empty()
-	// std::vector<std::unique_ptr<TimePredicate>> SyntacticTimePost(const TimePredicate& /*predicate*/, const VariableExpression& /*lhs*/, const Expression& /*rhs*/)
-	// for (const auto& predicate : pre.time) {
-	// 	auto newPredicates = SyntacticTimePost(*predicate, lhs, rhs);
-	// 	result->time.insert(result->time.end(), std::make_move_iterator(newPredicates.begin()), std::make_move_iterator(newPredicates.end()));
-	// }
-	return result;
-}
-
-template<>
-std::unique_ptr<Annotation> AssignmentPostComputer<Dereference>::MakePostTime(std::unique_ptr<ConjunctionFormula> now) {
-	auto result = std::make_unique<Annotation>(std::move(now));
-	for (const auto& predicate : pre.time) {
-		result->time.push_back(plankton::copy(*predicate));
-	}
-	return result;
-}
-
-
-template<typename T>
-std::unique_ptr<Annotation> AssignmentPostComputer<T>::MakePost() {
-	log() << "*** PostAssign " << AssignmentString(lhs, rhs) << std::endl << *pre.now << std::endl;
-	auto result = MakePostTime(MakePostNow());
-	log() << "~~>" << std::endl << *result->now << std::endl;
-	return result;
-}
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-std::unique_ptr<Annotation> MakeAssignmentPost(const PostConfig& config, Encoder& encoder, const ConjunctionFormula& candidates,
-	const std::deque<const cola::VariableDeclaration*>& variablesInScope, const Annotation& pre, const Expression& lhs,
-	const cola::Expression& rhs, bool justEntailment=false)
-{
-	// auto makePost = [&](const auto& expr)
-
+inline std::unique_ptr<Annotation> MakePost(PostInfo info, const Expression& lhs, const Expression& rhs) {
 	auto [isLhsVar, lhsVar] = plankton::is_of_type<VariableExpression>(lhs);
-	if (isLhsVar) {
-		return AssignmentPostComputer<VariableExpression>(config, encoder, candidates, variablesInScope, pre, *lhsVar, rhs, justEntailment).MakePost();
-	}
+	if (isLhsVar) return VarPostComputer(std::move(info), { std::make_pair(std::cref(*lhsVar), std::cref(rhs)) }).MakePost();
 
 	auto [isLhsDeref, lhsDeref] = plankton::is_of_type<Dereference>(lhs);
 	if (!isLhsDeref) ThrowUnsupportedAssignmentError(lhs, rhs, "expected left-hand side to be a variable or a dereference");
@@ -258,47 +140,128 @@ std::unique_ptr<Annotation> MakeAssignmentPost(const PostConfig& config, Encoder
 	auto [isSimple, rhsSimple] = plankton::is_of_type<SimpleExpression>(isRhsNegation ? *rhsNegation->expr : rhs);
 	if (!isSimple) ThrowUnsupportedAssignmentError(lhs, rhs, "expected right-hand side to be a variable or an immediate value");
 
-	return AssignmentPostComputer<Dereference>(config, encoder, candidates, variablesInScope, pre, *lhsDeref, rhs, justEntailment).MakePost();
-}
-
-std::unique_ptr<Annotation> SolverImpl::PostAssign(const Annotation& pre, const cola::Expression& lhs, const cola::Expression& rhs) const {
-	return MakeAssignmentPost(config, encoder, GetCandidates(), GetVariablesInScope(), pre, lhs, rhs);
-}
-
-std::unique_ptr<Annotation> SolverImpl::Post(const Annotation& pre, const Assignment& cmd) const {
-	return PostProcess(PostAssign(pre, *cmd.lhs, *cmd.rhs), pre);
+	return DerefPostComputer(std::move(info), *lhsDeref, rhs).MakePost();
 }
 
 std::unique_ptr<Annotation> SolverImpl::Post(const Annotation& pre, parallel_assignment_t assignments) const {
-	// TODO: implemlent an optimized version that performs the assignment in one shot
-
-	// check if we can execute the parallel assignment sequentially
-	for (const auto& pair : assignments) {
-		auto [isVar, lhsVar] = plankton::is_of_type<VariableExpression>(pair.first.get());
-
-		// ensure that the left-hand side is a variable
-		if (!isVar) ThrowUnsupportedParallelAssignmentError("left-hand side must be a 'VariableExpression'");
-
-		// ensure that the left-hand side does not appear as right-hand side
-		for (const auto& other : assignments) {
-			if (!plankton::contains_expression(other.second.get(), *lhsVar)) continue;
-			ThrowUnsupportedParallelAssignmentError("assigned variable '" + lhsVar->decl.name + "' must not appear on the right-hand side");
+	// ensure that no variable is assigned multiple times
+	for (std::size_t index = 0; index < assignments.size(); ++index) {
+		for (std::size_t other = index+1; other < assignments.size(); ++other) {
+			if (plankton::syntactically_equal(assignments[index].first, assignments[index].second)) {
+				throw UnsupportedConstructError("Malformed parallel assignment: variable " + assignments[index].first.get().decl.name + " is assigned multiple times.");
+			}
 		}
 	}
 
-	throw std::logic_error("not yet implemlent parallel_assignment_t"); // TODO: doing it sequentially does not work because of scopes
-	// execute parallel assignment sequentially
-	auto result = plankton::copy(pre);
-	for (const auto [lhs, rhs] : assignments) {
-		result = PostAssign(*result, lhs, rhs);
-	}
-	return PostProcess(std::move(result), pre);
+	// compute post
+	return PostProcess(VarPostComputer(PostInfo(*this, pre), assignments).MakePost(), pre);
+}
+
+std::unique_ptr<Annotation> SolverImpl::Post(const Annotation& pre, const Assignment& cmd) const {
+	return PostProcess(MakePost(PostInfo(*this, pre), *cmd.lhs, *cmd.rhs), pre);
 }
 
 bool SolverImpl::PostEntails(const ConjunctionFormula& pre, const Assignment& cmd, const ConjunctionFormula& post) const {
-	Annotation dummyPre(plankton::copy(pre)); // TODO: avoid the copy --> have AssignmentPostComputer take now and time separately? better take an annotation as argument
-	auto partialPostImage = MakeAssignmentPost(config, encoder, GetCandidates(), GetVariablesInScope(), dummyPre, *cmd.lhs, *cmd.rhs, true);
-	return partialPostImage->now->conjuncts.size() == post.conjuncts.size(); // TODO: is this correct?
+	auto partialPostImage = MakePost(PostInfo(*this, pre, post), *cmd.lhs, *cmd.rhs);
+	return partialPostImage->now->conjuncts.size() == post.conjuncts.size();
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<ConjunctionFormula> PostInfo::ComputeImpliedCandidates(const ImplicationChecker& checker) {
+	log() << "checking: " << std::flush;
+	auto result = std::make_unique<ConjunctionFormula>();
+	for (const auto& candidate : candidates.conjuncts) {
+		log() << "  " << *candidate << std::flush;
+		if (!checker.Implies(*candidate)) {
+			if (implicationCheck) break;
+			continue;
+		}
+		result->conjuncts.push_back(plankton::copy(*candidate));
+	}
+	return result;
+}
+
+
+std::map<const Expression*, const VariableDeclaration*> VarPostComputer::MakeReplacementMap() {
+	static std::map<const VariableDeclaration*, std::unique_ptr<VariableDeclaration>> decl2copy;
+	static std::function<const VariableDeclaration*(const VariableDeclaration&)> GetOrCreate = [](const VariableDeclaration& decl){
+		auto find = decl2copy.find(&decl);
+		if (find != decl2copy.end()) return find->second.get();
+		auto newDecl = std::make_unique<VariableDeclaration>("post#copy-" + decl.name, decl.type, false);
+		auto result = newDecl.get();
+		decl2copy[&decl] = std::move(newDecl);
+		return result;
+	};
+
+	std::map<const Expression*, const VariableDeclaration*> result;
+	for (const auto& pair : assignment) {
+		const VariableExpression* lhsVar = &pair.first.get();
+		assert(result.count(lhsVar) == 0);
+		result[lhsVar] = GetOrCreate(lhsVar->decl);
+	}
+	return result;
+}
+
+std::unique_ptr<ConjunctionFormula> VarPostComputer::MakeInterimPostNow() {
+	auto map = MakeReplacementMap();
+	auto transformer = [&map](const Expression& expr) {
+		std::pair<bool, std::unique_ptr<Expression>> result;
+		auto find = map.find(&expr);
+		result.first = find != map.end();
+		if (result.first) {
+			result.second = std::make_unique<VariableExpression>(*find->second);
+		}
+		return result;
+	};
+	
+	// replace left-hand side variables with dummies in 'pre'
+	auto result = plankton::replace_expression(plankton::copy(info.preNow), transformer);
+
+	// add new valuation for left-hand side variables
+	for (const auto& [lhs, rhs] : assignment) {
+		auto rhsReplaced = plankton::replace_expression(cola::copy(rhs), transformer);
+		result->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
+			BinaryExpression::Operator::EQ, cola::copy(lhs), std::move(rhsReplaced)
+		)));
+	}
+
+	// done
+	return result;
+}
+
+std::unique_ptr<ConjunctionFormula> VarPostComputer::MakePostNow() {
+	// interim = preNow[lhs |-> dummy] && lhs = rhs
+	auto interim = MakeInterimPostNow();
+
+	// find implied candidates
+	auto checker = info.solver.MakeImplicationChecker(*interim);
+	return info.ComputeImpliedCandidates(*checker);
+}
+
+std::unique_ptr<Annotation> VarPostComputer::MakePostTime() {
+	throw std::logic_error("not yet implemented: VarPostComputer::MakePostTime()");
+}
+
+std::unique_ptr<Annotation> VarPostComputer::MakePost() {
+	throw std::logic_error("breakpoint");
+	// log() << "POST for: " << AssignmentString(assignment) << std::endl << info.preNow << std::endl;
+	auto postNow = MakePostNow();
+	auto result = MakePostTime();
+	result->now = std::move(postNow);
+	return result;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<Annotation> DerefPostComputer::MakePost() {
+	throw std::logic_error("not yet implemented: DerefPostComputer::MakePost()");
 }
 
 
@@ -399,7 +362,7 @@ std::unique_ptr<Annotation> SolverImpl::Post(const Annotation& pre, const Malloc
 
 	// execute a dummy assignment 'cmd.lhs = allocation'
 	VariableExpression lhs(cmd.lhs), rhs(allocation);
-	auto result = PostAssign(*extendedPre, lhs, rhs);
+	auto result = MakePost(PostInfo(*this, *extendedPre), lhs, rhs);
 	assert(!plankton::contains_expression(*result, rhs));
 
 	// done

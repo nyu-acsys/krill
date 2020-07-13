@@ -125,6 +125,8 @@ std::unique_ptr<ConjunctionFormula> make_candidate_axioms(const VariableDeclarat
 }
 
 std::unique_ptr<ConjunctionFormula> make_candidates(const VariableDeclaration& decl, const VariableDeclaration& other) {
+	// TODO: rule out those candidates that violate the invariant?
+
 	auto exprs = make_candidate_expressions(decl, other);
 	auto axioms = make_candidate_axioms(decl, other);
 	return plankton::conjoin(std::move(exprs), std::move(axioms));

@@ -11,15 +11,23 @@
 
 namespace plankton {
 
+	struct ConjunctContainer {
+		virtual ~ConjunctContainer() = default;
+		virtual std::iterator<std::forward_iterator_tag, const SimpleFormula> begin();
+		virtual std::iterator<std::forward_iterator_tag, const SimpleFormula> end();
+	};
+
+
 	class ImplicationCheckerImpl final : public ImplicationChecker {
-		private:
+		private:			
 			Encoder& encoder;
 			mutable z3::solver solver;
+			std::unique_ptr<ConjunctContainer> premise;
+			const Encoder::StepTag encodingTag;
 
 		public:
-			const Encoder::StepTag encodingTag;
-			ImplicationCheckerImpl(Encoder& encoder, const Formula& premise);
-			ImplicationCheckerImpl(Encoder& encoder, const Formula& premise, z3::solver solver, Encoder::StepTag tag); 
+			ImplicationCheckerImpl(Encoder& encoder, const Formula& premise, Encoder::StepTag tag = Encoder::StepTag::NOW);
+			ImplicationCheckerImpl(Encoder& encoder, z3::solver solver, const Formula& premise, Encoder::StepTag tag); 
 
 			bool ImpliesFalse() const override;
 			bool Implies(const Formula& implied) const override;
@@ -27,6 +35,7 @@ namespace plankton {
 			bool ImpliesNonNull(const cola::Expression& nonnull) const override;
 
 			bool Implies(z3::expr expr) const;
+			static bool Implies(z3::solver& solver, z3::expr expr);
 	};
 
 
@@ -37,7 +46,8 @@ namespace plankton {
 			std::deque<std::unique_ptr<ConjunctionFormula>> instantiatedInvariants;
 			std::deque<std::deque<const cola::VariableDeclaration*>> variablesInScope;
 
-		private:
+		public: // export useful functionality
+			inline Encoder& GetEncoder() const { return encoder; }
 			inline const ConjunctionFormula& GetCandidates() const { return *candidateFormulas.back(); }
 			inline const ConjunctionFormula& GetInstantiatedInvariant() const { return *instantiatedInvariants.back(); }
 			inline const std::deque<const cola::VariableDeclaration*>& GetVariablesInScope() const { return variablesInScope.back(); }
@@ -46,14 +56,12 @@ namespace plankton {
 			void PushOuterScope();
 			void ExtendCurrentScope(const std::vector<std::unique_ptr<cola::VariableDeclaration>>& vars);
 
-			std::unique_ptr<Annotation> PostAssign(const Annotation& pre, const cola::Expression& lhs, const cola::Expression& rhs) const;
-
 			// TODO: remove unused functions
 			// std::unique_ptr<ConjunctionFormula> ComputeAllImpliedCandidates(const ImplicationCheckerImpl& checker) const;
 			std::unique_ptr<ConjunctionFormula> ExtendExhaustively(std::unique_ptr<ConjunctionFormula> formula, bool removeNonCandidates=false) const;
 			std::unique_ptr<ConjunctionFormula> PruneNonCandidates(std::unique_ptr<ConjunctionFormula> formula) const;
 
-		public:
+		public: // implement 'Solver' interface
 			SolverImpl(PostConfig config_);
 
 			std::unique_ptr<ImplicationChecker> MakeImplicationChecker(const Formula& formula) const override;

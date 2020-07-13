@@ -210,6 +210,7 @@ struct KeysetFlow : public FlowDomain {
 	}
 
 	std::size_t GetFootprintSize(const Annotation& /*pre*/, const Dereference& lhs, const Expression& /*rhs*/) const override {
+		// TODO important: if lhs.expr is owned, then a footprint of size 1 should do for pointer assignments?
 		return lhs.sort() == Sort::PTR ? 3 : 1;
 	}
 };

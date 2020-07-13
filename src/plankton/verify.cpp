@@ -453,22 +453,25 @@ void Verifier::visit_macro_function(const Function& function) {
 }
 
 
-inline std::pair<const Expression*, std::unique_ptr<Expression>> prepare(const VariableDeclaration& decl) {
-	std::pair<const Expression*, std::unique_ptr<Expression>> result;
+template<typename T>
+inline std::pair<const T*, std::unique_ptr<T>> prepare(const VariableDeclaration& decl) {
+	std::pair<const T*, std::unique_ptr<T>> result;
 	result.second = std::make_unique<VariableExpression>(decl);
 	result.first = result.second.get();
 	return result;
 }
 
-inline std::pair<const Expression*, std::unique_ptr<Expression>> prepare(const std::unique_ptr<VariableDeclaration>& decl) {
-	std::pair<const Expression*, std::unique_ptr<Expression>> result;
+template<typename T>
+inline std::pair<const T*, std::unique_ptr<T>> prepare(const std::unique_ptr<VariableDeclaration>& decl) {
+	std::pair<const T*, std::unique_ptr<T>> result;
 	result.second = std::make_unique<VariableExpression>(*decl);
 	result.first = result.second.get();
 	return result;
 }
 
-inline std::pair<const Expression*, std::unique_ptr<Expression>> prepare(const std::unique_ptr<Expression>& expr) {
-	std::pair<const Expression*, std::unique_ptr<Expression>> result;
+template<typename T>
+inline std::pair<const T*, std::unique_ptr<T>> prepare(const std::unique_ptr<T>& expr) {
+	std::pair<const T*, std::unique_ptr<T>> result;
 	result.first = expr.get();
 	return result;
 }
@@ -481,8 +484,8 @@ inline std::unique_ptr<Annotation> execute_parallel_assignment(const Solver& sol
 	plankton::Solver::parallel_assignment_t assignment;
 
 	for (std::size_t index = 0; index < lhs.size(); ++index) {
-		auto [leftExpr, leftOwn] = prepare(lhs.at(index));
-		auto [rightExpr, rightOwn] = prepare(rhs.at(index));
+		auto [leftExpr, leftOwn] = prepare<VariableExpression>(lhs.at(index));
+		auto [rightExpr, rightOwn] = prepare<Expression>(rhs.at(index));
 		if (leftOwn) dummy_storage.push_back(std::move(leftOwn));
 		if (rightOwn) dummy_storage.push_back(std::move(rightOwn));
 		assignment.push_back(std::make_pair(std::cref(*leftExpr), std::cref(*rightExpr)));

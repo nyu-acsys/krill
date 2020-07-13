@@ -111,7 +111,7 @@ namespace plankton {
 		virtual std::unique_ptr<Annotation> Post(const Annotation& pre, const cola::Malloc& cmd) const = 0;
 		virtual std::unique_ptr<Annotation> Post(const Annotation& pre, const cola::Assignment& cmd) const = 0;
 
-		using parallel_assignment_t = std::vector<std::pair<std::reference_wrapper<const cola::Expression>, std::reference_wrapper<const cola::Expression>>>;
+		using parallel_assignment_t = std::vector<std::pair<std::reference_wrapper<const cola::VariableExpression>, std::reference_wrapper<const cola::Expression>>>;
 		virtual std::unique_ptr<Annotation> Post(const Annotation& pre, parallel_assignment_t assignment) const = 0;
 
 		/** May ignore invariant and specification, i.e., implementation may decide to not establish the invariant for the post
