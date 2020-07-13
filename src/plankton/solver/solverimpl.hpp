@@ -11,23 +11,16 @@
 
 namespace plankton {
 
-	struct ConjunctContainer {
-		virtual ~ConjunctContainer() = default;
-		virtual std::iterator<std::forward_iterator_tag, const SimpleFormula> begin();
-		virtual std::iterator<std::forward_iterator_tag, const SimpleFormula> end();
-	};
-
-
 	class ImplicationCheckerImpl final : public ImplicationChecker {
 		private:			
 			Encoder& encoder;
 			mutable z3::solver solver;
-			std::unique_ptr<ConjunctContainer> premise;
+			const ConjunctionFormula& premise;
 			const Encoder::StepTag encodingTag;
 
 		public:
-			ImplicationCheckerImpl(Encoder& encoder, const Formula& premise, Encoder::StepTag tag = Encoder::StepTag::NOW);
-			ImplicationCheckerImpl(Encoder& encoder, z3::solver solver, const Formula& premise, Encoder::StepTag tag); 
+			ImplicationCheckerImpl(Encoder& encoder, const ConjunctionFormula& premise, Encoder::StepTag tag = Encoder::StepTag::NOW);
+			ImplicationCheckerImpl(Encoder& encoder, z3::solver solver, const ConjunctionFormula& premise, Encoder::StepTag tag); 
 
 			bool ImpliesFalse() const override;
 			bool Implies(const Formula& implied) const override;
