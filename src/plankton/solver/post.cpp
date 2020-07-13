@@ -19,25 +19,21 @@ inline std::string ColaToString(const T& obj) {
 	return result.str();
 }
 
-template<typename T>
-inline std::string ColaContainerToString(const T& container) {
-	std::stringstream result;
-	bool first = true;
-	for (const auto& elem : container) {
-		if (!first) result << ", ";
-		else first = false;
-		cola::print(*elem, result);
-	}
-	return result.str();
-}
-
 inline std::string AssignmentString(const Expression& lhs, const Expression& rhs) {
 	return ColaToString(lhs) + " = " + ColaToString(rhs);
 }
 
 template<typename U, typename V>
-inline std::string AssignmentString(const std::vector<const U*>& lhs, const std::vector<const V*>& rhs) {
-	return ColaContainerToString(lhs) + " = " + ColaContainerToString(rhs);
+inline std::string AssignmentString(const parallel_assignment_t& assignment) {
+	std::string result = "[";
+	bool first = true;
+	for (auto [lhs, rhs] : assignment) {
+		if (!first) result += "; ";
+		first = false;
+		result += AssignmentString(lhs, rhs);
+	}
+	result += "]";
+	return result;
 }
 
 inline void ThrowUnsupportedAssignmentError(const Expression& lhs, const Expression& rhs, std::string moreReason) {
@@ -247,11 +243,11 @@ std::unique_ptr<Annotation> VarPostComputer::MakePostTime() {
 }
 
 std::unique_ptr<Annotation> VarPostComputer::MakePost() {
-	throw std::logic_error("breakpoint");
-	// log() << "POST for: " << AssignmentString(assignment) << std::endl << info.preNow << std::endl;
+	log() << "POST for: " << AssignmentString(assignment) << std::endl << info.preNow << std::endl;
 	auto postNow = MakePostNow();
 	auto result = MakePostTime();
 	result->now = std::move(postNow);
+	throw std::logic_error("breakpoint");
 	return result;
 }
 

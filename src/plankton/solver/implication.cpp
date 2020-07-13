@@ -34,7 +34,6 @@ bool ImplicationCheckerImpl::Implies(z3::solver& solver, z3::expr expr) {
 		case z3::sat:
 			return false;
 		case z3::unsat:
-			// TODO important: solver.add(expr) ?
 			return true;
 	}
 }
@@ -58,15 +57,15 @@ struct QuickCheckEncoder : public LogicVisitor {
 	}
 
 	template<typename T>
-	void handle(const T& formula) {
+	void handle_conjunction(const T& formula) {
 		for (const auto& conjunct : formula.conjuncts) {
 			handle(*conjunct);
 		}
 	}
 
-	void visit(const AxiomConjunctionFormula& formula) override { handle(formula); }
+	void visit(const ConjunctionFormula& formula) override { handle_conjunction(formula); }
+	void visit(const AxiomConjunctionFormula& formula) override { handle_conjunction(formula); }
 	void visit(const ImplicationFormula& formula) override { handle(formula); }
-	void visit(const ConjunctionFormula& formula) override { handle(formula); }
 	void visit(const NegatedAxiom& formula) override { handle(formula); }
 	void visit(const ExpressionAxiom& formula) override { handle(formula); }
 	void visit(const OwnershipAxiom& formula) override { handle(formula); }
@@ -86,6 +85,7 @@ bool ImplicationCheckerImpl::Implies(const Formula& implied) const {
 	QuickCheckEncoder checker(encoder, premise);
 	implied.accept(checker);
 	if (checker.conjuncts.size() == 0) return true;
+	// TODO: if the implication holds, one could extend 'this->premise' with 'implied'
 	return Implies(encoder.MakeAnd(std::move(checker.conjuncts)));
 }
 
