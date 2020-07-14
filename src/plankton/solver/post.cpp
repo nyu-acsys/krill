@@ -56,15 +56,36 @@ void plankton::ThrowInvariantViolationError(const Expression& lhs, const Express
 	ThrowInvariantViolationError(AssignmentString(lhs, rhs));
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<Annotation> plankton::PostProcess(std::unique_ptr<Annotation> /*post*/, const Annotation& /*pre*/) {
-	// TODO: post process post
-	// TODO important: ensure that obligations are not duplicated (in post wrt. pre)
-	// TODO: check if an obligation was lost while not having a fulfillment, and if so throw?
-	throw std::logic_error("not yet implemented: PostProcess");
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+#include "plankton/logger.hpp"
+std::unique_ptr<Annotation> plankton::PostProcess(std::unique_ptr<Annotation> post, const Annotation& pre) {
+	// TODO: post processing required?
+	// TODO: delete this or add config flag to disable it
+
+	bool hasPreObligation = false;
+	for (const auto& conjunct : pre.now->conjuncts) {
+		if (dynamic_cast<const ObligationAxiom*>(conjunct.get())) {
+			hasPreObligation = true;
+			break;
+		}
+	}
+
+	bool hasPostObligationOrFulfillment = false;
+	for (const auto& conjunct : pre.now->conjuncts) {
+		if (dynamic_cast<const ObligationAxiom*>(conjunct.get()) || dynamic_cast<const FulfillmentAxiom*>(conjunct.get())) {
+			hasPostObligationOrFulfillment = true;
+			break;
+		}
+	}
+
+	if (hasPreObligation && !hasPostObligationOrFulfillment) {
+		throw SolvingError("Cautiously aborting: an obligation was lost without obtaining a fulfillment.");
+	}
+
+	return post;
 }
 
 
@@ -81,7 +102,6 @@ std::unique_ptr<ConjunctionFormula> PostInfo::ComputeImpliedCandidates(const Imp
 		}
 		result->conjuncts.push_back(plankton::copy(*candidate));
 	}
-	log() << "postNow: " << *result << std::endl;
 	return result;
 }
 

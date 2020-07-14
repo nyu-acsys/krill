@@ -135,7 +135,7 @@ void Verifier::apply_interference() {
 	auto stable = std::make_unique<ConjunctionFormula>();
 	current_annotation = solver->StripInvariant(std::move(current_annotation));
 
-	std::cout << std::endl << "∆∆∆ applying interference " << current_annotation->now->conjuncts.size() << std::endl;
+	std::cout << std::endl << "∆∆∆ applying interference" << std::endl;
 	std::size_t counter = 0;
 
 	// quick check

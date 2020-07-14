@@ -15,12 +15,22 @@ namespace plankton {
 		private:			
 			Encoder& encoder;
 			mutable z3::solver solver;
-			const ConjunctionFormula& premise;
+			const Formula& premise;
+			const NowFormula* premiseNow;
 			const Encoder::StepTag encodingTag;
+			
+			mutable bool addedPremiseNow = false;
+			void AddPremiseNow() const;
 
 		public:
-			ImplicationCheckerImpl(Encoder& encoder, const ConjunctionFormula& premise, Encoder::StepTag tag = Encoder::StepTag::NOW);
-			ImplicationCheckerImpl(Encoder& encoder, z3::solver solver, const ConjunctionFormula& premise, Encoder::StepTag tag); 
+			ImplicationCheckerImpl(Encoder& encoder, const Formula& premise, Encoder::StepTag tag = Encoder::StepTag::NOW);
+			ImplicationCheckerImpl(Encoder& encoder, z3::solver solver, const Formula& premise, Encoder::StepTag tag);
+
+			bool Implies(const NowFormula& implied) const;
+			bool Implies(const PastPredicate& implied) const;
+			bool Implies(const FuturePredicate& implied) const;
+			bool Implies(const TimePredicate& implied) const;
+			bool Implies(const Annotation& implied) const;
 
 			bool ImpliesFalse() const override;
 			bool Implies(const Formula& implied) const override;

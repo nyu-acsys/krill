@@ -33,6 +33,8 @@ namespace plankton {
 			z3::expr EncodeHasFlow(z3::expr node, StepTag tag = NOW);
 			z3::expr EncodeVariable(const cola::VariableDeclaration& decl, StepTag tag = NOW);
 			z3::expr EncodeOwnership(z3::expr pointer, bool owned=true, StepTag tag = NOW);
+			z3::expr EncodeObligation(SpecificationAxiom::Kind kind, z3::expr key, StepTag tag = NOW);
+			z3::expr EncodeFulfillment(SpecificationAxiom::Kind kind, z3::expr key, bool returnValue, StepTag tag = NOW);
 			z3::expr EncodeInvariant(const Invariant& invariant, z3::expr arg, StepTag tag = NOW);
 
 			inline z3::expr EncodeNext(const Formula& formula) { return Encode(formula, NEXT); }
@@ -43,6 +45,8 @@ namespace plankton {
 			inline z3::expr EncodeNextHasFlow(z3::expr node) { return EncodeHasFlow(node, NEXT); }
 			inline z3::expr EncodeNextVariable(const cola::VariableDeclaration& decl) { return EncodeVariable(decl, NEXT); }
 			inline z3::expr EncodeNextOwnership(z3::expr pointer, bool owned=true) { return EncodeOwnership(pointer, owned, NEXT); }
+			inline z3::expr EncodeNextObligation(SpecificationAxiom::Kind kind, z3::expr key) { return EncodeObligation(kind, key, NEXT); }
+			inline z3::expr EncodeNextFulfillment(SpecificationAxiom::Kind kind, z3::expr key, bool returnValue) { return EncodeFulfillment(kind, key, returnValue, NEXT); }
 			inline z3::expr EncodeNextInvariant(const Invariant& invariant, z3::expr arg) { return EncodeInvariant(invariant, arg, NEXT); }
 
 			z3::expr EncodeTransitionMaintainsHeap(z3::expr node, const cola::Type& nodeType, std::set<std::string> excludedSelectors = {});
@@ -80,6 +84,8 @@ namespace plankton {
 			z3::func_decl heapNow, heapNext; // free function: Int x Int -> Int; 'heap(x, sel) = y' means that field 'sel' of node 'x' is 'y'
 			z3::func_decl flowNow, flowNext; // free function: Int x Int -> Bool; 'flow(x, k) = true' iff the flow in node 'x' contains 'k'
 			z3::func_decl ownershipNow, ownershipNext; // free function: Int -> Bool; 'ownership(x) = true' iff 'x' is owned
+			z3::func_decl obligationNow, obligationNext; // free function: Int x Int -> Bool; 'obligation(k, i) = true' iff 'OBL(k, i)'
+			z3::func_decl fulfillmentNow, fulfillmentNext; // free function: Int x Int x Bool -> Bool; 'fulfillment(k, i, r) = true' iff 'FUL(k, i, r)'
 
 			const PostConfig& postConfig;
 			std::optional<std::vector<std::pair<std::string, const cola::Type*>>> pointerFields;
@@ -88,6 +94,7 @@ namespace plankton {
 			const std::vector<std::pair<std::string, const cola::Type*>>& GetNodeTypePointerFields();
 
 			z3::sort EncodeSort(cola::Sort sort);
+			z3::expr EncodeSpec(SpecificationAxiom::Kind kind);
 			z3::expr EncodeVariable(cola::Sort sort, std::string name, StepTag tag);
 			z3::expr EncodeSelector(selector_t selector, StepTag tag);
 			z3::expr EncodePredicate(const Predicate& predicate, z3::expr arg1, z3::expr arg2, StepTag tag);

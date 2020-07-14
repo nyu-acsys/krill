@@ -114,9 +114,9 @@ void CandidateGenerator::AddAxioms(const Expression& expr, const Expression& oth
 	if (expr.sort() == Sort::DATA) {
 		if (auto varExpr = dynamic_cast<const VariableExpression*>(&expr)) {
 			for (auto kind : SpecificationAxiom::KindIteratable) {
-				AddAxioms(std::make_unique<ObligationAxiom>(kind, std::make_unique<VariableExpression>(varExpr->decl)));
-				AddAxioms(std::make_unique<FulfillmentAxiom>(kind, std::make_unique<VariableExpression>(varExpr->decl), true));
-				AddAxioms(std::make_unique<FulfillmentAxiom>(kind, std::make_unique<VariableExpression>(varExpr->decl), false));
+				result->conjuncts.push_back(std::make_unique<ObligationAxiom>(kind, std::make_unique<VariableExpression>(varExpr->decl)));
+				result->conjuncts.push_back(std::make_unique<FulfillmentAxiom>(kind, std::make_unique<VariableExpression>(varExpr->decl), true));
+				result->conjuncts.push_back(std::make_unique<FulfillmentAxiom>(kind, std::make_unique<VariableExpression>(varExpr->decl), false));
 			}
 		}
 	}

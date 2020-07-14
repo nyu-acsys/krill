@@ -37,6 +37,10 @@ std::unique_ptr<Annotation> plankton::MakeVarAssignPost(PostInfo info, const Var
 }
 
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 transformer_t VarPostComputer::MakeNowTransformer() {
 	// lookup table to avoid spoinling the encoder
 	static std::map<const VariableDeclaration*, std::unique_ptr<VariableDeclaration>> decl2copy;
@@ -93,9 +97,16 @@ std::unique_ptr<ConjunctionFormula> VarPostComputer::MakePostNow() {
 
 	// find implied candidates
 	auto checker = info.solver.MakeImplicationChecker(*interim);
-	return info.ComputeImpliedCandidates(*checker);
+	auto post = info.ComputeImpliedCandidates(*checker);
+
+	// done
+	return post;
 }
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 transformer_t VarPostComputer::MakeTimeTransformer() {
 	// create map
@@ -177,9 +188,10 @@ std::unique_ptr<Annotation> VarPostComputer::MakePostTime() {
 }
 
 std::unique_ptr<Annotation> VarPostComputer::MakePost() {
-	log() << "POST for: " << AssignmentString(assignment) << std::endl << info.preNow << std::endl;
+	log() << std::endl << "ΩΩΩ POST for assignment: " << AssignmentString(assignment) << std::endl;
 	auto postNow = MakePostNow();
 	auto result = MakePostTime();
 	result->now = std::move(postNow);
+	// log() << info.preNow << std::endl << " ~~>" << std::endl << *result->now << std::endl;
 	return result;
 }

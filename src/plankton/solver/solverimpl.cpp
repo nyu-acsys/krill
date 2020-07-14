@@ -12,9 +12,7 @@ SolverImpl::SolverImpl(PostConfig config_) : Solver(std::move(config_)), encoder
 }
 
 std::unique_ptr<ImplicationChecker> SolverImpl::MakeImplicationChecker(const Formula& formula) const {
-	auto [isConjunction, conjunction] = plankton::is_of_type<ConjunctionFormula>(formula);
-	if (isConjunction) return std::make_unique<ImplicationCheckerImpl>(encoder, *conjunction);
-	throw SolvingError("Member function 'SolverImpl::MakeImplicationChecker(const Formula&)' must be called a 'ConjunctionFormula'.");
+	return std::make_unique<ImplicationCheckerImpl>(encoder, formula);
 }
 
 std::unique_ptr<ConjunctionFormula> SolverImpl::PruneNonCandidates(std::unique_ptr<ConjunctionFormula> formula) const {

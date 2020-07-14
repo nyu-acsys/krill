@@ -88,13 +88,16 @@ namespace plankton {
 	// Compound Formulas
 	//
 
-	struct SimpleFormula : public Formula {
+	struct NowFormula : public Formula {
+	};
+
+	struct SimpleFormula : public NowFormula {
 	};
 
 	struct Axiom : public SimpleFormula {
 	};
 
-	struct AxiomConjunctionFormula : public Formula {
+	struct AxiomConjunctionFormula : public NowFormula {
 		std::deque<std::unique_ptr<Axiom>> conjuncts;
 		
 		ACCEPT_FORMULA_VISITOR
@@ -110,7 +113,7 @@ namespace plankton {
 		ACCEPT_FORMULA_VISITOR
 	};
 
-	struct ConjunctionFormula : public Formula {
+	struct ConjunctionFormula : public NowFormula {
 		std::deque<std::unique_ptr<SimpleFormula>> conjuncts;
 
 		ACCEPT_FORMULA_VISITOR

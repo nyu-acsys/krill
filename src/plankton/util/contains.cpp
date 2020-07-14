@@ -146,3 +146,35 @@ bool plankton::syntactically_contains_conjunct(const ConjunctionFormula& formula
 bool plankton::syntactically_contains_conjunct(const AxiomConjunctionFormula& formula, const SimpleFormula& other) {
 	return chk_contains_conjunct(formula, other);
 }
+
+
+struct ContainsConjunctChecker : public BaseLogicVisitor {
+	const SimpleFormula& search;
+	bool result;
+
+	ContainsConjunctChecker(const SimpleFormula& search) : search(search) {}
+
+	bool IsContainedIn(const NowFormula& formula) {
+		result = false;
+		formula.accept(*this);
+		return result;
+	}
+
+	void visit(const AxiomConjunctionFormula& formula) override { result = plankton::syntactically_contains_conjunct(formula, search); }
+	void visit(const ConjunctionFormula& formula) override { result = plankton::syntactically_contains_conjunct(formula, search); }
+
+	void visit(const ImplicationFormula& formula) override { result = plankton::syntactically_equal(formula, search); }
+	void visit(const NegatedAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
+	void visit(const ExpressionAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
+	void visit(const OwnershipAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
+	void visit(const LogicallyContainedAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
+	void visit(const KeysetContainsAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
+	void visit(const HasFlowAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
+	void visit(const FlowContainsAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
+	void visit(const ObligationAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
+	void visit(const FulfillmentAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
+};
+
+bool plankton::syntactically_contains_conjunct(const NowFormula& formula, const SimpleFormula& other) {
+	return ContainsConjunctChecker(other).IsContainedIn(formula);
+}

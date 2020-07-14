@@ -19,6 +19,10 @@ Encoder::Encoder(const PostConfig& config) :
 	flowNext(context.function("$FLOW-next", intSort, intSort, boolSort)),
 	ownershipNow(context.function("$OWN-now", intSort, boolSort)),
 	ownershipNext(context.function("$OWN-next", intSort, boolSort)),
+	obligationNow(context.function("$OBL-now", intSort, intSort, boolSort)), // TODO: second paramter should be a finite sort
+	obligationNext(context.function("$OBL-next", intSort, intSort, boolSort)), // TODO: second paramter should be a finite sort
+	fulfillmentNow(context.function("$FUL-now", intSort, intSort, boolSort, boolSort)), // TODO: second paramter should be a finite sort
+	fulfillmentNext(context.function("$FUL-next", intSort, intSort, boolSort, boolSort)), // TODO: second paramter should be a finite sort
 	postConfig(config)
 {
 	// TODO: currently nullPtr/minVal/maxValu are just some symbols that are not bound to a value
@@ -165,6 +169,28 @@ z3::expr Encoder::EncodeHasFlow(z3::expr node, StepTag tag) {
 	return z3::exists(key, EncodeFlow(node, key, tag));
 }
 
+z3::expr Encoder::EncodeSpec(SpecificationAxiom::Kind kind) {
+	switch (kind) {
+		case SpecificationAxiom::Kind::CONTAINS: return context.int_val(0);
+		case SpecificationAxiom::Kind::INSERT: return context.int_val(1);
+		case SpecificationAxiom::Kind::DELETE: return context.int_val(2);
+	}
+}
+
+z3::expr Encoder::EncodeObligation(SpecificationAxiom::Kind kind, z3::expr key, StepTag tag) {
+	switch (tag) {
+		case NOW: return obligationNow(key, EncodeSpec(kind)) == MakeTrue();
+		case NEXT: return obligationNext(key, EncodeSpec(kind)) == MakeTrue();
+	}
+}
+
+z3::expr Encoder::EncodeFulfillment(SpecificationAxiom::Kind kind, z3::expr key, bool returnValue, StepTag tag) {
+	switch (tag) {
+		case NOW: return fulfillmentNow(key, EncodeSpec(kind), MakeBool(returnValue)) == MakeTrue();
+		case NEXT: return fulfillmentNext(key, EncodeSpec(kind), MakeBool(returnValue)) == MakeTrue();
+	}
+}
+
 template<PropertyArity N, typename T>
 inline z3::expr EncodeProperty(Encoder& encoder, z3::context& context, const Property<N, T>& property, std::vector<z3::expr> args, Encoder::StepTag tag) {
 	// we cannot instantiate 'property' with 'args' directly (works only for 'VariableDeclaration's)
@@ -218,6 +244,7 @@ z3::expr Encoder::EncodeTransitionMaintainsHeap(z3::expr node, const Type& nodeT
 z3::expr Encoder::EncodeTransitionMaintainsFlow(z3::expr node, z3::expr key) {
 	return EncodeFlow(node, key) == EncodeNextFlow(node, key);
 }
+
 z3::expr Encoder::EncodeTransitionMaintainsOwnership(z3::expr node) {
 	return EncodeOwnership(node) == EncodeNextOwnership(node);
 }
@@ -342,13 +369,15 @@ z3::expr Encoder::Encode(StepTag tag, const FlowContainsAxiom& formula) {
 }
 
 z3::expr Encoder::Encode(StepTag tag, const ObligationAxiom& formula) {
-	std::string varname = "OBL_" + plankton::to_string(formula.kind) + "_" + formula.key->decl.name;
-	return EncodeVariable(Sort::BOOL, varname, tag) == MakeTrue();
+	// std::string varname = "OBL_" + plankton::to_string(formula.kind) + "_" + formula.key->decl.name;
+	// return EncodeVariable(Sort::BOOL, varname, tag) == MakeTrue();
+	return EncodeObligation(formula.kind, EncodeVariable(formula.key->decl, tag), tag);
 }
 
 z3::expr Encoder::Encode(StepTag tag, const FulfillmentAxiom& formula) {
-	std::string varname = "FUL_" + plankton::to_string(formula.kind) + "_" + formula.key->decl.name + "_" + (formula.return_value ? "true" : "false");
-	return (EncodeVariable(Sort::BOOL, varname, tag) == MakeTrue());
+	// std::string varname = "FUL_" + plankton::to_string(formula.kind) + "_" + formula.key->decl.name + "_" + (formula.return_value ? "true" : "false");
+	// return (EncodeVariable(Sort::BOOL, varname, tag) == MakeTrue());
+	return EncodeFulfillment(formula.kind, EncodeVariable(formula.key->decl, tag), formula.return_value, tag);
 }
 
 z3::expr Encoder::Encode(StepTag tag, const KeysetContainsAxiom& formula) {

@@ -10,7 +10,7 @@ using namespace plankton;
 
 
 std::unique_ptr<Annotation> SolverImpl::Post(const Annotation& pre, const Assume& cmd) const {
-	log() << "*** PostAssume " << *cmd.expr << std::endl << *pre.now << std::endl;
+	log() << std::endl << "ΩΩΩ POST for assume:  " << *cmd.expr << std::endl;
 	auto result = plankton::copy(pre);
 
 	// extend result->pre and find new knowledge
@@ -19,6 +19,6 @@ std::unique_ptr<Annotation> SolverImpl::Post(const Annotation& pre, const Assume
 	result->now = ExtendExhaustively(std::move(result->now));
 	
 	// done
-	log() << "~~>" << std::endl << *result->now << std::endl;
+	// log() << *pre.now << std::endl << " ~~> " << std::endl << *result->now << std::endl;
 	return PostProcess(std::move(result), pre);
 }

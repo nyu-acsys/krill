@@ -410,7 +410,7 @@ void Verifier::visit(const Assume& cmd) {
 
 void Verifier::visit(const Assert& cmd) {
 	check_pointer_accesses(cmd);
-	if (!solver->Implies(*current_annotation->now, *cmd.expr)) {
+	if (!solver->Implies(*current_annotation, *cmd.expr)) {
 		throw AssertionError(cmd);
 	}
 }
@@ -496,6 +496,7 @@ inline std::unique_ptr<Annotation> execute_parallel_assignment(const Solver& sol
 
 void Verifier::visit(const Macro& cmd) {
 	// pass arguments
+	current_annotation = solver->AddInvariant(std::move(current_annotation));
 	solver->EnterScope(cmd.decl);
 	current_annotation = execute_parallel_assignment(*solver, *current_annotation, cmd.decl.args, cmd.args);
 
@@ -503,6 +504,7 @@ void Verifier::visit(const Macro& cmd) {
 	visit_macro_function(cmd.decl);
 
 	// grab returns
+	current_annotation = solver->AddInvariant(std::move(current_annotation));
 	solver->LeaveScope();
 	current_annotation = execute_parallel_assignment(*solver, *current_annotation, cmd.lhs, cmd.decl.returns);
 }
