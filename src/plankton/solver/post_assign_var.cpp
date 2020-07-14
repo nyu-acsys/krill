@@ -92,7 +92,8 @@ std::unique_ptr<ConjunctionFormula> VarPostComputer::MakeInterimPostNow() {
 	auto transformer = MakeNowTransformer();
 	
 	// replace left-hand side variables with dummies in 'pre'
-	auto result = plankton::replace_expression(plankton::copy(info.preNow), transformer);
+	auto result = info.solver.AddInvariant(plankton::copy(info.preNow));
+	result = plankton::replace_expression(std::move(result), transformer);
 
 	// add new valuation for left-hand side variables
 	for (const auto& [lhs, rhs] : assignment) {

@@ -29,14 +29,14 @@ namespace plankton {
 		const SolverImpl& solver;
 		const ConjunctionFormula& preNow;
 		const time_container_t& preTime;
-		const ConjunctionFormula& candidates;
+		const ConjunctionFormula* implication;
 		bool implicationCheck; // if true: do not check invariant nor specification, may abort if not all candidates are implied
 
 		PostInfo(const SolverImpl& solver, const Annotation& pre)
-			: solver(solver), preNow(*pre.now), preTime(pre.time), candidates(solver.GetCandidates()), implicationCheck(false) {}
+			: solver(solver), preNow(*pre.now), preTime(pre.time), implication(nullptr), implicationCheck(false) {}
 
-		PostInfo(const SolverImpl& solver, const ConjunctionFormula& pre, const ConjunctionFormula& candidates)
-			: solver(solver), preNow(pre), preTime(GetDummyContainer()), candidates(candidates), implicationCheck(true) {}
+		PostInfo(const SolverImpl& solver, const ConjunctionFormula& pre, const ConjunctionFormula& post)
+			: solver(solver), preNow(pre), preTime(GetDummyContainer()), implication(&post), implicationCheck(true) {}
 
 		std::unique_ptr<ConjunctionFormula> ComputeImpliedCandidates(const ImplicationChecker& checker);
 	};

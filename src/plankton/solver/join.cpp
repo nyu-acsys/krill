@@ -9,15 +9,16 @@ using namespace plankton;
 
 struct AnnotationJoiner {
 	const SolverImpl& solver;
-	Encoder& encoder;
 	std::vector<ImplicationCheckerImpl> checkers;
 	std::vector<std::unique_ptr<Annotation>> annotations;
 
-	AnnotationJoiner(const SolverImpl& solver, std::vector<std::unique_ptr<Annotation>> input) : solver(solver), encoder(solver.GetEncoder())
+	AnnotationJoiner(const SolverImpl& solver, std::vector<std::unique_ptr<Annotation>> input) : solver(solver)
 	{
+		auto& encoder = solver.GetEncoder();
 		checkers.reserve(input.size());
 		annotations.reserve(input.size());
 		for (auto& annotation : input) {
+			annotation = solver.AddInvariant(std::move(annotation));
 			checkers.emplace_back(encoder, *annotation);
 			annotations.push_back(std::move(annotation));
 			if (!checkers.back().ImpliesFalse()) continue;
@@ -39,26 +40,7 @@ std::unique_ptr<Annotation> SolverImpl::Join(std::vector<std::unique_ptr<Annotat
 
 
 std::unique_ptr<ConjunctionFormula> AnnotationJoiner::MakeJoinNow() {
-	auto result = std::make_unique<ConjunctionFormula>();
-	
-	for (const auto& candidate : solver.GetCandidates().conjuncts) {
-		bool takeCandidate = true;
-
-		// check if all annotations imply the candidate
-		for (const auto& checker : checkers) {
-			if (!checker.Implies(*candidate)) {
-				takeCandidate = false;
-				break;
-			}
-		}
-
-		// add candidate
-		if (takeCandidate) {
-			result->conjuncts.push_back(plankton::copy(*candidate));
-		}
-	}
-
-	return result;
+	return solver.ComputeImpliedCandidates(checkers);
 }
 
 std::unique_ptr<Annotation> AnnotationJoiner::MakeJoinTimeCandidate() {

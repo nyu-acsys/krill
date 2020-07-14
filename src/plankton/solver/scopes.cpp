@@ -14,7 +14,7 @@ struct CandidateGenerator {
 	Encoder& encoder;
 	const PostConfig& config;
 	const VariableDeclaration& decl;
-	const std::deque<const VariableDeclaration*>& others;
+	const std::vector<const VariableDeclaration*>& others;
 	std::unique_ptr<ConjunctionFormula> result;
 
 	CandidateGenerator(const SolverImpl& solver, const PostConfig& config, const VariableDeclaration& newVar)
@@ -25,7 +25,7 @@ struct CandidateGenerator {
 	void AddAxioms(const Expression& expr, const Expression& other);
 	void AddAxioms(const VariableDeclaration& other);
 
-	std::unique_ptr<ConjunctionFormula> MakeCandidates();
+	std::vector<Candidate> MakeCandidates();
 	void FilterResult();
 };
 
@@ -151,23 +151,25 @@ void CandidateGenerator::FilterResult() {
 	}
 }
 
-std::unique_ptr<ConjunctionFormula> CandidateGenerator::MakeCandidates() {
-	// init
-	result = std::make_unique<ConjunctionFormula>();
+std::vector<Candidate> CandidateGenerator::MakeCandidates() {
+	throw std::logic_error("not yet implemented: CandidateGenerator::MakeCandidates");
 
-	// create all candidates
-	for (auto other : others) {
-		AddExpressions(*other);
-		AddAxioms(*other);
-	}
+	// // init
+	// result = std::make_unique<ConjunctionFormula>();
 
-	// filter
-	if (plankton::config.filter_candidates_by_invariant) {
-		FilterResult();
-	}
+	// // create all candidates
+	// for (auto other : others) {
+	// 	AddExpressions(*other);
+	// 	AddAxioms(*other);
+	// }
 
-	// done
-	return std::move(result);
+	// // filter
+	// if (plankton::config.filter_candidates_by_invariant) {
+	// 	FilterResult();
+	// }
+
+	// // done
+	// return std::move(result);
 }
 
 
@@ -182,15 +184,15 @@ inline void fail_if(bool fail, const std::string_view msg) {
 }
 
 void SolverImpl::ExtendCurrentScope(const std::vector<std::unique_ptr<cola::VariableDeclaration>>& vars) {
-	assert(!instantiatedInvariants.empty());
-	assert(!candidateFormulas.empty());
+	assert(!candidates.empty());
 	assert(!variablesInScope.empty());
+	assert(!instantiatedInvariants.empty());
 
 	for (const auto& decl : vars) {
 		variablesInScope.back().push_back(decl.get());
-		// TODO important: ensure that the candidates could generate the invariant
+		// TODO important: ensure that the candidates can generate the invariant
 		auto newCandidates = CandidateGenerator(*this, config, *decl).MakeCandidates();
-		candidateFormulas.back() = plankton::conjoin(std::move(candidateFormulas.back()), std::move(newCandidates));
+		candidates.back().insert(candidates.back().begin(), std::make_move_iterator(newCandidates.begin()), std::make_move_iterator(newCandidates.end()));
 
 		if (cola::assignable(config.invariant->vars.at(0)->type, decl->type)) {
 			instantiatedInvariants.back() = plankton::conjoin(std::move(instantiatedInvariants.back()), config.invariant->instantiate(*decl));
@@ -199,28 +201,37 @@ void SolverImpl::ExtendCurrentScope(const std::vector<std::unique_ptr<cola::Vari
 }
 
 void SolverImpl::EnterScope(const cola::Program& program) {
-	fail_if(!candidateFormulas.empty(), ERR_ENTER_PROGRAM);
-	candidateFormulas.push_back(std::make_unique<ConjunctionFormula>());
-	instantiatedInvariants.push_back(std::make_unique<ConjunctionFormula>());
+	fail_if(!candidates.empty(), ERR_ENTER_PROGRAM);
+	candidates.emplace_back();
 	variablesInScope.emplace_back();
+	instantiatedInvariants.push_back(std::make_unique<ConjunctionFormula>());
 
 	ExtendCurrentScope(program.variables);
 }
 
+inline std::vector<Candidate> CopyCandidates(const std::vector<Candidate>& candidates) {
+	std::vector<Candidate> result;
+	result.reserve(candidates.size());
+	for (const auto& candidate : candidates) {
+		result.push_back(candidate.Copy());
+	}
+	return result;
+}
+
 void SolverImpl::PushOuterScope() {
 	// copy from outermost scope (front)
-	fail_if(candidateFormulas.empty(), ERR_ENTER_NOSCOPE);
-	candidateFormulas.push_back(plankton::copy(*candidateFormulas.front()));
+	fail_if(candidates.empty(), ERR_ENTER_NOSCOPE);
+	candidates.push_back(CopyCandidates(candidates.front()));
 	instantiatedInvariants.push_back(plankton::copy(*instantiatedInvariants.front()));
-	variablesInScope.push_back(std::deque<const VariableDeclaration*>(variablesInScope.front()));
+	variablesInScope.push_back(std::vector<const VariableDeclaration*>(variablesInScope.front()));
 }
 
 void SolverImpl::PushInnerScope() {
 	// copy from innermost scope (back)
-	fail_if(candidateFormulas.empty(), ERR_ENTER_NOSCOPE);
-	candidateFormulas.push_back(plankton::copy(*candidateFormulas.back()));
+	fail_if(candidates.empty(), ERR_ENTER_NOSCOPE);
+	candidates.push_back(CopyCandidates(candidates.back()));
 	instantiatedInvariants.push_back(plankton::copy(*instantiatedInvariants.back()));
-	variablesInScope.push_back(std::deque<const VariableDeclaration*>(variablesInScope.back()));
+	variablesInScope.push_back(std::vector<const VariableDeclaration*>(variablesInScope.back()));
 }
 
 void SolverImpl::EnterScope(const cola::Function& function) {
@@ -235,8 +246,8 @@ void SolverImpl::EnterScope(const cola::Scope& scope) {
 }
 
 void SolverImpl::LeaveScope() {
-	fail_if(candidateFormulas.empty(), ERR_LEAVE_NOSCOPE);
+	fail_if(candidates.empty(), ERR_LEAVE_NOSCOPE);
 	instantiatedInvariants.pop_back();
-	candidateFormulas.pop_back();
+	candidates.pop_back();
 	variablesInScope.pop_back();
 }

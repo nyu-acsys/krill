@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <deque>
+#include <vector>
 #include <type_traits>
 #include "plankton/solver.hpp"
 #include "plankton/solver/encoder.hpp"
@@ -16,16 +17,15 @@ namespace plankton {
 		private:			
 			Encoder& encoder;
 			mutable z3::solver solver;
-			const Formula& premise;
-			const NowFormula* premiseNow;
 			const Encoder::StepTag encodingTag;
-			
-			mutable bool addedPremiseNow = false;
-			void AddPremiseNow() const;
+			const NowFormula* premiseNowFormula;
+			const Annotation* premiseAnnotation;
 
 		public:
-			ImplicationCheckerImpl(Encoder& encoder, const Formula& premise, Encoder::StepTag tag = Encoder::StepTag::NOW);
-			ImplicationCheckerImpl(Encoder& encoder, z3::solver solver, const Formula& premise, Encoder::StepTag tag);
+			ImplicationCheckerImpl(Encoder& encoder, const NowFormula& premise, Encoder::StepTag tag = Encoder::StepTag::NOW);
+			ImplicationCheckerImpl(Encoder& encoder, const Annotation& premise, Encoder::StepTag tag = Encoder::StepTag::NOW);
+			ImplicationCheckerImpl(Encoder& encoder, z3::solver solver, const NowFormula& premise, Encoder::StepTag tag);
+			ImplicationCheckerImpl(Encoder& encoder, z3::solver solver, const Annotation& premise, Encoder::StepTag tag);
 
 			bool Implies(const NowFormula& implied) const;
 			bool Implies(const PastPredicate& implied) const;
@@ -43,35 +43,54 @@ namespace plankton {
 	};
 
 
+	class Candidate {
+		private:
+			std::unique_ptr<ConjunctionFormula> store;
+			Candidate(std::unique_ptr<ConjunctionFormula> store);
+
+		public:
+			Candidate(std::unique_ptr<SimpleFormula> candidate);
+			Candidate(std::unique_ptr<SimpleFormula> candidate, std::unique_ptr<ConjunctionFormula> implied);
+
+			 // if F implies 'GetCheck()', then F implies 'GetImplied()'
+			const SimpleFormula& GetCheck() const;
+			const ConjunctionFormula& GetImplied() const;
+			Candidate Copy() const;
+	};
+
+
 	class SolverImpl final : public Solver {
 		private:
 			mutable Encoder encoder;
-			std::deque<std::unique_ptr<ConjunctionFormula>> candidateFormulas;
+			std::deque<std::vector<Candidate>> candidates;
 			std::deque<std::unique_ptr<ConjunctionFormula>> instantiatedInvariants;
-			std::deque<std::deque<const cola::VariableDeclaration*>> variablesInScope;
+			std::deque<std::vector<const cola::VariableDeclaration*>> variablesInScope;
 
 		public: // export useful functionality
 			inline Encoder& GetEncoder() const { return encoder; }
-			inline const ConjunctionFormula& GetCandidates() const { return *candidateFormulas.back(); }
+			inline const std::vector<Candidate>& GetCandidates() const { return candidates.back(); }
 			inline const ConjunctionFormula& GetInstantiatedInvariant() const { return *instantiatedInvariants.back(); }
-			inline const std::deque<const cola::VariableDeclaration*>& GetVariablesInScope() const { return variablesInScope.back(); }
+			inline const std::vector<const cola::VariableDeclaration*>& GetVariablesInScope() const { return variablesInScope.back(); }
 
 			void PushInnerScope();
 			void PushOuterScope();
 			void ExtendCurrentScope(const std::vector<std::unique_ptr<cola::VariableDeclaration>>& vars);
 
-			// TODO: remove unused functions
-			// std::unique_ptr<ConjunctionFormula> ComputeAllImpliedCandidates(const ImplicationCheckerImpl& checker) const;
-			std::unique_ptr<ConjunctionFormula> ExtendExhaustively(std::unique_ptr<ConjunctionFormula> formula, bool removeNonCandidates=false) const;
-			std::unique_ptr<ConjunctionFormula> PruneNonCandidates(std::unique_ptr<ConjunctionFormula> formula) const;
-
 		public: // implement 'Solver' interface
 			SolverImpl(PostConfig config_);
 
+			std::unique_ptr<ImplicationChecker> MakeImplicationChecker(const NowFormula& formula) const;
+			std::unique_ptr<ImplicationChecker> MakeImplicationChecker(const Annotation& annotation) const;
 			std::unique_ptr<ImplicationChecker> MakeImplicationChecker(const Formula& formula) const override;
+
+			std::unique_ptr<ConjunctionFormula> ComputeImpliedCandidates(const ImplicationChecker& checker) const;
+			std::unique_ptr<ConjunctionFormula> ComputeImpliedCandidates(const std::vector<ImplicationCheckerImpl>& checkers) const;
 			std::unique_ptr<Annotation> Join(std::vector<std::unique_ptr<Annotation>> annotations) const override;
+
 			std::unique_ptr<Annotation> AddInvariant(std::unique_ptr<Annotation> annotation) const override;
 			std::unique_ptr<Annotation> StripInvariant(std::unique_ptr<Annotation> annotation) const override;
+			std::unique_ptr<ConjunctionFormula> AddInvariant(std::unique_ptr<ConjunctionFormula> formula) const;
+			std::unique_ptr<ConjunctionFormula> StripInvariant(std::unique_ptr<ConjunctionFormula> formula) const;
 
 			void EnterScope(const cola::Scope& scope) override;
 			void EnterScope(const cola::Function& function) override;

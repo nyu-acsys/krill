@@ -9,44 +9,22 @@ using namespace cola;
 using namespace plankton;
 
 
-struct NowExtractor : public LogicVisitor {
-	const NowFormula* extraction;
+ImplicationCheckerImpl::ImplicationCheckerImpl(Encoder& encoder_, z3::solver solver_, const NowFormula& premise_, Encoder::StepTag tag_)
+	: encoder(encoder_), solver(solver_), encodingTag(tag_), premiseNowFormula(&premise_), premiseAnnotation(nullptr) {
+	solver.add(encoder.Encode(*premiseNowFormula, encodingTag));
+}
 
-	void visit(const AxiomConjunctionFormula& formula) override { extraction = &formula; }
-	void visit(const ImplicationFormula& formula) override { extraction = &formula; }
-	void visit(const ConjunctionFormula& formula) override { extraction = &formula; }
-	void visit(const NegatedAxiom& formula) override { extraction = &formula; }
-	void visit(const ExpressionAxiom& formula) override { extraction = &formula; }
-	void visit(const OwnershipAxiom& formula) override { extraction = &formula; }
-	void visit(const LogicallyContainedAxiom& formula) override { extraction = &formula; }
-	void visit(const KeysetContainsAxiom& formula) override { extraction = &formula; }
-	void visit(const HasFlowAxiom& formula) override { extraction = &formula; }
-	void visit(const FlowContainsAxiom& formula) override { extraction = &formula; }
-	void visit(const ObligationAxiom& formula) override { extraction = &formula; }
-	void visit(const FulfillmentAxiom& formula) override { extraction = &formula; }
-	void visit(const PastPredicate& /*formula*/) override { extraction = nullptr; }
-	void visit(const FuturePredicate& /*formula*/) override { extraction = nullptr; }
-	void visit(const Annotation& formula) override { extraction = formula.now.get(); }
+ImplicationCheckerImpl::ImplicationCheckerImpl(Encoder& encoder_, z3::solver solver_, const Annotation& premise_, Encoder::StepTag tag_)
+	: encoder(encoder_), solver(solver_), encodingTag(tag_), premiseNowFormula(premise_.now.get()), premiseAnnotation(&premise_) {
+	assert(premiseNowFormula);
+	solver.add(encoder.Encode(*premiseNowFormula, encodingTag));
+}
 
-	static const NowFormula* Extract(const Formula& formula) {
-		NowExtractor extractor;
-		formula.accept(extractor);
-		return extractor.extraction;
-	}
-};
-
-ImplicationCheckerImpl::ImplicationCheckerImpl(Encoder& encoder_, z3::solver solver_, const Formula& premise_, Encoder::StepTag tag_)
-	: encoder(encoder_), solver(solver_), premise(premise_), premiseNow(NowExtractor::Extract(premise_)), encodingTag(tag_) {}
-
-ImplicationCheckerImpl::ImplicationCheckerImpl(Encoder& encoder_, const Formula& premise_, Encoder::StepTag tag_)
+ImplicationCheckerImpl::ImplicationCheckerImpl(Encoder& encoder_, const NowFormula& premise_, Encoder::StepTag tag_)
 	: ImplicationCheckerImpl(encoder_, encoder_.MakeSolver(), premise_, tag_) {}
 
-
-void ImplicationCheckerImpl::AddPremiseNow() const {
-	if (addedPremiseNow) return;
-	if (premiseNow) solver.add(encoder.Encode(*premiseNow, encodingTag));
-	addedPremiseNow = true;
-}
+ImplicationCheckerImpl::ImplicationCheckerImpl(Encoder& encoder_, const Annotation& premise_, Encoder::StepTag tag_)
+	: ImplicationCheckerImpl(encoder_, encoder_.MakeSolver(), premise_, tag_) {}
 
 
 bool ImplicationCheckerImpl::Implies(z3::solver& solver, z3::expr expr) {
@@ -169,10 +147,9 @@ struct QuickChecker : public BaseLogicVisitor {
 
 
 bool ImplicationCheckerImpl::Implies(const NowFormula& implied) const {
-	if (!premiseNow) return Implies(encoder.Encode(implied, encodingTag));
-	auto conjuncts = QuickChecker(encoder, encodingTag, *premiseNow).EncodeRemaining(implied);
+	assert(premiseNowFormula);
+	auto conjuncts = QuickChecker(encoder, encodingTag, *premiseNowFormula).EncodeRemaining(implied);
 	if (conjuncts.size() == 0) return true;
-	AddPremiseNow();
 	// TODO: if the implication holds, one could extend 'this->premiseNow' with 'implied'
 	return Implies(encoder.MakeAnd(std::move(conjuncts)));
 }

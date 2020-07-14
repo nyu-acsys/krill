@@ -94,12 +94,11 @@ std::unique_ptr<Annotation> plankton::PostProcess(std::unique_ptr<Annotation> po
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<ConjunctionFormula> PostInfo::ComputeImpliedCandidates(const ImplicationChecker& checker) {
+	if (!implicationCheck) return solver.ComputeImpliedCandidates(checker);
+
 	auto result = std::make_unique<ConjunctionFormula>();
-	for (const auto& candidate : candidates.conjuncts) {
-		if (!checker.Implies(*candidate)) {
-			if (implicationCheck) break;
-			continue;
-		}
+	for (const auto& candidate : implication->conjuncts) {
+		if (!checker.Implies(*candidate)) break;
 		result->conjuncts.push_back(plankton::copy(*candidate));
 	}
 	return result;
