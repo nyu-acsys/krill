@@ -11,14 +11,15 @@ struct ExpressionReplacer : public BaseNonConstVisitor, public DefaultNonConstLi
 	using DefaultNonConstListener::visit;
 	using DefaultNonConstListener::enter;
 
-	transformer_t transformer;
-	ExpressionReplacer(transformer_t transformer_) : transformer(transformer_) {}
+	const transformer_t& transformer;
+	bool performedUpdate = false;
+	ExpressionReplacer(const transformer_t& transformer_) : transformer(transformer_) {}
 
 	template<typename T>
-	static std::unique_ptr<T> replace(std::unique_ptr<T> obj, transformer_t transformer) {
+	static std::pair<std::unique_ptr<T>, bool> replace(std::unique_ptr<T> obj, transformer_t transformer) {
 		ExpressionReplacer visitor(transformer);
 		obj->accept(visitor);
-		return std::move(obj);
+		return { std::move(obj), visitor.performedUpdate };
 	}
 
 	void handle_expression(std::unique_ptr<Expression>& expression) {
@@ -108,28 +109,35 @@ struct ExpressionReplacer : public BaseNonConstVisitor, public DefaultNonConstLi
 };
 
 
-std::unique_ptr<Expression> plankton::replace_expression(std::unique_ptr<Expression> expression, transformer_t transformer) {
-	return ExpressionReplacer::replace(std::move(expression), transformer);
+template<typename T>
+std::unique_ptr<T> make_replacement(std::unique_ptr<T> obj, const transformer_t& transformer, bool* changed) {
+	auto [result, performedUpdate] = ExpressionReplacer::replace(std::move(obj), transformer);
+	if (changed) *changed = performedUpdate;
+	return std::move(result);
 }
 
-std::unique_ptr<Formula> plankton::replace_expression(std::unique_ptr<Formula> formula, transformer_t transformer) {
-	return ExpressionReplacer::replace(std::move(formula), transformer);
+std::unique_ptr<Expression> plankton::replace_expression(std::unique_ptr<Expression> expression, const transformer_t& transformer, bool* changed) {
+	return make_replacement(std::move(expression), transformer, changed);
 }
 
-std::unique_ptr<SimpleFormula> plankton::replace_expression(std::unique_ptr<SimpleFormula> formula, transformer_t transformer) {
-	return ExpressionReplacer::replace(std::move(formula), transformer);
+std::unique_ptr<Formula> plankton::replace_expression(std::unique_ptr<Formula> formula, const transformer_t& transformer, bool* changed) {
+	return make_replacement(std::move(formula), transformer, changed);
 }
 
-std::unique_ptr<Axiom> plankton::replace_expression(std::unique_ptr<Axiom> formula, transformer_t transformer) {
-	return ExpressionReplacer::replace(std::move(formula), transformer);
+std::unique_ptr<SimpleFormula> plankton::replace_expression(std::unique_ptr<SimpleFormula> formula, const transformer_t& transformer, bool* changed) {
+	return make_replacement(std::move(formula), transformer, changed);
 }
 
-std::unique_ptr<ConjunctionFormula> plankton::replace_expression(std::unique_ptr<ConjunctionFormula> formula, transformer_t transformer) {
-	return ExpressionReplacer::replace(std::move(formula), transformer);
+std::unique_ptr<Axiom> plankton::replace_expression(std::unique_ptr<Axiom> formula, const transformer_t& transformer, bool* changed) {
+	return make_replacement(std::move(formula), transformer, changed);
 }
 
-std::unique_ptr<TimePredicate> plankton::replace_expression(std::unique_ptr<TimePredicate> formula, transformer_t transformer) {
-	return ExpressionReplacer::replace(std::move(formula), transformer);
+std::unique_ptr<ConjunctionFormula> plankton::replace_expression(std::unique_ptr<ConjunctionFormula> formula, const transformer_t& transformer, bool* changed) {
+	return make_replacement(std::move(formula), transformer, changed);
+}
+
+std::unique_ptr<TimePredicate> plankton::replace_expression(std::unique_ptr<TimePredicate> formula, const transformer_t& transformer, bool* changed) {
+	return make_replacement(std::move(formula), transformer, changed);
 }
 
 
@@ -143,26 +151,26 @@ transformer_t make_transformer(const Expression& replace, const Expression& with
 	};
 }
 
-std::unique_ptr<Expression> plankton::replace_expression(std::unique_ptr<Expression> expression, const cola::Expression& replace, const cola::Expression& with) {
-	return plankton::replace_expression(std::move(expression), make_transformer(replace, with));
+std::unique_ptr<Expression> plankton::replace_expression(std::unique_ptr<Expression> expression, const cola::Expression& replace, const cola::Expression& with, bool* changed) {
+	return plankton::replace_expression(std::move(expression), make_transformer(replace, with), changed);
 }
 
-std::unique_ptr<Formula> plankton::replace_expression(std::unique_ptr<Formula> formula, const cola::Expression& replace, const cola::Expression& with) {
-	return plankton::replace_expression(std::move(formula), make_transformer(replace, with));
+std::unique_ptr<Formula> plankton::replace_expression(std::unique_ptr<Formula> formula, const cola::Expression& replace, const cola::Expression& with, bool* changed) {
+	return plankton::replace_expression(std::move(formula), make_transformer(replace, with), changed);
 }
 
-std::unique_ptr<Axiom> plankton::replace_expression(std::unique_ptr<Axiom> formula, const cola::Expression& replace, const cola::Expression& with) {
-	return plankton::replace_expression(std::move(formula), make_transformer(replace, with));
+std::unique_ptr<Axiom> plankton::replace_expression(std::unique_ptr<Axiom> formula, const cola::Expression& replace, const cola::Expression& with, bool* changed) {
+	return plankton::replace_expression(std::move(formula), make_transformer(replace, with), changed);
 }
 
-std::unique_ptr<SimpleFormula> plankton::replace_expression(std::unique_ptr<SimpleFormula> formula, const cola::Expression& replace, const cola::Expression& with) {
-	return plankton::replace_expression(std::move(formula), make_transformer(replace, with));
+std::unique_ptr<SimpleFormula> plankton::replace_expression(std::unique_ptr<SimpleFormula> formula, const cola::Expression& replace, const cola::Expression& with, bool* changed) {
+	return plankton::replace_expression(std::move(formula), make_transformer(replace, with), changed);
 }
 
-std::unique_ptr<ConjunctionFormula> plankton::replace_expression(std::unique_ptr<ConjunctionFormula> formula, const cola::Expression& replace, const cola::Expression& with) {
-	return plankton::replace_expression(std::move(formula), make_transformer(replace, with));
+std::unique_ptr<ConjunctionFormula> plankton::replace_expression(std::unique_ptr<ConjunctionFormula> formula, const cola::Expression& replace, const cola::Expression& with, bool* changed) {
+	return plankton::replace_expression(std::move(formula), make_transformer(replace, with), changed);
 }
 
-std::unique_ptr<TimePredicate> plankton::replace_expression(std::unique_ptr<TimePredicate> formula, const cola::Expression& replace, const cola::Expression& with) {
-	return plankton::replace_expression(std::move(formula), make_transformer(replace, with));
+std::unique_ptr<TimePredicate> plankton::replace_expression(std::unique_ptr<TimePredicate> formula, const cola::Expression& replace, const cola::Expression& with, bool* changed) {
+	return plankton::replace_expression(std::move(formula), make_transformer(replace, with), changed);
 }

@@ -382,55 +382,52 @@ z3::expr Encoder::Encode(StepTag tag, const Annotation& formula) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-z3::solver Encoder::MakeSolver() {
-	throw std::logic_error("not yet implemented: Encoder::MakeSolver()");
+z3::solver Encoder::MakeSolver(StepTag tag) {
+	// TODO: clean up, what to use?
 
-//	// create solver
-//	auto solver = z3::solver(context);
-//
-//	const Type& nodeType = postConfig.flowDomain->GetNodeType();
-//	for (auto tag : { NOW, NEXT }) {
-//
-//		// add rule for solving flow
-//		// forall node,selector,successor,key:  node->{selector}=successor /\ key in flow(node) /\ key_flows_out(node, key) ==> key in flow(successor)
-//		for (auto [fieldName, fieldType] : GetNodeTypePointerFields()) {
-//			auto key = EncodeVariable(Sort::DATA, "qv-flow-" + fieldName + "-key", tag);
-//			auto node = EncodeVariable(nodeType.sort, "qv-flow-" + fieldName + "-node", tag);
-//			auto successor = EncodeVariable(fieldType->sort, "qv-flow-" + fieldName + "-successor", tag);
-//			auto selector = std::make_pair(&nodeType, fieldName);
-//
-//			solver.add(z3::forall(node, key, successor, MakeImplication(
-//				EncodeHeap(node, selector, successor, tag) &&
-//				EncodeHasFlow(node, tag) &&
-//				EncodePredicate(postConfig.flowDomain->GetOutFlowContains(fieldName), node, key, tag),
-//				/* ==> */
-//				EncodeFlow(successor, key, tag)
-//			)));
-//		}
-//
-//		// add rule for solving ownership
-//		// forall node:  owned(node) ==> !hasFlow(node)
-//		auto node = EncodeVariable(Sort::PTR, "qv-owner-ptr", tag);
-//		solver.add(z3::forall(node, MakeImplication(
-//			EncodeOwnership(node, tag), /* ==> */ !EncodeHasFlow(node, tag)
-//		)));
-//
-//		// add rule for solving ownership
-//		// forall node,other,selector:  owned(node) ==> other->{selector} != node
-//		for (auto [fieldName, fieldType] : GetNodeTypePointerFields()) {
-//			auto node = EncodeVariable(nodeType.sort, "qv-owner-node", tag);
-//			auto other = EncodeVariable(fieldType->sort, "qv-owner-other", tag);
-//			auto selector = std::make_pair(&nodeType, fieldName);
-//
-//			solver.add(z3::forall(node, other, MakeImplication(
-//				EncodeOwnership(node, tag), /* ==> */ !EncodeHeap(other, selector, node, tag)
-//			)));
-//		}
-//	}
-//
-//	// done
-//	// assert(solver.check() == z3::sat);
-//	return solver;
+	// create solver
+	auto solver = z3::solver(context);
+
+	// const Type& nodeType = postConfig.flowDomain->GetNodeType();
+
+	// // add rule for solving flow
+	// // forall node,selector,successor,key:  node->{selector}=successor /\ key in flow(node) /\ key_flows_out(node, key) ==> key in flow(successor)
+	// for (auto [fieldName, fieldType] : GetNodeTypePointerFields()) {
+	// 	auto key = EncodeVariable(Sort::DATA, "qv-flow-" + fieldName + "-key", tag);
+	// 	auto node = EncodeVariable(nodeType.sort, "qv-flow-" + fieldName + "-node", tag);
+	// 	auto successor = EncodeVariable(fieldType->sort, "qv-flow-" + fieldName + "-successor", tag);
+	// 	auto selector = std::make_pair(&nodeType, fieldName);
+
+	// 	solver.add(z3::forall(node, key, successor, MakeImplication(
+	// 		EncodeHeap(node, selector, successor, tag) &&
+	// 		EncodeHasFlow(node, tag) &&
+	// 		EncodePredicate(postConfig.flowDomain->GetOutFlowContains(fieldName), node, key, tag),
+	// 		/* ==> */
+	// 		EncodeFlow(successor, key, tag)
+	// 	)));
+	// }
+
+	// // add rule for solving ownership
+	// // forall node:  owned(node) ==> !hasFlow(node)
+	// auto node = EncodeVariable(Sort::PTR, "qv-owner-ptr", tag);
+	// solver.add(z3::forall(node, MakeImplication(
+	// 	EncodeOwnership(node, tag), /* ==> */ !EncodeHasFlow(node, tag)
+	// )));
+
+	// // add rule for solving ownership
+	// // forall node,other,selector:  owned(node) ==> other->{selector} != node
+	// for (auto [fieldName, fieldType] : GetNodeTypePointerFields()) {
+	// 	auto node = EncodeVariable(nodeType.sort, "qv-owner-node", tag);
+	// 	auto other = EncodeVariable(fieldType->sort, "qv-owner-other", tag);
+	// 	auto selector = std::make_pair(&nodeType, fieldName);
+
+	// 	solver.add(z3::forall(node, other, MakeImplication(
+	// 		EncodeOwnership(node, tag), /* ==> */ !EncodeHeap(other, selector, node, tag)
+	// 	)));
+	// }
+
+	// done
+	return solver;
 }
 
 std::pair<z3::solver, z3::expr_vector> Encoder::MakePostSolver(std::size_t /*footprintSize*/) {

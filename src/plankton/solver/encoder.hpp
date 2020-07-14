@@ -49,7 +49,7 @@ namespace plankton {
 			z3::expr EncodeTransitionMaintainsFlow(z3::expr node, z3::expr key);
 			z3::expr EncodeTransitionMaintainsOwnership(z3::expr node);
 
-			z3::solver MakeSolver();
+			z3::solver MakeSolver(StepTag tag = NOW);
 			std::pair<z3::solver, z3::expr_vector> MakePostSolver(std::size_t footPrintSize);
 
 			z3::expr MakeNullPtr();

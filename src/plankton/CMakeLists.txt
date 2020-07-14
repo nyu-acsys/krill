@@ -39,6 +39,11 @@ set(SOURCES
 	solver/implication.cpp
 	solver/join.cpp
 	solver/post.cpp
+	solver/post_assume.cpp
+	solver/post_malloc.cpp
+	solver/post_assign.cpp
+	solver/post_assign_var.cpp
+	solver/post_assign_deref.cpp
 )
 
 add_library(Plankton ${SOURCES})

@@ -80,23 +80,23 @@ namespace plankton {
 	using transformer_t = std::function<std::pair<bool,std::unique_ptr<cola::Expression>>(const cola::Expression&)>;
 	template<typename T> using unary_t = std::function<bool(const T&)>;
 
-	std::unique_ptr<cola::Expression> replace_expression(std::unique_ptr<cola::Expression> expression, transformer_t transformer);
-	std::unique_ptr<Formula> replace_expression(std::unique_ptr<Formula> formula, transformer_t transformer);
-	std::unique_ptr<SimpleFormula> replace_expression(std::unique_ptr<SimpleFormula> formula, transformer_t transformer);
-	std::unique_ptr<Axiom> replace_expression(std::unique_ptr<Axiom> formula, transformer_t transformer);
-	std::unique_ptr<ConjunctionFormula> replace_expression(std::unique_ptr<ConjunctionFormula> formula, transformer_t transformer);
-	std::unique_ptr<TimePredicate> replace_expression(std::unique_ptr<TimePredicate> formula, transformer_t transformer);
+	std::unique_ptr<cola::Expression> replace_expression(std::unique_ptr<cola::Expression> expression, const transformer_t& transformer, bool* changed=nullptr);
+	std::unique_ptr<Formula> replace_expression(std::unique_ptr<Formula> formula, const transformer_t& transformer, bool* changed=nullptr);
+	std::unique_ptr<SimpleFormula> replace_expression(std::unique_ptr<SimpleFormula> formula, const transformer_t& transformer, bool* changed=nullptr);
+	std::unique_ptr<Axiom> replace_expression(std::unique_ptr<Axiom> formula, const transformer_t& transformer, bool* changed=nullptr);
+	std::unique_ptr<ConjunctionFormula> replace_expression(std::unique_ptr<ConjunctionFormula> formula, const transformer_t& transformer, bool* changed=nullptr);
+	std::unique_ptr<TimePredicate> replace_expression(std::unique_ptr<TimePredicate> formula, const transformer_t& transformer, bool* changed=nullptr);
 
-	std::unique_ptr<cola::Expression> replace_expression(std::unique_ptr<cola::Expression> formula, const cola::Expression& replace, const cola::Expression& with);
-	std::unique_ptr<Formula> replace_expression(std::unique_ptr<Formula> formula, const cola::Expression& replace, const cola::Expression& with);
-	std::unique_ptr<SimpleFormula> replace_expression(std::unique_ptr<SimpleFormula> formula, const cola::Expression& replace, const cola::Expression& with);
-	std::unique_ptr<Axiom> replace_expression(std::unique_ptr<Axiom> formula, const cola::Expression& replace, const cola::Expression& with);
-	std::unique_ptr<ConjunctionFormula> replace_expression(std::unique_ptr<ConjunctionFormula> formula, const cola::Expression& replace, const cola::Expression& with);
-	std::unique_ptr<TimePredicate> replace_expression(std::unique_ptr<TimePredicate> formula, const cola::Expression& replace, const cola::Expression& with);
+	std::unique_ptr<cola::Expression> replace_expression(std::unique_ptr<cola::Expression> formula, const cola::Expression& replace, const cola::Expression& with, bool* changed=nullptr);
+	std::unique_ptr<Formula> replace_expression(std::unique_ptr<Formula> formula, const cola::Expression& replace, const cola::Expression& with, bool* changed=nullptr);
+	std::unique_ptr<SimpleFormula> replace_expression(std::unique_ptr<SimpleFormula> formula, const cola::Expression& replace, const cola::Expression& with, bool* changed=nullptr);
+	std::unique_ptr<Axiom> replace_expression(std::unique_ptr<Axiom> formula, const cola::Expression& replace, const cola::Expression& with, bool* changed=nullptr);
+	std::unique_ptr<ConjunctionFormula> replace_expression(std::unique_ptr<ConjunctionFormula> formula, const cola::Expression& replace, const cola::Expression& with, bool* changed=nullptr);
+	std::unique_ptr<TimePredicate> replace_expression(std::unique_ptr<TimePredicate> formula, const cola::Expression& replace, const cola::Expression& with, bool* changed=nullptr);
 
 	std::unique_ptr<AxiomConjunctionFormula> flatten(std::unique_ptr<cola::Expression> expression);
 
-	std::unique_ptr<ConjunctionFormula> remove_conjuncts_if(std::unique_ptr<ConjunctionFormula> formula, unary_t<SimpleFormula> unaryPredicate);
+	std::unique_ptr<ConjunctionFormula> remove_conjuncts_if(std::unique_ptr<ConjunctionFormula> formula, const unary_t<SimpleFormula>& unaryPredicate, bool* changed=nullptr);
 
 } // namespace plankton
 
