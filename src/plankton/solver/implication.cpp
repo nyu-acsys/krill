@@ -92,11 +92,11 @@ bool ImplicationCheckerImpl::ImpliesFalse() const {
 }
 
 
-struct Depatcher : public LogicVisitor {
+struct Dispatcher : public LogicVisitor {
 	const ImplicationCheckerImpl& checker;
 	bool result;
 
-	Depatcher(const ImplicationCheckerImpl& checker) : checker(checker) {}
+	Dispatcher(const ImplicationCheckerImpl& checker) : checker(checker) {}
 
 	bool Implies(const Formula& formula) {
 		formula.accept(*this);
@@ -121,7 +121,7 @@ struct Depatcher : public LogicVisitor {
 };
 
 bool ImplicationCheckerImpl::Implies(const Formula& implied) const {
-	return Depatcher(*this).Implies(implied);
+	return Dispatcher(*this).Implies(implied);
 }
 
 
@@ -185,11 +185,15 @@ bool ImplicationCheckerImpl::Implies(const FuturePredicate& /*implied*/) const {
 	throw std::logic_error("not yet implemented: ImplicationCheckerImpl::Implies(const FuturePredicate&)");
 }
 
-bool ImplicationCheckerImpl::Implies(const TimePredicate& /*implied*/) const {
-	throw std::logic_error("not yet implemented: ImplicationCheckerImpl::Implies(const TimePredicate&)");
+bool ImplicationCheckerImpl::Implies(const TimePredicate& implied) const {
+	return Dispatcher(*this).Implies(implied);
 }
 
-bool ImplicationCheckerImpl::Implies(const Annotation& /*implied*/) const {
-	throw std::logic_error("not yet implemented: ImplicationCheckerImpl::Implies(const Annotation&)");
+bool ImplicationCheckerImpl::Implies(const Annotation& implied) const {
+	if (!Implies(*implied.now)) return false;
+	for (const auto& predicate : implied.time) {
+		if (!Implies(*predicate)) return false;
+	}
+	return true;
 }
 

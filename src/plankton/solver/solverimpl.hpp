@@ -3,6 +3,7 @@
 #define PLANKTON_SOLVERIMPL
 
 
+#include <memory>
 #include <deque>
 #include <type_traits>
 #include "plankton/solver.hpp"

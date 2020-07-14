@@ -255,9 +255,9 @@ void Verifier::visit_interface_function(const Function& function) {
 
 	// handle body
 	function.body->accept(*this);
-	std::cout << std::endl << "________" << std::endl << "Post annotation for function '" << function.name << "':" << std::endl;
-	plankton::print(*current_annotation, std::cout);
-	std::cout << std::endl << std::endl;
+	// std::cout << std::endl << "________" << std::endl << "Post annotation for function '" << function.name << "':" << std::endl;
+	// plankton::print(*current_annotation, std::cout);
+	// std::cout << std::endl << std::endl;
 
 	// check if obligation is fulfilled
 	returning_annotations.push_back(std::move(current_annotation));
@@ -281,6 +281,7 @@ void Verifier::visit(const Sequence& stmt) {
 }
 
 void Verifier::visit(const Scope& stmt) {
+	// TODO: skip scopes that do not define variables? Maybe if it turns out to boost performance.
 	solver->EnterScope(stmt);
 	stmt.body->accept(*this);
 	solver->LeaveScope();

@@ -28,6 +28,15 @@ struct VarPostComputer {
 	transformer_t MakeTimeTransformer();
 };
 
+std::unique_ptr<Annotation> VarPostComputer::MakePost() {
+	log() << std::endl << "ΩΩΩ POST for assignment: " << AssignmentString(assignment) << std::endl;
+	auto postNow = MakePostNow();
+	auto result = MakePostTime();
+	result->now = std::move(postNow);
+	// log() << info.preNow << std::endl << " ~~>" << std::endl << *result->now << std::endl;
+	return result;
+}
+
 std::unique_ptr<Annotation> plankton::MakeVarAssignPost(PostInfo info, const Solver::parallel_assignment_t& assignment) {
 	return VarPostComputer(std::move(info), assignment).MakePost();
 }
@@ -54,21 +63,27 @@ transformer_t VarPostComputer::MakeNowTransformer() {
 	};
 
 	// create map
-	std::map<const Expression*, const VariableDeclaration*> map;
+	std::map<const VariableDeclaration*, const VariableDeclaration*> map;
 	for (const auto& pair : assignment) {
-		const VariableExpression* lhsVar = &pair.first.get();
+		const VariableDeclaration* lhsVar = &pair.first.get().decl;
 		assert(map.count(lhsVar) == 0);
-		map[lhsVar] = GetOrCreate(lhsVar->decl);
+		map[lhsVar] = GetOrCreate(*lhsVar);
 	}
 	
 	// create transformer
 	return [map = std::move(map)](const Expression& expr) {
 		std::pair<bool, std::unique_ptr<Expression>> result;
-		auto find = map.find(&expr);
-		result.first = find != map.end();
-		if (result.first) {
-			result.second = std::make_unique<VariableExpression>(*find->second);
+		result.first = false;
+
+		auto [isVar, var] = plankton::is_of_type<VariableExpression>(expr);
+		if (isVar) {
+			auto find = map.find(&var->decl);
+			if (find != map.end()) {
+				result.first = true;
+				result.second = std::make_unique<VariableExpression>(*find->second);
+			}
 		}
+
 		return result;
 	};
 }
@@ -110,9 +125,9 @@ std::unique_ptr<ConjunctionFormula> VarPostComputer::MakePostNow() {
 
 transformer_t VarPostComputer::MakeTimeTransformer() {
 	// create map
-	std::map<const Expression*, const Expression*> map;
+	std::map<const VariableDeclaration*, const Expression*> map;
 	for (const auto& pair : assignment) {
-		const Expression* lhs = &pair.first.get();
+		const VariableDeclaration* lhs = &pair.first.get().decl;
 		const Expression* rhs = &pair.second.get();
 		map[lhs] = rhs;
 	}
@@ -120,11 +135,17 @@ transformer_t VarPostComputer::MakeTimeTransformer() {
 	// create transformer
 	return [map = std::move(map)](const Expression& expr) {
 		std::pair<bool, std::unique_ptr<Expression>> result;
-		auto find = map.find(&expr);
-		result.first = find != map.end();
-		if (result.first) {
-			result.second = cola::copy(*find->second);
+		result.first = false;
+
+		auto [isVar, var] = plankton::is_of_type<VariableExpression>(expr);
+		if (isVar) {
+			auto find = map.find(&var->decl);
+			if (find != map.end()) {
+				result.first = true;
+				result.second = cola::copy(*find->second);
+			}
 		}
+
 		return result;
 	};
 }
@@ -184,14 +205,5 @@ std::unique_ptr<Annotation> VarPostComputer::MakePostTime() {
 		if (wasChanged) result->time.push_back(std::move(copy));
 	}
 
-	return result;
-}
-
-std::unique_ptr<Annotation> VarPostComputer::MakePost() {
-	log() << std::endl << "ΩΩΩ POST for assignment: " << AssignmentString(assignment) << std::endl;
-	auto postNow = MakePostNow();
-	auto result = MakePostTime();
-	result->now = std::move(postNow);
-	// log() << info.preNow << std::endl << " ~~>" << std::endl << *result->now << std::endl;
 	return result;
 }

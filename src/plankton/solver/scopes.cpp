@@ -17,8 +17,8 @@ struct CandidateGenerator {
 	const std::deque<const VariableDeclaration*>& others;
 	std::unique_ptr<ConjunctionFormula> result;
 
-	CandidateGenerator(const SolverImpl& solver, Encoder& encoder, const PostConfig& config, const VariableDeclaration& newVar)
-		: solver(solver), encoder(encoder), config(config), decl(newVar), others(solver.GetVariablesInScope()) {}
+	CandidateGenerator(const SolverImpl& solver, const PostConfig& config, const VariableDeclaration& newVar)
+		: solver(solver), encoder(solver.GetEncoder()), config(config), decl(newVar), others(solver.GetVariablesInScope()) {}
 
 	void AddExpressions(const VariableDeclaration& other);
 	void AddAxioms(std::unique_ptr<Axiom> axiom);
@@ -188,7 +188,8 @@ void SolverImpl::ExtendCurrentScope(const std::vector<std::unique_ptr<cola::Vari
 
 	for (const auto& decl : vars) {
 		variablesInScope.back().push_back(decl.get());
-		auto newCandidates = CandidateGenerator(*this, encoder, config, *decl).MakeCandidates();
+		// TODO important: ensure that the candidates could generate the invariant
+		auto newCandidates = CandidateGenerator(*this, config, *decl).MakeCandidates();
 		candidateFormulas.back() = plankton::conjoin(std::move(candidateFormulas.back()), std::move(newCandidates));
 
 		if (cola::assignable(config.invariant->vars.at(0)->type, decl->type)) {
