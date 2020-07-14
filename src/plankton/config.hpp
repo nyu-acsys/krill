@@ -14,6 +14,7 @@ namespace plankton {
 		bool interference_exhaustive_repetition = false;
 		bool post_maintains_formula_quick_check = true;
 		bool semantic_unification = true;
+		bool filter_candidates_by_invariant = false;
 
 	};
 
