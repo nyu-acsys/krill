@@ -30,6 +30,7 @@ struct VarPostComputer {
 
 std::unique_ptr<Annotation> VarPostComputer::MakePost() {
 	log() << std::endl << "ΩΩΩ POST for assignment: " << AssignmentString(assignment) << std::endl;
+	// throw std::logic_error("point du break");
 	auto postNow = MakePostNow();
 	auto result = MakePostTime();
 	result->now = std::move(postNow);
