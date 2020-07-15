@@ -128,6 +128,10 @@ std::unique_ptr<Formula> plankton::copy(const Formula& formula) {
 	return do_copy<Formula>(formula);
 }
 
+std::unique_ptr<NowFormula> plankton::copy(const NowFormula& formula) {
+	return do_copy<NowFormula>(formula);
+}
+
 std::unique_ptr<SimpleFormula> plankton::copy(const SimpleFormula& formula) {
 	return do_copy<SimpleFormula>(formula);
 }

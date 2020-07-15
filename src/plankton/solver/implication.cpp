@@ -107,19 +107,25 @@ struct QuickChecker : public BaseLogicVisitor {
 	Encoder& encoder;
 	Encoder::StepTag encodingTag;
 	const NowFormula& premise;
+	bool encode;
 	z3::expr_vector conjuncts;
+	bool discharged = true;
 
-	QuickChecker(Encoder& encoder, Encoder::StepTag tag, const NowFormula& premise)
-		: encoder(encoder), encodingTag(tag), premise(premise), conjuncts(encoder.MakeVector()) {}
+	QuickChecker(Encoder& encoder, Encoder::StepTag tag, const NowFormula& premise, bool encode=true)
+		: encoder(encoder), encodingTag(tag), premise(premise), encode(encode), conjuncts(encoder.MakeVector()) {}
 
-	z3::expr_vector EncodeRemaining(const NowFormula& implied) {
+	std::pair<bool, z3::expr_vector> CheckAndEncode(const NowFormula& implied) {
 		implied.accept(*this);
-		return std::move(conjuncts);
+		return { discharged , std::move(conjuncts) };
 	}
 
 	void handle(const SimpleFormula& formula) {
+		if (!encode && !discharged) return;
 		if (!plankton::syntactically_contains_conjunct(premise, formula)) {
-			conjuncts.push_back(encoder.Encode(formula, encodingTag));
+			discharged = false;
+			if (encode) {
+				conjuncts.push_back(encoder.Encode(formula, encodingTag));
+			}
 		}
 	}
 
@@ -146,12 +152,25 @@ struct QuickChecker : public BaseLogicVisitor {
 };
 
 
+bool ImplicationCheckerImpl::ImpliesQuick(const NowFormula& implied) const {
+	assert(premiseNowFormula);
+	auto [discharged, conjuncts] = QuickChecker(encoder, encodingTag, *premiseNowFormula).CheckAndEncode(implied);
+	return discharged;
+}
+
 bool ImplicationCheckerImpl::Implies(const NowFormula& implied) const {
 	assert(premiseNowFormula);
-	auto conjuncts = QuickChecker(encoder, encodingTag, *premiseNowFormula).EncodeRemaining(implied);
-	if (conjuncts.size() == 0) return true;
+	auto [discharged, conjuncts] = QuickChecker(encoder, encodingTag, *premiseNowFormula).CheckAndEncode(implied);
+	if (discharged) {
+		assert(conjuncts.size() == 0);
+		return true;
+	}
 	// TODO: if the implication holds, one could extend 'this->premiseNow' with 'implied'
 	return Implies(encoder.MakeAnd(std::move(conjuncts)));
+}
+
+bool ImplicationCheckerImpl::ImpliesNegated(const NowFormula& implied) const {
+	return Implies(!encoder.Encode(implied, encodingTag));
 }
 
 bool ImplicationCheckerImpl::Implies(const PastPredicate& /*implied*/) const {

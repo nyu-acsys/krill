@@ -27,6 +27,10 @@ namespace plankton {
 			ImplicationCheckerImpl(Encoder& encoder, z3::solver solver, const NowFormula& premise, Encoder::StepTag tag);
 			ImplicationCheckerImpl(Encoder& encoder, z3::solver solver, const Annotation& premise, Encoder::StepTag tag);
 
+			// underapproximates implication, may perform a purely syntactical check
+			bool ImpliesQuick(const NowFormula& implied) const;
+			bool ImpliesNegated(const NowFormula& implied) const;
+
 			bool Implies(const NowFormula& implied) const;
 			bool Implies(const PastPredicate& implied) const;
 			bool Implies(const FuturePredicate& implied) const;
@@ -44,18 +48,22 @@ namespace plankton {
 
 
 	class Candidate {
-		private:
 			std::unique_ptr<ConjunctionFormula> store;
-			Candidate(std::unique_ptr<ConjunctionFormula> store);
+			std::unique_ptr<ConjunctionFormula> disprove;
+			Candidate(std::unique_ptr<ConjunctionFormula> store, std::unique_ptr<ConjunctionFormula> disprove);
 
 		public:
 			Candidate(std::unique_ptr<SimpleFormula> candidate);
 			Candidate(std::unique_ptr<SimpleFormula> candidate, std::unique_ptr<ConjunctionFormula> implied);
+			Candidate(std::unique_ptr<SimpleFormula> candidate, std::unique_ptr<ConjunctionFormula> implied, std::deque<std::unique_ptr<SimpleFormula>> disprove);
+			Candidate Copy() const;
 
 			 // if F implies 'GetCheck()', then F implies 'GetImplied()'
 			const SimpleFormula& GetCheck() const;
 			const ConjunctionFormula& GetImplied() const;
-			Candidate Copy() const;
+			
+			// if F implies 'GetQuickDisprove()[i]' for some 'i', then F does not imply 'GetCheck()'
+			const std::deque<std::unique_ptr<SimpleFormula>>& GetQuickDisprove() const;
 	};
 
 
@@ -79,11 +87,11 @@ namespace plankton {
 		public: // implement 'Solver' interface
 			SolverImpl(PostConfig config_);
 
-			std::unique_ptr<ImplicationChecker> MakeImplicationChecker(const NowFormula& formula) const;
-			std::unique_ptr<ImplicationChecker> MakeImplicationChecker(const Annotation& annotation) const;
+			std::unique_ptr<ImplicationCheckerImpl> MakeImplicationChecker(const NowFormula& formula) const;
+			std::unique_ptr<ImplicationCheckerImpl> MakeImplicationChecker(const Annotation& annotation) const;
 			std::unique_ptr<ImplicationChecker> MakeImplicationChecker(const Formula& formula) const override;
 
-			std::unique_ptr<ConjunctionFormula> ComputeImpliedCandidates(const ImplicationChecker& checker) const;
+			std::unique_ptr<ConjunctionFormula> ComputeImpliedCandidates(const ImplicationCheckerImpl& checker) const;
 			std::unique_ptr<ConjunctionFormula> ComputeImpliedCandidates(const std::vector<ImplicationCheckerImpl>& checkers) const;
 			std::unique_ptr<Annotation> Join(std::vector<std::unique_ptr<Annotation>> annotations) const override;
 

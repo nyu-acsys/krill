@@ -38,7 +38,7 @@ namespace plankton {
 		PostInfo(const SolverImpl& solver, const ConjunctionFormula& pre, const ConjunctionFormula& post)
 			: solver(solver), preNow(pre), preTime(GetDummyContainer()), implication(&post), implicationCheck(true) {}
 
-		std::unique_ptr<ConjunctionFormula> ComputeImpliedCandidates(const ImplicationChecker& checker);
+		std::unique_ptr<ConjunctionFormula> ComputeImpliedCandidates(const ImplicationCheckerImpl& checker);
 	};
 
 

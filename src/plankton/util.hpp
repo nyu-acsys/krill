@@ -23,6 +23,7 @@ namespace plankton {
 	void print(const Formula& formula, std::ostream& stream);
 
 	std::unique_ptr<Formula> copy(const Formula& formula);
+	std::unique_ptr<NowFormula> copy(const NowFormula& formula);
 	std::unique_ptr<SimpleFormula> copy(const SimpleFormula& formula);
 	std::unique_ptr<Axiom> copy(const Axiom& formula);
 	std::unique_ptr<TimePredicate> copy(const TimePredicate& formula);
