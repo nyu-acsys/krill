@@ -152,11 +152,11 @@ struct QuickChecker : public BaseLogicVisitor {
 };
 
 
-bool ImplicationCheckerImpl::ImpliesQuick(const NowFormula& implied) const {
-	assert(premiseNowFormula);
-	auto [discharged, conjuncts] = QuickChecker(encoder, encodingTag, *premiseNowFormula).CheckAndEncode(implied);
-	return discharged;
-}
+// bool ImplicationCheckerImpl::ImpliesQuick(const NowFormula& implied) const {
+// 	assert(premiseNowFormula);
+// 	auto [discharged, conjuncts] = QuickChecker(encoder, encodingTag, *premiseNowFormula).CheckAndEncode(implied);
+// 	return discharged;
+// }
 
 bool ImplicationCheckerImpl::Implies(const NowFormula& implied) const {
 	assert(premiseNowFormula);

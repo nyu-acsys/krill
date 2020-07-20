@@ -45,25 +45,36 @@ std::vector<std::unique_ptr<Expression>> MakeAllExpressions(const VariableDeclar
 	return result;
 }
 
+enum struct CombinationKind { SINGLE, PAIR };
+
 struct ExpressionStore {
 	// all unordered distinct pairs of expressions
 	std::deque<std::pair<std::unique_ptr<Expression>, std::unique_ptr<Expression>>> expressions;
+	CombinationKind kind;
 	bool skipNull;
 
 	void AddImmediate(const VariableDeclaration& decl);
 	void AddCombination(const VariableDeclaration& decl, const VariableDeclaration& other);
 	void AddAllCombinations();
 	
-	ExpressionStore(var_list_t variables, bool skipNull=false) : skipNull(skipNull) {
+	ExpressionStore(var_list_t variables, CombinationKind kind, bool skipNull=false) : skipNull(skipNull) {
 		auto begin = variables.begin();
 		auto end = variables.end();
-		for (auto iter = begin; iter != end; ++iter) {
-			AddImmediate(**iter);
-		}
-		for (auto iter = begin; iter != end; ++iter) {
-			for (auto other = std::next(iter); other != end; ++other) {
-				AddCombination(**iter, **other);
-			}
+
+		switch (kind) {
+			case CombinationKind::SINGLE:
+				for (auto iter = begin; iter != end; ++iter) {
+					AddImmediate(**iter);
+				}
+				break;
+
+			case CombinationKind::PAIR:
+				for (auto iter = begin; iter != end; ++iter) {
+					for (auto other = std::next(iter); other != end; ++other) {
+						AddCombination(**iter, **other);
+					}
+				}
+				break;
 		}
 	}
 };
@@ -97,13 +108,11 @@ void ExpressionStore::AddCombination(const VariableDeclaration& decl, const Vari
 
 struct CandidateGenerator {
 	Encoder& encoder;
-	const PostConfig& config;
 	var_list_t variables;
-	bool applyFilter;
+	CombinationKind kind;
 	std::deque<std::unique_ptr<Axiom>> candidateAxioms;
 
-	CandidateGenerator(Encoder& encoder, const PostConfig& config, var_list_t variables, bool applyFilter=plankton::config.filter_candidates_by_invariant)
-		: encoder(encoder), config(config), variables(variables), applyFilter(applyFilter) {}
+	CandidateGenerator(Encoder& encoder, var_list_t variables, CombinationKind kind) : encoder(encoder), variables(variables), kind(kind) {}
 
 	void AddExpressions();
 	void PopulateAxiom(std::unique_ptr<Axiom> axiom, bool addNegated=true);
@@ -113,6 +122,8 @@ struct CandidateGenerator {
 	void AddHasFlowAxioms(std::unique_ptr<Expression> expr);
 	void AddKeysetContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
 	void AddFlowContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
+	void AddSingleAxioms();
+	void AddPairAxioms();
 	void AddAxioms();
 
 	std::vector<Candidate> MakeCandidates();
@@ -126,7 +137,7 @@ inline std::vector<BinaryExpression::Operator> MakeOperators(const Expression& e
 }
 
 void CandidateGenerator::AddExpressions() {
-	ExpressionStore store(variables);
+	ExpressionStore store(variables, kind);
 	for (const auto& [lhs, rhs] : store.expressions) {
 		assert(lhs);
 		assert(rhs);
@@ -181,7 +192,7 @@ void CandidateGenerator::AddFlowContainsAxioms(std::unique_ptr<Expression> expr,
 	PopulateAxiom(MakeFlowContains(std::move(expr), cola::copy(*other), std::move(other)));
 }
 
-void CandidateGenerator::AddAxioms() {
+void CandidateGenerator::AddSingleAxioms() {
 	for (auto var : variables) {
 		AddOwnershipAxioms(*var);
 		AddSpecificationAxioms(*var);
@@ -194,8 +205,10 @@ void CandidateGenerator::AddAxioms() {
 			AddHasFlowAxioms(std::move(expr));
 		}
 	}
+}
 
-	ExpressionStore store(variables, true);
+void CandidateGenerator::AddPairAxioms() {
+	ExpressionStore store(variables, CombinationKind::PAIR, true);
 	for (auto& [expr, other] : store.expressions) {
 		AddKeysetContainsAxioms(cola::copy(*expr), cola::copy(*other));
 		AddKeysetContainsAxioms(cola::copy(*other), cola::copy(*expr));
@@ -204,14 +217,19 @@ void CandidateGenerator::AddAxioms() {
 	}
 }
 
+void CandidateGenerator::AddAxioms() {
+	switch (kind) {
+		case CombinationKind::SINGLE: AddSingleAxioms(); break;
+		case CombinationKind::PAIR: AddPairAxioms(); break;
+	}
+}
 
 std::vector<Candidate> CandidateGenerator::MakeCandidates() {
-	log() << "### Creating candidates" << std::endl;
+	log() << "### Creating candidates (" << (kind == CombinationKind::SINGLE ? "single" : "pair") << ")..." << std::flush;
 
 	// populate 'candidateAxioms'
 	AddExpressions();
 	AddAxioms();
-	log() << "### created " << candidateAxioms.size() << " candidates" << std::flush;
 
 	// make candidates
 	std::vector<Candidate> result;
@@ -227,31 +245,16 @@ std::vector<Candidate> CandidateGenerator::MakeCandidates() {
 			implied->conjuncts.push_back(plankton::copy(*other));
 		}
 
-		// find other candidate axioms that imply the negation of 'axiom'
-		std::deque<std::unique_ptr<SimpleFormula>> disprove;
-		for (const auto& other : candidateAxioms) {
-			// A => B iff !B => !A; hence: B => !A iff A => !B
-			if (!checker.ImpliesNegated(*other)) continue; // TODO: important: this does not seem to work properly <<<<<<=====================
-			disprove.push_back(MakeNot(plankton::copy(*other)));
-		}
-
 		// put together
-		result.emplace_back(plankton::copy(*axiom), std::move(implied), std::move(disprove));
+		result.emplace_back(plankton::copy(*axiom), std::move(implied));
 	}
+	log() << result.size() << std::endl;
 
-	log() << std::endl << "### checked candidate implications" << std::endl;
-
+	// sort
 	std::sort(result.begin(), result.end(), [](const Candidate& lhs, const Candidate& rhs){
 		if (lhs.GetImplied().conjuncts.size() > rhs.GetImplied().conjuncts.size()) return true;
-		if (lhs.GetQuickDisprove().size() > rhs.GetQuickDisprove().size()) return true;
 		return &lhs.GetCheck() > &rhs.GetCheck();
 	});
-
-	// filter
-	if (applyFilter) {
-		// TODO: implement
-		throw SolvingError("Filtering candidates by invariant is not supported.");
-	}
 	
 	// done
 	return result;
@@ -262,164 +265,135 @@ std::vector<Candidate> CandidateGenerator::MakeCandidates() {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-using type_pair_t = std::pair<const Type*, const Type*>;
-using decl_pair_t = std::pair<const VariableDeclaration*, const VariableDeclaration*>;
+struct CandidateEntry final {
+	std::array<std::unique_ptr<VariableDeclaration>, 2> dummyVariables;
+	std::vector<Candidate> candidates;
+};
 
 class CandidateStore {
 	private:
 		const SolverImpl& solver;
-		const PostConfig& config;
-		std::vector<std::unique_ptr<VariableDeclaration>> dummyDeclarations;
-		std::map<type_pair_t, decl_pair_t> type2decl;
-		std::map<decl_pair_t, std::vector<Candidate>> decl2candidate;
+		std::map<std::pair<const Type*, const Type*>, CandidateEntry> candidateMap;
 
-		CandidateStore(const SolverImpl& solver, const PostConfig& config) : solver(solver), config(config) {}
-		type_pair_t MakeTypeKey(const Type& type, const Type& other);
-		decl_pair_t MakeDeclKey(const Type& type, const Type& other);
-		const std::vector<Candidate>& GetRawCandidates(decl_pair_t key);
-		transformer_t MakeTransformer(decl_pair_t key, const VariableDeclaration& decl, const VariableDeclaration& other);
-		std::vector<Candidate> MakeCandidates(const VariableDeclaration& decl, const VariableDeclaration& other);
+		CandidateStore(const SolverImpl& solver) : solver(solver) {}
+		const CandidateEntry& GetEntry(const Type& type, const Type& other, CombinationKind kind);
+		transformer_t MakeTransformer(std::vector<const VariableDeclaration*> from, std::vector<const VariableDeclaration*> to);
+		std::vector<Candidate> InstantiateRaw(const VariableDeclaration& decl, const VariableDeclaration& other, CombinationKind kind);
+		std::vector<Candidate> MakeSingleCandidates(const VariableDeclaration& decl);
+		std::vector<Candidate> MakePairCandidates(const VariableDeclaration& decl, const VariableDeclaration& other);
 		std::vector<Candidate> MakeCandidates();
 
 	public:
-		static CandidateStore& GetStore(const SolverImpl& solver, const PostConfig& config);
-		static std::vector<Candidate> MakeCandidates(const SolverImpl& solver, const PostConfig& config);
+		static CandidateStore& GetStore(const SolverImpl& solver);
+		static std::vector<Candidate> MakeCandidates(const SolverImpl& solver);
 };
 
-type_pair_t CandidateStore::MakeTypeKey(const Type& type, const Type& other) {
-	return std::make_pair(&type, &other);
-}
+const CandidateEntry& CandidateStore::GetEntry(const Type& type, const Type& other, CombinationKind kind) {
+	// search for existing
+	auto key = std::make_pair(&type, &other);
+	auto find = candidateMap.find(key);
+	if (find != candidateMap.end()) return find->second;
 
-decl_pair_t CandidateStore::MakeDeclKey(const Type& type, const Type& other) {
-	auto key = MakeTypeKey(type, other);
-	auto find = type2decl.find(key);
-	if (find != type2decl.end()) return find->second;
-	auto first = std::make_unique<VariableDeclaration>("CandidateStore#" + type.name + "$" + other.name + "#first", type, false);
-	auto second = std::make_unique<VariableDeclaration>("CandidateStore#" + type.name + "$" + other.name + "#second", other, false);
-	auto result = std::make_pair(first.get(), second.get());
-	dummyDeclarations.push_back(std::move(first));
-	dummyDeclarations.push_back(std::move(second));
-	type2decl[key] = result;
-	return result;
-}
+	// create new
+	CandidateEntry entry;
+	entry.dummyVariables[0] = std::make_unique<VariableDeclaration>("CandidateStore#dummy-0", type, false);
+	entry.dummyVariables[1] = std::make_unique<VariableDeclaration>("CandidateStore#dummy-1", other, false);
+	std::vector<const VariableDeclaration*> vars = { entry.dummyVariables.at(0).get(), entry.dummyVariables.at(1).get() };
+	CandidateGenerator generator(solver.GetEncoder(), vars, kind);
+	entry.candidates = generator.MakeCandidates();
 
-const std::vector<Candidate>& CandidateStore::GetRawCandidates(decl_pair_t key) {
-	auto find = decl2candidate.find(key);
-	if (find != decl2candidate.end()) return find->second;
-
-	log() << "||| creating raw candidates:  " << key.first->name << "  " << key.second->name << std::endl;
-	std::vector<const VariableDeclaration*> varList = { key.first, key.second };
-	auto candidates = CandidateGenerator(solver.GetEncoder(), config, varList).MakeCandidates();
-	auto insert = decl2candidate.emplace(key, std::move(candidates));
+	// add
+	auto insert = candidateMap.emplace(key, std::move(entry));
 	assert(insert.second);
 	return insert.first->second;
 }
 
-transformer_t CandidateStore::MakeTransformer(decl_pair_t key, const VariableDeclaration& decl, const VariableDeclaration& other) {
-	return [key,&decl,&other](const Expression& expr){
+transformer_t CandidateStore::MakeTransformer(std::vector<const VariableDeclaration*> from, std::vector<const VariableDeclaration*> to) {
+	assert(from.size() == to.size());
+	return [search=std::move(from),replace=std::move(to)](const Expression& expr){
 		std::pair<bool,std::unique_ptr<cola::Expression>> result;
 		auto [isVar, var] = plankton::is_of_type<VariableExpression>(expr);
 		if (isVar) {
-			if (&var->decl == key.first) {
+			for (std::size_t index = 0; index < search.size(); ++index) {
+				if (&var->decl != search.at(index)) continue;
 				result.first = true;
-				result.second = std::make_unique<VariableExpression>(decl);
-			} else if (&var->decl == key.second) {
-				result.first = true;
-				result.second = std::make_unique<VariableExpression>(other);
+				result.second = std::make_unique<VariableExpression>(*replace.at(index));
+				break;
 			}
 		}
 		return result;
 	};
 }
 
-std::vector<Candidate> CandidateStore::MakeCandidates(const VariableDeclaration& decl, const VariableDeclaration& other) {
-	if (&decl.type > &other.type) return MakeCandidates(other, decl);
-	auto key = MakeDeclKey(decl.type, other.type);
-	const auto& rawCandidates = GetRawCandidates(key);
-	auto transformer = MakeTransformer(key, decl, other);
-
+std::vector<Candidate> CandidateStore::InstantiateRaw(const VariableDeclaration& decl, const VariableDeclaration& other, CombinationKind kind) {
+	const auto& entry = GetEntry(decl.type, other.type, kind);
+	const auto& dummies = entry.dummyVariables;
+	auto transformer = MakeTransformer({ dummies.at(0).get(), dummies.at(1).get() }, { &decl, &other });
 	std::vector<Candidate> result;
-	for (const auto& raw : rawCandidates) {
-		auto check = plankton::replace_expression(plankton::copy(raw.GetCheck()), transformer);
-		auto implied = plankton::replace_expression(plankton::copy(raw.GetImplied()), transformer);
-		std::deque<std::unique_ptr<SimpleFormula>> disprove;
-		for (const auto& formula : raw.GetQuickDisprove()) {
-			disprove.push_back(plankton::replace_expression(plankton::copy(*formula), transformer));
-		}
-		result.emplace_back(std::move(check), std::move(implied), std::move(disprove));
+	result.reserve(entry.candidates.size());
+	for (const auto& candidate : entry.candidates) {
+		result.emplace_back(plankton::replace_expression(plankton::copy(*candidate.repr), transformer));
 	}
-	
 	return result;
 }
 
-std::vector<Candidate> CandidateStore::MakeCandidates() {
-	std::vector<Candidate> result;
-	const auto& variables = solver.GetVariablesInScope();
+std::vector<Candidate> CandidateStore::MakeSingleCandidates(const VariableDeclaration& decl) {
+	static Type dummyType("CandidateStore#MakeSingleCandidates#dummy-type", Sort::VOID);
+	static VariableDeclaration dummyDecl("CandidateStore#MakeSingleCandidates#dummy-decl", dummyType, false);
+	return InstantiateRaw(decl, dummyDecl, CombinationKind::SINGLE);
+}
 
-	// handle special case
-	// TODO: improve ==> add dummy variables of type void to the outermost scope?
-	if (variables.size() == 1) {
-		static VariableDeclaration singletonDummy("CandidateStore#dummy", Type::void_type(), false);
-		result = MakeCandidates(*variables.at(0), singletonDummy);
+std::vector<Candidate> CandidateStore::MakePairCandidates(const VariableDeclaration& decl, const VariableDeclaration& other) {
+	if (&decl.type > &other.type) return MakePairCandidates(other, decl);
+	return InstantiateRaw(decl, other, CombinationKind::PAIR);
+}
+
+std::vector<Candidate> CandidateStore::MakeCandidates() {
+	const auto& variables = solver.GetVariablesInScope();
+	std::deque<Candidate> candidates;
+	auto AddCandidates = [&candidates](std::vector<Candidate>&& newCandidates) {
+		candidates.insert(candidates.end(), std::make_move_iterator(newCandidates.begin()), std::make_move_iterator(newCandidates.end()));
+	};
+
+	// singleton candidates
+	for (auto var : variables) {
+		AddCandidates(MakeSingleCandidates(*var));
 	}
 
-	// add all distinct unsorted combinations
+	// pair candidates (distinct unsorted pairs)
 	for (auto iter = variables.begin(); iter != variables.end(); ++iter) {
 		for (auto other = std::next(iter); other != variables.end(); ++other) {
-			auto candidates = MakeCandidates(**iter, **other);
-			result.insert(result.end(), std::make_move_iterator(candidates.begin()), std::make_move_iterator(candidates.end()));
-
-			// std::vector<Candidate> take; // TODO: is this needed?
-			// for (auto& candidate : candidates) {
-			// 	for (const auto& existing : result) {
-			// 		if (plankton::syntactically_equal(candidate.GetCheck(), existing.GetCheck())) {
-			// 			log() << " pruned candidate: " << candidate.GetCheck() << std::endl;
-			// 			continue;
-			// 		}
-			// 		take.push_back(std::move(candidate));
-			// 	}
-			// }
-			// result.insert(result.end(), std::make_move_iterator(take.begin()), std::make_move_iterator(take.end()));
+			AddCandidates(MakePairCandidates(**iter, **other));
 		}
 	}
 
-	auto source = std::move(result);
-	result.clear();
-	for (auto iter = source.begin(); iter != source.end(); ++iter) {
-		bool drop = false;
-		for (auto other = std::next(iter); other != source.end(); ++other) {
-			if (plankton::syntactically_equal(iter->GetCheck(), other->GetCheck())) {
-				drop = true;
-				break;
-			}
-		}
-		if (drop) continue;
-		result.push_back(std::move(*iter));
+	// prune duplicates
+	std::vector<Candidate> result;
+	result.reserve(candidates.size());
+	auto IsContained = [&result](const Candidate& search) {
+		return std::find_if(result.cbegin(), result.cend(), [&search](const Candidate& elem) {
+			return plankton::syntactically_equal(search.GetCheck(), elem.GetCheck());
+		}) != result.end();
+	};
+	for (auto& candidate : candidates) {
+		if (IsContained(candidate)) continue;
+		result.push_back(std::move(candidate));
 	}
-
-	// log() << "Create candidates " << result.size() << std::endl;
-	// for (const auto& candidate : result) {
-	// 	log() << "  - " << candidate.GetCheck() << std::endl;
-	// }
-	// TODO important: remove duplicates <<<<<<==========================================================================================
-	// TODO important: sort result <<<<<<================================================================================================
-	// throw std::logic_error("pointu breaku");
 
 	// done
 	return result;
 }
 
-CandidateStore& CandidateStore::GetStore(const SolverImpl& solver, const PostConfig& config) {
-	static std::map<std::pair<const SolverImpl*, const PostConfig*>, CandidateStore> lookup;
-	auto key = std::make_pair(&solver, &config);
-	auto find = lookup.find(key);
+CandidateStore& CandidateStore::GetStore(const SolverImpl& solver) {
+	static std::map<const SolverImpl*, CandidateStore> lookup;
+	auto find = lookup.find(&solver);
 	if (find != lookup.end()) return find->second;
-	auto insertion = lookup.emplace(key, CandidateStore(solver, config));
+	auto insertion = lookup.emplace(&solver, CandidateStore(solver));
 	return insertion.first->second;
 }
 
-std::vector<Candidate> CandidateStore::MakeCandidates(const SolverImpl& solver, const PostConfig& config) {
-	return GetStore(solver, config).MakeCandidates();
+std::vector<Candidate> CandidateStore::MakeCandidates(const SolverImpl& solver) {
+	return GetStore(solver).MakeCandidates();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -451,7 +425,7 @@ void SolverImpl::ExtendCurrentScope(const std::vector<std::unique_ptr<cola::Vari
 
 	// TODO important: ensure that the candidates can generate the invariant
 	// TODO: reuse old candidates?
-	auto newCandidates = CandidateStore::MakeCandidates(*this, config);
+	auto newCandidates = CandidateStore::MakeCandidates(*this);
 	candidates.back() = std::move(newCandidates);
 }
 
@@ -468,7 +442,7 @@ inline std::vector<Candidate> CopyCandidates(const std::vector<Candidate>& candi
 	std::vector<Candidate> result;
 	result.reserve(candidates.size());
 	for (const auto& candidate : candidates) {
-		result.push_back(candidate.Copy());
+		result.emplace_back(plankton::copy(*candidate.repr));
 	}
 	return result;
 }

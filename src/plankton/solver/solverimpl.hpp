@@ -27,8 +27,7 @@ namespace plankton {
 			ImplicationCheckerImpl(Encoder& encoder, z3::solver solver, const NowFormula& premise, Encoder::StepTag tag);
 			ImplicationCheckerImpl(Encoder& encoder, z3::solver solver, const Annotation& premise, Encoder::StepTag tag);
 
-			// underapproximates implication, may perform a purely syntactical check
-			bool ImpliesQuick(const NowFormula& implied) const;
+			// bool ImpliesQuick(const NowFormula& implied) const; // underapproximates implication, may perform a purely syntactical check
 			bool ImpliesNegated(const NowFormula& implied) const;
 
 			bool Implies(const NowFormula& implied) const;
@@ -47,23 +46,16 @@ namespace plankton {
 	};
 
 
-	class Candidate {
-			std::unique_ptr<ConjunctionFormula> store;
-			std::unique_ptr<ConjunctionFormula> disprove;
-			Candidate(std::unique_ptr<ConjunctionFormula> store, std::unique_ptr<ConjunctionFormula> disprove);
+	struct Candidate final {
+		std::unique_ptr<ConjunctionFormula> repr;
+		
+		Candidate(std::unique_ptr<ConjunctionFormula> repr);
+		Candidate(std::unique_ptr<SimpleFormula> candidate);
+		Candidate(std::unique_ptr<SimpleFormula> candidate, std::unique_ptr<ConjunctionFormula> implied);
 
-		public:
-			Candidate(std::unique_ptr<SimpleFormula> candidate);
-			Candidate(std::unique_ptr<SimpleFormula> candidate, std::unique_ptr<ConjunctionFormula> implied);
-			Candidate(std::unique_ptr<SimpleFormula> candidate, std::unique_ptr<ConjunctionFormula> implied, std::deque<std::unique_ptr<SimpleFormula>> disprove);
-			Candidate Copy() const;
-
-			 // if F implies 'GetCheck()', then F implies 'GetImplied()'
-			const SimpleFormula& GetCheck() const;
-			const ConjunctionFormula& GetImplied() const;
-			
-			// if F implies 'GetQuickDisprove()[i]' for some 'i', then F does not imply 'GetCheck()'
-			const std::deque<std::unique_ptr<SimpleFormula>>& GetQuickDisprove() const;
+		 // if F implies 'GetCheck()', then F implies 'GetImplied()'
+		inline const SimpleFormula& GetCheck() const { return *repr->conjuncts.at(0); }
+		inline const ConjunctionFormula& GetImplied() const { return *repr; }
 	};
 
 
