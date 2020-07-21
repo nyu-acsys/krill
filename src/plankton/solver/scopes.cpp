@@ -305,6 +305,7 @@ void Generator::AddCompound() {
 }
 
 std::vector<Candidate> Generator::MakeCandidates() {
+	// TODO important: remove those candidates that are implied by the invariant?
 	log() << "### Creating candidates (" << (kind == CombinationKind::SINGLE ? "single" : "pair") << ")..." << std::flush;
 
 	// make candidates
@@ -524,33 +525,42 @@ inline void fail_if(bool fail, const std::string_view msg) {
 		throw SolvingError(std::string(msg));
 	}
 }
-
-void SolverImpl::ExtendCurrentScope(const std::vector<std::unique_ptr<cola::VariableDeclaration>>& vars) {
+			
+void SolverImpl::AddVariableToCurrentScope(const VariableDeclaration& decl) {
 	assert(!candidates.empty());
 	assert(!variablesInScope.empty());
 	assert(!instantiatedInvariants.empty());
 
+	variablesInScope.back().push_back(&decl);
+}
+			
+void SolverImpl::AddVariableToCurrentScope(const std::vector<std::unique_ptr<VariableDeclaration>>& vars) {
 	for (const auto& decl : vars) {
-		variablesInScope.back().push_back(decl.get());
+		AddVariableToCurrentScope(*decl);
+	}
+}
 
+void SolverImpl::PrepareCurrentScope() {
+	// TODO important: ensure that the candidates can generate the invariant?
+	candidates.back() = LazyStore::MakeCandidates(*this);
+	instantiatedRules.back() = LazyStore::MakeRules(*this);
+
+	for (auto decl : GetVariablesInScope()) {
 		if (cola::assignable(config.invariant->vars.at(0)->type, decl->type)) {
 			instantiatedInvariants.back() = plankton::conjoin(std::move(instantiatedInvariants.back()), config.invariant->instantiate(*decl));
 		}
 	}
-
-	// TODO important: ensure that the candidates can generate the invariant?
-	candidates.back() = LazyStore::MakeCandidates(*this);
-	instantiatedRules.back() = LazyStore::MakeRules(*this);
 }
 
-void SolverImpl::EnterScope(const cola::Program& program) {
+void SolverImpl::EnterScope(const Program& program) {
 	fail_if(!candidates.empty(), ERR_ENTER_PROGRAM);
 	candidates.emplace_back();
 	variablesInScope.emplace_back();
 	instantiatedRules.push_back(std::make_unique<ConjunctionFormula>());
 	instantiatedInvariants.push_back(std::make_unique<ConjunctionFormula>());
 
-	ExtendCurrentScope(program.variables);
+	AddVariableToCurrentScope(program.variables);
+	PrepareCurrentScope();
 }
 
 inline std::vector<Candidate> CopyCandidates(const std::vector<Candidate>& candidates) {
@@ -565,30 +575,52 @@ inline std::vector<Candidate> CopyCandidates(const std::vector<Candidate>& candi
 void SolverImpl::PushOuterScope() {
 	// copy from outermost scope (front)
 	fail_if(candidates.empty(), ERR_ENTER_NOSCOPE);
-	candidates.push_back(CopyCandidates(candidates.front()));
-	instantiatedRules.push_back(plankton::copy(*instantiatedRules.front()));
-	instantiatedInvariants.push_back(plankton::copy(*instantiatedInvariants.front()));
+	candidates.emplace_back();
+	instantiatedRules.push_back(std::make_unique<ConjunctionFormula>());
+	instantiatedInvariants.push_back(std::make_unique<ConjunctionFormula>());
 	variablesInScope.push_back(std::vector<const VariableDeclaration*>(variablesInScope.front()));
 }
 
 void SolverImpl::PushInnerScope() {
 	// copy from innermost scope (back)
 	fail_if(candidates.empty(), ERR_ENTER_NOSCOPE);
-	candidates.push_back(CopyCandidates(candidates.back()));
-	instantiatedRules.push_back(plankton::copy(*instantiatedRules.back()));
-	instantiatedInvariants.push_back(plankton::copy(*instantiatedInvariants.back()));
+	candidates.emplace_back();
+	instantiatedRules.push_back(std::make_unique<ConjunctionFormula>());
+	instantiatedInvariants.push_back(std::make_unique<ConjunctionFormula>());
 	variablesInScope.push_back(std::vector<const VariableDeclaration*>(variablesInScope.back()));
 }
 
-void SolverImpl::EnterScope(const cola::Function& function) {
+void SolverImpl::EnterScope(const Function& function) {
 	PushOuterScope();
-	ExtendCurrentScope(function.args);
-	ExtendCurrentScope(function.returns);
+	AddVariableToCurrentScope(function.args);
+	AddVariableToCurrentScope(function.returns);
+	PrepareCurrentScope();
 }
 
-void SolverImpl::EnterScope(const cola::Scope& scope) {
+void SolverImpl::EnterScope(const Macro& macro) {
 	PushInnerScope();
-	ExtendCurrentScope(scope.variables);
+	// remove variables from scope that are assigend to by 'macro'
+	// TODO: remove variables that are not live
+	auto& container = variablesInScope.back();
+	container.erase(
+		std::remove_if(std::begin(container), std::end(container), [&macro](const VariableDeclaration* decl) {
+			for (const VariableDeclaration& lhs : macro.lhs) {
+				if (&lhs == decl) return true;
+			}
+			return false;
+		}),
+		std::end(container)
+	);
+	// add variables from function call
+	AddVariableToCurrentScope(macro.decl.args);
+	AddVariableToCurrentScope(macro.decl.returns);
+	PrepareCurrentScope();
+}
+
+void SolverImpl::EnterScope(const Scope& scope) {
+	PushInnerScope();
+	AddVariableToCurrentScope(scope.variables);
+	PrepareCurrentScope();
 }
 
 void SolverImpl::LeaveScope() {

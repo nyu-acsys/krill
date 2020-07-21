@@ -2,9 +2,9 @@
 
 #include <set>
 #include <sstream>
-#include <iostream> // TODO:remove
 #include "cola/util.hpp"
 #include "plankton/config.hpp"
+#include "plankton/logger.hpp" // TODO:remove
 
 using namespace cola;
 using namespace plankton;
@@ -233,7 +233,7 @@ inline void establish_linearizability_or_fail(const Solver& solver, const Annota
 	}
 
 	std::cout << "\% could not establish linearizability" << std::endl;
-	throw VerificationError("Could not establish linearizability for function '" + function.name + "'.");
+	// throw VerificationError("Could not establish linearizability for function '" + function.name + "'.");
 }	
 
 void Verifier::visit_interface_function(const Function& function) {
@@ -498,7 +498,7 @@ inline std::unique_ptr<Annotation> execute_parallel_assignment(const Solver& sol
 void Verifier::visit(const Macro& cmd) {
 	// pass arguments
 	current_annotation = solver->AddInvariant(std::move(current_annotation));
-	solver->EnterScope(cmd.decl);
+	solver->EnterScope(cmd);
 	current_annotation = execute_parallel_assignment(*solver, *current_annotation, cmd.decl.args, cmd.args);
 
 	// descend into function call
@@ -508,26 +508,9 @@ void Verifier::visit(const Macro& cmd) {
 	current_annotation = solver->AddInvariant(std::move(current_annotation));
 	solver->LeaveScope();
 	current_annotation = execute_parallel_assignment(*solver, *current_annotation, cmd.lhs, cmd.decl.returns);
+
+	// log() << std::endl << "________" << std::endl << "Post annotation for macro '" << cmd.decl.name << "':" << std::endl << *current_annotation << std::endl << std::endl;
 }
-
-// void Verifier::visit(const Macro& cmd) {
-// 	// pass arguments to function (treated as assignments)
-// 	for (std::size_t i = 0; i < cmd.args.size(); ++i) {
-// 		VariableExpression lhs(*cmd.decl.args.at(i));
-// 		const Expression& rhs = *cmd.args.at(i);
-// 		current_annotation = solver->PostAssignment(*current_annotation, lhs, rhs);
-// 	}
-
-// 	// descend into function call
-// 	visit_macro_function(cmd.decl);
-
-// 	// get returned values (treated as assignments)
-// 	for (std::size_t i = 0; i < cmd.lhs.size(); ++i) {
-// 		VariableExpression lhs(cmd.lhs.at(i).get());
-// 		VariableExpression rhs(*cmd.decl.returns.at(i));
-// 		current_annotation = solver->PostAssignment(*current_annotation, lhs, rhs);
-// 	}
-// }
 
 void Verifier::visit(const CompareAndSwap& /*cmd*/) {
 	throw UnsupportedConstructError("CompareAndSwap");

@@ -103,6 +103,7 @@ namespace plankton {
 
 
 		virtual void EnterScope(const cola::Scope& scope) = 0;
+		virtual void EnterScope(const cola::Macro& macro) = 0;
 		virtual void EnterScope(const cola::Function& function) = 0;
 		virtual void EnterScope(const cola::Program& program) = 0;
 		virtual void LeaveScope() = 0;

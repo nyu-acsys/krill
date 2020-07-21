@@ -18,6 +18,7 @@ struct VarPostComputer {
 	VarPostComputer(PostInfo info_, const parallel_assignment_t& assignment) : info(std::move(info_)), assignment(assignment) {}
 	std::unique_ptr<Annotation> MakePost();
 
+	bool AddSolvingRules();
 	transformer_t MakeNowTransformer();
 	std::unique_ptr<ConjunctionFormula> MakeInterimPostNow();
 	std::unique_ptr<ConjunctionFormula> MakePostNow();
@@ -53,6 +54,15 @@ std::unique_ptr<Annotation> plankton::MakeVarAssignPost(PostInfo info, const Var
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool VarPostComputer::AddSolvingRules() {
+	for (auto [lhs, rhs] : assignment) {
+		if (plankton::is_of_type<VariableExpression>(rhs.get()).first) {
+			return true;
+		}
+	}
+	return false;
+}
 
 transformer_t VarPostComputer::MakeNowTransformer() {
 	// lookup table to avoid spoinling the encoder
@@ -97,6 +107,7 @@ std::unique_ptr<ConjunctionFormula> VarPostComputer::MakeInterimPostNow() {
 	
 	// replace left-hand side variables with dummies in 'pre'
 	auto result = info.solver.AddInvariant(plankton::copy(info.preNow));
+	if (AddSolvingRules()) result = info.solver.AddRules(std::move(result));
 	result = plankton::replace_expression(std::move(result), transformer);
 
 	// add new valuation for left-hand side variables

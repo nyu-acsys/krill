@@ -81,7 +81,9 @@ namespace plankton {
 
 			void PushInnerScope();
 			void PushOuterScope();
-			void ExtendCurrentScope(const std::vector<std::unique_ptr<cola::VariableDeclaration>>& vars);
+			void AddVariableToCurrentScope(const cola::VariableDeclaration& decl);
+			void AddVariableToCurrentScope(const std::vector<std::unique_ptr<cola::VariableDeclaration>>& decls);
+			void PrepareCurrentScope();
 
 		public: // implement 'Solver' interface
 			SolverImpl(PostConfig config_);
@@ -100,6 +102,7 @@ namespace plankton {
 			std::unique_ptr<ConjunctionFormula> StripInvariant(std::unique_ptr<ConjunctionFormula> formula) const;
 
 			void EnterScope(const cola::Scope& scope) override;
+			void EnterScope(const cola::Macro& macro) override;
 			void EnterScope(const cola::Function& function) override;
 			void EnterScope(const cola::Program& program) override;
 			void LeaveScope() override;
