@@ -143,10 +143,6 @@ bool plankton::syntactically_contains_conjunct(const ConjunctionFormula& formula
 	return chk_contains_conjunct(formula, other);
 }
 
-bool plankton::syntactically_contains_conjunct(const AxiomConjunctionFormula& formula, const SimpleFormula& other) {
-	return chk_contains_conjunct(formula, other);
-}
-
 
 struct ContainsConjunctChecker : public BaseLogicVisitor {
 	const SimpleFormula& search;
@@ -154,14 +150,14 @@ struct ContainsConjunctChecker : public BaseLogicVisitor {
 
 	ContainsConjunctChecker(const SimpleFormula& search) : search(search) {}
 
-	bool IsContainedIn(const NowFormula& formula) {
+	bool IsContainedIn(const Formula& formula) {
 		result = false;
 		formula.accept(*this);
 		return result;
 	}
 
-	void visit(const AxiomConjunctionFormula& formula) override { result = plankton::syntactically_contains_conjunct(formula, search); }
-	void visit(const ConjunctionFormula& formula) override { result = plankton::syntactically_contains_conjunct(formula, search); }
+	void visit(const AxiomConjunctionFormula& formula) override { result = chk_contains_conjunct(formula, search); }
+	void visit(const ConjunctionFormula& formula) override { result = chk_contains_conjunct(formula, search); }
 
 	void visit(const ImplicationFormula& formula) override { result = plankton::syntactically_equal(formula, search); }
 	void visit(const NegatedAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
@@ -173,8 +169,12 @@ struct ContainsConjunctChecker : public BaseLogicVisitor {
 	void visit(const FlowContainsAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
 	void visit(const ObligationAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
 	void visit(const FulfillmentAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
+	
+	void visit(const PastPredicate& /*formula*/) override { result = false; }
+	void visit(const FuturePredicate& /*formula*/) override { result = false; }
+	void visit(const Annotation& formula) override { result = chk_contains_conjunct(*formula.now, search); }
 };
 
-bool plankton::syntactically_contains_conjunct(const NowFormula& formula, const SimpleFormula& other) {
+bool plankton::syntactically_contains_conjunct(const Formula& formula, const SimpleFormula& other) {
 	return ContainsConjunctChecker(other).IsContainedIn(formula);
 }

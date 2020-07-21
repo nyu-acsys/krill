@@ -105,6 +105,11 @@ Solver::Solver(PostConfig config_) : config(std::move(config_)) {
 	// TODO important: check tactics
 }
 
+bool Solver::ImpliesFalseQuick(const Formula& formula) const {
+	static ExpressionAxiom falseAxiom(std::make_unique<BooleanValue>(false));
+	return plankton::syntactically_contains_conjunct(formula, falseAxiom);
+}
+
 bool Solver::ImpliesFalse(const Formula& formula) const {
 	return MakeImplicationChecker(formula)->ImpliesFalse();
 }

@@ -1,10 +1,10 @@
 #include "plankton/verify.hpp"
 
-#include <iostream> // TODO: delete
 #include <map>
 #include "cola/util.hpp"
 #include "cola/visitors.hpp"
 #include "plankton/config.hpp"
+#include "plankton/logger.hpp" // TODO: delete
 
 using namespace cola;
 using namespace plankton;
@@ -132,11 +132,17 @@ void Verifier::extend_interference(const cola::Assignment& command) {
 
 void Verifier::apply_interference() {
 	if (inside_atomic) return;
+
 	auto stable = std::make_unique<ConjunctionFormula>();
 	current_annotation = solver->StripInvariant(std::move(current_annotation));
-
-	std::cout << std::endl << "∆∆∆ applying interference" << std::endl;
+	log() << std::endl << "∆∆∆ applying interference" << std::endl;
 	std::size_t counter = 0;
+
+	static ExpressionAxiom falseAxiom(std::make_unique<BooleanValue>(false));
+	if (solver->ImpliesFalseQuick(*current_annotation)) {
+		log() << "    => pruning: premise is false" << std::endl;
+		return;
+	}
 
 	// quick check
 	// TODO: remove SpecificationAxioms and add them back at the end
@@ -146,6 +152,7 @@ void Verifier::apply_interference() {
 			conjunct.reset();
 		}
 	}
+	// log() << "    => after quick check: " << *stable << std::endl;
 
 	// deep check
 	bool changed;
@@ -175,7 +182,7 @@ void Verifier::apply_interference() {
 	// keep interference-free part
 	current_annotation->now = std::move(stable);
 
-	std::cout << "    => number of interference freedom checks: " << counter << std::endl;
+	log() << "    => number of interference freedom checks: " << counter << std::endl;
 }
 
 
@@ -183,7 +190,7 @@ bool Verifier::is_interference_free(const ConjunctionFormula& formula){
 	for (const auto& effect : interference) {
 		// TODO important: should we combine effect->precondition and formula?
 		if (!solver->PostEntails(*effect->precondition, *effect->command, formula)) {
-			// std::cout << " ==> no" << std::endl;
+			// log() << " ==> no" << std::endl;
 			return false;
 		}
 	}

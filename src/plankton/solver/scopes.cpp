@@ -367,9 +367,13 @@ std::vector<Candidate> CandidateStore::MakeCandidates() {
 		}
 	}
 
-	// prune duplicates
+	// create false
 	std::vector<Candidate> result;
-	result.reserve(candidates.size());
+	result.reserve(candidates.size() + 1);
+	bool addFalse = plankton::config.add_false_candidate;
+	if (addFalse) result.emplace_back(std::make_unique<ExpressionAxiom>(std::make_unique<BooleanValue>(false)));
+
+	// prune candidates and complete false
 	auto IsContained = [&result](const Candidate& search) {
 		return std::find_if(result.cbegin(), result.cend(), [&search](const Candidate& elem) {
 			return plankton::syntactically_equal(search.GetCheck(), elem.GetCheck());
@@ -377,6 +381,7 @@ std::vector<Candidate> CandidateStore::MakeCandidates() {
 	};
 	for (auto& candidate : candidates) {
 		if (IsContained(candidate)) continue;
+		if (addFalse) result.front().repr = plankton::conjoin(std::move(result.front().repr), plankton::copy(*candidate.repr));
 		result.push_back(std::move(candidate));
 	}
 

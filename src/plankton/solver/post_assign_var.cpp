@@ -30,6 +30,10 @@ struct VarPostComputer {
 
 std::unique_ptr<Annotation> VarPostComputer::MakePost() {
 	log() << std::endl << "ΩΩΩ POST for assignment: " << AssignmentString(assignment) << std::endl;
+	if (info.solver.ImpliesFalseQuick(info.preNow)) {
+		log() << "    => pruning: premise is false" << std::endl;
+		return Annotation::make_false();
+	}
 	auto postNow = MakePostNow();
 	auto result = MakePostTime();
 	result->now = std::move(postNow);

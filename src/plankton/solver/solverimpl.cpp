@@ -2,6 +2,7 @@
 
 #include "plankton/error.hpp"
 #include "plankton/util.hpp"
+#include "plankton/logger.hpp" // TODO: remove
 
 using namespace cola;
 using namespace plankton;
@@ -73,22 +74,23 @@ std::unique_ptr<ImplicationChecker> SolverImpl::MakeImplicationChecker(const For
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline std::unique_ptr<ConjunctionFormula> ComputeImplied(const SolverImpl& solver, const std::function<bool(const SimpleFormula&)>& IsImplied) {
+inline std::unique_ptr<ConjunctionFormula> ComputeImplied(const SolverImpl& solver, const std::function<bool(const Formula&)>& IsImplied) {
 	auto result = std::make_unique<ConjunctionFormula>();
 	for (const auto& candidate : solver.GetCandidates()) {
 		if (!IsImplied(candidate.GetCheck())) continue;
+		assert(IsImplied(candidate.GetImplied())); // TODO: remove
 		result = plankton::conjoin(std::move(result), plankton::copy(candidate.GetImplied()));
 	}
 	return result;
 }
 
 std::unique_ptr<ConjunctionFormula> SolverImpl::ComputeImpliedCandidates(const ImplicationCheckerImpl& checker) const {
-	auto IsImplied = [&checker](const SimpleFormula& formula){ return checker.Implies(formula); };
+	auto IsImplied = [&checker](const Formula& formula){ return checker.Implies(formula); };
 	return ComputeImplied(*this, IsImplied);
 }
 
 std::unique_ptr<ConjunctionFormula> SolverImpl::ComputeImpliedCandidates(const std::vector<ImplicationCheckerImpl>& checkers) const {
-	auto IsImplied = [&checkers](const SimpleFormula& formula){
+	auto IsImplied = [&checkers](const Formula& formula){
 		for (const auto& checker : checkers) {
 			if (!checker.Implies(formula)) {
 				return false;

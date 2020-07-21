@@ -1,6 +1,6 @@
 #include "plankton/solver/solverimpl.hpp"
 
-#include "plankton/logger.hpp"
+#include "plankton/logger.hpp" // TODO: remove
 #include "plankton/util.hpp"
 
 using namespace cola;
@@ -18,6 +18,7 @@ struct AnnotationJoiner {
 		checkers.reserve(input.size());
 		annotations.reserve(input.size());
 		for (auto& annotation : input) {
+			if (solver.ImpliesFalseQuick(*annotation)) continue;
 			annotation = solver.AddInvariant(std::move(annotation));
 			checkers.emplace_back(encoder, *annotation);
 			annotations.push_back(std::move(annotation));
@@ -90,11 +91,12 @@ std::unique_ptr<Annotation> AnnotationJoiner::MakeJoin() {
 
 	switch (checkers.size()) {
 		case 0: return Annotation::make_false();
-		// case 1: return std::move(annotations.at(0));
+		// case 1: return std::move(annotations.at(0)); // TODO important: enable?
 	}
 
 	auto joinedNow = MakeJoinNow();
 	auto result = MakeJoinTime();
 	result->now = std::move(joinedNow);
+	// log() << " ~~> " << std::endl << *result << std::endl;
 	return result;
 }

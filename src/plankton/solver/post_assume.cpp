@@ -15,9 +15,9 @@ std::unique_ptr<Annotation> SolverImpl::Post(const Annotation& pre, const Assume
 
 	// extend result->pre and find new knowledge
 	auto newAxioms = plankton::flatten(cola::copy(*cmd.expr));
-	result->now = plankton::conjoin(std::move(result->now), std::move(newAxioms));
-	auto solver = MakeImplicationChecker(*result->now);
-	result->now = ComputeImpliedCandidates(*solver); // TODO: execute a dummy assignment x=x instead, to reuse assignment logic?
+	auto combined = plankton::conjoin(std::move(result->now), std::move(newAxioms));
+	auto checker = MakeImplicationChecker(*combined);
+	result->now = ComputeImpliedCandidates(*checker); // TODO: execute a dummy assignment x=x instead, to reuse assignment logic?
 	
 	// done
 	// log() << *pre.now << std::endl << " ~~> " << std::endl << *result->now << std::endl;

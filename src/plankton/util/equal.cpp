@@ -82,9 +82,8 @@ struct SyntacticEqualityChecker : public BaseVisitor {
 
 	void visit(const BinaryExpression& node) override {
 		return handle(node, [this](const auto& node, const auto& other){
-			if (node.op != other.op) return false;
-			if (is_equal(*node.lhs, *other.lhs) && is_equal(*node.rhs, *other.rhs)) return true;
-			if (is_equal(*node.lhs, *other.rhs) && is_equal(*node.rhs, *other.lhs)) return true;
+			if (node.op == other.op && is_equal(*node.lhs, *other.lhs) && is_equal(*node.rhs, *other.rhs)) return true;
+			if (node.op == cola::symmetricOp(other.op) && is_equal(*node.lhs, *other.rhs) && is_equal(*node.rhs, *other.lhs)) return true;
 			return false;
 		});
 	}

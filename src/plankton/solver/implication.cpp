@@ -167,6 +167,7 @@ bool ImplicationCheckerImpl::Implies(const NowFormula& implied) const {
 	}
 	// TODO: if the implication holds, one could extend 'this->premiseNow' with 'implied'
 	return Implies(encoder.MakeAnd(std::move(conjuncts)));
+
 }
 
 bool ImplicationCheckerImpl::ImpliesNegated(const NowFormula& implied) const {

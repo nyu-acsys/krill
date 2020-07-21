@@ -53,9 +53,8 @@ namespace plankton {
 
 	bool syntactically_equal(const cola::Expression& expression, const cola::Expression& other);
 	bool syntactically_equal(const Formula& formula, const Formula& other);
-	bool syntactically_contains_conjunct(const NowFormula& formula, const SimpleFormula& other);
+	bool syntactically_contains_conjunct(const Formula& formula, const SimpleFormula& other);
 	bool syntactically_contains_conjunct(const ConjunctionFormula& formula, const SimpleFormula& other);
-	bool syntactically_contains_conjunct(const AxiomConjunctionFormula& formula, const SimpleFormula& other);
 
 	template<typename T, typename U>
 	std::pair<bool, const T*> is_of_type(const U& formula) {

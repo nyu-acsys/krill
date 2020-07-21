@@ -89,6 +89,7 @@ namespace plankton {
 
 		virtual std::unique_ptr<ImplicationChecker> MakeImplicationChecker(const Formula& formula) const = 0;
 
+		virtual bool ImpliesFalseQuick(const Formula& formula) const;
 		virtual bool ImpliesFalse(const Formula& formula) const;
 		virtual bool Implies(const Formula& formula, const Formula& implied) const;
 		virtual bool Implies(const Formula& formula, const cola::Expression& implied) const;

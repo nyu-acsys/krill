@@ -201,6 +201,19 @@ namespace cola {
 		}
 	}
 
+	inline BinaryExpression::Operator symmetricOp(BinaryExpression::Operator op) {
+		switch (op) {
+			case BinaryExpression::Operator::EQ: return BinaryExpression::Operator::EQ;
+			case BinaryExpression::Operator::NEQ: return BinaryExpression::Operator::NEQ;
+			case BinaryExpression::Operator::LEQ: return BinaryExpression::Operator::GEQ;
+			case BinaryExpression::Operator::LT: return BinaryExpression::Operator::GT;
+			case BinaryExpression::Operator::GEQ: return BinaryExpression::Operator::LEQ;
+			case BinaryExpression::Operator::GT: return BinaryExpression::Operator::LT;
+			case BinaryExpression::Operator::AND: return BinaryExpression::Operator::AND;
+			case BinaryExpression::Operator::OR: return BinaryExpression::Operator::OR;
+		}
+	}
+
 	struct Dereference : public Expression {
 		std::unique_ptr<Expression> expr;
 		std::string fieldname;
