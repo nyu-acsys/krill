@@ -75,8 +75,13 @@ struct ExpressionReplacer : public BaseNonConstVisitor, public DefaultNonConstLi
 		handle_expression(formula.expr);
 	}
 
-	void enter(LogicallyContainedAxiom& formula) override {
-		handle_expression(formula.expr);
+	void enter(DataStructureLogicallyContainsAxiom& formula) override {
+		handle_expression(formula.value);
+	}
+
+	void enter(NodeLogicallyContainsAxiom& formula) override {
+		handle_expression(formula.node);
+		handle_expression(formula.value);
 	}
 
 	void enter(KeysetContainsAxiom& formula) override {

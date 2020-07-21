@@ -24,7 +24,8 @@ inline std::unique_ptr<OwnershipAxiom> MakeOwnership(const VariableDeclaration& 
 inline std::unique_ptr<NegatedAxiom> MakeNot(std::unique_ptr<Axiom> axiom) { return std::make_unique<NegatedAxiom>(std::move(axiom)); }
 inline std::unique_ptr<ObligationAxiom> MakeObligation(SpecificationAxiom::Kind kind, const VariableDeclaration& decl) { return std::make_unique<ObligationAxiom>(kind, MakeExpr(decl)); }
 inline std::unique_ptr<FulfillmentAxiom> MakeFulfillment(SpecificationAxiom::Kind kind, const VariableDeclaration& decl, bool returnValue) { return std::make_unique<FulfillmentAxiom>(kind, MakeExpr(decl), returnValue); }
-inline std::unique_ptr<LogicallyContainedAxiom> MakeLogicallyContained(std::unique_ptr<Expression> expr) { return std::make_unique<LogicallyContainedAxiom>(std::move(expr)); }
+inline std::unique_ptr<DataStructureLogicallyContainsAxiom> MakeDSContains(std::unique_ptr<Expression> value) { return std::make_unique<DataStructureLogicallyContainsAxiom>(std::move(value)); }
+inline std::unique_ptr<NodeLogicallyContainsAxiom> MakeNodeContains(std::unique_ptr<Expression> node, std::unique_ptr<Expression> value) { return std::make_unique<NodeLogicallyContainsAxiom>(std::move(node), std::move(value)); }
 inline std::unique_ptr<HasFlowAxiom> MakeHasFlow(std::unique_ptr<Expression> expr) { return std::make_unique<HasFlowAxiom>(std::move(expr)); }
 inline std::unique_ptr<KeysetContainsAxiom> MakeKeysetContains(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other) { return std::make_unique<KeysetContainsAxiom>(std::move(expr), std::move(other)); }
 inline std::unique_ptr<FlowContainsAxiom> MakeFlowContains(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other, std::unique_ptr<Expression> more) { return std::make_unique<FlowContainsAxiom>(std::move(expr), std::move(other), std::move(more)); }
@@ -140,7 +141,9 @@ class Generator {
 		void AddOwnershipAxioms(const VariableDeclaration& decl);
 		void AddSpecificationAxioms(const VariableDeclaration& decl);
 		void AddLogicallyContainsAxioms(std::unique_ptr<Expression> expr);
+		void AddDSContainsAxioms(std::unique_ptr<Expression> expr);
 		void AddHasFlowAxioms(std::unique_ptr<Expression> expr);
+		void AddNodeContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
 		void AddKeysetContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
 		void AddFlowContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
 		void AddPureLinearizabilityRules(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
@@ -209,14 +212,19 @@ void Generator::AddSpecificationAxioms(const VariableDeclaration& decl) {
 	}
 }
 
-void Generator::AddLogicallyContainsAxioms(std::unique_ptr<Expression> expr) {
+void Generator::AddDSContainsAxioms(std::unique_ptr<Expression> expr) {
 	if (expr->sort() != Sort::DATA) return;
-	PopulateAxiom(MakeLogicallyContained(std::move(expr)));
+	PopulateAxiom(MakeDSContains(std::move(expr)));
 }
 
 void Generator::AddHasFlowAxioms(std::unique_ptr<Expression> expr) {
 	if (expr->sort() != Sort::PTR) return;
 	PopulateAxiom(MakeHasFlow(std::move(expr)));
+}
+
+void Generator::AddNodeContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other) {
+	if (expr->sort() != Sort::PTR || other->sort() != Sort::DATA) return;
+	PopulateAxiom(MakeNodeContains(std::move(expr), std::move(other)));
 }
 
 void Generator::AddKeysetContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other) {
@@ -230,16 +238,13 @@ void Generator::AddFlowContainsAxioms(std::unique_ptr<Expression> expr, std::uni
 }
 
 void Generator::AddPureLinearizabilityRules(const VariableDeclaration& node, const VariableDeclaration& key) {
-	// TODO: Predicates müssen Axiome sein, damit man sie negieren kann?? --> dann muss man an allen stellen ggf. flatten machen
-	//       ==> alternative: Axiom einführen, welches logicallycontains per node codiert
-	auto MakeNodeContains = [](const VariableDeclaration& decl, const VariableDeclaration& other) -> std::unique_ptr<Axiom> {
-		throw std::logic_error("not yet implemented: Generator::AddPureLinearizabilityRules");
-	};
 	auto AddRule = [&,this](SpecificationAxiom::Kind kind, bool contained, bool result){
+		std::unique_ptr<Axiom> nodeContains = MakeNodeContains(MakeExpr(node), MakeExpr(key));
+		if (!contained) nodeContains = MakeNot(std::move(nodeContains));
 		PopulateRule(MakeImplication(
 			MakeObligation(kind, key),
 			MakeKeysetContains(MakeExpr(node), MakeExpr(key)),
-			contained ? MakeNodeContains(node, key) : MakeNot(MakeNodeContains(node, key))
+			std::move(nodeContains)
 		).Conclusion(
 			MakeFulfillment(kind, key, result)
 		).Get());
@@ -270,7 +275,7 @@ void Generator::AddCompoundSingles() {
 	for (auto var : variables) {
 		auto expressions = MakeAllExpressions(*var);
 		for (auto& expr : expressions) {
-			AddLogicallyContainsAxioms(cola::copy(*expr));
+			AddDSContainsAxioms(cola::copy(*expr));
 			AddHasFlowAxioms(std::move(expr));
 		}
 	}
@@ -280,6 +285,8 @@ void Generator::AddCompoundPairs() {
 	ExpressionStore store(variables, CombinationKind::PAIR, true);
 	for (auto& [expr, other] : store.expressions) {
 		// TODO: pass references and copy on demand
+		AddNodeContainsAxioms(cola::copy(*expr), cola::copy(*other));
+		AddNodeContainsAxioms(cola::copy(*other), cola::copy(*expr));
 		AddKeysetContainsAxioms(cola::copy(*expr), cola::copy(*other));
 		AddKeysetContainsAxioms(cola::copy(*other), cola::copy(*expr));
 		AddFlowContainsAxioms(cola::copy(*expr), cola::copy(*other));

@@ -50,7 +50,8 @@ struct Extractor : public LogicVisitor {
 	void visit(const NegatedAxiom& formula) override { nowFormula = &formula; }
 	void visit(const ExpressionAxiom& formula) override { nowFormula = &formula; }
 	void visit(const OwnershipAxiom& formula) override { nowFormula = &formula; }
-	void visit(const LogicallyContainedAxiom& formula) override { nowFormula = &formula; }
+	void visit(const DataStructureLogicallyContainsAxiom& formula) override { nowFormula = &formula; }
+	void visit(const NodeLogicallyContainsAxiom& formula) override { nowFormula = &formula; }
 	void visit(const KeysetContainsAxiom& formula) override { nowFormula = &formula; }
 	void visit(const HasFlowAxiom& formula) override { nowFormula = &formula; }
 	void visit(const FlowContainsAxiom& formula) override { nowFormula = &formula; }

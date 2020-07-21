@@ -45,7 +45,8 @@ struct LogicEffectSearcher : public DefaultListener {
 	bool result = false;
 
 	void enter(const ExpressionAxiom& formula) override { result |= EffectSearcher::has_effect(*formula.expr); }
-	void enter(const LogicallyContainedAxiom& /*formula*/) override { result = true; }
+	void enter(const DataStructureLogicallyContainsAxiom& /*formula*/) override { result = true; }
+	void enter(const NodeLogicallyContainsAxiom& /*formula*/) override { result = true; }
 	void enter(const KeysetContainsAxiom& /*formula*/) override { result = true; }
 	void enter(const HasFlowAxiom& /*formula*/) override { result = true; }
 	void enter(const FlowContainsAxiom& /*formula*/) override { result = true; }

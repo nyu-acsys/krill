@@ -58,7 +58,8 @@ struct PropertyChecker : public BaseVisitor, public DefaultListener {
 	void visit(const BinaryExpression& node) override { node.lhs->accept(*this); node.rhs->accept(*this); }
 	void enter(const ExpressionAxiom& formula) override { formula.expr->accept(*this); }
 	void enter(const OwnershipAxiom& formula) override { formula.expr->accept(*this); }
-	void enter(const LogicallyContainedAxiom& formula) override { formula.expr->accept(*this); }
+	void enter(const DataStructureLogicallyContainsAxiom& formula) override { formula.value->accept(*this); }
+	void enter(const NodeLogicallyContainsAxiom& formula) override { formula.node->accept(*this); formula.value->accept(*this); }
 	void enter(const KeysetContainsAxiom& formula) override { formula.node->accept(*this); formula.value->accept(*this); }
 	void enter(const HasFlowAxiom& formula) override { formula.expr->accept(*this); }
 	void enter(const FlowContainsAxiom& formula) override { formula.expr->accept(*this); formula.low_value->accept(*this); formula.high_value->accept(*this); }

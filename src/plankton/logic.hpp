@@ -22,7 +22,8 @@ namespace plankton {
 	struct NegatedAxiom;
 	struct ExpressionAxiom;
 	struct OwnershipAxiom;
-	struct LogicallyContainedAxiom;
+	struct DataStructureLogicallyContainsAxiom;
+	struct NodeLogicallyContainsAxiom;
 	struct KeysetContainsAxiom;
 	struct HasFlowAxiom;
 	struct FlowContainsAxiom;
@@ -39,7 +40,8 @@ namespace plankton {
 		virtual void visit(const NegatedAxiom& formula) = 0;
 		virtual void visit(const ExpressionAxiom& formula) = 0;
 		virtual void visit(const OwnershipAxiom& formula) = 0;
-		virtual void visit(const LogicallyContainedAxiom& formula) = 0;
+		virtual void visit(const DataStructureLogicallyContainsAxiom& formula) = 0;
+		virtual void visit(const NodeLogicallyContainsAxiom& formula) = 0;
 		virtual void visit(const KeysetContainsAxiom& formula) = 0;
 		virtual void visit(const HasFlowAxiom& formula) = 0;
 		virtual void visit(const FlowContainsAxiom& formula) = 0;
@@ -57,7 +59,8 @@ namespace plankton {
 		virtual void visit(NegatedAxiom& formula) = 0;
 		virtual void visit(ExpressionAxiom& formula) = 0;
 		virtual void visit(OwnershipAxiom& formula) = 0;
-		virtual void visit(LogicallyContainedAxiom& formula) = 0;
+		virtual void visit(DataStructureLogicallyContainsAxiom& formula) = 0;
+		virtual void visit(NodeLogicallyContainsAxiom& formula) = 0;
 		virtual void visit(KeysetContainsAxiom& formula) = 0;
 		virtual void visit(HasFlowAxiom& formula) = 0;
 		virtual void visit(FlowContainsAxiom& formula) = 0;
@@ -144,10 +147,18 @@ namespace plankton {
 		ACCEPT_FORMULA_VISITOR
 	};
 
-	struct LogicallyContainedAxiom : public Axiom {
-		std::unique_ptr<cola::Expression> expr;
+	struct DataStructureLogicallyContainsAxiom : public Axiom {
+		std::unique_ptr<cola::Expression> value;
 
-		LogicallyContainedAxiom(std::unique_ptr<cola::Expression> expr);
+		DataStructureLogicallyContainsAxiom(std::unique_ptr<cola::Expression> value);
+		ACCEPT_FORMULA_VISITOR
+	};
+
+	struct NodeLogicallyContainsAxiom : public Axiom {
+		std::unique_ptr<cola::Expression> node;
+		std::unique_ptr<cola::Expression> value;
+
+		NodeLogicallyContainsAxiom(std::unique_ptr<cola::Expression> node, std::unique_ptr<cola::Expression> value);
 		ACCEPT_FORMULA_VISITOR
 	};
 
@@ -255,7 +266,8 @@ namespace plankton {
 		virtual void visit(const NegatedAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const NegatedAxiom&"); }
 		virtual void visit(const ExpressionAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const ExpressionAxiom&"); }
 		virtual void visit(const OwnershipAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const OwnershipAxiom&"); }
-		virtual void visit(const LogicallyContainedAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const LogicallyContainedAxiom&"); }
+		virtual void visit(const DataStructureLogicallyContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const DataStructureLogicallyContainsAxiom&"); }
+		virtual void visit(const NodeLogicallyContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const NodeLogicallyContainsAxiom&"); }
 		virtual void visit(const KeysetContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const KeysetContainsAxiom&"); }
 		virtual void visit(const HasFlowAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const HasFlowAxiom&"); }
 		virtual void visit(const FlowContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const FlowContainsAxiom&"); }
@@ -273,7 +285,8 @@ namespace plankton {
 		virtual void visit(NegatedAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(NegatedAxiom&"); }
 		virtual void visit(ExpressionAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(ExpressionAxiom&"); }
 		virtual void visit(OwnershipAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(OwnershipAxiom&"); }
-		virtual void visit(LogicallyContainedAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(LogicallyContainedAxiom&"); }
+		virtual void visit(DataStructureLogicallyContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(DataStructureLogicallyContainsAxiom&"); }
+		virtual void visit(NodeLogicallyContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(NodeLogicallyContainsAxiom&"); }
 		virtual void visit(KeysetContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(KeysetContainsAxiom&"); }
 		virtual void visit(HasFlowAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(HasFlowAxiom&"); }
 		virtual void visit(FlowContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(FlowContainsAxiom&"); }
@@ -338,7 +351,8 @@ namespace plankton {
 		// non-decomposable axioms
 		void visit(const ExpressionAxiom& formula) override { enter(formula); exit(formula); }
 		void visit(const OwnershipAxiom& formula) override { enter(formula); exit(formula); }
-		void visit(const LogicallyContainedAxiom& formula) override { enter(formula); exit(formula); }
+		void visit(const DataStructureLogicallyContainsAxiom& formula) override { enter(formula); exit(formula); }
+		void visit(const NodeLogicallyContainsAxiom& formula) override { enter(formula); exit(formula); }
 		void visit(const KeysetContainsAxiom& formula) override { enter(formula); exit(formula); }
 		void visit(const HasFlowAxiom& formula) override { enter(formula); exit(formula); }
 		void visit(const FlowContainsAxiom& formula) override { enter(formula); exit(formula); }
@@ -352,7 +366,8 @@ namespace plankton {
 		virtual void enter(const NegatedAxiom& formula) = 0;
 		virtual void enter(const ExpressionAxiom& formula) = 0;
 		virtual void enter(const OwnershipAxiom& formula) = 0;
-		virtual void enter(const LogicallyContainedAxiom& formula) = 0;
+		virtual void enter(const DataStructureLogicallyContainsAxiom& formula) = 0;
+		virtual void enter(const NodeLogicallyContainsAxiom& formula) = 0;
 		virtual void enter(const KeysetContainsAxiom& formula) = 0;
 		virtual void enter(const HasFlowAxiom& formula) = 0;
 		virtual void enter(const FlowContainsAxiom& formula) = 0;
@@ -368,7 +383,8 @@ namespace plankton {
 		virtual void exit(const NegatedAxiom& formula) = 0;
 		virtual void exit(const ExpressionAxiom& formula) = 0;
 		virtual void exit(const OwnershipAxiom& formula) = 0;
-		virtual void exit(const LogicallyContainedAxiom& formula) = 0;
+		virtual void exit(const DataStructureLogicallyContainsAxiom& formula) = 0;
+		virtual void exit(const NodeLogicallyContainsAxiom& formula) = 0;
 		virtual void exit(const KeysetContainsAxiom& formula) = 0;
 		virtual void exit(const HasFlowAxiom& formula) = 0;
 		virtual void exit(const FlowContainsAxiom& formula) = 0;
@@ -386,7 +402,8 @@ namespace plankton {
 		virtual void enter(const NegatedAxiom& /*formula*/) override {}
 		virtual void enter(const ExpressionAxiom& /*formula*/) override {}
 		virtual void enter(const OwnershipAxiom& /*formula*/) override {}
-		virtual void enter(const LogicallyContainedAxiom& /*formula*/) override {}
+		virtual void enter(const DataStructureLogicallyContainsAxiom& /*formula*/) override {}
+		virtual void enter(const NodeLogicallyContainsAxiom& /*formula*/) override {}
 		virtual void enter(const KeysetContainsAxiom& /*formula*/) override {}
 		virtual void enter(const HasFlowAxiom& /*formula*/) override {}
 		virtual void enter(const FlowContainsAxiom& /*formula*/) override {}
@@ -402,7 +419,8 @@ namespace plankton {
 		virtual void exit(const NegatedAxiom& /*formula*/) override {}
 		virtual void exit(const ExpressionAxiom& /*formula*/) override {}
 		virtual void exit(const OwnershipAxiom& /*formula*/) override {}
-		virtual void exit(const LogicallyContainedAxiom& /*formula*/) override {}
+		virtual void exit(const DataStructureLogicallyContainsAxiom& /*formula*/) override {}
+		virtual void exit(const NodeLogicallyContainsAxiom& /*formula*/) override {}
 		virtual void exit(const KeysetContainsAxiom& /*formula*/) override {}
 		virtual void exit(const HasFlowAxiom& /*formula*/) override {}
 		virtual void exit(const FlowContainsAxiom& /*formula*/) override {}
@@ -463,7 +481,8 @@ namespace plankton {
 		// non-decomposable axioms
 		void visit(ExpressionAxiom& formula) override { enter(formula); exit(formula); }
 		void visit(OwnershipAxiom& formula) override { enter(formula); exit(formula); }
-		void visit(LogicallyContainedAxiom& formula) override { enter(formula); exit(formula); }
+		void visit(DataStructureLogicallyContainsAxiom& formula) override { enter(formula); exit(formula); }
+		void visit(NodeLogicallyContainsAxiom& formula) override { enter(formula); exit(formula); }
 		void visit(KeysetContainsAxiom& formula) override { enter(formula); exit(formula); }
 		void visit(HasFlowAxiom& formula) override { enter(formula); exit(formula); }
 		void visit(FlowContainsAxiom& formula) override { enter(formula); exit(formula); }
@@ -477,7 +496,8 @@ namespace plankton {
 		virtual void enter(NegatedAxiom& formula) = 0;
 		virtual void enter(ExpressionAxiom& formula) = 0;
 		virtual void enter(OwnershipAxiom& formula) = 0;
-		virtual void enter(LogicallyContainedAxiom& formula) = 0;
+		virtual void enter(DataStructureLogicallyContainsAxiom& formula) = 0;
+		virtual void enter(NodeLogicallyContainsAxiom& formula) = 0;
 		virtual void enter(KeysetContainsAxiom& formula) = 0;
 		virtual void enter(HasFlowAxiom& formula) = 0;
 		virtual void enter(FlowContainsAxiom& formula) = 0;
@@ -493,7 +513,8 @@ namespace plankton {
 		virtual void exit(NegatedAxiom& formula) = 0;
 		virtual void exit(ExpressionAxiom& formula) = 0;
 		virtual void exit(OwnershipAxiom& formula) = 0;
-		virtual void exit(LogicallyContainedAxiom& formula) = 0;
+		virtual void exit(DataStructureLogicallyContainsAxiom& formula) = 0;
+		virtual void exit(NodeLogicallyContainsAxiom& formula) = 0;
 		virtual void exit(KeysetContainsAxiom& formula) = 0;
 		virtual void exit(HasFlowAxiom& formula) = 0;
 		virtual void exit(FlowContainsAxiom& formula) = 0;
@@ -511,7 +532,8 @@ namespace plankton {
 		virtual void enter(NegatedAxiom& /*formula*/) override {}
 		virtual void enter(ExpressionAxiom& /*formula*/) override {}
 		virtual void enter(OwnershipAxiom& /*formula*/) override {}
-		virtual void enter(LogicallyContainedAxiom& /*formula*/) override {}
+		virtual void enter(DataStructureLogicallyContainsAxiom& /*formula*/) override {}
+		virtual void enter(NodeLogicallyContainsAxiom& /*formula*/) override {}
 		virtual void enter(KeysetContainsAxiom& /*formula*/) override {}
 		virtual void enter(HasFlowAxiom& /*formula*/) override {}
 		virtual void enter(FlowContainsAxiom& /*formula*/) override {}
@@ -527,7 +549,8 @@ namespace plankton {
 		virtual void exit(NegatedAxiom& /*formula*/) override {}
 		virtual void exit(ExpressionAxiom& /*formula*/) override {}
 		virtual void exit(OwnershipAxiom& /*formula*/) override {}
-		virtual void exit(LogicallyContainedAxiom& /*formula*/) override {}
+		virtual void exit(DataStructureLogicallyContainsAxiom& /*formula*/) override {}
+		virtual void exit(NodeLogicallyContainsAxiom& /*formula*/) override {}
 		virtual void exit(KeysetContainsAxiom& /*formula*/) override {}
 		virtual void exit(HasFlowAxiom& /*formula*/) override {}
 		virtual void exit(FlowContainsAxiom& /*formula*/) override {}

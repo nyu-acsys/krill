@@ -118,7 +118,8 @@ namespace plankton {
 			z3::expr Encode(StepTag tag, const ExpressionAxiom& formula);
 			z3::expr Encode(StepTag tag, const ImplicationFormula& formula);
 			z3::expr Encode(StepTag tag, const OwnershipAxiom& formula);
-			z3::expr Encode(StepTag tag, const LogicallyContainedAxiom& formula);
+			z3::expr Encode(StepTag tag, const DataStructureLogicallyContainsAxiom& formula);
+			z3::expr Encode(StepTag tag, const NodeLogicallyContainsAxiom& formula);
 			z3::expr Encode(StepTag tag, const KeysetContainsAxiom& formula);
 			z3::expr Encode(StepTag tag, const HasFlowAxiom& formula);
 			z3::expr Encode(StepTag tag, const FlowContainsAxiom& formula);
@@ -162,7 +163,8 @@ namespace plankton {
 		void visit(const ExpressionAxiom& formula) override { result = encoder.Encode(tag, formula); }
 		void visit(const ImplicationFormula& formula) override { result = encoder.Encode(tag, formula); }
 		void visit(const OwnershipAxiom& formula) override { result = encoder.Encode(tag, formula); }
-		void visit(const LogicallyContainedAxiom& formula) override { result = encoder.Encode(tag, formula); }
+		void visit(const DataStructureLogicallyContainsAxiom& formula) override { result = encoder.Encode(tag, formula); }
+		void visit(const NodeLogicallyContainsAxiom& formula) override { result = encoder.Encode(tag, formula); }
 		void visit(const KeysetContainsAxiom& formula) override { result = encoder.Encode(tag, formula); }
 		void visit(const HasFlowAxiom& formula) override { result = encoder.Encode(tag, formula); }
 		void visit(const FlowContainsAxiom& formula) override { result = encoder.Encode(tag, formula); }

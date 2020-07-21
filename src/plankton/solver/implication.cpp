@@ -87,7 +87,8 @@ struct Dispatcher : public LogicVisitor {
 	void visit(const NegatedAxiom& formula) override { result = checker.Implies(formula); }
 	void visit(const ExpressionAxiom& formula) override { result = checker.Implies(formula); }
 	void visit(const OwnershipAxiom& formula) override { result = checker.Implies(formula); }
-	void visit(const LogicallyContainedAxiom& formula) override { result = checker.Implies(formula); }
+	void visit(const DataStructureLogicallyContainsAxiom& formula) override { result = checker.Implies(formula); }
+	void visit(const NodeLogicallyContainsAxiom& formula) override { result = checker.Implies(formula); }
 	void visit(const KeysetContainsAxiom& formula) override { result = checker.Implies(formula); }
 	void visit(const HasFlowAxiom& formula) override { result = checker.Implies(formula); }
 	void visit(const FlowContainsAxiom& formula) override { result = checker.Implies(formula); }
@@ -143,7 +144,8 @@ struct QuickChecker : public BaseLogicVisitor {
 	void visit(const NegatedAxiom& formula) override { handle(formula); }
 	void visit(const ExpressionAxiom& formula) override { handle(formula); }
 	void visit(const OwnershipAxiom& formula) override { handle(formula); }
-	void visit(const LogicallyContainedAxiom& formula) override { handle(formula); }
+	void visit(const DataStructureLogicallyContainsAxiom& formula) override { handle(formula); }
+	void visit(const NodeLogicallyContainsAxiom& formula) override { handle(formula); }
 	void visit(const KeysetContainsAxiom& formula) override { handle(formula); }
 	void visit(const HasFlowAxiom& formula) override { handle(formula); }
 	void visit(const FlowContainsAxiom& formula) override { handle(formula); }

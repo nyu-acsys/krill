@@ -33,7 +33,8 @@ namespace plankton {
 	std::unique_ptr<NegatedAxiom> copy(const NegatedAxiom& formula);
 	std::unique_ptr<ExpressionAxiom> copy(const ExpressionAxiom& formula);
 	std::unique_ptr<OwnershipAxiom> copy(const OwnershipAxiom& formula);
-	std::unique_ptr<LogicallyContainedAxiom> copy(const LogicallyContainedAxiom& formula);
+	std::unique_ptr<DataStructureLogicallyContainsAxiom> copy(const DataStructureLogicallyContainsAxiom& formula);
+	std::unique_ptr<NodeLogicallyContainsAxiom> copy(const NodeLogicallyContainsAxiom& formula);
 	std::unique_ptr<KeysetContainsAxiom> copy(const KeysetContainsAxiom& formula);
 	std::unique_ptr<HasFlowAxiom> copy(const HasFlowAxiom& formula);
 	std::unique_ptr<FlowContainsAxiom> copy(const FlowContainsAxiom& formula);

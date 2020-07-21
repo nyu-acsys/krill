@@ -38,9 +38,17 @@ OwnershipAxiom::OwnershipAxiom(std::unique_ptr<VariableExpression> expr_) : expr
 	assert(expr->decl.type.sort == Sort::PTR);
 }
 
-LogicallyContainedAxiom::LogicallyContainedAxiom(std::unique_ptr<Expression> expr_) : expr(std::move(expr_)) {
-	assert(expr);
-	assert(expr->sort() == Sort::DATA);
+DataStructureLogicallyContainsAxiom::DataStructureLogicallyContainsAxiom(std::unique_ptr<cola::Expression> value_) : value(std::move(value_)) {
+	assert(value);
+	assert(value->sort() == Sort::DATA);	
+}
+
+NodeLogicallyContainsAxiom::NodeLogicallyContainsAxiom(std::unique_ptr<cola::Expression> node_, std::unique_ptr<cola::Expression> value_)
+ : node(std::move(node_)), value(std::move(value_)) {
+	assert(node);
+	assert(node->sort() == Sort::PTR);
+	assert(value);
+	assert(value->sort() == Sort::DATA);
 }
 
 KeysetContainsAxiom::KeysetContainsAxiom(std::unique_ptr<Expression> node_, std::unique_ptr<Expression> value_)

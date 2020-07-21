@@ -74,8 +74,13 @@ struct ContainsChecker : public DefaultListener {
 		handle_expression(formula.expr);
 	}
 
-	void enter(const LogicallyContainedAxiom& formula) override {
-		handle_expression(formula.expr);
+	void enter(const DataStructureLogicallyContainsAxiom& formula) override {
+		handle_expression(formula.value);
+	}
+
+	void enter(const NodeLogicallyContainsAxiom& formula) override {
+		handle_expression(formula.node);
+		handle_expression(formula.value);
 	}
 
 	void enter(const KeysetContainsAxiom& formula) override {
@@ -163,7 +168,8 @@ struct ContainsConjunctChecker : public BaseLogicVisitor {
 	void visit(const NegatedAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
 	void visit(const ExpressionAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
 	void visit(const OwnershipAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
-	void visit(const LogicallyContainedAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
+	void visit(const DataStructureLogicallyContainsAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
+	void visit(const NodeLogicallyContainsAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
 	void visit(const KeysetContainsAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
 	void visit(const HasFlowAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }
 	void visit(const FlowContainsAxiom& formula) override { result = plankton::syntactically_equal(formula, search); }

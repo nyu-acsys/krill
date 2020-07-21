@@ -386,12 +386,18 @@ z3::expr Encoder::Encode(StepTag tag, const KeysetContainsAxiom& formula) {
 	return EncodeKeysetContains(node, value, tag);
 }
 
-z3::expr Encoder::Encode(StepTag tag, const LogicallyContainedAxiom& formula) {
+z3::expr Encoder::Encode(StepTag tag, const DataStructureLogicallyContainsAxiom& formula) {
 	auto node = EncodeVariable(Sort::PTR, "qv-ptr", tag); // TODO: does this avoid name clashes?
-	auto key = Encode(*formula.expr, tag);
+	auto key = Encode(*formula.value, tag);
 	auto logicallyContains = EncodePredicate(*postConfig.logicallyContainsKey, node, key, tag);
 	auto keysetContains = EncodeKeysetContains(node, key, tag);
 	return z3::exists(node, keysetContains && logicallyContains);
+}
+
+z3::expr Encoder::Encode(StepTag tag, const NodeLogicallyContainsAxiom& formula) {
+	auto node = Encode(*formula.node, tag);
+	auto key = Encode(*formula.value, tag);
+	return EncodePredicate(*postConfig.logicallyContainsKey, node, key, tag);
 }
 
 z3::expr Encoder::Encode(StepTag /*tag*/, const PastPredicate& /*formula*/) {

@@ -81,9 +81,17 @@ struct FormulaPrinter : public LogicVisitor {
 		stream << ")";
 	}
 
-	void visit(const LogicallyContainedAxiom& formula) override {
+	void visit(const DataStructureLogicallyContainsAxiom& formula) override {
 		stream << "@DScontains(";
-		cola::print(*formula.expr, stream);
+		cola::print(*formula.value, stream);
+		stream << ")";
+	}
+
+	void visit(const NodeLogicallyContainsAxiom& formula) override {
+		stream << "@lcontains(";
+		cola::print(*formula.node, stream);
+		stream << ", ";
+		cola::print(*formula.value, stream);
 		stream << ")";
 	}
 

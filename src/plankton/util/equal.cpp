@@ -183,9 +183,15 @@ struct LogicSyntacticEqualityChecker : public LogicVisitor {
 		});
 	}
 
-	void visit(const LogicallyContainedAxiom& formula) override {
+	void visit(const DataStructureLogicallyContainsAxiom& formula) override {
 		handle(formula, [](const auto& formula, const auto& other){
-			return plankton::syntactically_equal(*formula.expr, *other.expr);
+			return plankton::syntactically_equal(*formula.value, *other.value);
+		});
+	}
+
+	void visit(const NodeLogicallyContainsAxiom& formula) override {
+		handle(formula, [](const auto& formula, const auto& other){
+			return plankton::syntactically_equal(*formula.node, *other.node) && plankton::syntactically_equal(*formula.value, *other.value);
 		});
 	}
 
