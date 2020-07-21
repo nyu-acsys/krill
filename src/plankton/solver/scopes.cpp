@@ -29,6 +29,27 @@ inline std::unique_ptr<HasFlowAxiom> MakeHasFlow(std::unique_ptr<Expression> exp
 inline std::unique_ptr<KeysetContainsAxiom> MakeKeysetContains(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other) { return std::make_unique<KeysetContainsAxiom>(std::move(expr), std::move(other)); }
 inline std::unique_ptr<FlowContainsAxiom> MakeFlowContains(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other, std::unique_ptr<Expression> more) { return std::make_unique<FlowContainsAxiom>(std::move(expr), std::move(other), std::move(more)); }
 
+struct MakeImplication {
+	std::unique_ptr<ImplicationFormula> result;
+	MakeImplication() : result(std::make_unique<ImplicationFormula>()) {}
+	MakeImplication& Premise() { return *this; }
+	MakeImplication& Conclusion() { return *this; }
+	template<typename... T>
+	MakeImplication& Premise(std::unique_ptr<Axiom> axiom, T... rest) {
+		result->premise->conjuncts.push_back(std::move(axiom));
+		Premise(std::forward<T>(rest)...);
+		return *this;
+	}
+	template<typename... T>
+	MakeImplication& Conclusion(std::unique_ptr<Axiom> axiom, T... rest) {
+		result->conclusion->conjuncts.push_back(std::move(axiom));
+		Conclusion(std::forward<T>(rest)...);
+		return *this;
+	}
+	template<typename... T>
+	MakeImplication(std::unique_ptr<Axiom> axiom, T... rest) : MakeImplication() { Premise(std::move(axiom), std::forward<T>(rest)...); }
+	std::unique_ptr<ImplicationFormula> Get() { return std::move(result); }
+};
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -106,27 +127,39 @@ void ExpressionStore::AddCombination(const VariableDeclaration& decl, const Vari
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct CandidateGenerator {
-	Encoder& encoder;
-	var_list_t variables;
-	CombinationKind kind;
-	std::deque<std::unique_ptr<Axiom>> candidateAxioms;
+class Generator {
+	private:
+		Encoder& encoder;
+		var_list_t variables;
+		CombinationKind kind;
+		std::deque<std::unique_ptr<Axiom>> candidateAxioms;
+		std::unique_ptr<ConjunctionFormula> rules;
 
-	CandidateGenerator(Encoder& encoder, var_list_t variables, CombinationKind kind) : encoder(encoder), variables(variables), kind(kind) {}
+		void PopulateAxiom(std::unique_ptr<Axiom> axiom, bool addNegated=true);
+		void PopulateRule(std::unique_ptr<ImplicationFormula> rule);
+		void AddOwnershipAxioms(const VariableDeclaration& decl);
+		void AddSpecificationAxioms(const VariableDeclaration& decl);
+		void AddLogicallyContainsAxioms(std::unique_ptr<Expression> expr);
+		void AddHasFlowAxioms(std::unique_ptr<Expression> expr);
+		void AddKeysetContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
+		void AddFlowContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
+		void AddPureLinearizabilityRules(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
+		void AddPureLinearizabilityRules(const VariableDeclaration& node, const VariableDeclaration& key);
+		
+		void AddExpressions();
+		void AddCompoundSingles();
+		void AddCompoundPairs();
+		void AddCompound();
 
-	void AddExpressions();
-	void PopulateAxiom(std::unique_ptr<Axiom> axiom, bool addNegated=true);
-	void AddOwnershipAxioms(const VariableDeclaration& decl);
-	void AddSpecificationAxioms(const VariableDeclaration& decl);
-	void AddLogicallyContainsAxioms(std::unique_ptr<Expression> expr);
-	void AddHasFlowAxioms(std::unique_ptr<Expression> expr);
-	void AddKeysetContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
-	void AddFlowContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
-	void AddSingleAxioms();
-	void AddPairAxioms();
-	void AddAxioms();
-
-	std::vector<Candidate> MakeCandidates();
+	public:
+		Generator(Encoder& encoder, var_list_t variables, CombinationKind kind)
+			: encoder(encoder), variables(variables), kind(kind), rules(std::make_unique<ConjunctionFormula>())
+		{
+			AddExpressions();
+			AddCompound();
+		}
+		std::vector<Candidate> MakeCandidates();
+		std::unique_ptr<ConjunctionFormula> MakeRules();
 };
 
 inline std::vector<BinaryExpression::Operator> MakeOperators(const Expression& expr, const Expression& other) {
@@ -136,7 +169,7 @@ inline std::vector<BinaryExpression::Operator> MakeOperators(const Expression& e
 	return { OP::EQ, OP::NEQ };
 }
 
-void CandidateGenerator::AddExpressions() {
+void Generator::AddExpressions() {
 	ExpressionStore store(variables, kind);
 	for (const auto& [lhs, rhs] : store.expressions) {
 		assert(lhs);
@@ -149,7 +182,7 @@ void CandidateGenerator::AddExpressions() {
 	}
 }
 
-void CandidateGenerator::PopulateAxiom(std::unique_ptr<Axiom> axiom, bool addNegated) {
+void Generator::PopulateAxiom(std::unique_ptr<Axiom> axiom, bool addNegated) {
 	if (addNegated) {
 		candidateAxioms.push_back(plankton::copy(*axiom));
 		axiom = MakeNot(std::move(axiom));
@@ -158,12 +191,16 @@ void CandidateGenerator::PopulateAxiom(std::unique_ptr<Axiom> axiom, bool addNeg
 	candidateAxioms.push_back(std::move(axiom));
 }
 
-void CandidateGenerator::AddOwnershipAxioms(const VariableDeclaration& decl) {
+void Generator::PopulateRule(std::unique_ptr<ImplicationFormula> rule) {
+	rules->conjuncts.push_back(std::move(rule));
+}
+
+void Generator::AddOwnershipAxioms(const VariableDeclaration& decl) {
 	if (decl.type.sort != Sort::PTR) return;
 	PopulateAxiom(MakeOwnership(decl));
 }
 
-void CandidateGenerator::AddSpecificationAxioms(const VariableDeclaration& decl) {
+void Generator::AddSpecificationAxioms(const VariableDeclaration& decl) {
 	if (decl.type.sort != Sort::DATA) return;
 	for (auto kind : SpecificationAxiom::KindIteratable) {
 		PopulateAxiom(MakeObligation(kind, decl), false);
@@ -172,27 +209,59 @@ void CandidateGenerator::AddSpecificationAxioms(const VariableDeclaration& decl)
 	}
 }
 
-void CandidateGenerator::AddLogicallyContainsAxioms(std::unique_ptr<Expression> expr) {
+void Generator::AddLogicallyContainsAxioms(std::unique_ptr<Expression> expr) {
 	if (expr->sort() != Sort::DATA) return;
 	PopulateAxiom(MakeLogicallyContained(std::move(expr)));
 }
 
-void CandidateGenerator::AddHasFlowAxioms(std::unique_ptr<Expression> expr) {
+void Generator::AddHasFlowAxioms(std::unique_ptr<Expression> expr) {
 	if (expr->sort() != Sort::PTR) return;
 	PopulateAxiom(MakeHasFlow(std::move(expr)));
 }
 
-void CandidateGenerator::AddKeysetContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other) {
+void Generator::AddKeysetContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other) {
 	if (expr->sort() != Sort::PTR || other->sort() != Sort::DATA) return;
 	PopulateAxiom(MakeKeysetContains(std::move(expr), std::move(other)));
 }
 
-void CandidateGenerator::AddFlowContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other) {
+void Generator::AddFlowContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other) {
 	if (expr->sort() != Sort::PTR || other->sort() != Sort::DATA) return;
 	PopulateAxiom(MakeFlowContains(std::move(expr), cola::copy(*other), std::move(other)));
 }
 
-void CandidateGenerator::AddSingleAxioms() {
+void Generator::AddPureLinearizabilityRules(const VariableDeclaration& node, const VariableDeclaration& key) {
+	// TODO: Predicates müssen Axiome sein, damit man sie negieren kann?? --> dann muss man an allen stellen ggf. flatten machen
+	//       ==> alternative: Axiom einführen, welches logicallycontains per node codiert
+	auto MakeNodeContains = [](const VariableDeclaration& decl, const VariableDeclaration& other) -> std::unique_ptr<Axiom> {
+		throw std::logic_error("not yet implemented: Generator::AddPureLinearizabilityRules");
+	};
+	auto AddRule = [&,this](SpecificationAxiom::Kind kind, bool contained, bool result){
+		PopulateRule(MakeImplication(
+			MakeObligation(kind, key),
+			MakeKeysetContains(MakeExpr(node), MakeExpr(key)),
+			contained ? MakeNodeContains(node, key) : MakeNot(MakeNodeContains(node, key))
+		).Conclusion(
+			MakeFulfillment(kind, key, result)
+		).Get());
+	};
+
+	AddRule(SpecificationAxiom::Kind::CONTAINS, true, true);
+	AddRule(SpecificationAxiom::Kind::CONTAINS, false, false);
+	AddRule(SpecificationAxiom::Kind::INSERT, true, false);
+	AddRule(SpecificationAxiom::Kind::DELETE, false, false);
+}
+
+void Generator::AddPureLinearizabilityRules(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other) {
+	if (expr->sort() != Sort::PTR || other->sort() != Sort::DATA) return;
+	auto [exprIsVar, exprVar] = plankton::is_of_type<VariableExpression>(*expr);
+	if (!exprIsVar) return;
+	auto [otherIsVar, otherVar] = plankton::is_of_type<VariableExpression>(*other);
+	if (!otherIsVar) return;
+	AddPureLinearizabilityRules(exprVar->decl, otherVar->decl);
+}
+
+void Generator::AddCompoundSingles() {
+	// TODO: pass references and copy on demand
 	for (auto var : variables) {
 		AddOwnershipAxioms(*var);
 		AddSpecificationAxioms(*var);
@@ -207,29 +276,29 @@ void CandidateGenerator::AddSingleAxioms() {
 	}
 }
 
-void CandidateGenerator::AddPairAxioms() {
+void Generator::AddCompoundPairs() {
 	ExpressionStore store(variables, CombinationKind::PAIR, true);
 	for (auto& [expr, other] : store.expressions) {
+		// TODO: pass references and copy on demand
 		AddKeysetContainsAxioms(cola::copy(*expr), cola::copy(*other));
 		AddKeysetContainsAxioms(cola::copy(*other), cola::copy(*expr));
 		AddFlowContainsAxioms(cola::copy(*expr), cola::copy(*other));
-		AddFlowContainsAxioms(std::move(other), std::move(expr));
+		AddFlowContainsAxioms(cola::copy(*other), cola::copy(*expr));
+
+		AddPureLinearizabilityRules(cola::copy(*expr), cola::copy(*other));
+		AddPureLinearizabilityRules(std::move(other), std::move(expr));
 	}
 }
 
-void CandidateGenerator::AddAxioms() {
+void Generator::AddCompound() {
 	switch (kind) {
-		case CombinationKind::SINGLE: AddSingleAxioms(); break;
-		case CombinationKind::PAIR: AddPairAxioms(); break;
+		case CombinationKind::SINGLE: AddCompoundSingles(); break;
+		case CombinationKind::PAIR: AddCompoundPairs(); break;
 	}
 }
 
-std::vector<Candidate> CandidateGenerator::MakeCandidates() {
+std::vector<Candidate> Generator::MakeCandidates() {
 	log() << "### Creating candidates (" << (kind == CombinationKind::SINGLE ? "single" : "pair") << ")..." << std::flush;
-
-	// populate 'candidateAxioms'
-	AddExpressions();
-	AddAxioms();
 
 	// make candidates
 	std::vector<Candidate> result;
@@ -260,56 +329,69 @@ std::vector<Candidate> CandidateGenerator::MakeCandidates() {
 	return result;
 }
 
+std::unique_ptr<ConjunctionFormula> Generator::MakeRules() {
+	assert(rules);
+	auto result = std::move(rules);
+	rules.reset();
+	return result;
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct CandidateEntry final {
+struct Entry final {
 	std::array<std::unique_ptr<VariableDeclaration>, 2> dummyVariables;
 	std::vector<Candidate> candidates;
+	std::unique_ptr<ConjunctionFormula> rules;
 };
 
-class CandidateStore {
+class LazyStore {
 	private:
 		const SolverImpl& solver;
-		std::map<std::pair<const Type*, const Type*>, CandidateEntry> candidateMap;
+		std::map<std::pair<const Type*, const Type*>, Entry> entryMap;
+		LazyStore(const SolverImpl& solver) : solver(solver) {}
 
-		CandidateStore(const SolverImpl& solver) : solver(solver) {}
-		const CandidateEntry& GetEntry(const Type& type, const Type& other, CombinationKind kind);
-		transformer_t MakeTransformer(std::vector<const VariableDeclaration*> from, std::vector<const VariableDeclaration*> to);
-		std::vector<Candidate> InstantiateRaw(const VariableDeclaration& decl, const VariableDeclaration& other, CombinationKind kind);
+		const Entry& GetEntry(const Type& type, const Type& other, CombinationKind kind);
+		transformer_t MakeTransformer(const Entry& entry, const VariableDeclaration& decl, const VariableDeclaration& other);
+		std::vector<Candidate> InstantiateRawCandidates(const VariableDeclaration& decl, const VariableDeclaration& other, CombinationKind kind);
+		std::unique_ptr<ConjunctionFormula> InstantiateRawRules(const VariableDeclaration& decl, const VariableDeclaration& other);
 		std::vector<Candidate> MakeSingleCandidates(const VariableDeclaration& decl);
 		std::vector<Candidate> MakePairCandidates(const VariableDeclaration& decl, const VariableDeclaration& other);
 		std::vector<Candidate> MakeCandidates();
+		std::unique_ptr<ConjunctionFormula> MakeRules();
 
 	public:
-		static CandidateStore& GetStore(const SolverImpl& solver);
+		static LazyStore& GetStore(const SolverImpl& solver);
 		static std::vector<Candidate> MakeCandidates(const SolverImpl& solver);
+		static std::unique_ptr<ConjunctionFormula> MakeRules(const SolverImpl& solver);
 };
 
-const CandidateEntry& CandidateStore::GetEntry(const Type& type, const Type& other, CombinationKind kind) {
+const Entry& LazyStore::GetEntry(const Type& type, const Type& other, CombinationKind kind) {
 	// search for existing
 	auto key = std::make_pair(&type, &other);
-	auto find = candidateMap.find(key);
-	if (find != candidateMap.end()) return find->second;
+	auto find = entryMap.find(key);
+	if (find != entryMap.end()) return find->second;
 
 	// create new
-	CandidateEntry entry;
-	entry.dummyVariables[0] = std::make_unique<VariableDeclaration>("CandidateStore#dummy-0", type, false);
-	entry.dummyVariables[1] = std::make_unique<VariableDeclaration>("CandidateStore#dummy-1", other, false);
+	Entry entry;
+	entry.dummyVariables[0] = std::make_unique<VariableDeclaration>("LazyStore#dummy-0", type, false);
+	entry.dummyVariables[1] = std::make_unique<VariableDeclaration>("LazyStore#dummy-1", other, false);
 	std::vector<const VariableDeclaration*> vars = { entry.dummyVariables.at(0).get(), entry.dummyVariables.at(1).get() };
-	CandidateGenerator generator(solver.GetEncoder(), vars, kind);
+	Generator generator(solver.GetEncoder(), vars, kind);
 	entry.candidates = generator.MakeCandidates();
+	entry.rules = generator.MakeRules();
 
 	// add
-	auto insert = candidateMap.emplace(key, std::move(entry));
+	auto insert = entryMap.emplace(key, std::move(entry));
 	assert(insert.second);
 	return insert.first->second;
 }
 
-transformer_t CandidateStore::MakeTransformer(std::vector<const VariableDeclaration*> from, std::vector<const VariableDeclaration*> to) {
-	assert(from.size() == to.size());
+transformer_t LazyStore::MakeTransformer(const Entry& entry, const VariableDeclaration& decl, const VariableDeclaration& other) {
+	std::vector<const VariableDeclaration*> from = { entry.dummyVariables.at(0).get(), entry.dummyVariables.at(1).get() };
+	std::vector<const VariableDeclaration*> to = { &decl, &other };
 	return [search=std::move(from),replace=std::move(to)](const Expression& expr){
 		std::pair<bool,std::unique_ptr<cola::Expression>> result;
 		auto [isVar, var] = plankton::is_of_type<VariableExpression>(expr);
@@ -325,10 +407,10 @@ transformer_t CandidateStore::MakeTransformer(std::vector<const VariableDeclarat
 	};
 }
 
-std::vector<Candidate> CandidateStore::InstantiateRaw(const VariableDeclaration& decl, const VariableDeclaration& other, CombinationKind kind) {
+std::vector<Candidate> LazyStore::InstantiateRawCandidates(const VariableDeclaration& decl, const VariableDeclaration& other, CombinationKind kind) {
 	const auto& entry = GetEntry(decl.type, other.type, kind);
-	const auto& dummies = entry.dummyVariables;
-	auto transformer = MakeTransformer({ dummies.at(0).get(), dummies.at(1).get() }, { &decl, &other });
+	auto transformer = MakeTransformer(entry, decl, other);
+
 	std::vector<Candidate> result;
 	result.reserve(entry.candidates.size());
 	for (const auto& candidate : entry.candidates) {
@@ -337,18 +419,24 @@ std::vector<Candidate> CandidateStore::InstantiateRaw(const VariableDeclaration&
 	return result;
 }
 
-std::vector<Candidate> CandidateStore::MakeSingleCandidates(const VariableDeclaration& decl) {
-	static Type dummyType("CandidateStore#MakeSingleCandidates#dummy-type", Sort::VOID);
-	static VariableDeclaration dummyDecl("CandidateStore#MakeSingleCandidates#dummy-decl", dummyType, false);
-	return InstantiateRaw(decl, dummyDecl, CombinationKind::SINGLE);
+std::unique_ptr<ConjunctionFormula> LazyStore::InstantiateRawRules(const VariableDeclaration& decl, const VariableDeclaration& other) {
+	const auto& entry = GetEntry(decl.type, other.type, CombinationKind::PAIR);
+	auto transformer = MakeTransformer(entry, decl, other);
+	return plankton::replace_expression(plankton::copy(*entry.rules), transformer);
 }
 
-std::vector<Candidate> CandidateStore::MakePairCandidates(const VariableDeclaration& decl, const VariableDeclaration& other) {
+std::vector<Candidate> LazyStore::MakeSingleCandidates(const VariableDeclaration& decl) {
+	static Type dummyType("LazyStore#MakeSingleCandidates#dummy-type", Sort::VOID);
+	static VariableDeclaration dummyDecl("LazyStore#MakeSingleCandidates#dummy-decl", dummyType, false);
+	return InstantiateRawCandidates(decl, dummyDecl, CombinationKind::SINGLE);
+}
+
+std::vector<Candidate> LazyStore::MakePairCandidates(const VariableDeclaration& decl, const VariableDeclaration& other) {
 	if (&decl.type > &other.type) return MakePairCandidates(other, decl);
-	return InstantiateRaw(decl, other, CombinationKind::PAIR);
+	return InstantiateRawCandidates(decl, other, CombinationKind::PAIR);
 }
 
-std::vector<Candidate> CandidateStore::MakeCandidates() {
+std::vector<Candidate> LazyStore::MakeCandidates() {
 	const auto& variables = solver.GetVariablesInScope();
 	std::deque<Candidate> candidates;
 	auto AddCandidates = [&candidates](std::vector<Candidate>&& newCandidates) {
@@ -389,16 +477,31 @@ std::vector<Candidate> CandidateStore::MakeCandidates() {
 	return result;
 }
 
-CandidateStore& CandidateStore::GetStore(const SolverImpl& solver) {
-	static std::map<const SolverImpl*, CandidateStore> lookup;
+std::unique_ptr<ConjunctionFormula> LazyStore::MakeRules() {
+	const auto& variables = solver.GetVariablesInScope();
+	auto result = std::make_unique<ConjunctionFormula>();
+	for (auto iter = variables.begin(); iter != variables.end(); ++iter) {
+		for (auto other = std::next(iter); other != variables.end(); ++other) {
+			result = plankton::conjoin(std::move(result), InstantiateRawRules(**iter, **other));
+		}
+	}
+	return result;
+}
+
+LazyStore& LazyStore::GetStore(const SolverImpl& solver) {
+	static std::map<const SolverImpl*, LazyStore> lookup;
 	auto find = lookup.find(&solver);
 	if (find != lookup.end()) return find->second;
-	auto insertion = lookup.emplace(&solver, CandidateStore(solver));
+	auto insertion = lookup.emplace(&solver, LazyStore(solver));
 	return insertion.first->second;
 }
 
-std::vector<Candidate> CandidateStore::MakeCandidates(const SolverImpl& solver) {
+std::vector<Candidate> LazyStore::MakeCandidates(const SolverImpl& solver) {
 	return GetStore(solver).MakeCandidates();
+}
+
+std::unique_ptr<ConjunctionFormula> LazyStore::MakeRules(const SolverImpl& solver) {
+	return GetStore(solver).MakeRules();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -428,16 +531,16 @@ void SolverImpl::ExtendCurrentScope(const std::vector<std::unique_ptr<cola::Vari
 		}
 	}
 
-	// TODO important: ensure that the candidates can generate the invariant
-	// TODO: reuse old candidates?
-	auto newCandidates = CandidateStore::MakeCandidates(*this);
-	candidates.back() = std::move(newCandidates);
+	// TODO important: ensure that the candidates can generate the invariant?
+	candidates.back() = LazyStore::MakeCandidates(*this);
+	instantiatedRules.back() = LazyStore::MakeRules(*this);
 }
 
 void SolverImpl::EnterScope(const cola::Program& program) {
 	fail_if(!candidates.empty(), ERR_ENTER_PROGRAM);
 	candidates.emplace_back();
 	variablesInScope.emplace_back();
+	instantiatedRules.push_back(std::make_unique<ConjunctionFormula>());
 	instantiatedInvariants.push_back(std::make_unique<ConjunctionFormula>());
 
 	ExtendCurrentScope(program.variables);
@@ -456,6 +559,7 @@ void SolverImpl::PushOuterScope() {
 	// copy from outermost scope (front)
 	fail_if(candidates.empty(), ERR_ENTER_NOSCOPE);
 	candidates.push_back(CopyCandidates(candidates.front()));
+	instantiatedRules.push_back(plankton::copy(*instantiatedRules.front()));
 	instantiatedInvariants.push_back(plankton::copy(*instantiatedInvariants.front()));
 	variablesInScope.push_back(std::vector<const VariableDeclaration*>(variablesInScope.front()));
 }
@@ -464,6 +568,7 @@ void SolverImpl::PushInnerScope() {
 	// copy from innermost scope (back)
 	fail_if(candidates.empty(), ERR_ENTER_NOSCOPE);
 	candidates.push_back(CopyCandidates(candidates.back()));
+	instantiatedRules.push_back(plankton::copy(*instantiatedRules.back()));
 	instantiatedInvariants.push_back(plankton::copy(*instantiatedInvariants.back()));
 	variablesInScope.push_back(std::vector<const VariableDeclaration*>(variablesInScope.back()));
 }
@@ -481,6 +586,7 @@ void SolverImpl::EnterScope(const cola::Scope& scope) {
 
 void SolverImpl::LeaveScope() {
 	fail_if(candidates.empty(), ERR_LEAVE_NOSCOPE);
+	instantiatedRules.pop_back();
 	instantiatedInvariants.pop_back();
 	candidates.pop_back();
 	variablesInScope.pop_back();

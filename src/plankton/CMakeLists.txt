@@ -34,10 +34,10 @@ set(SOURCES
 	solver/mksolver.cpp
 	solver/solver.cpp
 	solver/solverimpl.cpp
-	solver/scopes.cpp
-	solver/invariants.cpp
+	solver/instantiation.cpp
 	solver/implication.cpp
 	solver/join.cpp
+	solver/scopes.cpp
 	solver/post.cpp
 	solver/post_assume.cpp
 	solver/post_malloc.cpp

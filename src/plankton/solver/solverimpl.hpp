@@ -63,14 +63,21 @@ namespace plankton {
 		private:
 			mutable Encoder encoder;
 			std::deque<std::vector<Candidate>> candidates;
+			std::deque<std::unique_ptr<ConjunctionFormula>> instantiatedRules;
 			std::deque<std::unique_ptr<ConjunctionFormula>> instantiatedInvariants;
 			std::deque<std::vector<const cola::VariableDeclaration*>> variablesInScope;
 
 		public: // export useful functionality
 			inline Encoder& GetEncoder() const { return encoder; }
 			inline const std::vector<Candidate>& GetCandidates() const { return candidates.back(); }
+			inline const ConjunctionFormula& GetInstantiatedRules() const { return *instantiatedRules.back(); }
 			inline const ConjunctionFormula& GetInstantiatedInvariant() const { return *instantiatedInvariants.back(); }
 			inline const std::vector<const cola::VariableDeclaration*>& GetVariablesInScope() const { return variablesInScope.back(); }
+
+			std::unique_ptr<Annotation> AddRules(std::unique_ptr<Annotation> annotation) const;
+			std::unique_ptr<Annotation> StripRules(std::unique_ptr<Annotation> annotation) const;
+			std::unique_ptr<ConjunctionFormula> AddRules(std::unique_ptr<ConjunctionFormula> formula) const;
+			std::unique_ptr<ConjunctionFormula> StripRules(std::unique_ptr<ConjunctionFormula> formula) const;
 
 			void PushInnerScope();
 			void PushOuterScope();

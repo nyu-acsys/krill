@@ -78,7 +78,9 @@ inline std::unique_ptr<ConjunctionFormula> ComputeImplied(const SolverImpl& solv
 	auto result = std::make_unique<ConjunctionFormula>();
 	for (const auto& candidate : solver.GetCandidates()) {
 		if (!IsImplied(candidate.GetCheck())) continue;
-		assert(IsImplied(candidate.GetImplied())); // TODO: remove
+		// TODO important: which version is more efficient? just using candidates or exploiting their implied?
+		// result->conjuncts.push_back(plankton::copy(candidate.GetCheck()));
+		// assert(IsImplied(candidate.GetImplied()));
 		result = plankton::conjoin(std::move(result), plankton::copy(candidate.GetImplied()));
 	}
 	return result;

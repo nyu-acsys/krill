@@ -159,15 +159,20 @@ struct QuickChecker : public BaseLogicVisitor {
 // }
 
 bool ImplicationCheckerImpl::Implies(const NowFormula& implied) const {
+	// assert(premiseNowFormula);
+	// auto [discharged, conjuncts] = QuickChecker(encoder, encodingTag, *premiseNowFormula).CheckAndEncode(implied);
+	// if (discharged) {
+	// 	assert(conjuncts.size() == 0);
+	// 	return true;
+	// }
+	// // TODO: if the implication holds, one could extend 'this->premiseNow' with 'implied'
+	// return Implies(encoder.MakeAnd(std::move(conjuncts)));
+
 	assert(premiseNowFormula);
 	auto [discharged, conjuncts] = QuickChecker(encoder, encodingTag, *premiseNowFormula).CheckAndEncode(implied);
-	if (discharged) {
-		assert(conjuncts.size() == 0);
-		return true;
-	}
-	// TODO: if the implication holds, one could extend 'this->premiseNow' with 'implied'
-	return Implies(encoder.MakeAnd(std::move(conjuncts)));
-
+	discharged = discharged || Implies(encoder.MakeAnd(std::move(conjuncts)));
+	// assert(discharged == Implies(encoder.Encode(implied, encodingTag)));
+	return discharged;
 }
 
 bool ImplicationCheckerImpl::ImpliesNegated(const NowFormula& implied) const {
