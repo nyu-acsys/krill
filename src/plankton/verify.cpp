@@ -440,15 +440,18 @@ void Verifier::visit(const Assignment& cmd) {
 }
 
 void Verifier::visit_macro_function(const Function& function) {
+	// store caller context
 	auto outer_breaking_annotations = std::move(breaking_annotations);
 	auto outer_returning_annotations = std::move(returning_annotations);
 	breaking_annotations.clear();
 	returning_annotations.clear();
 	
+	// execute function
 	function.body->accept(*this);
 	returning_annotations.push_back(std::move(current_annotation));
 	current_annotation = solver->Join(std::move(returning_annotations));
 
+	// restore caller context
 	breaking_annotations = std::move(outer_breaking_annotations);
 	returning_annotations = std::move(outer_returning_annotations);
 }
