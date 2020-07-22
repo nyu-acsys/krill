@@ -22,38 +22,38 @@ namespace plankton {
 	class Encoder {
 		public:
 			using selector_t = std::pair<const cola::Type*, std::string>;
-			enum StepTag { NOW, NEXT };
+			enum struct StepTag { NOW, NEXT };
 			Encoder(const PostConfig& config);
 
-			z3::expr Encode(const Formula& formula, StepTag tag = NOW);
-			z3::expr Encode(const cola::Expression& expression, StepTag tag = NOW);
-			z3::expr EncodeHeap(z3::expr pointer, selector_t selector, StepTag tag = NOW);
-			z3::expr EncodeHeap(z3::expr pointer, selector_t selector, z3::expr value, StepTag tag = NOW);
-			z3::expr EncodeFlow(z3::expr pointer, z3::expr value, bool containsValue=true, StepTag tag = NOW);
-			z3::expr EncodeHasFlow(z3::expr node, StepTag tag = NOW);
-			z3::expr EncodeVariable(const cola::VariableDeclaration& decl, StepTag tag = NOW);
-			z3::expr EncodeOwnership(z3::expr pointer, bool owned=true, StepTag tag = NOW);
-			z3::expr EncodeObligation(SpecificationAxiom::Kind kind, z3::expr key, StepTag tag = NOW);
-			z3::expr EncodeFulfillment(SpecificationAxiom::Kind kind, z3::expr key, bool returnValue, StepTag tag = NOW);
-			z3::expr EncodeInvariant(const Invariant& invariant, z3::expr arg, StepTag tag = NOW);
+			z3::expr Encode(const Formula& formula, StepTag tag = StepTag::NOW);
+			z3::expr Encode(const cola::Expression& expression, StepTag tag = StepTag::NOW);
+			z3::expr EncodeHeap(z3::expr pointer, selector_t selector, StepTag tag = StepTag::NOW);
+			z3::expr EncodeHeap(z3::expr pointer, selector_t selector, z3::expr value, StepTag tag = StepTag::NOW);
+			z3::expr EncodeFlow(z3::expr pointer, z3::expr value, bool containsValue=true, StepTag tag = StepTag::NOW);
+			z3::expr EncodeHasFlow(z3::expr node, StepTag tag = StepTag::NOW);
+			z3::expr EncodeVariable(const cola::VariableDeclaration& decl, StepTag tag = StepTag::NOW);
+			z3::expr EncodeOwnership(z3::expr pointer, bool owned=true, StepTag tag = StepTag::NOW);
+			z3::expr EncodeObligation(SpecificationAxiom::Kind kind, z3::expr key, StepTag tag = StepTag::NOW);
+			z3::expr EncodeFulfillment(SpecificationAxiom::Kind kind, z3::expr key, bool returnValue, StepTag tag = StepTag::NOW);
+			z3::expr EncodeInvariant(const Invariant& invariant, z3::expr arg, StepTag tag = StepTag::NOW);
 
-			inline z3::expr EncodeNext(const Formula& formula) { return Encode(formula, NEXT); }
-			inline z3::expr EncodeNext(const cola::Expression& expression) { return Encode(expression, NEXT); }
-			inline z3::expr EncodeNextHeap(z3::expr pointer, selector_t selector) { return EncodeHeap(pointer, selector, NEXT); }
-			inline z3::expr EncodeNextHeap(z3::expr pointer, selector_t selector, z3::expr value) { return EncodeHeap(pointer, selector, value, NEXT); }
-			inline z3::expr EncodeNextFlow(z3::expr pointer, z3::expr value, bool containsValue=true) { return EncodeFlow(pointer, value, containsValue, NEXT); }
-			inline z3::expr EncodeNextHasFlow(z3::expr node) { return EncodeHasFlow(node, NEXT); }
-			inline z3::expr EncodeNextVariable(const cola::VariableDeclaration& decl) { return EncodeVariable(decl, NEXT); }
-			inline z3::expr EncodeNextOwnership(z3::expr pointer, bool owned=true) { return EncodeOwnership(pointer, owned, NEXT); }
-			inline z3::expr EncodeNextObligation(SpecificationAxiom::Kind kind, z3::expr key) { return EncodeObligation(kind, key, NEXT); }
-			inline z3::expr EncodeNextFulfillment(SpecificationAxiom::Kind kind, z3::expr key, bool returnValue) { return EncodeFulfillment(kind, key, returnValue, NEXT); }
-			inline z3::expr EncodeNextInvariant(const Invariant& invariant, z3::expr arg) { return EncodeInvariant(invariant, arg, NEXT); }
+			inline z3::expr EncodeNext(const Formula& formula) { return Encode(formula, StepTag::NEXT); }
+			inline z3::expr EncodeNext(const cola::Expression& expression) { return Encode(expression, StepTag::NEXT); }
+			inline z3::expr EncodeNextHeap(z3::expr pointer, selector_t selector) { return EncodeHeap(pointer, selector, StepTag::NEXT); }
+			inline z3::expr EncodeNextHeap(z3::expr pointer, selector_t selector, z3::expr value) { return EncodeHeap(pointer, selector, value, StepTag::NEXT); }
+			inline z3::expr EncodeNextFlow(z3::expr pointer, z3::expr value, bool containsValue=true) { return EncodeFlow(pointer, value, containsValue, StepTag::NEXT); }
+			inline z3::expr EncodeNextHasFlow(z3::expr node) { return EncodeHasFlow(node, StepTag::NEXT); }
+			inline z3::expr EncodeNextVariable(const cola::VariableDeclaration& decl) { return EncodeVariable(decl, StepTag::NEXT); }
+			inline z3::expr EncodeNextOwnership(z3::expr pointer, bool owned=true) { return EncodeOwnership(pointer, owned, StepTag::NEXT); }
+			inline z3::expr EncodeNextObligation(SpecificationAxiom::Kind kind, z3::expr key) { return EncodeObligation(kind, key, StepTag::NEXT); }
+			inline z3::expr EncodeNextFulfillment(SpecificationAxiom::Kind kind, z3::expr key, bool returnValue) { return EncodeFulfillment(kind, key, returnValue, StepTag::NEXT); }
+			inline z3::expr EncodeNextInvariant(const Invariant& invariant, z3::expr arg) { return EncodeInvariant(invariant, arg, StepTag::NEXT); }
 
 			z3::expr EncodeTransitionMaintainsHeap(z3::expr node, const cola::Type& nodeType, std::set<std::string> excludedSelectors = {});
 			z3::expr EncodeTransitionMaintainsFlow(z3::expr node, z3::expr key);
 			z3::expr EncodeTransitionMaintainsOwnership(z3::expr node);
 
-			z3::solver MakeSolver(StepTag tag = NOW);
+			z3::solver MakeSolver(StepTag tag = StepTag::NOW);
 			std::pair<z3::solver, z3::expr_vector> MakePostSolver(std::size_t footPrintSize);
 
 			z3::expr MakeNullPtr();

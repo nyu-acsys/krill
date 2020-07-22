@@ -146,7 +146,9 @@ class Generator {
 		void AddNodeContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
 		void AddKeysetContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
 		void AddFlowContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
-		void AddPureLinearizabilityRules(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
+		
+		void AddPairRules(const Expression& expr, const Expression& other);
+		void AddOwnershipRules(const VariableDeclaration& expr, const Expression& other);
 		void AddPureLinearizabilityRules(const VariableDeclaration& node, const VariableDeclaration& key);
 		
 		void AddExpressions();
@@ -238,6 +240,7 @@ void Generator::AddFlowContainsAxioms(std::unique_ptr<Expression> expr, std::uni
 }
 
 void Generator::AddPureLinearizabilityRules(const VariableDeclaration& node, const VariableDeclaration& key) {
+	if (node.type.sort != Sort::PTR || key.type.sort != Sort::DATA) return;
 	auto AddRule = [&,this](SpecificationAxiom::Kind kind, bool contained, bool result){
 		std::unique_ptr<Axiom> nodeContains = MakeNodeContains(MakeExpr(node), MakeExpr(key));
 		if (!contained) nodeContains = MakeNot(std::move(nodeContains));
@@ -256,12 +259,27 @@ void Generator::AddPureLinearizabilityRules(const VariableDeclaration& node, con
 	AddRule(SpecificationAxiom::Kind::DELETE, false, false);
 }
 
-void Generator::AddPureLinearizabilityRules(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other) {
-	if (expr->sort() != Sort::PTR || other->sort() != Sort::DATA) return;
-	auto [exprIsVar, exprVar] = plankton::is_of_type<VariableExpression>(*expr);
+void Generator::AddOwnershipRules(const VariableDeclaration& node, const Expression& expr) {
+	if (node.type.sort != Sort::PTR || expr.sort() != Sort::PTR) return;
+	auto [exprIsVar, exprVar] = plankton::is_of_type<VariableExpression>(expr);
+	if (exprIsVar && !exprVar->decl.is_shared) return;
+
+	PopulateRule(MakeImplication(
+		MakeOwnership(node)
+	).Conclusion(
+		MakeAxiom(MakeExpr(BinaryExpression::Operator::NEQ, MakeExpr(node), cola::copy(expr)))
+	).Get());
+}
+
+void Generator::AddPairRules(const Expression& expr, const Expression& other) {
+	auto [exprIsVar, exprVar] = plankton::is_of_type<VariableExpression>(expr);
 	if (!exprIsVar) return;
-	auto [otherIsVar, otherVar] = plankton::is_of_type<VariableExpression>(*other);
+
+	// AddOwnershipRules(exprVar->decl, other); // TODO important: needed
+
+	auto [otherIsVar, otherVar] = plankton::is_of_type<VariableExpression>(other);
 	if (!otherIsVar) return;
+
 	AddPureLinearizabilityRules(exprVar->decl, otherVar->decl);
 }
 
@@ -284,6 +302,9 @@ void Generator::AddCompoundSingles() {
 void Generator::AddCompoundPairs() {
 	ExpressionStore store(variables, CombinationKind::PAIR, true);
 	for (auto& [expr, other] : store.expressions) {
+		AddPairRules(*expr, *other);
+		AddPairRules(*other, *expr);
+
 		// TODO: pass references and copy on demand
 		AddNodeContainsAxioms(cola::copy(*expr), cola::copy(*other));
 		AddNodeContainsAxioms(cola::copy(*other), cola::copy(*expr));
@@ -291,9 +312,6 @@ void Generator::AddCompoundPairs() {
 		AddKeysetContainsAxioms(cola::copy(*other), cola::copy(*expr));
 		AddFlowContainsAxioms(cola::copy(*expr), cola::copy(*other));
 		AddFlowContainsAxioms(cola::copy(*other), cola::copy(*expr));
-
-		AddPureLinearizabilityRules(cola::copy(*expr), cola::copy(*other));
-		AddPureLinearizabilityRules(std::move(other), std::move(expr));
 	}
 }
 

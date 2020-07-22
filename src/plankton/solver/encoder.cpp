@@ -103,13 +103,13 @@ z3::expr get_or_create(M& map, const K& key, F make_new) {
 }
 
 inline std::string mk_name(Encoder::StepTag tag, const VariableDeclaration& decl) {
-	std::string result = tag == Encoder::NEXT ? "var-p$" : "var$";
+	std::string result = tag == Encoder::StepTag::NEXT ? "var-p$" : "var$";
 	result += decl.name;
 	return result;
 }
 
 inline std::string mk_name(Encoder::StepTag tag, std::string name) {
-	std::string result = tag == Encoder::NEXT ? "sym-p$" : "sym$";
+	std::string result = tag == Encoder::StepTag::NEXT ? "sym-p$" : "sym$";
 	result += name;
 	return result;
 }
@@ -141,8 +141,8 @@ z3::expr Encoder::EncodeSelector(selector_t selector, StepTag /*tag*/) {
 
 z3::expr Encoder::EncodeHeap(z3::expr pointer, selector_t selector, StepTag tag) {
 	switch (tag) {
-		case NOW: return heapNow(pointer, EncodeSelector(selector, tag));
-		case NEXT: return heapNext(pointer, EncodeSelector(selector, tag));
+		case StepTag::NOW: return heapNow(pointer, EncodeSelector(selector, tag));
+		case StepTag::NEXT: return heapNext(pointer, EncodeSelector(selector, tag));
 	}
 }
 
@@ -152,21 +152,21 @@ z3::expr Encoder::EncodeHeap(z3::expr pointer, selector_t selector, z3::expr val
 
 z3::expr Encoder::EncodeFlow(z3::expr pointer, z3::expr value, bool containsValue, StepTag tag) {
 	switch (tag) {
-		case NOW: return flowNow(pointer, value) == MakeBool(containsValue);
-		case NEXT: return flowNext(pointer, value) == MakeBool(containsValue);
+		case StepTag::NOW: return flowNow(pointer, value) == MakeBool(containsValue);
+		case StepTag::NEXT: return flowNext(pointer, value) == MakeBool(containsValue);
 	}
 }
 
 z3::expr Encoder::EncodeOwnership(z3::expr pointer, bool owned, StepTag tag) {
 	switch (tag) {
-		case NOW: return ownershipNow(pointer) == MakeBool(owned);
-		case NEXT: return ownershipNext(pointer) == MakeBool(owned);
+		case StepTag::NOW: return ownershipNow(pointer) == MakeBool(owned);
+		case StepTag::NEXT: return ownershipNext(pointer) == MakeBool(owned);
 	}
 }
 
 z3::expr Encoder::EncodeHasFlow(z3::expr node, StepTag tag) {
 	auto key = EncodeVariable(Sort::DATA, "qv-key", tag); // TODO: does this avoid name clashes?
-	return z3::exists(key, EncodeFlow(node, key, tag));
+	return z3::exists(key, EncodeFlow(node, key, true, tag));
 }
 
 z3::expr Encoder::EncodeSpec(SpecificationAxiom::Kind kind) {
@@ -179,15 +179,15 @@ z3::expr Encoder::EncodeSpec(SpecificationAxiom::Kind kind) {
 
 z3::expr Encoder::EncodeObligation(SpecificationAxiom::Kind kind, z3::expr key, StepTag tag) {
 	switch (tag) {
-		case NOW: return obligationNow(key, EncodeSpec(kind)) == MakeTrue();
-		case NEXT: return obligationNext(key, EncodeSpec(kind)) == MakeTrue();
+		case StepTag::NOW: return obligationNow(key, EncodeSpec(kind)) == MakeTrue();
+		case StepTag::NEXT: return obligationNext(key, EncodeSpec(kind)) == MakeTrue();
 	}
 }
 
 z3::expr Encoder::EncodeFulfillment(SpecificationAxiom::Kind kind, z3::expr key, bool returnValue, StepTag tag) {
 	switch (tag) {
-		case NOW: return fulfillmentNow(key, EncodeSpec(kind), MakeBool(returnValue)) == MakeTrue();
-		case NEXT: return fulfillmentNext(key, EncodeSpec(kind), MakeBool(returnValue)) == MakeTrue();
+		case StepTag::NOW: return fulfillmentNow(key, EncodeSpec(kind), MakeBool(returnValue)) == MakeTrue();
+		case StepTag::NEXT: return fulfillmentNext(key, EncodeSpec(kind), MakeBool(returnValue)) == MakeTrue();
 	}
 }
 
@@ -228,7 +228,7 @@ z3::expr Encoder::EncodeKeysetContains(z3::expr node, z3::expr key, StepTag tag)
 		vec.push_back(EncodePredicate(postConfig.flowDomain->GetOutFlowContains(fieldName), node, key, tag));
 	}
 	z3::expr keyInOutflow = MakeOr(vec);
-	return EncodeFlow(node, key, tag) && !keyInOutflow;
+	return EncodeFlow(node, key, true, tag) && !keyInOutflow;
 }
 
 z3::expr Encoder::EncodeTransitionMaintainsHeap(z3::expr node, const Type& nodeType, std::set<std::string> excludedSelectors) {
@@ -353,7 +353,7 @@ z3::expr Encoder::Encode(StepTag tag, const ImplicationFormula& formula) {
 
 z3::expr Encoder::Encode(StepTag tag, const OwnershipAxiom& formula) {
 	// return EncodeVariable(tag, Sort::BOOL, "OWNED_" + formula.expr->decl.name) == MakeTrue();
-	return EncodeOwnership(Encode(*formula.expr, tag), tag);
+	return EncodeOwnership(Encode(*formula.expr, tag), true, tag);
 }
 
 z3::expr Encoder::Encode(StepTag tag, const HasFlowAxiom& formula) {
@@ -365,7 +365,7 @@ z3::expr Encoder::Encode(StepTag tag, const FlowContainsAxiom& formula) {
 	auto key = EncodeVariable(Sort::DATA, "qv-key", tag); // TODO: does this avoid name clashes?
 	auto low = Encode(*formula.low_value, tag);
 	auto high = Encode(*formula.high_value, tag);
-	return z3::forall(key, MakeImplication((low <= key) && (key <= high), EncodeFlow(node, key, tag)));
+	return z3::forall(key, MakeImplication((low <= key) && (key <= high), EncodeFlow(node, key, true, tag)));
 }
 
 z3::expr Encoder::Encode(StepTag tag, const ObligationAxiom& formula) {
@@ -490,7 +490,7 @@ std::pair<z3::solver, z3::expr_vector> Encoder::MakePostSolver(std::size_t /*foo
 //	// note: we do not handle purity nor obligations/fulfillments, this must be done elsewhere
 //	const Type& nodeType = postConfig.flowDomain->GetNodeType();
 //	auto node = EncodeVariable(nodeType.sort, "qv-rule-ptr", NOW);
-//	auto key = EncodeVariable(nodeType.sort, "qv-rule-key", NOW);
+//	auto key = EncodeVariable(Sort::DATA, "qv-rule-key", NOW);
 //
 //	z3::expr_vector vec(context);
 //	for (auto changed : footprint) {

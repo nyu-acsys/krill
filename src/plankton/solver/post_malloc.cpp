@@ -2,6 +2,7 @@
 
 #include "plankton/util.hpp"
 #include "plankton/solver/post.hpp"
+#include "plankton/logger.hpp" // TODO: delete
 
 using namespace cola;
 using namespace plankton;
@@ -71,7 +72,8 @@ std::unique_ptr<Annotation> SolverImpl::Post(const Annotation& pre, const Malloc
 	
 	// create a fresh new variable for the new allocation, extend pre with knowledge about allocation
 	auto& allocation = GetDummyAllocation(cmd.lhs.type);
-	auto extendedPre = plankton::copy(pre);
+	auto extendedPre = AddInvariant(plankton::copy(pre));
+	extendedPre = AddRules(std::move(extendedPre));
 	extendedPre->now = plankton::conjoin(std::move(extendedPre->now), GetAllocationKnowledge(allocation));
 
 	// establish invariant for allocation
