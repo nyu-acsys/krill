@@ -63,12 +63,11 @@ namespace plankton {
 			RenamingInfo interference_renaming_info;
 			bool is_interference_saturated; // indicates whether a fixed point wrt. to the found interference is reached
 			std::vector<std::unique_ptr<Annotation>> breaking_annotations; // collects annotations breaking out of loops
-			std::vector<std::unique_ptr<Annotation>> returning_annotations; // collects annotations breaking out of loops
+			std::vector<std::pair<std::unique_ptr<Annotation>, const cola::Return*>> returning_annotations; // collects returns and their pre annotation
 			bool inside_atomic;
 			std::unique_ptr<Solver> solver;
 
 			void visit_interface_function(const cola::Function& function); // performs proof for given interface function
-			void visit_macro_function(const cola::Function& function); // performs subproof for given macro function
 			void handle_loop(const cola::ConditionalLoop& loop, bool peelFirst=false); // uniformly handles While/DoWhile
 			void check_pointer_accesses(const cola::Command& command); // ensures null is not dereferenced in command
 			

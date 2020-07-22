@@ -16,7 +16,8 @@ std::unique_ptr<Annotation> SolverImpl::Post(const Annotation& pre, const Assume
 	// extend result->pre and find new knowledge
 	auto newAxioms = plankton::flatten(cola::copy(*cmd.expr));
 	auto combined = plankton::conjoin(std::move(result->now), std::move(newAxioms));
-	// TODO important: if (HasEffect(*cmd.expr)) combined = info.solver.AddRules(std::move(combined));
+	combined = AddInvariant(std::move(combined));
+	combined = AddRules(std::move(combined)); // TODO: only add rules if 'cmd.expr' has an effect
 	auto checker = MakeImplicationChecker(*combined);
 	result->now = ComputeImpliedCandidates(*checker); // TODO: execute a dummy assignment x=x instead, to reuse assignment logic?
 	

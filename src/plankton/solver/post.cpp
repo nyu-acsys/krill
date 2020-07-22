@@ -104,4 +104,11 @@ std::unique_ptr<ConjunctionFormula> PostInfo::ComputeImpliedCandidates(const Imp
 	return result;
 }
 
+plankton::PostInfo::time_container_t PostInfo::CopyPreTime() const {
+	time_container_t result;
+	for (const auto& predicate : preTime) {
+		result.push_back(plankton::copy(*predicate));
+	}
+	return result;
+}
 

@@ -220,24 +220,21 @@ struct PrintVisitor final : public BaseVisitor {
 
 		// print kind
 		switch (function.kind) {
-			case Function::INTERFACE: stream << "proc "; break;
-			case Function::MACRO: stream << "macro "; break;
+			case Function::INTERFACE: stream << ""; break;
+			case Function::INIT: stream << ""; break;
+			case Function::MACRO: stream << "inline "; break;
 		}
 
+		// print type
+		print_elem_or_tuple(function.return_type, [](const auto& type){ return type.get().name; }, true);
+
 		// print name
-		stream << function.name;
+		stream << " " << function.name;
 
 		// print args
 		stream << "(";
 		print_elem_or_tuple(function.args, [&](auto& decl){ decl->accept(*this); return ""; }, false);
 		stream << ") ";
-
-		// print returns
-		if (!function.returns.empty()) {
-			stream << " returns (";
-			print_elem_or_tuple(function.returns, [&](auto& decl){ decl->accept(*this); return ""; }, false);
-			stream << ") ";
-		}
 
 		// print body
 		print_scope(*function.body);

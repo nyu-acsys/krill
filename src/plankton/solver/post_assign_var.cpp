@@ -35,6 +35,11 @@ std::unique_ptr<Annotation> VarPostComputer::MakePost() {
 		log() << "    => pruning: premise is false" << std::endl;
 		return Annotation::make_false();
 	}
+	if (assignment.empty()) {
+		log() << "    => pruning: empty assignment" << std::endl;
+		return std::make_unique<Annotation>(plankton::copy(info.preNow), info.CopyPreTime());
+	}
+
 	auto postNow = MakePostNow();
 	auto result = MakePostTime();
 	result->now = std::move(postNow);

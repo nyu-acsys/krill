@@ -180,6 +180,24 @@ const Type& AstBuilder::lookupType(std::string typeName) {
 	}
 }
 
+void AstBuilder::addFunction(Function& function) {
+	if (function.kind == Function::Kind::INIT) {
+		if (_found_init) {
+			throw ParseError("Duplicate initializer declaration: '" + INIT_NAME + "' already defined.");
+		}
+		_found_init = true;
+		// do not make initializer available for calls
+
+	} else {
+		if (function.name == INIT_NAME) {
+			throw ParseError("Function name not allowed: '" + function.name + "' is reserved for the initializer, but function does not meet its signature.");
+		} else if (_functions.count(function.name)) {
+			throw ParseError("Duplicate function declaration: function with name '" + function.name + "' already defined.");
+		}
+		_functions.insert({{ function.name, function }}); 
+	}
+}
+
 std::unique_ptr<Statement> AstBuilder::mk_stmt_from_list(std::vector<cola::CoLaParser::StatementContext*> stmts) {
 	std::vector<Statement*> list;
 	stmts.reserve(stmts.size());
@@ -200,6 +218,15 @@ std::unique_ptr<Statement> AstBuilder::mk_stmt_from_list(std::vector<Statement*>
 			current = std::move(seq);
 		}
 		return current;
+	}
+}
+
+std::string AstBuilder::iTh(std::size_t number) {
+	switch (number) {
+		case 0: return "0th";
+		case 1: return "1st";
+		case 2: return "2nd";
+		default: return std::to_string(number) + "th";
 	}
 }
 
@@ -258,93 +285,70 @@ antlrcpp::Any AstBuilder::visitProgram(cola::CoLaParser::ProgramContext* context
 }
 
 antlrcpp::Any AstBuilder::visitFunctionInterface(CoLaParser::FunctionInterfaceContext* context) {
-	return handleFunction(Function::Kind::INTERFACE, context->name->getText(), context->args, context->rets, context->body);
+	auto typeList = context->types->accept(this).as<TypeList>();
+	auto argList = context->args->accept(this).as<ArgDeclList>();
+	return handleFunction(Function::INTERFACE, context->name->getText(), std::move(typeList), std::move(argList), context->body);
 }
+
 antlrcpp::Any AstBuilder::visitFunctionMacro(CoLaParser::FunctionMacroContext* context) {
-	return handleFunction(Function::Kind::MACRO, context->name->getText(), context->args, context->rets, context->body);
+	auto typeList = context->types->accept(this).as<TypeList>();
+	auto argList = context->args->accept(this).as<ArgDeclList>();
+	return handleFunction(Function::MACRO, context->name->getText(), std::move(typeList), std::move(argList), context->body);
 }
 
-antlrcpp::Any AstBuilder::handleFunction(Function::Kind kind, std::string name, CoLaParser::ArgDeclListContext* argsContext, 
-		CoLaParser::RetDeclContext* retsContext, CoLaParser::ScopeContext* bodyContext){
+antlrcpp::Any AstBuilder::visitFunctionInit(CoLaParser::FunctionInitContext* context) {
+	return handleFunction(Function::INIT, INIT_NAME, { Type::void_type() }, { }, context->body);
+}
 
-	auto dummyBody = std::make_unique<Scope>(std::make_unique<Skip>()); // we need to create the function here, but have no body yet
-	auto function = std::make_unique<Function>(name, kind, std::move(dummyBody));
-	_currentFunction = function.get();
-	if (name != INIT_NAME) {
-		// make function available for calls
-		if (_functions.count(name)) {
-			throw ParseError("Duplicate function declaration: function with name '" + name + "' already defined.");
-		}
-		_functions.insert({{ name, *function }});
-	}
-
-	// helpers to handle argument/return variables
-	auto createVarDecls = [&](const ArgDeclList& list) {
-		std::vector<std::string> result;
-		for (auto [varName, varTypeName] : list) {
-			const Type& varType = _types.at(varTypeName);
-			auto decl = std::make_unique<VariableDeclaration>(varName, varType, false);
-			addVariable(std::move(decl));
-
-			if (varType.sort == Sort::VOID) {
-				throw ParseError("Type 'void' not supported for argument/return declaration '" + varName + "'.");
-			}
-			if (kind == Function::INTERFACE && varType.sort == Sort::PTR) {
-				throw ParseError("Argument/returns with name '" + varName + "' of pointer sort not supported for interface functions.");
-			}
-
-			result.push_back(varName);
-		}
-		return result;
-	};
-	auto retrieveSortedDeclList = [&](std::vector<std::unique_ptr<VariableDeclaration>>& scope, const std::vector<std::string>& names) {
-		std::vector<std::unique_ptr<VariableDeclaration>> result;
-		for (const auto& name : names) {
-			for (auto& decl : scope) {
-				if (decl && decl->name == name) {
-					result.push_back(std::move(decl));
-					break;
-				}
-			}
-		}
-		return result;
-	};
-
-	// add arguments and returns
+void AstBuilder::addFunctionArgumentScope(const Function& function, const ArgDeclList& args) {
 	pushScope();
-	auto arglistRaw = argsContext->accept(this).as<ArgDeclList*>();
-	auto retlistRaw = retsContext->accept(this).as<ArgDeclList*>();
-	auto arglist = createVarDecls(*arglistRaw);
-	auto retlist = createVarDecls(*retlistRaw);
+	for (auto [varName, varTypeName] : args) {
+		const Type& varType = _types.at(varTypeName);
 
-	// handle body
-	assert(bodyContext);
-	auto body = bodyContext->accept(this).as<Scope*>();
-	function->body = std::unique_ptr<Scope>(body);
+		if (varType.sort == Sort::VOID) {
+			throw ParseError("Type 'void' not allowed for function argument declaration '" + varName + "' in function '" + function.name + "'.");
+		}
+		if (function.kind == Function::INTERFACE && varType.sort == Sort::PTR) {
+			throw ParseError("Argument with name '" + varName + "' of pointer sort not allowed for interface function '" + function.name + "'.");
+		}
 
-	// extraact var delcs
+		auto decl = std::make_unique<VariableDeclaration>(varName, varType, false);
+		addVariable(std::move(decl));
+	}
+}
+
+std::vector<std::unique_ptr<VariableDeclaration>> AstBuilder::retrieveFunctionArgumentScope(const ArgDeclList& args) {
 	auto scope = popScope();
-	auto argdecls = retrieveSortedDeclList(scope, arglist);
-	auto retdecls = retrieveSortedDeclList(scope, retlist);
+	std::vector<std::unique_ptr<VariableDeclaration>> result;
+	for (const auto& [varName, varTypeName] : args) {
+		for (auto& decl : scope) {
+			if (decl && decl->name == varName) {
+				result.push_back(std::move(decl));
+				break;
+			}
+		}
+	}
 	scope.clear();
+	return result;
+}
 
-	// add decls to function
-	function->args.insert(function->args.end(), std::make_move_iterator(argdecls.begin()), std::make_move_iterator(argdecls.end()));
-	function->returns.insert(function->returns.end(), std::make_move_iterator(retdecls.begin()), std::make_move_iterator(retdecls.end()));
+antlrcpp::Any AstBuilder::handleFunction(Function::Kind kind, std::string name, TypeList types, ArgDeclList args, CoLaParser::ScopeContext* bodyContext) {
+	// prepare function
+	auto dummyBody = std::make_unique<Scope>(std::make_unique<Skip>()); // we need to create the function here, but have no body yet
+	auto function = std::make_unique<Function>(name, kind, std::move(types), std::move(dummyBody));
+	_currentFunction = function.get();
+	addFunction(*function);
+
+	// handle arguments and body
+	addFunctionArgumentScope(*function, args);
+	assert(bodyContext);
+	function->body.reset(bodyContext->accept(this).as<Scope*>());
+	assert(function->args.empty());
+	function->args = retrieveFunctionArgumentScope(args);
 
 	// transfer ownershp
-	if (name == INIT_NAME) {
-		if (kind != Function::INTERFACE) {
-			throw ParseError("initializer function '" + name + "' must not be defined as macro.");
-		}
-		if (function->returns.size() != 0) {
-			throw ParseError("initializer function '" + name + "' must not return values.");
-		}
-		if (_program->initializer) {
-			throw ParseError("initializer function '" + name + "' declared multiple times.");
-		}
+	if (kind == Function::INIT) {
 		_program->initializer = std::move(function);
-
 	} else {
 		_program->functions.push_back(std::move(function));
 	}
@@ -353,24 +357,33 @@ antlrcpp::Any AstBuilder::handleFunction(Function::Kind kind, std::string name, 
 	return nullptr;
 }
 
-antlrcpp::Any AstBuilder::visitRetDeclVoid(CoLaParser::RetDeclVoidContext* /*context*/) {
-	return new ArgDeclList();
-}
-
-antlrcpp::Any AstBuilder::visitRetDeclList(CoLaParser::RetDeclListContext* context) {
-	return context->rets->accept(this);
+antlrcpp::Any AstBuilder::visitTypeList(CoLaParser::TypeListContext* context) {
+	TypeList result;
+	result.reserve(context->types.size());
+	for (auto typeContext : context->types) {
+		auto typeName = typeContext->accept(this).as<std::string>();
+		const Type& type = lookupType(typeName);
+		result.push_back(type);
+	}
+	if (result.size() > 1) {
+		for (const Type& type : result) {
+			if (type.sort != Sort::VOID) continue;
+			throw ParseError("Type lists must not contain types of sort 'VOID'.");
+		}
+	}
+	return result;
 }
 
 antlrcpp::Any AstBuilder::visitArgDeclList(cola::CoLaParser::ArgDeclListContext* context) {
-	auto dlist = new ArgDeclList(); //std::make_shared<ArgDeclList>();
+	ArgDeclList dlist; // TODO important: std::make_shared<ArgDeclList>();
 	auto size = context->argTypes.size();
-	dlist->reserve(size);
+	dlist.reserve(size);
 	assert(size == context->argNames.size());
 	for (std::size_t i = 0; i < size; i++) {
 		std::string name = context->argNames.at(i)->getText();
 		const Type& type = lookupType(context->argTypes.at(i)->accept(this).as<std::string>());
 		// TODO: what the ****?! why can't I pass the reference wrapper here without them being lost after the loop?
-		dlist->push_back(std::make_pair(name, type.name));
+		dlist.push_back(std::make_pair(name, type.name));
 	}
 	return dlist;
 }
@@ -766,7 +779,7 @@ antlrcpp::Any AstBuilder::visitCmdCall(cola::CoLaParser::CmdCallContext* context
 		auto& type_required = function.args.at(i)->type;
 		if (!assignable(type_required, type_is)) {
 			std::stringstream msg;
-			msg << "Function '" << function.name << "' requires '" << type_required.name << "' for " << i << "th argument, '";
+			msg << "Function '" << function.name << "' requires '" << type_required.name << "' for its " << iTh(i) << " argument, '";
 			msg << type_is.name << "' given.";
 			throw ParseError(msg.str());
 		}
@@ -783,16 +796,16 @@ antlrcpp::Any AstBuilder::visitCmdCall(cola::CoLaParser::CmdCallContext* context
 	}
 
 	// check lhs number
-	if (lhs.size() != 0 && function.returns.size() != lhs.size()) {
-		throw ParseError("Coult not unpack return values of function '" + function.name + "', number of values missmatchs.");
+	if (lhs.size() != 0 && function.return_type.size() != lhs.size()) {
+		throw ParseError("Coult not unpack return values of function '" + function.name + "': number of values missmatchs.");
 	}
 
 	for (std::size_t i = 0; i < lhs.size(); ++i) {
-		auto& type_is = function.returns.at(i)->type;
+		auto& type_is = function.return_type.at(i).get();
 		auto& type_required = lhs.at(i).get().type;
 		if (!assignable(type_required, type_is)) {
 			std::stringstream msg;
-			msg << "Function '" << function.name << "' returns '" << type_required.name << "' as the " << i << "th value, '";
+			msg << "Function '" << function.name << "' returns '" << type_required.name << "' as its " << iTh(i) << " value, '";
 			msg << "assigning to type " << type_is.name << "' is not possible.";
 			throw ParseError(msg.str());
 		}
@@ -829,15 +842,15 @@ antlrcpp::Any AstBuilder::visitCmdBreak(cola::CoLaParser::CmdBreakContext* /*con
 
 static Statement* make_return(const Function& func, std::vector<std::unique_ptr<Expression>> expressions) {
 	auto result = new Return();
-	if (expressions.size() != func.returns.size()) {
-		throw ParseError("Number of return values does not match return type in function '" + func.name + "'.");
+	if (expressions.size() != func.return_type.size()) {
+		throw ParseError("Number of returned values does not match return type of function '" + func.name + "'.");
 	}
 	for (std::size_t i = 0; i < expressions.size(); ++i) {
 		auto& type_is = expressions.at(i)->type();
-		auto& type_required = func.returns.at(i)->type;
+		auto& type_required = func.return_type.at(i).get();
 		if (!assignable(type_required, type_is)) {
 			std::stringstream msg;
-			msg << "The " << i << "th return value of '" << func.name << "' must be of type " << type_required.name << "', ";
+			msg << "The " << AstBuilder::iTh(i) << " return value of '" << func.name << "' must be of type " << type_required.name << "', ";
 			msg << "type " << type_is.name << "' is not compatible.";
 			throw ParseError(msg.str());
 		}

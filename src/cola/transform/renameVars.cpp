@@ -28,9 +28,6 @@ struct NameClashResolver : public BaseNonConstVisitor {
 		for (auto& decl : node.args) {
 			decl->accept(*this);
 		}
-		for (auto& decl : node.returns) {
-			decl->accept(*this);
-		}
 		node.body->accept(*this);
 	}
 	void visit(Program& node) {

@@ -39,6 +39,7 @@ namespace plankton {
 			: solver(solver), preNow(pre), preTime(GetDummyContainer()), implication(&post), implicationCheck(true) {}
 
 		std::unique_ptr<ConjunctionFormula> ComputeImpliedCandidates(const ImplicationCheckerImpl& checker);
+		time_container_t CopyPreTime() const;
 	};
 
 

@@ -20,6 +20,7 @@ struct AnnotationJoiner {
 		for (auto& annotation : input) {
 			if (solver.ImpliesFalseQuick(*annotation)) continue;
 			annotation = solver.AddInvariant(std::move(annotation));
+			// annotation = solver.AddRules(std::move(annotation));
 			checkers.emplace_back(encoder, *annotation);
 			annotations.push_back(std::move(annotation));
 			if (!checkers.back().ImpliesFalse()) continue;

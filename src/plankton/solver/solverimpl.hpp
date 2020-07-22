@@ -79,11 +79,11 @@ namespace plankton {
 			std::unique_ptr<ConjunctionFormula> AddRules(std::unique_ptr<ConjunctionFormula> formula) const;
 			std::unique_ptr<ConjunctionFormula> StripRules(std::unique_ptr<ConjunctionFormula> formula) const;
 
-			void PushInnerScope();
-			void PushOuterScope();
-			void AddVariableToCurrentScope(const cola::VariableDeclaration& decl);
-			void AddVariableToCurrentScope(const std::vector<std::unique_ptr<cola::VariableDeclaration>>& decls);
-			void PrepareCurrentScope();
+			std::unique_ptr<ConjunctionFormula> ComputeImpliedCandidates(const ImplicationCheckerImpl& checker) const;
+			std::unique_ptr<ConjunctionFormula> ComputeImpliedCandidates(const std::vector<ImplicationCheckerImpl>& checkers) const;
+
+			void PushScope();
+			void ExtendCurrentScope(const std::vector<std::unique_ptr<cola::VariableDeclaration>>& decls);
 
 		public: // implement 'Solver' interface
 			SolverImpl(PostConfig config_);
@@ -92,14 +92,12 @@ namespace plankton {
 			std::unique_ptr<ImplicationCheckerImpl> MakeImplicationChecker(const Annotation& annotation) const;
 			std::unique_ptr<ImplicationChecker> MakeImplicationChecker(const Formula& formula) const override;
 
-			std::unique_ptr<ConjunctionFormula> ComputeImpliedCandidates(const ImplicationCheckerImpl& checker) const;
-			std::unique_ptr<ConjunctionFormula> ComputeImpliedCandidates(const std::vector<ImplicationCheckerImpl>& checkers) const;
-			std::unique_ptr<Annotation> Join(std::vector<std::unique_ptr<Annotation>> annotations) const override;
-
 			std::unique_ptr<Annotation> AddInvariant(std::unique_ptr<Annotation> annotation) const override;
 			std::unique_ptr<Annotation> StripInvariant(std::unique_ptr<Annotation> annotation) const override;
 			std::unique_ptr<ConjunctionFormula> AddInvariant(std::unique_ptr<ConjunctionFormula> formula) const;
 			std::unique_ptr<ConjunctionFormula> StripInvariant(std::unique_ptr<ConjunctionFormula> formula) const;
+
+			std::unique_ptr<Annotation> Join(std::vector<std::unique_ptr<Annotation>> annotations) const override;
 
 			void EnterScope(const cola::Scope& scope) override;
 			void EnterScope(const cola::Macro& macro) override;

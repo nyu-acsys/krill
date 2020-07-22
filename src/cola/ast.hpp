@@ -89,14 +89,16 @@ namespace cola {
 	/*--------------- functions/macros/programs ---------------*/
 
 	struct Function : public AstNode {
-		enum Kind { INTERFACE, MACRO };
+		enum Kind { INTERFACE, MACRO, INIT };
 		std::string name;
 		Kind kind;
+		std::vector<std::reference_wrapper<const Type>> return_type;
 		std::vector<std::unique_ptr<VariableDeclaration>> args;
-		std::vector<std::unique_ptr<VariableDeclaration>> returns;
 		std::unique_ptr<Scope> body;
-		Function(std::string name_, Kind kind_, std::unique_ptr<Scope> body_) : name(name_), kind(kind_), body(std::move(body_)) {
+		Function(std::string name_, Kind kind_, std::vector<std::reference_wrapper<const Type>> return_types_, std::unique_ptr<Scope> body_)
+			: name(name_), kind(kind_), return_type(std::move(return_types_)), body(std::move(body_)) {
 			assert(body);
+			assert(!return_type.empty());
 		}
 		ACCEPT_COLA_VISITOR
 	};

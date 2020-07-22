@@ -10,6 +10,19 @@ using namespace cola;
 using namespace plankton;
 
 
+void ThrowMissingReturn(const Function& function) {
+	throw VerificationError("Detected non-returning path through non-void function '" + function.name + "'.");
+}
+
+bool is_void(const Function& function) {
+	return function.return_type.size() == 1 && &function.return_type.at(0).get() == &Type::void_type();
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 bool plankton::check_linearizability(const Program& program) {
 	Verifier verifier;
 	program.accept(verifier);
@@ -154,10 +167,10 @@ void Verifier::visit(const Program& program) {
 struct SpecStore {
 	SpecificationAxiom::Kind kind;
 	const VariableDeclaration& searchKey;
-	const VariableDeclaration& returnedVar;
 };
 
 SpecStore get_spec(const Function& function) {
+	assert(function.kind == Function::INTERFACE);
 	SpecificationAxiom::Kind kind;
 	if (function.name == "contains") {
 		kind =  SpecificationAxiom::Kind::CONTAINS;
@@ -171,13 +184,13 @@ SpecStore get_spec(const Function& function) {
 	if (function.args.size() != 1) {
 		throw UnsupportedConstructError("Cannot verify function '" + function.name + "': expected 1 parameter, got " + std::to_string(function.args.size()) + ".");
 	}
-	if (function.returns.size() != 1) {
-		throw UnsupportedConstructError("Cannot verify function '" + function.name + "': expected 1 return value, got " + std::to_string(function.returns.size()) + ".");
+	if (function.return_type.size() != 1) {
+		throw UnsupportedConstructError("Cannot verify function '" + function.name + "': expected 1 return value, got " + std::to_string(function.return_type.size()) + ".");
 	}
-	if (&function.returns.at(0)->type != &Type::bool_type()) {
-		throw UnsupportedConstructError("Cannot verify function '" + function.name + "': expected boolean return value.");
+	if (&function.return_type.at(0).get() != &Type::bool_type()) {
+		throw UnsupportedConstructError("Cannot verify function '" + function.name + "': expected return type to be 'bool'.");
 	}
-	return { kind, *function.args.at(0), *function.returns.at(0) };
+	return { kind, *function.args.at(0) };
 }
 
 std::unique_ptr<Annotation> get_init_annotation(SpecStore spec) {
@@ -198,16 +211,18 @@ std::unique_ptr<Annotation> get_init_annotation(SpecStore spec) {
 struct FulfillmentSearcher : public DefaultListener {
 	std::unique_ptr<ImplicationChecker> checker;
 	SpecStore specification;
+	const Return& cmd;
 	bool result = false;
 
-	FulfillmentSearcher(std::unique_ptr<ImplicationChecker> checker_, SpecStore spec_) : checker(std::move(checker_)), specification(spec_) {}
+	FulfillmentSearcher(std::unique_ptr<ImplicationChecker> checker_, SpecStore spec_, const Return& cmd_)
+		: checker(std::move(checker_)), specification(spec_), cmd(cmd_) { assert(cmd.expressions.size() == 1); }
 
 	void exit(const FulfillmentAxiom& formula) override {
 		if (result) return;
 		if (formula.kind == specification.kind && &formula.key->decl == &specification.searchKey) {
 			auto conclusion = std::make_unique<ExpressionAxiom>(std::make_unique<BinaryExpression>(
 				BinaryExpression::Operator::EQ,
-				std::make_unique<VariableExpression>(specification.returnedVar),
+				cola::copy(*cmd.expressions.at(0)),
 				std::make_unique<BooleanValue>(formula.return_value)
 			));
 			result = checker->Implies(*conclusion);
@@ -215,17 +230,21 @@ struct FulfillmentSearcher : public DefaultListener {
 	}
 };
 
-inline void establish_linearizability_or_fail(const Solver& solver, const Annotation& annotation, const Function& function, SpecStore spec) {
+inline void establish_linearizability_or_fail(const Solver& solver, SpecStore spec, const Annotation& annotation, const Return* cmd, const Function& function) {
 	auto checker = solver.MakeImplicationChecker(annotation);
 
 	// check for false
 	if (checker->ImpliesFalse()) {
-		std::cout << "\% successfully established linearizability (vacuously fulfilled)" << std::endl;
+		std::cout << "\% successfully established linearizability (vacuously fulfilled on unreachable path)" << std::endl;
 		return;
 	}
 
+	// check for missing return
+	assert(!is_void(function));
+	if (!cmd) ThrowMissingReturn(function);
+
 	// search for fulfillment
-	FulfillmentSearcher listener(std::move(checker), spec);
+	FulfillmentSearcher listener(std::move(checker), spec, *cmd);
 	annotation.now->accept(listener);
 	if (listener.result) {
 		std::cout << "\% successfully established linearizability (found fulfillment)" << std::endl;
@@ -247,26 +266,24 @@ void Verifier::visit_interface_function(const Function& function) {
 
 	assert(function.kind == Function::Kind::INTERFACE);
 	inside_atomic = false;
+	breaking_annotations.clear();
+	returning_annotations.clear();
 
 	// extract specification info and initial annotation
 	auto spec = get_spec(function);
 	current_annotation = get_init_annotation(spec);
-	solver->EnterScope(function);
 
 	// handle body
+	solver->EnterScope(function);
 	function.body->accept(*this);
-	// std::cout << std::endl << "________" << std::endl << "Post annotation for function '" << function.name << "':" << std::endl;
-	// plankton::print(*current_annotation, std::cout);
-	// std::cout << std::endl << std::endl;
+	solver->LeaveScope();
 
 	// check if obligation is fulfilled
-	returning_annotations.push_back(std::move(current_annotation));
-	for (const auto& returned : returning_annotations) {
-		establish_linearizability_or_fail(*solver, *returned, function, spec);
+	returning_annotations.emplace_back(std::move(current_annotation), nullptr);
+	for (const auto& [pre, cmd] : returning_annotations) {
+		establish_linearizability_or_fail(*solver, spec, *pre, cmd, function);
 	}
 
-	current_annotation = Annotation::make_false();
-	solver->LeaveScope();
 	throw std::logic_error("breakpoint");
 }
 
@@ -310,6 +327,7 @@ void Verifier::visit(const Choice& stmt) {
 }
 
 void Verifier::visit(const IfThenElse& stmt) {
+	// TODO: add PostAssume for expressions to solver to avoid dummy 'Assume's here
 	auto pre_condition = plankton::copy(*current_annotation);
 
 	// if branch
@@ -353,10 +371,13 @@ void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { //
 		auto before_annotation = plankton::copy(*current_annotation);
 		stmt.body->accept(*this);
 
-		if (solver->Implies(*current_annotation, *before_annotation)) {
-			break;
-		}
+		if (solver->Implies(*current_annotation, *before_annotation)) break;
 		current_annotation = solver->Join(std::move(before_annotation), std::move(current_annotation));
+		// current_annotation = solver->Join(plankton::copy(*before_annotation), std::move(current_annotation));
+		// if (solver->Implies(*current_annotation, *before_annotation)) {
+		// 	break;
+		// }
+
 		if (plankton::config.interference_after_unification) apply_interference();
 	}
 	
@@ -418,7 +439,8 @@ void Verifier::visit(const Assert& cmd) {
 
 void Verifier::visit(const Return& cmd) {
 	check_pointer_accesses(cmd);
-	returning_annotations.push_back(std::move(current_annotation));
+	current_annotation = solver->AddInvariant(std::move(current_annotation));
+	returning_annotations.emplace_back(std::move(current_annotation), &cmd);
 	current_annotation = Annotation::make_false();
 }
 
@@ -438,24 +460,6 @@ void Verifier::visit(const Assignment& cmd) {
 	current_annotation = solver->Post(*current_annotation, cmd);
 	if (has_effect(*cmd.lhs) || has_effect(*cmd.rhs)) apply_interference();
 }
-
-void Verifier::visit_macro_function(const Function& function) {
-	// store caller context
-	auto outer_breaking_annotations = std::move(breaking_annotations);
-	auto outer_returning_annotations = std::move(returning_annotations);
-	breaking_annotations.clear();
-	returning_annotations.clear();
-	
-	// execute function
-	function.body->accept(*this);
-	returning_annotations.push_back(std::move(current_annotation));
-	current_annotation = solver->Join(std::move(returning_annotations));
-
-	// restore caller context
-	breaking_annotations = std::move(outer_breaking_annotations);
-	returning_annotations = std::move(outer_returning_annotations);
-}
-
 
 template<typename T>
 inline std::pair<const T*, std::unique_ptr<T>> prepare(const VariableDeclaration& decl) {
@@ -498,19 +502,53 @@ inline std::unique_ptr<Annotation> execute_parallel_assignment(const Solver& sol
 	return solver.Post(pre, assignment);
 }
 
+std::unique_ptr<Annotation> join_returning_annotations(const Solver& solver, const Macro& macro, std::vector<std::pair<std::unique_ptr<Annotation>, const cola::Return*>> returning_annotations) {
+	std::vector<std::unique_ptr<Annotation>> postAnnotations;
+	for (auto& [returnPre, returnCmd] : returning_annotations) {
+		std::unique_ptr<Annotation> post;
+
+		if (returnCmd) // path ends in return command
+			post = execute_parallel_assignment(solver, *returnPre, macro.lhs, returnCmd->expressions);
+		
+		else if (is_void(macro.decl)) // path through void function without return command
+			post = std::move(returnPre);
+
+		else if (solver.ImpliesFalse(*returnPre)) // unreachable
+			continue;
+		
+		else // non-returning path through non-void function
+			ThrowMissingReturn(macro.decl);
+
+		postAnnotations.push_back(std::move(post));
+		// log() << std::endl <<  "------" << std::endl << "return from " << macro.decl.name << " with: " << std::endl << *postAnnotations.back() << std::endl;
+	}
+	return solver.Join(std::move(postAnnotations));
+}
+
 void Verifier::visit(const Macro& cmd) {
-	// pass arguments
+	// store caller context
+	auto outer_breaking_annotations = std::move(breaking_annotations);
+	auto outer_returning_annotations = std::move(returning_annotations);
+	breaking_annotations.clear();
+	returning_annotations.clear();
+
+	// pass arguments (must be done in inner scope)
 	current_annotation = solver->AddInvariant(std::move(current_annotation));
 	solver->EnterScope(cmd);
 	current_annotation = execute_parallel_assignment(*solver, *current_annotation, cmd.decl.args, cmd.args);
 
 	// descend into function call
-	visit_macro_function(cmd.decl);
-
-	// grab returns
+	cmd.decl.body->accept(*this);
 	current_annotation = solver->AddInvariant(std::move(current_annotation));
+	returning_annotations.emplace_back(std::move(current_annotation), nullptr);
+
+	// make post annotation (must be done in outer scope)
 	solver->LeaveScope();
-	current_annotation = execute_parallel_assignment(*solver, *current_annotation, cmd.lhs, cmd.decl.returns);
+	current_annotation = join_returning_annotations(*solver, cmd, std::move(returning_annotations));
+
+	// restore caller context
+	breaking_annotations = std::move(outer_breaking_annotations);
+	returning_annotations = std::move(outer_returning_annotations);
 
 	// log() << std::endl << "________" << std::endl << "Post annotation for macro '" << cmd.decl.name << "':" << std::endl << *current_annotation << std::endl << std::endl;
 }
