@@ -23,8 +23,13 @@ struct DerefPostComputer {
 	DerefPostComputer(PostInfo info, const Dereference& lhs, const Expression& rhs);
 	std::unique_ptr<Annotation> MakePost();
 
+	bool IsHeapHomogeneous();
+	std::size_t GetFootprintDepth();
+	std::vector<std::string> OutgoingEdges();
+	bool ImpliesInvariant(z3::expr node);
+	bool IsNullOrOutflowUnchange(z3::expr node, std::string fieldname);
 	z3::solver MakeBaseSolver();
-	z3::expr MakeFootprintMember(std::size_t index);
+	z3::expr MakeFootprintNode(std::size_t index);
 	std::unique_ptr<ConjunctionFormula> MakePostNow();
 	std::unique_ptr<Annotation> MakePostTime();
 };
@@ -76,14 +81,14 @@ DerefPostComputer::DerefPostComputer(PostInfo info_, const Dereference& lhs, con
 	  qvNode(encoder.EncodeVariable(GetDummyDecl<Sort::PTR>())),
 	  qvKey(encoder.EncodeVariable(GetDummyDecl<Sort::DATA>()))
 	{
-		if (&nodeType != info.solver.config.domain->GetNodeType()) {
+		if (&nodeType != &info.solver.config.flowDomain->GetNodeType()) {
 			std::stringstream msg;
 			msg << "Flow domain incompatible with assignment '";
 			msg << AssignmentString(lhs, rhs) + "': '";
 			cola::print(*lhs.expr, msg);
-			msg << "' is of type '" << lhs.expr->type.name << "', ";
+			msg << "' is of type '" << lhs.expr->type().name << "', ";
 			msg << "but flow domain is defined over type '";
-			msg << info.solver.config.domain->GetNodeType().name << "'.";
+			msg << info.solver.config.flowDomain->GetNodeType().name << "'.";
 			throw SolvingError(msg.str());
 		}
 		if (!IsHeapHomogeneous()) {
@@ -96,6 +101,15 @@ DerefPostComputer::DerefPostComputer(PostInfo info_, const Dereference& lhs, con
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool DerefPostComputer::IsHeapHomogeneous() {
+	throw std::logic_error("not yet implemented: DerefPostComputer::IsHeapHomogeneous");
+}
+
+std::size_t DerefPostComputer::GetFootprintDepth() {
+	throw std::logic_error("not yet implemented: DerefPostComputer::GetFootprintDepth");
+	// info.solver.config.flowDomain->GetFootprintSize(???, lhs, rhs);
+}
 
 z3::solver DerefPostComputer::MakeBaseSolver() {
 	auto solver = encoder.MakeSolver(Encoder::StepTag::NEXT); // TODO: which StepTag?
@@ -143,14 +157,28 @@ z3::expr DerefPostComputer::MakeFootprintNode(std::size_t index) {
 	}
 
 	assert(index < dummyPointers.size());
-	return encoder.EncodeVariable(dummyPointers.at(index), Encoder::StepTag::NEXT);
+	return encoder.EncodeVariable(*dummyPointers.at(index), Encoder::StepTag::NEXT);
+}
+
+std::vector<std::string> DerefPostComputer::OutgoingEdges() {
+	// TODO: reuse code from encoder?
+	throw std::logic_error("not yet implemented: DerefPostComputer::OutgoingEdges");
+}
+
+bool DerefPostComputer::ImpliesInvariant(z3::expr /*node*/) {
+	// return checker.Implies(encoder.EncodeNextInvariant(node));
+	throw std::logic_error("not yet implemented: DerefPostComputer::ImpliesInvariant");
+}
+
+bool DerefPostComputer::IsNullOrOutflowUnchange(z3::expr /*node*/, std::string /*fieldname*/) {
+	throw std::logic_error("not yet implemented: DerefPostComputer::IsNullOrOutflowUnchange");
 }
 
 std::unique_ptr<ConjunctionFormula> DerefPostComputer::MakePostNow() {
 	log() << "**PRE**" << std::endl << info.preNow << std::endl;
 
 	auto solver = MakeBaseSolver();
-	auto footprintDepth = info.solver.config.domain->GetFootprintSize();
+	auto footprintDepth = GetFootprintDepth();
 
 	std::size_t footprintSize = 0;
 	auto NewFootprintNode = [this,&footprintSize](){ return MakeFootprintNode(footprintSize++); };	
@@ -162,8 +190,8 @@ std::unique_ptr<ConjunctionFormula> DerefPostComputer::MakePostNow() {
 		solver.add(root == lhsNodeNext);
 		worklist.emplace_back(root, footprintDepth);
 
-		// TODO: add more roots
-		if (lhs->sort == Sort::PTR) {
+		// TODO important: add more roots
+		if (lhs.sort() == Sort::PTR) {
 			throw std::logic_error("not yet implemented: DerefPostComputer::MakePostNow()");
 		}
 	}
@@ -173,29 +201,28 @@ std::unique_ptr<ConjunctionFormula> DerefPostComputer::MakePostNow() {
 		auto [node, remainingDepth] = worklist.front();
 		worklist.pop_front();
 
-		// ensure that invariant holds for node
-		if (!IsNullOrImpliesInvariant(node)) {
+		// ensure that invariant holds for node (invariant must handle NULL case itself)
+		if (!ImpliesInvariant(node)) {
 			throw SolvingError("Could not establish invariant for heap update '" + AssignmentString(lhs, rhs) + "': invariant violated.");
 		}
 
 		// check if outflow is unchanged; if not, add successor to worklist
 		for (auto selectorName : OutgoingEdges()) {
-			if (IsNullOrOutflowUnchange(node, selectorName)) continue;
-			if (remainingDepth == 0) {
+			if (IsNullOrOutflowUnchange(node, selectorName))
+				continue;
+			else if (remainingDepth == 0)
 				throw SolvingError("Could not establish invariant for heap update '" + AssignmentString(lhs, rhs) + "': footprint to small.");
-			}
+
 			auto successor = NewFootprintNode();
-			auto selector = std::make_pair(nodeType, selectorName);
-			solver.Add(encoder.EncodeNextHeap(node, selector, successor));
+			auto selector = std::make_pair(&nodeType, selectorName);
+			auto bothNull = node == encoder.MakeNullPtr() && successor == encoder.MakeNullPtr();
+			auto bothConnected = encoder.EncodeNextHeap(node, selector, successor);
+			solver.add(bothNull || bothConnected);
 			worklist.emplace_back(successor, remainingDepth -1);
 		}
 	}
 
-	// TODO: implement
-	//     bool IsNullOrImpliesInvariant(z3::expr node)
-	//     bool IsNullOrOutflowUnchange(std::string fieldname) // fieldname is of pointer sort
-	//     std::vector<std::string> OutgoingEdges()
-	//     bool IsHeapHomogeneous()
+
 
 	// TODO: purity checks
 	// TODO: obl/ful transformation
