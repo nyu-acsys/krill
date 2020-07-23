@@ -6,24 +6,10 @@
 
 using namespace cola;
 using namespace plankton;
+using StepTag = Encoder::StepTag;
 
 
-enum struct PurityStatus { PURE, INSERTION, DELETION, FAILED };
-
-PurityStatus Combine(PurityStatus status, PurityStatus other) {
-	if (status == other) return status;
-	switch (status) {
-		case PurityStatus::PURE: return other;
-		case PurityStatus::FAILED: return status;
-		default: break;
-	}
-	switch (other) {
-		case PurityStatus::PURE: return status;
-		case PurityStatus::FAILED: return other;
-		default: break;
-	}
-	return PurityStatus::FAILED;
-}
+enum struct PurityStatus { PURE, INSERTION, DELETION };
 
 struct DerefPostComputer {
 	PostInfo info;
@@ -118,8 +104,8 @@ const ExpressionAxiom& GetTrueAxiom() {
 DerefPostComputer::DerefPostComputer(PostInfo info_, const Dereference& lhs, const Expression& rhs)
 	: info(std::move(info_)), encoder(info.solver.GetEncoder()), lhs(lhs), rhs(rhs),
 	  nodeType(lhs.expr->type()),
-	  solver(encoder.MakeSolver(Encoder::StepTag::NEXT)),
-	  checker(encoder, solver, GetTrueAxiom(), Encoder::StepTag::NEXT),
+	  solver(encoder.MakeSolver(StepTag::NEXT)),
+	  checker(encoder, solver, GetTrueAxiom(), StepTag::NEXT),
 	  lhsNodeNow(encoder.Encode(*lhs.expr)), lhsNodeNext(encoder.EncodeNext(*lhs.expr)),
 	  lhsNow(encoder.Encode(lhs)), lhsNext(encoder.EncodeNext(lhs)),
 	  rhsNow(encoder.Encode(rhs)), rhsNext(encoder.EncodeNext(rhs)),
@@ -261,7 +247,37 @@ void DerefPostComputer::CheckAssumptionIntegrity(z3::expr node, std::size_t node
 }
 
 void DerefPostComputer::UpdatePurity(z3::expr node) {
-	throw std::logic_error("not yet implemented: DerefPostComputer::UpdatePurity");
+	// helpers
+	auto NodeContains = [&,this](z3::expr key, StepTag tag) {
+		return encoder.EncodePredicate(*info.solver.config.logicallyContainsKey, node, key, tag) && encoder.EncodeKeysetContains(node, key, tag);
+	};
+	auto IsInserted = [&](z3::expr key) { return !NodeContains(key, StepTag::NOW) && NodeContains(key, StepTag::NEXT); };
+	auto IsDeleted = [&](z3::expr key) { return NodeContains(key, StepTag::NOW) && !NodeContains(key, StepTag::NEXT); };
+	auto IsUnchanged = [&](z3::expr key) { return !IsInserted(key) && !IsDeleted(key); };
+
+	// check purity
+	auto pureCheck = z3::forall(qvKey, IsUnchanged(qvKey));
+	if (checker.Implies(pureCheck)) return;
+	if (purityStatus != PurityStatus::PURE)
+		throw SolvingError("Bad impure heap update '" + AssignmentString(lhs, rhs) + "': not the first impure heap update.");
+
+	// check impure
+	auto CheckImpure = [&](auto& conditionGenerator, PurityStatus newStatus) {
+		auto check = z3::exists(qvKey, conditionGenerator(qvKey) &&
+			z3::forall(qvOtherKey, encoder.MakeImplication(qvKey != qvOtherKey, IsUnchanged(qvOtherKey)))
+		);
+		if (!checker.Implies(check)) return false;
+		purityStatus = newStatus;
+		return true;
+	};
+	bool satisfiesInsertionSpec = CheckImpure(IsInserted, PurityStatus::INSERTION);
+	bool satisfiesDeletionSpec = CheckImpure(IsDeleted, PurityStatus::DELETION);
+	assert(!(satisfiesInsertionSpec && satisfiesDeletionSpec));
+	if (satisfiesInsertionSpec ^ satisfiesDeletionSpec) return;
+
+	// specification not met
+	throw SolvingError("Failed to find specification for impure heap update '" + AssignmentString(lhs, rhs)
+		+ "': unable to figure out if it is an insertion or a deletion.");
 }
 
 void DerefPostComputer::AddNonFootprintFlowRulesToSolver() {
@@ -377,8 +393,7 @@ std::unique_ptr<ConjunctionFormula> DerefPostComputer::MakePostNow() {
 
 
 	// TODO: obey info.implicationCheck and if set skip checks
-	// TODO: keyset disjointness check
-	// TODO: purity checks
+	// TODO: keyset disjointness check within footprint
 	// TODO: obl/ful transformation
 
 
