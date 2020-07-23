@@ -200,6 +200,10 @@ struct KeysetFlow : public FlowDomain {
 
 	KeysetFlow(const Type& type_, std::unique_ptr<Predicate> predicate) : nodeType(type_), outflowContains(std::move(predicate)) {}
 
+	bool IsFlowDecreasing() const override {
+		return true;
+	}
+
 	const Type& GetNodeType() const override {
 		return nodeType;
 	}
@@ -209,9 +213,9 @@ struct KeysetFlow : public FlowDomain {
 		return *outflowContains;
 	}
 
-	std::size_t GetFootprintSize(const Annotation& /*pre*/, const Dereference& lhs, const Expression& /*rhs*/) const override {
+	std::size_t GetFootprintDepth(const ConjunctionFormula& /*pre*/, const Dereference& lhs, const Expression& /*rhs*/) const override {
 		// TODO important: if lhs.expr is owned, then a footprint of size 1 should do for pointer assignments?
-		return lhs.sort() == Sort::PTR ? 3 : 1;
+		return lhs.sort() == Sort::PTR ? 2 : 0;
 	}
 };
 

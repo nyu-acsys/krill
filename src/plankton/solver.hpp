@@ -18,6 +18,13 @@ namespace plankton {
 	struct FlowDomain {
 		virtual ~FlowDomain() = default;
 
+		/** May return ture only if a node's ouflow is at most its inflow.
+		  *
+		  * NOTE: non-decreasing flows may degrade solver performance and/or precision.
+		  * // TODO: remove this flag and perform the check within the solver.
+		  */
+		virtual bool IsFlowDecreasing() const = 0;
+
 		/** The type of nodes in the heap. Thou shalt have no other nodes before this.
 		  */
 		virtual const cola::Type& GetNodeType() const = 0;
@@ -34,16 +41,17 @@ namespace plankton {
 		  */
 		virtual const Predicate& GetOutFlowContains(std::string fieldname) const = 0;
 
-		/** Provides the footprint size, i.e., the number of nodes that are affected by the assignment 'lhs = rhs'
-		  * under the configuration characterized by 'pre'.
-		  *
-		  * NOTE: variable assignments are implicitly assumed to have a footprint size of '0'. To ensure this,
-		  *       a solver will most certainly disallow assignments to shared variables.
+		/** Provides the footprint depth. If the footprint depth is 'D', then its induced footprint are all
+		  * nodes that are reachable by taking 'D' edges from 'lhs.expr' in the pre and post heap graph.
+		  * That is, the footprint includes nodes reachable from 'lhs.expr' before and after the assignment.
 		  * 
-		  * ASSUMPTION: the footprint size accounts for all nodes the flow of which changes and for all nodes
-		  *             the fields of which change independent of the fact whether or not their flow changes.
+		  * The footprint depth is determined dynamically based on the assignment 'lhs = rhs' and the
+		  * current heap graph as characterized by 'pre'.
+		  *
+		  * NOTE: assignments to variables may implicitly be assumed to have a footprint size of '0'.
+		  *       To that end, a solver will most certainly disallow assignments to shared variables.
 		  */
-		virtual std::size_t GetFootprintSize(const Annotation& pre, const cola::Dereference& lhs, const cola::Expression& rhs) const = 0;
+		virtual std::size_t GetFootprintDepth(const ConjunctionFormula& pre, const cola::Dereference& lhs, const cola::Expression& rhs) const = 0;
 	};
 
 

@@ -33,9 +33,11 @@ namespace plankton {
 			z3::expr EncodeHasFlow(z3::expr node, StepTag tag = StepTag::NOW);
 			z3::expr EncodeVariable(const cola::VariableDeclaration& decl, StepTag tag = StepTag::NOW);
 			z3::expr EncodeOwnership(z3::expr pointer, bool owned=true, StepTag tag = StepTag::NOW);
+			z3::expr EncodeKeysetContains(z3::expr node, z3::expr key, StepTag tag = StepTag::NOW);
 			z3::expr EncodeObligation(SpecificationAxiom::Kind kind, z3::expr key, StepTag tag = StepTag::NOW);
 			z3::expr EncodeFulfillment(SpecificationAxiom::Kind kind, z3::expr key, bool returnValue, StepTag tag = StepTag::NOW);
 			z3::expr EncodeInvariant(const Invariant& invariant, z3::expr arg, StepTag tag = StepTag::NOW);
+			z3::expr EncodePredicate(const Predicate& predicate, z3::expr arg1, z3::expr arg2, StepTag tag = StepTag::NOW);
 
 			inline z3::expr EncodeNext(const Formula& formula) { return Encode(formula, StepTag::NEXT); }
 			inline z3::expr EncodeNext(const cola::Expression& expression) { return Encode(expression, StepTag::NEXT); }
@@ -45,9 +47,11 @@ namespace plankton {
 			inline z3::expr EncodeNextHasFlow(z3::expr node) { return EncodeHasFlow(node, StepTag::NEXT); }
 			inline z3::expr EncodeNextVariable(const cola::VariableDeclaration& decl) { return EncodeVariable(decl, StepTag::NEXT); }
 			inline z3::expr EncodeNextOwnership(z3::expr pointer, bool owned=true) { return EncodeOwnership(pointer, owned, StepTag::NEXT); }
+			inline z3::expr EncodeNextKeysetContains(z3::expr node, z3::expr key) { return EncodeKeysetContains(node, key, StepTag::NEXT); }
 			inline z3::expr EncodeNextObligation(SpecificationAxiom::Kind kind, z3::expr key) { return EncodeObligation(kind, key, StepTag::NEXT); }
 			inline z3::expr EncodeNextFulfillment(SpecificationAxiom::Kind kind, z3::expr key, bool returnValue) { return EncodeFulfillment(kind, key, returnValue, StepTag::NEXT); }
 			inline z3::expr EncodeNextInvariant(const Invariant& invariant, z3::expr arg) { return EncodeInvariant(invariant, arg, StepTag::NEXT); }
+			inline z3::expr EncodeNextPredicate(const Predicate& predicate, z3::expr arg1, z3::expr arg2) { return EncodePredicate(predicate, arg1, arg2, StepTag::NEXT); }
 
 			z3::expr EncodeTransitionMaintainsHeap(z3::expr node, const cola::Type& nodeType, std::set<std::string> excludedSelectors = {});
 			z3::expr EncodeTransitionMaintainsFlow(z3::expr node, z3::expr key);
@@ -97,8 +101,6 @@ namespace plankton {
 			z3::expr EncodeSpec(SpecificationAxiom::Kind kind);
 			z3::expr EncodeVariable(cola::Sort sort, std::string name, StepTag tag);
 			z3::expr EncodeSelector(selector_t selector, StepTag tag);
-			z3::expr EncodePredicate(const Predicate& predicate, z3::expr arg1, z3::expr arg2, StepTag tag);
-			z3::expr EncodeKeysetContains(z3::expr node, z3::expr key, StepTag tag);
 
 			z3::expr Encode(StepTag tag, const cola::VariableDeclaration& node);
 			z3::expr Encode(StepTag tag, const cola::BooleanValue& node);

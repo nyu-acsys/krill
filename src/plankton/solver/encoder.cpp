@@ -28,7 +28,7 @@ Encoder::Encoder(const PostConfig& config) :
 	// TODO: currently nullPtr/minVal/maxValu are just some symbols that are not bound to a value
 }
 
-const std::vector<std::pair<std::string, const Type*>>& Encoder::GetNodeTypePointerFields() {
+const std::vector<std::pair<std::string, const Type*>>& Encoder::GetNodeTypePointerFields() { // TODO: needed? remove?
 	if (!pointerFields.has_value()) {
 		std::vector<std::pair<std::string, const Type*>> result;
 		for (auto [fieldName, fieldType] : postConfig.flowDomain->GetNodeType().fields) {
