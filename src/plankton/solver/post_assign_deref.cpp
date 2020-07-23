@@ -22,18 +22,19 @@ struct DerefPostComputer {
 
 	z3::solver solver;
 	ImplicationCheckerImpl checker;
-	
-	PurityStatus purityStatus = PurityStatus::PURE;
-	std::optional<z3::expr> purityKey;
 
 	z3::expr lhsNodeNow, lhsNodeNext;
 	z3::expr lhsNow, lhsNext;
 	z3::expr rhsNow, rhsNext;
-	z3::expr qvNode, qvKey, qvOtherKey;
+	z3::expr qvNode, qvKey;
+
+	PurityStatus purityStatus = PurityStatus::PURE;
+	z3::expr impureKey;
 
 	DerefPostComputer(PostInfo info, const Dereference& lhs, const Expression& rhs);
 	std::unique_ptr<Annotation> MakePost();
 
+	void Throw(std::string reason, std::string explanation="");
 	bool IsHeapHomogeneous();
 	std::size_t GetFootprintDepth();
 	std::vector<std::string> OutgoingEdges();
@@ -111,28 +112,31 @@ DerefPostComputer::DerefPostComputer(PostInfo info_, const Dereference& lhs, con
 	  rhsNow(encoder.Encode(rhs)), rhsNext(encoder.EncodeNext(rhs)),
 	  qvNode(encoder.EncodeVariable(GetDummyDecl<Sort::PTR>())),
 	  qvKey(encoder.EncodeVariable(GetDummyDecl<Sort::DATA, 0>())),
-	  qvOtherKey(encoder.EncodeVariable(GetDummyDecl<Sort::DATA, 1>()))
-	{
-		if (&nodeType != &info.solver.config.flowDomain->GetNodeType()) {
-			std::stringstream msg;
-			msg << "Flow domain incompatible with assignment '";
-			msg << AssignmentString(lhs, rhs) + "': '";
-			cola::print(*lhs.expr, msg);
-			msg << "' is of type '" << lhs.expr->type().name << "', ";
-			msg << "but flow domain is defined over type '";
-			msg << info.solver.config.flowDomain->GetNodeType().name << "'.";
-			throw SolvingError(msg.str());
-		}
-		if (!IsHeapHomogeneous()) {
-			throw SolvingError("Cannot handle non-homogeneous heaps. Sorry.");
-			// TODO: explain 'non-homogeneous'
-		}
+	  impureKey(encoder.EncodeVariable(GetDummyDecl<Sort::DATA, 1>()))
+{
+	if (&nodeType != &info.solver.config.flowDomain->GetNodeType()) {
+		std::stringstream msg;
+		msg << "Flow domain incompatible with assignment '";
+		msg << AssignmentString(lhs, rhs) + "': '";
+		cola::print(*lhs.expr, msg);
+		msg << "' is of type '" << lhs.expr->type().name << "', ";
+		msg << "but flow domain is defined over type '";
+		msg << info.solver.config.flowDomain->GetNodeType().name << "'.";
+		throw SolvingError(msg.str());
 	}
+	if (!IsHeapHomogeneous()) {
+		throw SolvingError("Cannot handle non-homogeneous heaps. Sorry.");
+		// TODO: explain 'non-homogeneous'
+	}
+}
 
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
+void DerefPostComputer::Throw(std::string reason, std::string explanation) {
+	std::stringstream msg;
+	msg << reason + " '" + AssignmentString(lhs, rhs) + "'";
+	if (explanation != "") msg << ": " << explanation;
+	msg << ".";
+	throw SolvingError(msg.str());
+}
 
 bool DerefPostComputer::IsHeapHomogeneous() {
 	for (auto field : OutgoingEdges()) {
@@ -146,6 +150,21 @@ bool DerefPostComputer::IsHeapHomogeneous() {
 std::size_t DerefPostComputer::GetFootprintDepth() {
 	return info.solver.config.flowDomain->GetFootprintDepth(info.preNow, lhs, rhs);
 }
+
+std::vector<std::string> DerefPostComputer::OutgoingEdges() {
+	// TODO: reuse code from encoder?
+	std::vector<std::string> result;
+	for (auto [fieldName, fieldType] : nodeType.fields) {
+		if (fieldType.get().sort != Sort::PTR) continue;
+		result.push_back(fieldName);
+	}
+	return result;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void DerefPostComputer::AddBaseRulesToSolver() {
 	// ownership
@@ -178,16 +197,6 @@ void DerefPostComputer::AddBaseRulesToSolver() {
 
 	// add pre
 	solver.add(encoder.Encode(info.preNow));
-}
-
-std::vector<std::string> DerefPostComputer::OutgoingEdges() {
-	// TODO: reuse code from encoder?
-	std::vector<std::string> result;
-	for (auto [fieldName, fieldType] : nodeType.fields) {
-		if (fieldType.get().sort != Sort::PTR) continue;
-		result.push_back(fieldName);
-	}
-	return result;
 }
 
 z3::expr DerefPostComputer::GetFootprintNode(std::size_t index) {
@@ -259,25 +268,21 @@ void DerefPostComputer::UpdatePurity(z3::expr node) {
 	auto pureCheck = z3::forall(qvKey, IsUnchanged(qvKey));
 	if (checker.Implies(pureCheck)) return;
 	if (purityStatus != PurityStatus::PURE)
-		throw SolvingError("Bad impure heap update '" + AssignmentString(lhs, rhs) + "': not the first impure heap update.");
+		Throw("Bad impure heap update", "not the first impure heap update");
 
-	// check impure
-	auto CheckImpure = [&](auto& conditionGenerator, PurityStatus newStatus) {
-		auto check = z3::exists(qvKey, conditionGenerator(qvKey) &&
-			z3::forall(qvOtherKey, encoder.MakeImplication(qvKey != qvOtherKey, IsUnchanged(qvOtherKey)))
-		);
-		if (!checker.Implies(check)) return false;
-		purityStatus = newStatus;
-		return true;
-	};
-	bool satisfiesInsertionSpec = CheckImpure(IsInserted, PurityStatus::INSERTION);
-	bool satisfiesDeletionSpec = CheckImpure(IsDeleted, PurityStatus::DELETION);
-	assert(!(satisfiesInsertionSpec && satisfiesDeletionSpec));
-	if (satisfiesInsertionSpec ^ satisfiesDeletionSpec) return;
+	// check impure, part 1: nothing but 'impureKey' is changed
+	solver.add(!IsUnchanged(impureKey));
+	auto othersUnchangedCheck = z3::forall(qvKey, encoder.MakeImplication(
+		qvKey != impureKey, /* ==> */ IsUnchanged(qvKey)
+	));
+	if (!checker.Implies(othersUnchangedCheck))
+		Throw("Specification violated by impure heap update", "multiple keys inserted/deleted at once");
 
-	// specification not met
-	throw SolvingError("Failed to find specification for impure heap update '" + AssignmentString(lhs, rhs)
-		+ "': unable to figure out if it is an insertion or a deletion.");
+	// check impure, part 2: check insertion/deletion for 'impureKey'
+	assert(!(checker.Implies(IsInserted(impureKey)) && checker.Implies(IsDeleted(impureKey))));
+	if (checker.Implies(IsInserted(impureKey))) purityStatus = PurityStatus::INSERTION;
+	else if (checker.Implies(IsDeleted(impureKey))) purityStatus = PurityStatus::DELETION;
+	else Throw("Failed to find specification for impure heap update", "unable to figure out if it is an insertion or a deletion");
 }
 
 void DerefPostComputer::AddNonFootprintFlowRulesToSolver() {
@@ -302,10 +307,8 @@ std::deque<std::tuple<z3::expr, std::size_t, std::size_t>> DerefPostComputer::In
 
 	// secondary root is 'lhs' in 'info.preNow' (aka before the assignment); only needed for pointer assignments
 	if (lhs.sort() == Sort::PTR) {
-		if (footprintDepth == 0) {
-				throw SolvingError("Could not handle heap update '" + AssignmentString(lhs, rhs)
-					+ "': footprint too small; updates of pointer fields require a footprint depth of at least 1.");
-		}
+		if (footprintDepth == 0)
+			Throw("Could not handle heap update", "footprint too small; updates of pointer fields require a footprint depth of at least 1");
 
 		auto [old, oldId] = MakeNewFootprintNode();
 		solver.add(old == lhsNow);
@@ -361,7 +364,7 @@ void DerefPostComputer::ExploreAndCheckFootprint() {
 
 		// ensure that invariant holds for node (invariant must handle NULL case itself)
 		if (!ImpliesInvariant(node))
-			throw SolvingError("Could not establish invariant for heap update '" + AssignmentString(lhs, rhs) + "': invariant violated.");
+			Throw("Could not establish invariant for heap update", "invariant violated");
 		log() << "    established invariant" << std::endl;
 
 		// check specification
@@ -375,7 +378,7 @@ void DerefPostComputer::ExploreAndCheckFootprint() {
 			log() << "       outflow potentially changed" << std::endl;
 
 			if (remainingDepth == 0)
-				throw SolvingError("Could not establish invariant for heap update '" + AssignmentString(lhs, rhs) + "': footprint too small.");
+				Throw("Could not establish invariant for heap update", "footprint too small");
 
 			log() << "      descending along " << selector << std::endl;
 			auto [successor, successorId] = ExtendFootprintWithSuccessor(node, selector);
