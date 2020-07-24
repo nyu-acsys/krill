@@ -66,6 +66,12 @@ z3::expr Encoder::MakeImplication(z3::expr premise, z3::expr conclusion) {
 	return z3::implies(premise, conclusion);
 }
 
+z3::expr Encoder::MakeEquivalence(z3::expr expression, z3::expr other) {
+	// although equivalent, both versions behave differently (performance-wise)
+	return expression == other;
+	// return (expression && other) || (!expression && !other);
+}
+
 z3::expr Encoder::MakeAnd(const z3::expr_vector& conjuncts) {
 	return z3::mk_and(conjuncts);
 }
@@ -242,11 +248,11 @@ z3::expr Encoder::EncodeTransitionMaintainsHeap(z3::expr node, const Type& nodeT
 }
 
 z3::expr Encoder::EncodeTransitionMaintainsFlow(z3::expr node, z3::expr key) {
-	return EncodeFlow(node, key) == EncodeNextFlow(node, key);
+	return MakeEquivalence(EncodeFlow(node, key), EncodeNextFlow(node, key));
 }
 
 z3::expr Encoder::EncodeTransitionMaintainsOwnership(z3::expr node) {
-	return EncodeOwnership(node) == EncodeNextOwnership(node);
+	return MakeEquivalence(EncodeOwnership(node), EncodeNextOwnership(node));
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

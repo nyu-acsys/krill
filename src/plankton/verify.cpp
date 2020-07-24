@@ -44,7 +44,7 @@ inline std::string find_renaming(std::string name, RenamingInfo& info) {
 	std::string result;
 	do {
 		counter++;
-		result = std::to_string(counter) + "#" + name;
+		result = "interference#" + std::to_string(counter) + "#" + name;
 	} while (contains_name(result, info));
 	return result;
 }
@@ -453,6 +453,7 @@ void Verifier::visit(const Assignment& cmd) {
 
 	// check invariant and extend interference for effectful commands
 	if (has_effect(*cmd.lhs)) {
+		// TODO: skip if cmd is an effect on owned memory?
 		extend_interference(cmd);
 	}
 

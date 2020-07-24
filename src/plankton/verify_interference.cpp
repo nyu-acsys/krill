@@ -77,6 +77,8 @@ bool commands_equal(const Assignment& cmd, const Assignment& other) {
 }
 
 void Verifier::extend_interference(std::unique_ptr<Effect> effect) {
+	return; // TODO important: reenable <<<<<<<<<<<=====================================================================||||||||||||
+
 	bool is_effect_new = true;
 	bool effect_pruned = false;
 

@@ -71,6 +71,7 @@ namespace plankton {
 			z3::expr MakeOr(const z3::expr_vector& disjuncts);
 			z3::expr MakeAnd(const z3::expr_vector& conjuncts);
 			z3::expr MakeImplication(z3::expr premise, z3::expr conclusion);
+			z3::expr MakeEquivalence(z3::expr expression, z3::expr other);
 			z3::expr_vector MakeVector();
 
 		private:
