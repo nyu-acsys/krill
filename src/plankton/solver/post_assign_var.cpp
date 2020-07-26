@@ -60,7 +60,7 @@ std::unique_ptr<Annotation> plankton::MakeVarAssignPost(PostInfo info, const Var
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool VarPostComputer::AddSolvingRules() {
+bool VarPostComputer::AddSolvingRules() { // TODO: what? what does it do??
 	for (auto [lhs, rhs] : assignment) {
 		if (plankton::is_of_type<VariableExpression>(rhs.get()).first) {
 			return true;
@@ -134,6 +134,7 @@ std::unique_ptr<ConjunctionFormula> VarPostComputer::MakePostNow() {
 	// find implied candidates
 	auto checker = info.solver.MakeImplicationChecker(*interim);
 	auto post = info.ComputeImpliedCandidates(*checker);
+	// TODO important: remove ownership / add knowledge that certain things are not owned
 
 	// done
 	return post;
