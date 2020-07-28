@@ -356,9 +356,22 @@ void DerefPostComputer::AddFlowRulesToSolver(Node node, std::string selector, No
 
 	// add flow rule (if 'node' not null): 'successor' receives what 'node' sends via 'selector'
 	auto& edgeFunction = info.solver.config.flowDomain->GetOutFlowContains(selector);
+	for (auto tag : tags) {
+		log() << "    flow rule: " << node << " -> " << selector << " ~~> " << successor << "   " << (tag==StepTag::NOW ? "(now)" : "(next)") << std::endl;
+		auto flowRule = z3::forall(qvKey, encoder.MakeImplication(
+			encoder.EncodePredicate(edgeFunction, node, qvKey, tag),
+			/* ==> */
+			encoder.EncodeFlow(successor, qvKey, true, tag)
+		));
+		solver.add(encoder.MakeImplication(
+			node != encoder.MakeNullPtr(), /* ==> */ flowRule
+		));
+	}
+
 	// for (auto tag : tags) {
 	// 	log() << "    flow rule: " << node << " -> " << selector << " ~~> " << successor << "   " << (tag==StepTag::NOW ? "(now)" : "(next)") << std::endl;
 	// 	auto flowRule = z3::forall(qvKey, encoder.MakeImplication(
+	// 		encoder.EncodeFlow(GetNode(0), qvKey, false) &&
 	// 		encoder.EncodePredicate(edgeFunction, node, qvKey, tag),
 	// 		/* ==> */
 	// 		encoder.EncodeFlow(successor, qvKey, true, tag)
@@ -367,22 +380,23 @@ void DerefPostComputer::AddFlowRulesToSolver(Node node, std::string selector, No
 	// 		node != encoder.MakeNullPtr(), /* ==> */ flowRule
 	// 	));
 	// }
-	for (auto tag : tags) {
-		for (const auto& value : flowValues) {
-			for (auto otherTag : { StepTag::NOW, StepTag::NEXT }) {
-				log() << "    flow rule: " << node << " -> " << selector << " ~~> " << successor << "   " << *value << "  " << (tag==StepTag::NOW ? "(now)" : "(next)") << std::endl;
-				auto encodedValue = encoder.Encode(*value, otherTag);
-				auto flowRule = encoder.MakeImplication(
-					encoder.EncodePredicate(edgeFunction, node, encodedValue, tag),
-					/* ==> */
-					encoder.EncodeFlow(successor, encodedValue, true, tag)
-				);
-				solver.add(encoder.MakeImplication(
-					node != encoder.MakeNullPtr(), /* ==> */ flowRule
-				));
-			}
-		}
-	}
+
+	// for (auto tag : tags) {
+	// 	for (const auto& value : flowValues) {
+	// 		for (auto otherTag : { StepTag::NOW, StepTag::NEXT }) {
+	// 			log() << "    flow rule: " << node << " -> " << selector << " ~~> " << successor << "   " << *value << "  " << (tag==StepTag::NOW ? "(now)" : "(next)") << std::endl;
+	// 			auto encodedValue = encoder.Encode(*value, otherTag);
+	// 			auto flowRule = encoder.MakeImplication(
+	// 				encoder.EncodePredicate(edgeFunction, node, encodedValue, tag),
+	// 				/* ==> */
+	// 				encoder.EncodeFlow(successor, encodedValue, true, tag)
+	// 			);
+	// 			solver.add(encoder.MakeImplication(
+	// 				node != encoder.MakeNullPtr(), /* ==> */ flowRule
+	// 			));
+	// 		}
+	// 	}
+	// }
 }
 
 
@@ -620,7 +634,9 @@ bool DerefPostComputer::IsOutflowUnchanged(Node node, std::string fieldname) {
 		encoder.EncodePredicate(outflow, node, qvKey) == encoder.EncodeNextPredicate(outflow, node, qvKey)
 	));
 
-	return Implies(isUnchanged);
+	auto result = Implies(isUnchanged);
+	log() << "        ==> unchanged = " << result << std::endl;
+	return result;
 }
 
 
@@ -636,11 +652,8 @@ void DerefPostComputer::ExploreAndCheckFootprint() {
 	solver.push();
 	// flow: only flow that comes from the root may change // TODO important: correct???
 	// throw std::logic_error("try without first"); // <<<<<<<<<<<<<<<=====================================================================|||||||
-	solver.add(z3::forall(qvNode, qvKey, encoder.MakeImplication(
-		encoder.EncodeFlow(GetNode(0), qvKey, false), // TODO: now or next? should not matter
-		/* ==> */
-		encoder.EncodeTransitionMaintainsFlow(qvNode, qvKey)
-	)));
+	
+	
 	// auto qvOtherNode = encoder.EncodeVariable(GetDummyDecl<Sort::PTR, 1>());
 	// for (auto tag : { StepTag::NOW, StepTag::NEXT }) {
 	// 	for (auto selector : OutgoingEdges()) {
@@ -654,7 +667,19 @@ void DerefPostComputer::ExploreAndCheckFootprint() {
 	// 		solver.add(flowRule);
 	// 	}
 	// }
-	
+
+	solver.add(z3::forall(qvNode, qvKey, encoder.MakeImplication(
+		encoder.EncodeFlow(GetNode(0), qvKey, false), // TODO: now or next? should not matter
+		/* ==> */
+		encoder.EncodeTransitionMaintainsFlow(qvNode, qvKey)
+	)));
+	if (lhs.sort() == Sort::PTR) {
+		solver.add(z3::forall(qvNode, qvKey, encoder.MakeImplication( // TODO: only correct if the outflow of root did not change!!!!
+			!encoder.EncodePredicate(info.solver.config.flowDomain->GetOutFlowContains(lhs.fieldname), GetNode(0), qvKey),
+			/* ==> */
+			encoder.EncodeTransitionMaintainsFlow(qvNode, qvKey)
+		)));
+	}
 	// for (const auto& value : flowValues) {
 	// 	for (auto tag : { StepTag::NOW, StepTag::NEXT }) {
 	// 		auto encodedValue = encoder.Encode(*value, tag);
@@ -667,18 +692,12 @@ void DerefPostComputer::ExploreAndCheckFootprint() {
 	// }
 	log() << "  initialized footprint with " << footprint.size() << " nodes" << std::endl;
 
-	decltype(footprint) checkedFootprint;
+	// decltype(footprint) checkedFootprint;
 	decltype(footprintBoundary) checkedBoundary;
 	bool done;
 
 	do {
 		log() << "  iterating" << std::endl;
-		// check invariant / specification
-		for (auto node : footprint) {
-			if (checkedFootprint.count(node)) continue;
-			CheckFootprint(node);
-			checkedFootprint.insert(node);
-		}
 
 		// check interface
 		done = true;
@@ -700,6 +719,14 @@ void DerefPostComputer::ExploreAndCheckFootprint() {
 			Throw("Cannot verify heap update", "footprint too small");
 
 	} while (!done);
+		
+	// check invariant / specification
+	AddNonFootprintFlowRulesToSolver();
+	for (auto node : footprint) {
+		// if (checkedFootprint.count(node)) continue;
+		CheckFootprint(node);
+		// checkedFootprint.insert(node);
+	}
 
 	solver.pop();
 	solver.add(encoder.EncodeNext(info.solver.GetInstantiatedInvariant()));
@@ -717,18 +744,17 @@ std::unique_ptr<ConjunctionFormula> DerefPostComputer::MakePostNow() {
 	// TODO important: keyset disjointness check within footprint
 	std::cerr << "WARNING: missing disjointness check!!" << std::endl;
 
-	std::size_t counter = 0;
-	for (const auto& candidate : info.solver.GetCandidates()) {
-		bool inPre = info.solver.Implies(info.preNow, candidate.GetCheck());
-		bool inPost = checker.Implies(candidate.GetCheck());
-		log() << "." << std::flush;
-		if (!inPre || inPost) continue;
-		log() << std::endl << "candidate: " << candidate.GetCheck() << "    ";
-		log() << "pre=" << inPre << "  ";
-		log() << "post=" << inPost << std::endl;
-		++counter;
-	}
-	log() << " ==> " << counter << " differ, PRE was:" << std::endl << info.preNow << std::endl;
+	auto result = info.ComputeImpliedCandidates(checker);
 
-	return info.ComputeImpliedCandidates(checker);
+	// debug output
+	log() << "**PRE**     " << info.preNow << std::endl;
+	log() << "**POST**    " << *result << std::endl;
+	for (const auto& candidate : info.solver.GetCandidates()) {
+		bool inPre = plankton::syntactically_contains_conjunct(info.preNow, candidate.GetCheck());
+		bool inPost = plankton::syntactically_contains_conjunct(*result, candidate.GetCheck());
+		if (inPre == inPost) continue;
+		log() << " diff " << (inPre ? "lost" : "got") << " " << candidate.GetCheck() << std::endl;
+	}
+
+	return result;
 }

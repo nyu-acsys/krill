@@ -285,7 +285,7 @@ void Generator::AddPairRules(const Expression& expr, const Expression& other) {
 	auto [exprIsVar, exprVar] = plankton::is_of_type<VariableExpression>(expr);
 	if (!exprIsVar) return;
 
-	// AddOwnershipRules(exprVar->decl, other); // TODO important: needed
+	AddOwnershipRules(exprVar->decl, other); // TODO important: needed
 
 	auto [otherIsVar, otherVar] = plankton::is_of_type<VariableExpression>(other);
 	if (!otherIsVar) return;
