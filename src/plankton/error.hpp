@@ -41,15 +41,6 @@ namespace plankton {
 		InvariantViolationError(std::string cause);
 	};
 
-	struct PropertyConstructionError : public VerificationError {
-		PropertyConstructionError(std::string name, std::size_t expected, std::size_t got, std::string cmp="");
-	};
-
-	struct PropertyInstantiationError : public VerificationError {
-		PropertyInstantiationError(std::string name, std::size_t expected, std::size_t got);
-		PropertyInstantiationError(std::string name, std::size_t index, const cola::Type& expected, const cola::Type& got);
-	};
-
 } // namespace plankton
 
 #endif

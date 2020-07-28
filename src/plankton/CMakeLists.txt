@@ -16,36 +16,31 @@ include_directories(${Z3_INCLUDE})
 set(SOURCES
 	config.cpp
 	error.cpp
-	logic.cpp
-	properties.cpp
-	verify.cpp
-	verify_interference.cpp
-	# util
-	util/conjoin.cpp
-	util/contains.cpp
-	util/copy.cpp
-	util/equal.cpp
-	util/flatten.cpp
-	util/print.cpp
-	util/remove.cpp
-	util/replace.cpp
+	solver.cpp
+
+	# verify
+	verifyimpl/access.cpp
+	verifyimpl/effects.cpp
+	verifyimpl/interference.cpp
+	verifyimpl/proof.cpp
+	verifyimpl/renaming.cpp
+	verifyimpl/verify.cpp
+
 	# solver
-	solver/encoder.cpp
-	solver/mksolver.cpp
-	solver/solver.cpp
-	solver/solverimpl.cpp
-	solver/instantiation.cpp
-	solver/implication.cpp
-	solver/join.cpp
-	solver/scopes.cpp
-	solver/post.cpp
-	solver/post_assume.cpp
-	solver/post_malloc.cpp
-	solver/post_assign.cpp
-	solver/post_assign_var.cpp
-	solver/post_assign_deref.cpp
+	solverimpl/linsolver.cpp
+	solverimpl/make.cpp
+	solverimpl/join.cpp
+	solverimpl/scopes.cpp
+	solverimpl/post/info.cpp
+	solverimpl/post/assume.cpp
+	solverimpl/post/malloc.cpp
+	solverimpl/post/assign.cpp
+	solverimpl/post/assign_var.cpp
+	solverimpl/post/assign_deref.cpp
+
+	# backend
 )
 
 add_library(Plankton ${SOURCES})
 # add_dependencies(Plankton CoLa)
-target_link_libraries(Plankton CoLa ${Z3_LIBRARY})
+target_link_libraries(Plankton CoLa HeaL ${Z3_LIBRARY})

@@ -8,19 +8,19 @@
 #include <memory>
 #include <exception>
 #include "cola/ast.hpp"
+#include "heal/logic.hpp"
+#include "heal/util.hpp"
 #include "plankton/error.hpp"
-#include "plankton/logic.hpp"
-#include "plankton/util.hpp"
 #include "plankton/solver.hpp"
 
 
 namespace plankton {
 
 	struct Effect {
-		std::unique_ptr<ConjunctionFormula> precondition;
+		std::unique_ptr<heal::ConjunctionFormula> precondition;
 		std::unique_ptr<cola::Assignment> command;
 		
-		Effect(std::unique_ptr<ConjunctionFormula> pre, std::unique_ptr<cola::Assignment> cmd) : precondition(std::move(pre)), command(std::move(cmd)) {}
+		Effect(std::unique_ptr<heal::ConjunctionFormula> pre, std::unique_ptr<cola::Assignment> cmd);
 	};
 
 	struct RenamingInfo {
@@ -30,7 +30,7 @@ namespace plankton {
 		RenamingInfo() = default;
 		RenamingInfo(const RenamingInfo& other) = delete;
 
-		transformer_t as_transformer();
+		heal::transformer_t as_transformer();
 		const cola::VariableDeclaration& rename(const cola::VariableDeclaration& decl);
 	};
 
@@ -58,12 +58,12 @@ namespace plankton {
 			void visit(const cola::Program& node) override;
 
 		private:
-			std::unique_ptr<Annotation> current_annotation;
+			std::unique_ptr<heal::Annotation> current_annotation;
 			std::deque<std::unique_ptr<Effect>> interference; // interference for current proof, with local variables renamed
 			RenamingInfo interference_renaming_info;
 			bool is_interference_saturated; // indicates whether a fixed point wrt. to the found interference is reached
-			std::vector<std::unique_ptr<Annotation>> breaking_annotations; // collects annotations breaking out of loops
-			std::vector<std::pair<std::unique_ptr<Annotation>, const cola::Return*>> returning_annotations; // collects returns and their pre annotation
+			std::vector<std::unique_ptr<heal::Annotation>> breaking_annotations; // collects annotations breaking out of loops
+			std::vector<std::pair<std::unique_ptr<heal::Annotation>, const cola::Return*>> returning_annotations; // collects returns and their pre annotation
 			bool inside_atomic;
 			std::unique_ptr<Solver> solver;
 
@@ -74,9 +74,9 @@ namespace plankton {
 			void extend_interference(const cola::Assignment& command); // calls extend_interferenceadds with renamed (current_annotation, command)
 			void extend_interference(std::unique_ptr<Effect> effect); // adds effect to interference; updates is_interference_saturated
 			void apply_interference(); // weakens current_annotation according to interference
-			bool is_interference_free(const ConjunctionFormula& formula);
+			bool is_interference_free(const heal::ConjunctionFormula& formula);
 			bool has_effect(const cola::Expression& assignee);
-			bool has_effect(const SimpleFormula& formula);
+			bool has_effect(const heal::SimpleFormula& formula);
 	};
 
 

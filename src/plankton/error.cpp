@@ -52,15 +52,3 @@ inline std::string to_th(std::size_t index) {
 		default: return std::to_string(index) + "th";
 	}
 }
-
-PropertyInstantiationError::PropertyInstantiationError(std::string name, std::size_t index, const cola::Type& expected, const cola::Type& got)
-	: VerificationError("Instantiation of property '" + name + "' failed: expected " + to_th(index+1) +
-		                " argument to be of type '" + expected.name + "' but got incompatible type '" + got.name + "'." ) {}
-
-PropertyInstantiationError::PropertyInstantiationError(std::string name, std::size_t expected, std::size_t got)
-	: VerificationError("Instantiation of property '" + name + "' failed: expected " + std::to_string(expected) + " arguments but got " +
-		                std::to_string(got) + ".") {}
-
-PropertyConstructionError::PropertyConstructionError(std::string name, std::size_t expected, std::size_t got, std::string cmp)
-	: VerificationError("Construction of property '" + name + "' failed: expected " + cmp + std::to_string(expected) + " arguments but got " +
-		                std::to_string(got) + ".") {}

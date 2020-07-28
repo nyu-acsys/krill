@@ -6,15 +6,15 @@
 #include <iostream>
 #include "cola/ast.hpp"
 #include "cola/util.hpp"
-#include "plankton/logic.hpp"
-#include "plankton/util.hpp"
+#include "heal/logic.hpp"
+#include "heal/util.hpp"
 
 
 namespace plankton {
 
 	struct Logger {
 		template<typename T, typename = std::enable_if_t<
-			!std::is_base_of_v<Formula, T> && !std::is_base_of_v<cola::AstNode, T>
+			!std::is_base_of_v<heal::Formula, T> && !std::is_base_of_v<cola::AstNode, T>
 		>>
 		Logger& operator<<(const T& val) {
 			std::cout << val;
@@ -41,8 +41,8 @@ namespace plankton {
 			return *this;
 		}
 
-		Logger& operator<<(const Formula& formula) {
-			plankton::print(formula, std::cout);
+		Logger& operator<<(const heal::Formula& formula) {
+			heal::print(formula, std::cout);
 			return *this;
 		}
 

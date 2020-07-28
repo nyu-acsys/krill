@@ -5,57 +5,14 @@
 
 #include <memory>
 #include "cola/ast.hpp"
-#include "plankton/logic.hpp"
-#include "plankton/properties.hpp"
+#include "heal/logic.hpp"
+#include "heal/properties.hpp"
+#include "plankton/flow.hpp"
 
 
 namespace plankton {
 
-	/** Flow domain base class to parametrize a solvers in (almost) arbitrary flows.
-	  *
-	  * ASSUMPTION: heaps are homogeneous, i.e., consist of a single type of nodes only.
-	  */
-	struct FlowDomain {
-		virtual ~FlowDomain() = default;
-
-		/** May return ture only if a node's ouflow is at most its inflow.
-		  *
-		  * NOTE: non-decreasing flows may degrade solver performance and/or precision.
-		  * // TODO: remove this flag and perform the check within the solver.
-		  */
-		virtual bool IsFlowDecreasing() const = 0;
-
-		/** The type of nodes in the heap. Thou shalt have no other nodes before this.
-		  */
-		virtual const cola::Type& GetNodeType() const = 0;
-
-		/** Provides a predicate 'P(node, key)' computing whether or not 'key' is in the outflow of 'node'
-		  * via the field named 'fieldname'. This predicate encodes the edge function.
-		  * The function will be called for 'fieldname's of pointer sort only.
-		  * // TODO: characterize the overall edge function in terms of predicate 'P'
-		  *
-		  * NOTE: if the outflow contains 'key' only if 'key' is contained in the flow of 'node', then the
-		  *       predicate 'P' has to ensure this itself. // TODO: needed?
-		  *
-		  * ASSUMPTION: edge functions are node-local, i.e., may only access the fields of 'node'.
-		  */
-		virtual const Predicate& GetOutFlowContains(std::string fieldname) const = 0;
-
-		/** Provides the footprint depth. If the footprint depth is 'D', then its induced footprint are all
-		  * nodes that are reachable by taking 'D' edges from 'lhs.expr' in the pre and post heap graph.
-		  * That is, the footprint includes nodes reachable from 'lhs.expr' before and after the assignment.
-		  * 
-		  * The footprint depth is determined dynamically based on the assignment 'lhs = rhs' and the
-		  * current heap graph as characterized by 'pre'.
-		  *
-		  * NOTE: assignments to variables may implicitly be assumed to have a footprint size of '0'.
-		  *       To that end, a solver will most certainly disallow assignments to shared variables.
-		  */
-		virtual std::size_t GetFootprintDepth(const ConjunctionFormula& pre, const cola::Dereference& lhs, const cola::Expression& rhs) const = 0;
-	};
-
-
-	/** Configuration object for solvers.
+	/** Configuration for solvers.
 	  */
 	struct PostConfig {
 		/** The underlying flow domain.
@@ -64,25 +21,11 @@ namespace plankton {
 
 		/** A predicate 'P(node, key)' computing whether or not 'node' logically contains 'key'.
 		  */
-		std::unique_ptr<Predicate> logicallyContainsKey;
+		std::unique_ptr<heal::Predicate> logicallyContainsKey;
 
 		/** An invariant 'I(node)' that is implicitly universally quantified over all nodes in the
 		  */
-		std::unique_ptr<Invariant> invariant;
-	};
-
-
-	/** An iterative implication solver for a given premise P.
-	  * Allows to establish implications of the form 'P ==> A'.
-	  * Iteratively here refers to the fact that the object may reuse knowledge from previous querys.
-	  */
-	struct ImplicationChecker {
-		virtual ~ImplicationChecker() = default;
-
-		virtual bool ImpliesFalse() const = 0;
-		virtual bool Implies(const Formula& implied) const = 0;
-		virtual bool Implies(const cola::Expression& implied) const = 0;
-		virtual bool ImpliesNonNull(const cola::Expression& nonnull) const = 0;
+		std::unique_ptr<heal::Invariant> invariant;
 	};
 
 
@@ -90,44 +33,42 @@ namespace plankton {
 	  * The solver works relative to an invariant that it implicitly assumes and enforces.
 	  */
 	struct Solver {
-		PostConfig config; // TODO: const?
+		const PostConfig config;
 
 		virtual ~Solver() = default;
 		Solver(PostConfig config);
 
-		virtual std::unique_ptr<ImplicationChecker> MakeImplicationChecker(const Formula& formula) const = 0;
+		virtual bool ImpliesFalse(const heal::Formula& formula) const = 0;
+		virtual bool ImpliesFalseQuick(const heal::Formula& formula) const = 0;
+		virtual bool Implies(const heal::Formula& formula, const heal::Formula& implied) const = 0;
+		virtual bool Implies(const heal::Formula& formula, const cola::Expression& implied) const = 0;
+		virtual bool ImpliesIsNull(const heal::Formula& formula, const cola::Expression& nonnull) const = 0;
+		virtual bool ImpliesIsNonNull(const heal::Formula& formula, const cola::Expression& nonnull) const = 0;
 
-		virtual bool ImpliesFalseQuick(const Formula& formula) const;
-		virtual bool ImpliesFalse(const Formula& formula) const;
-		virtual bool Implies(const Formula& formula, const Formula& implied) const;
-		virtual bool Implies(const Formula& formula, const cola::Expression& implied) const;
-		virtual bool ImpliesNonNull(const Formula& formula, const cola::Expression& nonnull) const;
+		virtual std::unique_ptr<heal::Annotation> Join(std::unique_ptr<heal::Annotation> annotation, std::unique_ptr<heal::Annotation> other) const;
+		virtual std::unique_ptr<heal::Annotation> Join(std::vector<std::unique_ptr<heal::Annotation>> annotations) const = 0;
 
-		virtual std::unique_ptr<Annotation> Join(std::unique_ptr<Annotation> annotation, std::unique_ptr<Annotation> other) const;
-		virtual std::unique_ptr<Annotation> Join(std::vector<std::unique_ptr<Annotation>> annotations) const = 0;
-
-		virtual std::unique_ptr<Annotation> AddInvariant(std::unique_ptr<Annotation> annotation) const = 0;
-		virtual std::unique_ptr<Annotation> StripInvariant(std::unique_ptr<Annotation> annotation) const = 0;
-
+		virtual std::unique_ptr<heal::Annotation> AddInvariant(std::unique_ptr<heal::Annotation> annotation) const = 0;
+		virtual std::unique_ptr<heal::Annotation> StripInvariant(std::unique_ptr<heal::Annotation> annotation) const = 0;
+		virtual std::unique_ptr<heal::ConjunctionFormula> AddInvariant(std::unique_ptr<heal::ConjunctionFormula> formula) const = 0;
+		virtual std::unique_ptr<heal::ConjunctionFormula> StripInvariant(std::unique_ptr<heal::ConjunctionFormula> formula) const = 0;
 
 		virtual void EnterScope(const cola::Scope& scope) = 0;
 		virtual void EnterScope(const cola::Macro& macro) = 0;
 		virtual void EnterScope(const cola::Function& function) = 0;
 		virtual void EnterScope(const cola::Program& program) = 0;
 		virtual void LeaveScope() = 0;
-		virtual void LeaveScope(std::size_t amount);
 
-		virtual std::unique_ptr<Annotation> Post(const Annotation& pre, const cola::Assume& cmd) const = 0;
-		virtual std::unique_ptr<Annotation> Post(const Annotation& pre, const cola::Malloc& cmd) const = 0;
-		virtual std::unique_ptr<Annotation> Post(const Annotation& pre, const cola::Assignment& cmd) const = 0;
+		virtual std::unique_ptr<heal::Annotation> Post(const heal::Annotation& pre, const cola::Assume& cmd) const = 0;
+		virtual std::unique_ptr<heal::Annotation> Post(const heal::Annotation& pre, const cola::Malloc& cmd) const = 0;
+		virtual std::unique_ptr<heal::Annotation> Post(const heal::Annotation& pre, const cola::Assignment& cmd) const = 0;
 
 		using parallel_assignment_t = std::vector<std::pair<std::reference_wrapper<const cola::VariableExpression>, std::reference_wrapper<const cola::Expression>>>;
-		virtual std::unique_ptr<Annotation> Post(const Annotation& pre, parallel_assignment_t assignment) const = 0;
+		virtual std::unique_ptr<heal::Annotation> Post(const heal::Annotation& pre, parallel_assignment_t assignment) const = 0;
 
-		/** May ignore invariant and specification, i.e., implementation may decide to not establish the invariant for the post
-		  * state and may decide to ignore specification violations.
+		/** Implementation dependent: may not check invariant nor specification
 		  */
-		virtual bool PostEntails(const ConjunctionFormula& pre, const cola::Assignment& cmd, const ConjunctionFormula& post) const;
+		virtual bool UncheckedPostEntails(const heal::ConjunctionFormula& pre, const cola::Assignment& cmd, const heal::ConjunctionFormula& post) const;
 	};
 
 
