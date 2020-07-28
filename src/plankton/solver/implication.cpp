@@ -113,7 +113,9 @@ struct QuickChecker : public BaseLogicVisitor {
 	bool discharged = true;
 
 	QuickChecker(Encoder& encoder, Encoder::StepTag tag, const NowFormula& premise, bool encode=true)
-		: encoder(encoder), encodingTag(tag), premise(premise), encode(encode), conjuncts(encoder.MakeVector()) {}
+		: encoder(encoder), encodingTag(tag), premise(premise), encode(encode), conjuncts(encoder.MakeVector()) {
+			conjuncts.push_back(encoder.MakeTrue());
+	}
 
 	std::pair<bool, z3::expr_vector> CheckAndEncode(const NowFormula& implied) {
 		implied.accept(*this);
@@ -192,3 +194,52 @@ bool ImplicationCheckerImpl::Implies(const Annotation& implied) const {
 	return true;
 }
 
+
+std::vector<bool> ImplicationCheckerImpl::ComputeImplied(std::vector<const NowFormula*> formulas) const {
+	static std::deque<VariableDeclaration> dummyVars;
+	while (dummyVars.size() < 2*formulas.size()) {
+		std::string name = "ImplicationCheckerImpl::ComputeImplied#dummy" + std::to_string(dummyVars.size());
+		dummyVars.emplace_back(name, Type::bool_type(), false);
+	}
+
+	solver.push();
+	auto assumptions = encoder.MakeVector();
+	auto variables = encoder.MakeVector();
+	auto consequences = encoder.MakeVector();
+	for (std::size_t index = 0; index < formulas.size(); ++index) {
+		auto [discharged, conjuncts] = QuickChecker(encoder, encodingTag, *premiseNowFormula).CheckAndEncode(*formulas.at(index));
+		auto encodedFormula = encoder.MakeAnd(std::move(conjuncts));
+		auto var = encoder.EncodeVariable(dummyVars.at(index), encodingTag);
+		solver.add(var == encodedFormula);
+		variables.push_back(var);
+		// log() << "- var " << var << " --> " << *formulas.at(index) << std::endl;
+	}
+	auto res = solver.consequences(assumptions, variables, consequences);
+	// log() << "CONSEQUENCES: " << res << " " << consequences << std::endl << std::endl;
+	solver.pop();
+	std::vector<bool> result(formulas.size());
+	switch (res) {
+		case z3::unknown:
+			if (plankton::config.z3_handle_unknown_result) break;
+			throw SolvingError("SMT solving failed: Z3 was unable to prove/disprove satisfiability; solving result was 'UNKNOWN'.");
+		case z3::sat:
+			break;
+		case z3::unsat:
+			result.flip();
+			return result; // fast-path
+	}
+	for (std::size_t index = 0; index < formulas.size(); ++index) {
+		auto searchFor = z3::implies(encoder.MakeTrue(), variables[index]);
+		for (auto imp : consequences) {
+			bool syntacticallyEqual = z3::eq(imp, searchFor);
+			if (syntacticallyEqual) {
+				// assert(Implies(*formulas.at(index)));
+				result.at(index) = true;
+				break;
+			}
+		}
+		// assert(result.at(index) || !Implies(*formulas.at(index)));
+	}
+
+	return result;
+}

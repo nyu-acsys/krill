@@ -88,11 +88,31 @@ inline std::unique_ptr<ConjunctionFormula> ComputeImplied(const SolverImpl& solv
 }
 
 std::unique_ptr<ConjunctionFormula> SolverImpl::ComputeImpliedCandidates(const ImplicationCheckerImpl& checker) const {
-	auto IsImplied = [&checker](const Formula& formula){ return checker.Implies(formula); };
-	return ComputeImplied(*this, IsImplied);
+	std::vector<const NowFormula*> checks;
+	checks.reserve(GetCandidates().size());
+	for (const auto& candidate : GetCandidates()) {
+		checks.push_back(&candidate.GetCheck());
+	}
+	auto implied = checker.ComputeImplied(std::move(checks));
+	auto result = std::make_unique<ConjunctionFormula>();
+	assert(implied.size() == GetCandidates().size());
+	for (std::size_t index = 0; index < implied.size(); ++index) {
+		if (!implied.at(index)) continue;
+		result = plankton::conjoin(std::move(result), plankton::copy(GetCandidates().at(index).GetImplied())); // TODO: just use candidate (without conjoin)?
+	}
+
+	// auto IsImplied = [&checker](const Formula& formula){ return checker.Implies(formula); };
+	// auto otherResult = ComputeImplied(*this, IsImplied);
+	// log() << "NEW RESULT: " << *result << std::endl;
+	// log() << "OLD RESULT: " << *otherResult << std::endl;
+	// if (!Implies(*result, *otherResult)) throw std::logic_error("new method weaker");
+	// if (!Implies(*otherResult, *result)) throw std::logic_error("old method weaker");
+
+	return result;
 }
 
 std::unique_ptr<ConjunctionFormula> SolverImpl::ComputeImpliedCandidates(const std::vector<ImplicationCheckerImpl>& checkers) const {
+	// TODO: implement via the single checker version and join syntactically.
 	auto IsImplied = [&checkers](const Formula& formula){
 		for (const auto& checker : checkers) {
 			if (!checker.Implies(formula)) {

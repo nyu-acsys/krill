@@ -43,6 +43,8 @@ namespace plankton {
 
 			bool Implies(z3::expr expr) const;
 			static bool Implies(z3::solver& solver, z3::expr expr);
+
+			std::vector<bool> ComputeImplied(std::vector<const NowFormula*> formulas) const;
 	};
 
 
@@ -73,6 +75,7 @@ namespace plankton {
 			inline const ConjunctionFormula& GetInstantiatedRules() const { return *instantiatedRules.back(); }
 			inline const ConjunctionFormula& GetInstantiatedInvariant() const { return *instantiatedInvariants.back(); }
 			inline const std::vector<const cola::VariableDeclaration*>& GetVariablesInScope() const { return variablesInScope.back(); }
+			std::vector<std::unique_ptr<cola::Expression>> MakeCandidateExpressions(cola::Sort sort) const;
 
 			std::unique_ptr<Annotation> AddRules(std::unique_ptr<Annotation> annotation) const;
 			std::unique_ptr<Annotation> StripRules(std::unique_ptr<Annotation> annotation) const;

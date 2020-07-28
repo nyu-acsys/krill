@@ -67,6 +67,17 @@ std::vector<std::unique_ptr<Expression>> MakeAllExpressions(const VariableDeclar
 	return result;
 }
 
+std::vector<std::unique_ptr<Expression>> MakeAllImmediate(bool skipNull = false) {
+	std::vector<std::unique_ptr<Expression>> result;
+	result.reserve(5);
+	if (!skipNull) result.push_back(MakeNull());
+	result.push_back(MakeBool(true));
+	result.push_back(MakeBool(false));
+	result.push_back(MakeMin());
+	result.push_back(MakeMax());
+	return result;
+}
+
 enum struct CombinationKind { SINGLE, PAIR };
 
 struct ExpressionStore {
@@ -104,11 +115,10 @@ struct ExpressionStore {
 void ExpressionStore::AddImmediate(const VariableDeclaration& decl) {
 	auto declExpressions = MakeAllExpressions(decl);
 	for (auto& expr : declExpressions) {
-		if (!skipNull) expressions.push_back({ cola::copy(*expr), MakeNull() });
-		expressions.push_back({ cola::copy(*expr), MakeBool(true) });
-		expressions.push_back({ cola::copy(*expr), MakeBool(false) });
-		expressions.push_back({ cola::copy(*expr), MakeMin() });
-		expressions.push_back({ std::move(expr), MakeMax() });
+		auto otherExpressions = MakeAllImmediate(skipNull);
+		for (auto& immi : otherExpressions) {
+			expressions.push_back({ cola::copy(*expr), std::move(immi) });
+		}
 	}
 }
 
@@ -533,6 +543,24 @@ std::unique_ptr<ConjunctionFormula> LazyStore::MakeRules(const SolverImpl& solve
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::unique_ptr<Expression>> SolverImpl::MakeCandidateExpressions(cola::Sort sort) const {
+	std::vector<std::unique_ptr<Expression>> result;
+	auto immiExpressions = MakeAllImmediate();
+	for (auto& immi : immiExpressions) {
+		if (immi->sort() != sort) continue;
+		result.push_back(std::move(immi));
+	}
+	for (auto decl : GetVariablesInScope()) {
+		auto declExpressions = MakeAllExpressions(*decl);
+		for (auto& expr : declExpressions) {
+			if (expr->sort() != sort) continue;
+			result.push_back(std::move(expr));
+		}
+	}
+	return result;
+}
+
 
 static constexpr std::string_view ERR_LEAVE_NOSCOPE = "Cannot leave scope: there is no scope left to leave.";
 

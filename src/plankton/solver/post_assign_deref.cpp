@@ -48,6 +48,7 @@ struct DerefPostComputer {
 
 	z3::solver solver;
 	ImplicationCheckerImpl checker;
+	std::vector<std::unique_ptr<cola::Expression>> flowValues;
 
 	z3::expr lhsNodeNow, lhsNodeNext;
 	z3::expr lhsNow, lhsNext;
@@ -123,7 +124,7 @@ std::unique_ptr<Annotation> plankton::MakeDerefAssignPost(PostInfo info, const c
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::string SortToString(Sort sort) {
+static std::string SortToString(Sort sort) {
 	switch (sort) {
 		case Sort::VOID: return "VOID";
 		case Sort::BOOL: return "BOOL";
@@ -133,7 +134,7 @@ std::string SortToString(Sort sort) {
 }
 
 template<Sort S, std::size_t I = 0>
-const VariableDeclaration& GetDummyDecl() {
+static const VariableDeclaration& GetDummyDecl() {
 	static Type dummyType("dummy-post-deref-" + SortToString(S) + "-type", Sort::PTR);
 	static VariableDeclaration dummyDecl("post-deref#dummy-" + SortToString(S) + "-var" + std::to_string(I), dummyType, false);
 	return dummyDecl;
@@ -149,6 +150,7 @@ DerefPostComputer::DerefPostComputer(PostInfo info_, const Dereference& lhs, con
 	  performInvariantCheck(!info.implicationCheck), performSpecificationCheck(!info.implicationCheck), nodeType(lhs.expr->type()),
 	  solver(encoder.MakeSolver(StepTag::NEXT)),
 	  checker(encoder, solver, GetTrueAxiom(), StepTag::NEXT),
+	  flowValues(info.solver.MakeCandidateExpressions(Sort::DATA)), // TODO: flow domain should tell us the type of flow values?
 	  lhsNodeNow(encoder.Encode(*lhs.expr)), lhsNodeNext(encoder.EncodeNext(*lhs.expr)),
 	  lhsNow(encoder.Encode(lhs)), lhsNext(encoder.EncodeNext(lhs)),
 	  rhsNow(encoder.Encode(rhs)), rhsNext(encoder.EncodeNext(rhs)),
@@ -272,12 +274,21 @@ void DerefPostComputer::AddBaseRulesToSolver() {
 
 	// rules
 	solver.add(encoder.Encode(info.solver.GetInstantiatedRules()));
-	solver.add(encoder.Encode(info.solver.GetInstantiatedInvariant()));
 	solver.add(encoder.EncodeNext(info.solver.GetInstantiatedRules()));
-	solver.add(encoder.EncodeNext(info.solver.GetInstantiatedInvariant()));
+	solver.add(encoder.Encode(info.solver.GetInstantiatedInvariant()));
+	// solver.add(encoder.EncodeNext(info.solver.GetInstantiatedInvariant()));
 
 	// add pre
 	solver.add(encoder.Encode(info.preNow));
+
+
+	// flow: only flow that comes from the root may change // TODO important: correct???
+	// throw std::logic_error("try without first"); // <<<<<<<<<<<<<<<=====================================================================|||||||
+	// solver.add(z3::forall(qvNode, qvKey, encoder.MakeImplication(
+	// 	encoder.EncodeFlow(GetNode(0), qvKey, false), // TODO: now or next? should not matter
+	// 	/* ==> */
+	// 	encoder.EncodeTransitionMaintainsFlow(qvNode, qvKey)
+	// )));
 }
 
 void DerefPostComputer::AddNonFootprintFlowRulesToSolver() {
@@ -344,16 +355,33 @@ void DerefPostComputer::AddFlowRulesToSolver(Node node, std::string selector, No
 	}
 
 	// add flow rule (if 'node' not null): 'successor' receives what 'node' sends via 'selector'
+	auto& edgeFunction = info.solver.config.flowDomain->GetOutFlowContains(selector);
+	// for (auto tag : tags) {
+	// 	log() << "    flow rule: " << node << " -> " << selector << " ~~> " << successor << "   " << (tag==StepTag::NOW ? "(now)" : "(next)") << std::endl;
+	// 	auto flowRule = z3::forall(qvKey, encoder.MakeImplication(
+	// 		encoder.EncodePredicate(edgeFunction, node, qvKey, tag),
+	// 		/* ==> */
+	// 		encoder.EncodeFlow(successor, qvKey, true, tag)
+	// 	));
+	// 	solver.add(encoder.MakeImplication(
+	// 		node != encoder.MakeNullPtr(), /* ==> */ flowRule
+	// 	));
+	// }
 	for (auto tag : tags) {
-		log() << "    flow rule: " << node << " -> " << selector << " ~~> " << successor << "   " << (tag==StepTag::NOW ? "(now)" : "(next)") << std::endl;
-		auto flowRule = z3::forall(qvKey, encoder.MakeImplication(
-			encoder.EncodePredicate(info.solver.config.flowDomain->GetOutFlowContains(selector), node, qvKey, tag),
-			/* ==> */
-			encoder.EncodeFlow(successor, qvKey, true, tag)
-		));
-		solver.add(encoder.MakeImplication(
-			node != encoder.MakeNullPtr(), /* ==> */ flowRule
-		));
+		for (const auto& value : flowValues) {
+			for (auto otherTag : { StepTag::NOW, StepTag::NEXT }) {
+				log() << "    flow rule: " << node << " -> " << selector << " ~~> " << successor << "   " << *value << "  " << (tag==StepTag::NOW ? "(now)" : "(next)") << std::endl;
+				auto encodedValue = encoder.Encode(*value, otherTag);
+				auto flowRule = encoder.MakeImplication(
+					encoder.EncodePredicate(edgeFunction, node, encodedValue, tag),
+					/* ==> */
+					encoder.EncodeFlow(successor, encodedValue, true, tag)
+				);
+				solver.add(encoder.MakeImplication(
+					node != encoder.MakeNullPtr(), /* ==> */ flowRule
+				));
+			}
+		}
 	}
 }
 
@@ -414,16 +442,20 @@ bool DerefPostComputer::AddToFootprint(Node node) {
 	}
 
 	// find new intraface edges
-	for (auto pair : footprintBoundary) {
-		auto [other, selector] = pair;
+	std::vector<std::pair<Node, std::string>> toBeDeleted;
+	for (auto [other, selector] : footprintBoundary) {
 		auto encodedSelector = std::make_pair(&nodeType, selector);
 		auto pointsToNode = encoder.EncodeHeap(other, encodedSelector, node, StepTag::NEXT);
 		if (Implies(pointsToNode)) {
 			AddEdgeToIntraface(other, selector, node);
-			footprintBoundary.erase(pair); // TODO important: can we do this here?
+			toBeDeleted.emplace_back(other, selector);
 		}
 	}
+	for (auto pair : toBeDeleted) {
+		footprintBoundary.erase(pair);
+	}
 
+	// done
 	return true;
 }
 
@@ -452,6 +484,10 @@ Node DerefPostComputer::MakeFootprintRoot() {
 	assert(root.id == 0);
 	solver.add(root == lhsNodeNext);
 	solver.add(z3::forall(qvKey, encoder.EncodeTransitionMaintainsFlow(root, qvKey)));
+	// for (const auto& value : flowValues) {
+	// 	solver.add(encoder.EncodeTransitionMaintainsFlow(root, encoder.Encode(*value, StepTag::NOW)));
+	// 	solver.add(encoder.EncodeTransitionMaintainsFlow(root, encoder.Encode(*value, StepTag::NEXT)));
+	// }
 	AddPointerAliasesToSolver(root);
 	AddToFootprint(root);
 
@@ -511,6 +547,13 @@ void DerefPostComputer::CheckInvariant(Node node) {
 	auto check = encoder.EncodeNextInvariant(*info.solver.config.invariant, node);
 	if (!Implies(check)) {
 		log() << std::endl << std::endl << "Invariant violated in footprint: " << node << std::endl;
+		for (const auto& conjunct : info.solver.config.invariant->blueprint->conjuncts) {
+			auto encoded = encoder.MakeImplication(
+				node.expr == encoder.EncodeNextVariable(*info.solver.config.invariant->vars.at(0)),
+				encoder.EncodeNext(*conjunct)
+			);
+			log() << "  - inv " << *conjunct << ": " << Implies(encoded) << std::endl;
+		}
 		log() << std::endl << "PRE: " << info.preNow << std::endl;
 		Throw("Could not establish invariant for heap update", "invariant violated within footprint");
 	}
@@ -558,7 +601,9 @@ void DerefPostComputer::CheckSpecification(Node node) {
 
 void DerefPostComputer::CheckFootprint(Node node) {
 	log() << "    checking footprint: " << node << std::endl;
+	log() << "      checking invariant..." << std::endl;
 	CheckInvariant(node);
+	log() << "      checking specification..." << std::endl;
 	CheckSpecification(node);
 	log() << "      purity: " << (purityStatus == PurityStatus::PURE ? "pure" : (purityStatus == PurityStatus::INSERTION ? "insert" : "delete")) << std::endl;
 }
@@ -586,8 +631,40 @@ bool DerefPostComputer::IsOutflowUnchanged(Node node, std::string fieldname) {
 
 void DerefPostComputer::ExploreAndCheckFootprint() {
 	// TODO important: we are ignoring NULL during the exploration, can we ignore its flow / flow changes?? Are we ignoring NULL??
-	
+
 	InitializeFootprint();
+	solver.push();
+	// flow: only flow that comes from the root may change // TODO important: correct???
+	// throw std::logic_error("try without first"); // <<<<<<<<<<<<<<<=====================================================================|||||||
+	solver.add(z3::forall(qvNode, qvKey, encoder.MakeImplication(
+		encoder.EncodeFlow(GetNode(0), qvKey, false), // TODO: now or next? should not matter
+		/* ==> */
+		encoder.EncodeTransitionMaintainsFlow(qvNode, qvKey)
+	)));
+	// auto qvOtherNode = encoder.EncodeVariable(GetDummyDecl<Sort::PTR, 1>());
+	// for (auto tag : { StepTag::NOW, StepTag::NEXT }) {
+	// 	for (auto selector : OutgoingEdges()) {
+	// 		auto flowRule = z3::forall(qvNode, qvOtherNode, qvKey, encoder.MakeImplication(
+	// 			qvNode != encoder.MakeNullPtr() &&
+	// 			encoder.EncodePredicate(info.solver.config.flowDomain->GetOutFlowContains(selector), qvNode, qvKey, tag) &&
+	// 			encoder.EncodeHeap(qvNode, std::make_pair(&nodeType, selector), qvOtherNode, tag),
+	// 			/* ==> */
+	// 			encoder.EncodeFlow(qvOtherNode, qvKey, true, tag)
+	// 		));
+	// 		solver.add(flowRule);
+	// 	}
+	// }
+	
+	// for (const auto& value : flowValues) {
+	// 	for (auto tag : { StepTag::NOW, StepTag::NEXT }) {
+	// 		auto encodedValue = encoder.Encode(*value, tag);
+	// 		solver.add(z3::forall(qvNode, encoder.MakeImplication(
+	// 			encoder.EncodeFlow(GetNode(0), encodedValue, false), // TODO: now or next? should not matter
+	// 			/* ==> */
+	// 			encoder.EncodeTransitionMaintainsFlow(qvNode, encodedValue)
+	// 		)));
+	// 	}
+	// }
 	log() << "  initialized footprint with " << footprint.size() << " nodes" << std::endl;
 
 	decltype(footprint) checkedFootprint;
@@ -596,7 +673,7 @@ void DerefPostComputer::ExploreAndCheckFootprint() {
 
 	do {
 		log() << "  iterating" << std::endl;
-		// check invariant
+		// check invariant / specification
 		for (auto node : footprint) {
 			if (checkedFootprint.count(node)) continue;
 			CheckFootprint(node);
@@ -623,12 +700,14 @@ void DerefPostComputer::ExploreAndCheckFootprint() {
 			Throw("Cannot verify heap update", "footprint too small");
 
 	} while (!done);
+
+	solver.pop();
+	solver.add(encoder.EncodeNext(info.solver.GetInstantiatedInvariant()));
 	log() << "  update looks good!" << std::endl;
 }
 
 
 std::unique_ptr<ConjunctionFormula> DerefPostComputer::MakePostNow() {
-	// TODO: should we first do 'solver.push()' and 'solver.pop()' before and after ExploreAndCheckFootprint()??
 	AddBaseRulesToSolver();
 	ExploreAndCheckFootprint();
 	AddNonFootprintFlowRulesToSolver();
@@ -649,7 +728,7 @@ std::unique_ptr<ConjunctionFormula> DerefPostComputer::MakePostNow() {
 		log() << "post=" << inPost << std::endl;
 		++counter;
 	}
-	log() << " ==> " << counter << " differ, pre was:" << std::endl << info.preNow << std::endl;
+	log() << " ==> " << counter << " differ, PRE was:" << std::endl << info.preNow << std::endl;
 
 	return info.ComputeImpliedCandidates(checker);
 }
