@@ -40,7 +40,8 @@ namespace plankton {
 			std::unique_ptr<heal::ConjunctionFormula> ComputeImpliedConjuncts(const heal::ConjunctionFormula& conjuncts) const override;
 			
 		private:
-			std::shared_ptr<Z3Encoder> encoder;
+			std::shared_ptr<Z3Encoder> encoderPtr;
+			Z3Encoder& encoder;
 			EncodingTag encodingTag;
 			mutable z3::solver solver;
 	};

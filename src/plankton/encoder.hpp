@@ -9,6 +9,7 @@
 #include <ostream>
 #include "cola/ast.hpp"
 #include "heal/logic.hpp"
+#include "plankton/solver.hpp"
 #include "plankton/encoding.hpp"
 #include "plankton/chkimp.hpp"
 
@@ -29,11 +30,19 @@ namespace plankton {
 		inline Term MakeTrue() { return MakeBool(true); }
 		inline Term MakeFalse() { return MakeBool(false); }
 
+		inline Term MakeNegation(Term term) const { return term.Negate(); }
+		inline Term MakeAnd(Term term, Term other) const { return term.And(other); }
+		inline Term MakeOr(Term term, Term other) const { return term.Or(other); }
+		inline Term MakeXOr(Term term, Term other) const { return term.XOr(other); }
+		inline Term MakeImplies(Term term, Term other) const { return term.Implies(other); }
+		inline Term MakeIff(Term term, Term other) const { return term.Iff(other); }
+		inline Term MakeEqual(Term term, Term other) const { return term.Equal(other); }
+		inline Term MakeDistinct(Term term, Term other) const { return term.Distinct(other); }
+
 		virtual Term MakeOr(const std::vector<Term>& disjuncts) = 0;
 		virtual Term MakeAnd(const std::vector<Term>& conjuncts) = 0;
 		virtual Term MakeExists(const std::vector<Symbol>& vars, Term term) = 0;
 		virtual Term MakeForall(const std::vector<Symbol>& vars, Term term) = 0;
-		// TODO: virtual std::vector<Symbol> MakeQuantifiedVariables(std::vector<std::reference_wrapper<const cola::Type>> types) = 0;
 		
 		virtual std::unique_ptr<ImplicationChecker> MakeImplicationChecker(EncodingTag tag = EncodingTag::NOW) = 0;
 
@@ -92,17 +101,25 @@ namespace plankton {
 			return MakeAnd(std::move(terms));
 		}
 
-		template<typename T, typename... U>
-		inline std::vector<T> MakeVector(U... elems) {
-			return std::vector<T>(std::forward<U>(elems)...);
+		template<typename... T>
+		inline std::pair<std::vector<Symbol>, Term> Extract(Term term) {
+			return { {}, term };
 		}
 		template<typename... T>
-		inline Term MakeExists(T... vars, Term term) {
-			return MakeExists(MakeVector<Symbol>(std::forward<T>(vars)...), std::move(term));
+		inline std::pair<std::vector<Symbol>, Term> Extract(Symbol symbol, T... args) {
+			auto result = Extract(std::forward<T>(args)...);
+			result.first.insert(result.first.begin(), symbol);
+			return result;
 		}
 		template<typename... T>
-		inline Term MakeForall(T... vars, Term term) {
-			return MakeForall(MakeVector<Symbol>(std::forward<T>(vars)...), std::move(term));
+		inline Term MakeExists(T... args) {
+			auto [vector, term] = Extract(std::forward<T>(args)...);
+			return MakeExists(std::move(vector), std::move(term));
+		}
+		template<typename... T>
+		inline Term MakeForall(T... args) {
+			auto [vector, term] = Extract(std::forward<T>(args)...);
+			return MakeForall(std::move(vector), std::move(term));
 		}
 
 	};

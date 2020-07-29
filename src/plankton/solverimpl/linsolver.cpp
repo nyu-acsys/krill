@@ -14,35 +14,18 @@ std::shared_ptr<Encoder> MakeEncoder(const PostConfig& config) {
 SolverImpl::SolverImpl(PostConfig config_) : Solver(std::move(config_)), encoder(MakeEncoder(config)) {}
 
 
+std::unique_ptr<ImplicationChecker> SolverImpl::MakeImplicationChecker() const {
+	 return encoder->MakeImplicationChecker();
+}
+
+std::unique_ptr<ImplicationChecker> SolverImpl::MakeImplicationChecker(EncodingTag tag) const {
+	return encoder->MakeImplicationChecker(tag);
+}
+
 std::unique_ptr<ImplicationChecker> SolverImpl::MakeImplicationChecker(const heal::Formula& premise) const {
 	auto checker = encoder->MakeImplicationChecker();
 	checker->AddPremise(premise);
 	return checker;
-}
-
-bool SolverImpl::ImpliesFalse(const heal::Formula& formula) const {
-	return MakeImplicationChecker(formula)->ImpliesFalse();
-}
-
-bool SolverImpl::ImpliesFalseQuick(const heal::Formula& formula) const {
-	ExpressionAxiom falseAxiom(std::make_unique<BooleanValue>(false));
-	return heal::syntactically_contains_conjunct(formula, falseAxiom);
-}
-
-bool SolverImpl::Implies(const heal::Formula& formula, const heal::Formula& implied) const {
-	return MakeImplicationChecker(formula)->Implies(implied);
-}
-
-bool SolverImpl::Implies(const heal::Formula& formula, const cola::Expression& implied) const {
-	return MakeImplicationChecker(formula)->Implies(implied);
-}
-
-bool SolverImpl::ImpliesIsNull(const heal::Formula& formula, const cola::Expression& expression) const {
-	return MakeImplicationChecker(formula)->ImpliesIsNull(expression);
-}
-
-bool SolverImpl::ImpliesIsNonNull(const heal::Formula& formula, const cola::Expression& expression) const {
-	return MakeImplicationChecker(formula)->ImpliesIsNonNull(expression);
 }
 
 std::unique_ptr<heal::ConjunctionFormula> SolverImpl::ComputeImpliedCandidates(const ImplicationChecker& checker) const {

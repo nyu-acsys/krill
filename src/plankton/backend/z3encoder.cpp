@@ -136,6 +136,7 @@ Z3Expr Z3Encoder::EncodeZ3(const VariableDeclaration& decl, EncodingTag tag) {
 }
 
 Z3Expr Z3Encoder::EncodeZ3Variable(Sort sort, std::string name, EncodingTag tag) {
+	// TODO: this may reuse an existing variable with the same name but a different sort
 	auto key = std::make_pair(name, tag);
 	return GetOrCreate(name2expr, key, [this,tag,&name,&sort](){
 		return context.constant(MakeName(name, tag).c_str(), EncodeZ3Sort(sort));

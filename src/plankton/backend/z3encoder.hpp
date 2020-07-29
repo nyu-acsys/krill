@@ -24,6 +24,7 @@ namespace plankton {
 		inline operator z3::expr() const { return expr; }
 		inline operator Symbol() const { return Symbol(std::make_shared<Z3Expr>(*this)); }
 		inline operator Term() const { return Term(std::make_shared<Z3Expr>(*this)); }
+		inline std::shared_ptr<EncodedTerm> ToTerm() const override { return std::make_shared<Z3Expr>(*this); }
 		bool operator==(const EncodedTerm& other) const override;
 		bool operator==(const EncodedSymbol& other) const override;
 		bool operator==(const Z3Expr& other) const;

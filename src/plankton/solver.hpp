@@ -8,6 +8,7 @@
 #include "heal/logic.hpp"
 #include "heal/properties.hpp"
 #include "plankton/flow.hpp"
+#include "plankton/chkimp.hpp"
 
 
 namespace plankton {
@@ -38,12 +39,15 @@ namespace plankton {
 		virtual ~Solver() = default;
 		Solver(PostConfig config);
 
-		virtual bool ImpliesFalse(const heal::Formula& formula) const = 0;
-		virtual bool ImpliesFalseQuick(const heal::Formula& formula) const = 0;
-		virtual bool Implies(const heal::Formula& formula, const heal::Formula& implied) const = 0;
-		virtual bool Implies(const heal::Formula& formula, const cola::Expression& implied) const = 0;
-		virtual bool ImpliesIsNull(const heal::Formula& formula, const cola::Expression& nonnull) const = 0;
-		virtual bool ImpliesIsNonNull(const heal::Formula& formula, const cola::Expression& nonnull) const = 0;
+		virtual bool ImpliesFalse(const heal::Formula& formula) const;
+		virtual bool ImpliesFalseQuick(const heal::Formula& formula) const;
+		virtual bool Implies(const heal::Formula& formula, const heal::Formula& implied) const;
+		virtual bool Implies(const heal::Formula& formula, const cola::Expression& implied) const;
+		virtual bool ImpliesIsNull(const heal::Formula& formula, const cola::Expression& nonnull) const;
+		virtual bool ImpliesIsNonNull(const heal::Formula& formula, const cola::Expression& nonnull) const;
+
+		virtual std::unique_ptr<ImplicationChecker> MakeImplicationChecker() const = 0;
+		virtual std::unique_ptr<ImplicationChecker> MakeImplicationChecker(const heal::Formula& premise) const = 0;
 
 		virtual std::unique_ptr<heal::Annotation> Join(std::unique_ptr<heal::Annotation> annotation, std::unique_ptr<heal::Annotation> other) const;
 		virtual std::unique_ptr<heal::Annotation> Join(std::vector<std::unique_ptr<heal::Annotation>> annotations) const = 0;

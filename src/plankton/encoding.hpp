@@ -12,11 +12,7 @@
 
 namespace plankton {
 
-	struct EncodedSymbol {
-		virtual ~EncodedSymbol() = default;
-		virtual bool operator==(const EncodedSymbol& other) const = 0;
-		virtual void Print(std::ostream& stream) const = 0;
-	};
+	// TODO: change std::shared_ptr to std::unique_ptr for performance?
 
 	struct EncodedTerm {
 		virtual ~EncodedTerm() = default;
@@ -33,14 +29,13 @@ namespace plankton {
 		virtual std::shared_ptr<EncodedTerm> Distinct(std::shared_ptr<EncodedTerm> term) const = 0;
 	};
 
-
-	struct Symbol final {
-		std::shared_ptr<EncodedSymbol> repr;
-		Symbol(std::shared_ptr<EncodedSymbol> repr_) : repr(std::move(repr_)) { assert(repr); }
-
-		inline bool operator==(const Symbol& other) const { return *repr == *other.repr; }
-		inline void Print(std::ostream& stream) const { repr->Print(stream); }
+	struct EncodedSymbol {
+		virtual ~EncodedSymbol() = default;
+		virtual bool operator==(const EncodedSymbol& other) const = 0;
+		virtual void Print(std::ostream& stream) const = 0;
+		virtual std::shared_ptr<EncodedTerm> ToTerm() const = 0;
 	};
+
 
 	struct Term final {
 		std::shared_ptr<EncodedTerm> repr;
@@ -57,6 +52,15 @@ namespace plankton {
 		inline Term Iff(Term term) const { return Term(repr->Iff(term.repr)); }
 		inline Term Equal(Term term) const { return Term(repr->Equal(term.repr)); }
 		inline Term Distinct(Term term) const { return Term(repr->Distinct(term.repr)); }
+	};
+
+	struct Symbol final {
+		std::shared_ptr<EncodedSymbol> repr;
+		Symbol(std::shared_ptr<EncodedSymbol> repr_) : repr(std::move(repr_)) { assert(repr); }
+
+		inline bool operator==(const Symbol& other) const { return *repr == *other.repr; }
+		inline void Print(std::ostream& stream) const { repr->Print(stream); }
+		inline operator Term() const { return repr->ToTerm(); }
 	};
 
 	struct Selector {

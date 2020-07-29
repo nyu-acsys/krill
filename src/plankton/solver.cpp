@@ -124,3 +124,28 @@ bool Solver::UncheckedPostEntails(const ConjunctionFormula& pre, const cola::Ass
 	auto postAnnotation = Post(preAnnotation, cmd);
 	return Implies(*postAnnotation, post);
 }
+
+bool Solver::ImpliesFalse(const heal::Formula& formula) const {
+	return MakeImplicationChecker(formula)->ImpliesFalse();
+}
+
+bool Solver::ImpliesFalseQuick(const heal::Formula& formula) const {
+	ExpressionAxiom falseAxiom(std::make_unique<BooleanValue>(false));
+	return heal::syntactically_contains_conjunct(formula, falseAxiom);
+}
+
+bool Solver::Implies(const heal::Formula& formula, const heal::Formula& implied) const {
+	return MakeImplicationChecker(formula)->Implies(implied);
+}
+
+bool Solver::Implies(const heal::Formula& formula, const cola::Expression& implied) const {
+	return MakeImplicationChecker(formula)->Implies(implied);
+}
+
+bool Solver::ImpliesIsNull(const heal::Formula& formula, const cola::Expression& expression) const {
+	return MakeImplicationChecker(formula)->ImpliesIsNull(expression);
+}
+
+bool Solver::ImpliesIsNonNull(const heal::Formula& formula, const cola::Expression& expression) const {
+	return MakeImplicationChecker(formula)->ImpliesIsNonNull(expression);
+}

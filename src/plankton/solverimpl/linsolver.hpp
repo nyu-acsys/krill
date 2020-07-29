@@ -30,14 +30,10 @@ namespace plankton {
 			inline const heal::ConjunctionFormula& GetCandidates() const { return *candidates.back(); }
 			inline const heal::ConjunctionFormula& GetInstantiatedInvariant() const { return *instantiatedInvariants.back(); }
 			inline const std::vector<const cola::VariableDeclaration*>& GetVariablesInScope() const { return variablesInScope.back(); }
-
-			bool ImpliesFalse(const heal::Formula& formula) const override;
-			bool ImpliesFalseQuick(const heal::Formula& formula) const override;
-			bool Implies(const heal::Formula& formula, const heal::Formula& implied) const override;
-			bool Implies(const heal::Formula& formula, const cola::Expression& implied) const override;
-			bool ImpliesIsNull(const heal::Formula& formula, const cola::Expression& expression) const override;
-			bool ImpliesIsNonNull(const heal::Formula& formula, const cola::Expression& expression) const override;
-			std::unique_ptr<ImplicationChecker> MakeImplicationChecker(const heal::Formula& premise) const;
+			
+			std::unique_ptr<ImplicationChecker> MakeImplicationChecker() const override;
+			std::unique_ptr<ImplicationChecker> MakeImplicationChecker(EncodingTag tag) const;
+			std::unique_ptr<ImplicationChecker> MakeImplicationChecker(const heal::Formula& premise) const override;
 			std::unique_ptr<heal::ConjunctionFormula> ComputeImpliedCandidates(const heal::Formula& premise) const;
 			std::unique_ptr<heal::ConjunctionFormula> ComputeImpliedCandidates(const ImplicationChecker& checker) const;
 

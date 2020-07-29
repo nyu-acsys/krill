@@ -4,6 +4,7 @@
 #include "cola/util.hpp"
 #include "heal/util.hpp"
 #include "plankton/logger.hpp" // TODO: delete
+#include "plankton/util.hpp"
 #include "plankton/solverimpl/post/info.hpp"
 
 using namespace cola;
@@ -17,13 +18,9 @@ struct VarPostComputer {
 	const parallel_assignment_t& assignment;
 
 	VarPostComputer(PostInfo info_, const parallel_assignment_t& assignment) : info(std::move(info_)), assignment(assignment) {}
+
 	std::unique_ptr<Annotation> MakePost();
-
-	// bool AddSolvingRules();
-	// transformer_t MakeNowTransformer();
-	// std::unique_ptr<ConjunctionFormula> MakeInterimPostNow();
 	std::unique_ptr<ConjunctionFormula> MakePostNow();
-
 	std::unique_ptr<PastPredicate> MakeInterimPostTime(const PastPredicate& predicate);
 	std::unique_ptr<FuturePredicate> MakeInterimPostTime(const FuturePredicate& predicate);
 	std::unique_ptr<Annotation> MakePostTime();
@@ -61,79 +58,56 @@ std::unique_ptr<Annotation> plankton::MakeVarAssignPost(PostInfo info, const Var
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-// static std::string SortToString(Sort sort) { // TODO: code duplication
-// 	switch (sort) {
-// 		case Sort::VOID: return "VOID";
-// 		case Sort::BOOL: return "BOOL";
-// 		case Sort::DATA: return "DATA";
-// 		case Sort::PTR: return "PTR";
-// 	}
-// }
-
-// template<Sort S, std::size_t I = 0>
-// static const VariableDeclaration& GetDummyDecl() {  // TODO: code duplication
-// 	static Type dummyType("dummy-post-deref-" + SortToString(S) + "-type", Sort::PTR);
-// 	static VariableDeclaration dummyDecl("post-deref#dummy-" + SortToString(S) + "-var" + std::to_string(I), dummyType, false);
-// 	return dummyDecl;
-// }
-
 std::unique_ptr<ConjunctionFormula> VarPostComputer::MakePostNow() {
-	throw std::logic_error("not yet implemented: VarPostComputer::MakePostNow()");
+	auto checkerOwner = info.solver.MakeImplicationChecker();
+	auto encoderPtr = info.solver.GetEncoder();
+	auto& nodeType = info.solver.config.flowDomain->GetNodeType();
+	auto& encoder = *encoderPtr;
+	auto& checker = *checkerOwner;
 
-//	static ExpressionAxiom trueAxiom(std::make_unique<BooleanValue>(true));
-//	auto encoderPtr = info.solver.GetEncoder();
-//	auto& encoder = *encoderPtr;
-//	auto solver = encoder.MakeSolver();
-//	ImplicationCheckerImpl checker(encoder, solver, trueAxiom, Encoder::StepTag::NEXT);
-//
-//	// variables
-//	auto qvNode = encoder.EncodeVariable(GetDummyDecl<Sort::PTR>());
-//	auto qvKey = encoder.EncodeVariable(GetDummyDecl<Sort::DATA>());
-//
-//	// add current state
-//	solver.add(encoder.Encode(info.preNow));
-//	solver.add(encoder.Encode(info.solver.GetInstantiatedRules()));
-//	solver.add(encoder.Encode(info.solver.GetInstantiatedInvariant()));
-//
-//	// heap remains unchanged
-//	solver.add(z3::forall(qvNode, encoder.EncodeTransitionMaintainsHeap(qvNode, info.solver.config.flowDomain->GetNodeType())));
-//
-//	// flow remains unchanged
-//	solver.add(z3::forall(qvNode, qvKey, encoder.EncodeTransitionMaintainsFlow(qvNode, qvKey)));
-//
-//	// ownership // TODO: is this stuff correct?
-//	auto vec = encoder.MakeVector();
-//	for (auto [lhs, rhs] : assignment) {
-//		if (rhs.get().sort() != Sort::PTR) continue;
-//		auto [isRhsVar, rhsVar] = plankton::is_of_type<VariableExpression>(rhs.get());
-//		if (isRhsVar && !rhsVar->decl.is_shared && !lhs.get().decl.is_shared) continue;
-//		auto encodedRhs = encoder.Encode(rhs);
-//		vec.push_back(qvNode != encodedRhs);
-//		solver.add(encoder.EncodeNextOwnership(encodedRhs, false));
-//	}
-//	solver.add(z3::forall(qvNode, encoder.MakeImplication(
-//		encoder.MakeAnd(vec), /* ==> */ encoder.EncodeTransitionMaintainsOwnership(qvNode)
-//	)));
-//
-//	// stack
-//	for (auto var : info.solver.GetVariablesInScope()) {
-//		bool isAssigned = false;
-//		for (auto [lhs, rhs] : assignment) {
-//			if (&lhs.get().decl != var) continue;
-//			isAssigned = true;
-//			break;
-//		}
-//		if (isAssigned) continue;
-//
-//		solver.add(encoder.EncodeVariable(*var) == encoder.EncodeNextVariable(*var));
-//	}
-//
-//	for (auto [lhs, rhs] : assignment) {
-//		solver.add(encoder.EncodeNextVariable(lhs.get().decl) == encoder.Encode(rhs.get()));
-//	}
-//
-//	// done
-//	return info.ComputeImpliedCandidates(checker);
+	// quantified variables
+	auto [qvNode, qvKey] = plankton::MakeQuantifiedVariables(encoderPtr, nodeType, Type::data_type());
+
+	// add current state
+	checker.AddPremise(encoder.EncodeNow(info.preNow));
+	checker.AddPremise(encoder.EncodeNow(info.solver.GetInstantiatedInvariant()));
+
+	// heap remains unchanged
+	checker.AddPremise(encoder.MakeForall(qvNode, encoder.EncodeTransitionMaintainsHeap(qvNode, nodeType)));
+
+	// flow remains unchanged
+	checker.AddPremise(encoder.MakeForall(qvNode, qvKey, encoder.EncodeTransitionMaintainsFlow(qvNode, qvKey)));
+
+	// ownership
+	std::vector<Term> vector;
+	for (auto [lhs, rhs] : assignment) {
+		if (rhs.get().sort() != Sort::PTR) continue;
+		// auto [isRhsVar, rhsVar] = heal::is_of_type<VariableExpression>(rhs.get());
+		// if (isRhsVar && !rhsVar->decl.is_shared && !lhs.get().decl.is_shared) continue;
+		auto encodedRhs = encoder.EncodeNow(rhs);
+		vector.push_back(encodedRhs.Distinct(qvNode));
+		checker.AddPremise(encoder.EncodeNextIsOwned(encodedRhs).Negate());
+	}
+	auto distinct = encoder.MakeAnd(vector);
+	checker.AddPremise(distinct.Implies(encoder.EncodeTransitionMaintainsOwnership(qvNode)));
+
+	// stack
+	auto IsAssignedTo = [this](const VariableDeclaration& decl) {
+		for (auto [lhs, rhs] : assignment) {
+			if (&lhs.get().decl == &decl) return true;
+		}
+		return false;
+	};
+	for (auto var : info.solver.GetVariablesInScope()) {
+		if (!IsAssignedTo(*var)) continue;
+		checker.AddPremise(encoder.MakeEqual(encoder.EncodeNow(*var), encoder.EncodeNext(*var)));
+	}
+	for (auto [lhs, rhs] : assignment) {
+		checker.AddPremise(encoder.MakeEqual(encoder.EncodeNext(lhs.get().decl), encoder.EncodeNow(rhs.get())));
+	}
+
+	// done
+	return info.ComputeImpliedCandidates(checker);
 }
 
 

@@ -16,6 +16,7 @@ include_directories(${Z3_INCLUDE})
 set(SOURCES
 	config.cpp
 	error.cpp
+	util.cpp
 	solver.cpp
 
 	# verify
