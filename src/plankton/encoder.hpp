@@ -9,71 +9,13 @@
 #include <ostream>
 #include "cola/ast.hpp"
 #include "heal/logic.hpp"
+#include "plankton/encoding.hpp"
 #include "plankton/chkimp.hpp"
 
 
 namespace plankton {
 
-	struct EncodedSymbol {
-		virtual ~EncodedSymbol() = default;
-		virtual bool operator==(const EncodedSymbol& other) const = 0;
-		virtual std::ostream& operator<<(std::ostream& stream) const = 0;
-	};
-
-	struct EncodedTerm {
-		virtual ~EncodedTerm() = default;
-		virtual bool operator==(const EncodedTerm& other) const = 0;
-		virtual std::ostream& operator<<(std::ostream& stream) const = 0;
-
-		virtual std::shared_ptr<EncodedTerm> Negate() const = 0;
-		virtual std::shared_ptr<EncodedTerm> And(std::shared_ptr<EncodedTerm> term) const = 0;
-		virtual std::shared_ptr<EncodedTerm> Or(std::shared_ptr<EncodedTerm> term) const = 0;
-		virtual std::shared_ptr<EncodedTerm> XOr(std::shared_ptr<EncodedTerm> term) const = 0;
-		virtual std::shared_ptr<EncodedTerm> Implies(std::shared_ptr<EncodedTerm> term) const = 0;
-		virtual std::shared_ptr<EncodedTerm> Iff(std::shared_ptr<EncodedTerm> term) const = 0;
-		virtual std::shared_ptr<EncodedTerm> Equal(std::shared_ptr<EncodedTerm> term) const = 0;
-		virtual std::shared_ptr<EncodedTerm> Distinct(std::shared_ptr<EncodedTerm> term) const = 0;
-	};
-
-
-	struct Symbol final {
-		std::shared_ptr<EncodedSymbol> repr;
-		Symbol(std::shared_ptr<EncodedSymbol> repr_) : repr(std::move(repr_)) { assert(repr); }
-
-		inline bool operator==(const Symbol& other) const { return *repr == *other.repr; }
-		inline std::ostream& operator<<(std::ostream& stream) const { return repr->operator<<(stream); }
-	};
-
-	struct Term final {
-		std::shared_ptr<EncodedTerm> repr;
-		Term(std::shared_ptr<EncodedTerm> repr_) : repr(std::move(repr_)) { assert(repr); }
-
-		inline bool operator==(const Term& other) const { return *repr == *other.repr; }
-		inline std::ostream& operator<<(std::ostream& stream) const { return repr->operator<<(stream); }
-
-		inline Term Negate() const { return Term(repr->Negate()); }
-		inline Term And(Term term) const { return Term(repr->And(term.repr)); }
-		inline Term Or(Term term) const { return Term(repr->Or(term.repr)); }
-		inline Term XOr(Term term) const { return Term(repr->XOr(term.repr)); }
-		inline Term Implies(Term term) const { return Term(repr->Implies(term.repr)); }
-		inline Term Iff(Term term) const { return Term(repr->Iff(term.repr)); }
-		inline Term Equal(Term term) const { return Term(repr->Equal(term.repr)); }
-		inline Term Distinct(Term term) const { return Term(repr->Distinct(term.repr)); }
-	};
-
-	struct Selector {
-		const cola::Type& type;
-		std::string fieldname;
-
-		Selector(const cola::Type& type, std::string fieldname);
-		bool operator==(const Selector& other) const;
-		bool operator<(const Selector& other) const;
-		std::ostream& operator<<(std::ostream& stream) const;
-	};
-
-
 	enum struct EncodingTag { NOW, NEXT };
-
 
 	struct Encoder {
 		const PostConfig& config;
@@ -89,8 +31,8 @@ namespace plankton {
 
 		virtual Term MakeOr(const std::vector<Term>& disjuncts) = 0;
 		virtual Term MakeAnd(const std::vector<Term>& conjuncts) = 0;
-		virtual Term MakeExists(std::vector<Symbol> vars, Term term) = 0;
-		virtual Term MakeForall(std::vector<Symbol> vars, Term term) = 0;
+		virtual Term MakeExists(const std::vector<Symbol>& vars, Term term) = 0;
+		virtual Term MakeForall(const std::vector<Symbol>& vars, Term term) = 0;
 		// TODO: virtual std::vector<Symbol> MakeQuantifiedVariables(std::vector<std::reference_wrapper<const cola::Type>> types) = 0;
 		
 		virtual std::unique_ptr<ImplicationChecker> MakeImplicationChecker(EncodingTag tag = EncodingTag::NOW) = 0;
@@ -166,5 +108,6 @@ namespace plankton {
 	};
 
 } // namespace plankton
+
 
 #endif

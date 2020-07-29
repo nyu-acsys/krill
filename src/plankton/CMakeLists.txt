@@ -39,6 +39,12 @@ set(SOURCES
 	solverimpl/post/assign_deref.cpp
 
 	# backend
+	backend/z3error.cpp
+	backend/z3expr.cpp
+	backend/z3interface.cpp
+	backend/z3encoder.cpp
+	backend/z3visitor.cpp
+	backend/z3chkimp.cpp
 )
 
 add_library(Plankton ${SOURCES})

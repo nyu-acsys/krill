@@ -7,7 +7,7 @@ using namespace cola;
 using namespace plankton;
 
 
-VerificationError::VerificationError(std::string cause_) : cause(std::move(cause_)) {}
+VerificationError::VerificationError(std::string cause_) : PlanktonError(std::move(cause_)) {}
 
 UnsupportedConstructError::UnsupportedConstructError(std::string construct) : VerificationError(
 	"Unsupported construct: " + std::move(construct) + ".") {}

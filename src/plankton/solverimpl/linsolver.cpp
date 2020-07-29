@@ -1,12 +1,14 @@
 #include "plankton/solverimpl/linsolver.hpp"
 
+#include "plankton/backend/z3encoder.hpp"
+
 using namespace cola;
 using namespace heal;
 using namespace plankton;
 
 
-std::shared_ptr<Encoder> MakeEncoder(const PostConfig& /*config*/) {
-	throw std::logic_error("not yet implemented: MakeEncoder");
+std::shared_ptr<Encoder> MakeEncoder(const PostConfig& config) {
+	return std::make_shared<Z3Encoder>(config);
 }
 
 SolverImpl::SolverImpl(PostConfig config_) : Solver(std::move(config_)), encoder(MakeEncoder(config)) {}

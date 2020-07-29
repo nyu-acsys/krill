@@ -10,10 +10,14 @@
 
 namespace plankton {
 
-	struct VerificationError : public std::exception {
+	struct PlanktonError : public std::exception {
 		const std::string cause;
-		VerificationError(std::string cause);
+		PlanktonError(std::string cause) : cause(std::move(cause)) {}
 		virtual const char* what() const noexcept { return cause.c_str(); }
+	};
+
+	struct VerificationError : public PlanktonError {
+		VerificationError(std::string cause);
 	};
 
 	struct UnsupportedConstructError : public VerificationError {
