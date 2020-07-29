@@ -25,7 +25,7 @@ bool SolverImpl::ImpliesFalse(const heal::Formula& formula) const {
 }
 
 bool SolverImpl::ImpliesFalseQuick(const heal::Formula& formula) const {
-	ExpressionAxiom falseAxiom(std::make_unique<BooleanValue>(true));
+	ExpressionAxiom falseAxiom(std::make_unique<BooleanValue>(false));
 	return heal::syntactically_contains_conjunct(formula, falseAxiom);
 }
 

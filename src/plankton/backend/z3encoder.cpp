@@ -264,6 +264,5 @@ Z3Expr Z3Encoder::EncodeZ3TransitionMaintainsHeap(Z3Expr node, Selector selector
 
 
 std::unique_ptr<ImplicationChecker> Z3Encoder::MakeImplicationChecker(EncodingTag tag) {
-	std::make_unique<Z3ImplicationChecker>(shared_from_this(), tag, z3::solver(context));
-	throw std::logic_error("not yet implemented: Z3Encoder::MakeImplicationChecker");
+	return std::make_unique<Z3ImplicationChecker>(shared_from_this(), tag, z3::solver(context));
 }

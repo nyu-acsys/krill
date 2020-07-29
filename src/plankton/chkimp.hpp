@@ -12,8 +12,8 @@ namespace plankton {
 	struct ImplicationChecker {
 		virtual ~ImplicationChecker() = default;
 
-		virtual void Push();
-		virtual void Pop();
+		virtual void Push() = 0;
+		virtual void Pop() = 0;
 
 		virtual void AddPremise(Term term) = 0;
 		virtual void AddPremise(const heal::Formula& premise) = 0;
@@ -22,7 +22,7 @@ namespace plankton {
 		virtual bool Implies(const heal::Formula& implied) const = 0;
 		virtual bool Implies(const cola::Expression& implied) const = 0;
 		
-		virtual bool ImpliesFalse() const;
+		virtual bool ImpliesFalse() const = 0;
 		virtual bool ImpliesNegated(Term term) const = 0;
 		virtual bool ImpliesNegated(const heal::NowFormula& implied) const = 0;
 		
