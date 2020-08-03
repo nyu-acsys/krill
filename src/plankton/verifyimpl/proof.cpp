@@ -221,8 +221,9 @@ void Verifier::visit(const IfThenElse& stmt) {
 	Assume dummyElse(cola::negate(*stmt.expr));
 	dummyElse.accept(*this);
 	stmt.elseBranch->accept(*this);
+	auto postElse = std::move(current_annotation);
 
-	current_annotation = solver->Join(std::move(current_annotation), std::move(postIf));
+	current_annotation = solver->Join(std::move(postIf), std::move(postElse));
 	if (plankton::config.interference_after_unification) apply_interference();
 }
 
@@ -432,7 +433,6 @@ void Verifier::visit(const Macro& cmd) {
 	returning_annotations = std::move(outer_returning_annotations);
 
 	log() << std::endl << "________" << std::endl << "Post annotation for macro '" << cmd.decl.name << "':" << std::endl << *current_annotation << std::endl << std::endl;
-	throw std::logic_error("point du break");
 }
 
 void Verifier::visit(const CompareAndSwap& /*cmd*/) {

@@ -90,3 +90,38 @@ std::unique_ptr<Annotation> SolverImpl::Post(const Annotation& pre, const Malloc
 	// done
 	return PostProcess(std::move(result), pre);
 }
+
+// std::unique_ptr<Annotation> SolverImpl::Post(const Annotation& pre, const Malloc& cmd) const {
+// 	log() << std::endl << "ΩΩΩ POST for malloc on: " << cmd.lhs.name << std::endl;
+// 	if (cmd.lhs.is_shared) ThrowUnsupportedAllocationError(cmd.lhs, "expected local variable");
+	
+// 	// dummy variable for allocation
+// 	auto& allocation = GetDummyAllocation(cmd.lhs.type);
+
+// 	// remove knowledge about lhs
+// 	VariableExpression lhs(cmd.lhs), rhsClear(allocation);
+// 	auto post = MakeVarAssignPost(PostInfo(*this, pre), lhs, rhsClear);
+// 	assert(!heal::contains_expression(*post, rhsClear));
+
+// 	// create a fresh new variable for the new allocation, extend pre with knowledge about allocation
+// 	post->now = heal::conjoin(std::move(post->now), GetAllocationKnowledge(allocation));
+// 	if (ImpliesFalse(*post->now)) throw std::logic_error("llllooollll1");
+// 	log() << std::endl << " interim1: " << *post->now << std::endl;
+// 	post->now->conjuncts.push_back(heal::MakeAxiom(heal::MakeExpr(BinaryExpression::Operator::EQ, heal::MakeExpr(cmd.lhs), heal::MakeExpr(allocation))));
+// 	log() << std::endl << " interim2: " << *post->now << std::endl;
+// 	if (ImpliesFalse(*post->now)) throw std::logic_error("llllooollll2");
+
+// 	// establish invariant for allocation
+// 	auto allocationInvariant = config.invariant->instantiate(allocation);
+// 	if (!Implies(*post->now, *allocationInvariant)) {
+// 		ThrowInvariantViolationError(cmd);
+// 	}
+
+// 	// compute post
+// 	post->now = ComputeImpliedCandidates(*post->now);
+
+// 	// done
+// 	log() << std::endl << *pre.now << std::endl << " ~~>" << std::endl << *post->now << std::endl;
+// 	throw std::logic_error("fjlkda");
+// 	return PostProcess(std::move(post), pre);
+// }

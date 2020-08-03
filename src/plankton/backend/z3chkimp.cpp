@@ -1,5 +1,7 @@
 #include "plankton/backend/z3chkimp.hpp"
 
+#include "plankton/logger.hpp" // TODO: remove
+
 using namespace cola;
 using namespace heal;
 using namespace plankton;
@@ -18,14 +20,17 @@ void Z3ImplicationChecker::Pop() {
 }
 
 void Z3ImplicationChecker::AddPremise(Z3Expr expr) {
+	// log() << " @@adding expr to solver@@  " << expr.expr << std::endl;
 	solver.add(expr);
 }
 
 void Z3ImplicationChecker::AddPremise(Term term) {
+	// log() << " @@adding term to solver@@  " << term << std::endl;
 	solver.add(encoder.Internalize(term));
 }
 
 void Z3ImplicationChecker::AddPremise(const Formula& premise) {
+	// log() << " @@adding formula to solver@@  " << premise << std::endl;
 	solver.add(encoder.EncodeZ3(premise, encodingTag));
 }
 
@@ -143,6 +148,14 @@ inline z3::expr_vector GetVariables(Z3Encoder& encoder, EncodingTag tag, std::si
 	assert(result.size() == amount);
 	return result;
 }
+
+// std::vector<bool> Z3ImplicationChecker::ComputeImplied(const std::vector<Z3Expr>& exprs) const {
+// 	std::vector<bool> result;
+// 	for (auto expr : exprs) {
+// 		result.push_back(Implies(expr));
+// 	}
+// 	return result;
+// }
 
 std::vector<bool> Z3ImplicationChecker::ComputeImplied(const std::vector<Z3Expr>& exprs) const {
 	// save state

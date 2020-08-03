@@ -59,7 +59,7 @@ std::unique_ptr<Annotation> plankton::MakeVarAssignPost(PostInfo info, const Var
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<ConjunctionFormula> VarPostComputer::MakePostNow() {
-	auto checkerOwner = info.solver.MakeImplicationChecker();
+	auto checkerOwner = info.solver.MakeImplicationChecker(EncodingTag::NEXT);
 	auto encoderPtr = info.solver.GetEncoder();
 	auto& nodeType = info.solver.config.flowDomain->GetNodeType();
 	auto& encoder = *encoderPtr;
@@ -79,17 +79,20 @@ std::unique_ptr<ConjunctionFormula> VarPostComputer::MakePostNow() {
 	checker.AddPremise(encoder.MakeForall(qvNode, qvKey, encoder.EncodeTransitionMaintainsFlow(qvNode, qvKey)));
 
 	// ownership
+	auto MaintainsOwnership = [](const VariableExpression& lhs, const Expression& rhs){
+		auto [isRhsVar, rhsVar] = heal::is_of_type<VariableExpression>(rhs);
+		return isRhsVar && !rhsVar->decl.is_shared && !lhs.decl.is_shared;
+	};
 	std::vector<Term> vector;
 	for (auto [lhs, rhs] : assignment) {
 		if (rhs.get().sort() != Sort::PTR) continue;
-		// auto [isRhsVar, rhsVar] = heal::is_of_type<VariableExpression>(rhs.get());
-		// if (isRhsVar && !rhsVar->decl.is_shared && !lhs.get().decl.is_shared) continue;
+		if (MaintainsOwnership(lhs, rhs)) continue;
 		auto encodedRhs = encoder.EncodeNow(rhs);
 		vector.push_back(encodedRhs.Distinct(qvNode));
 		checker.AddPremise(encoder.EncodeNextIsOwned(encodedRhs).Negate());
 	}
 	auto distinct = encoder.MakeAnd(vector);
-	checker.AddPremise(distinct.Implies(encoder.EncodeTransitionMaintainsOwnership(qvNode)));
+	checker.AddPremise(encoder.MakeForall(qvNode, distinct.Implies(encoder.EncodeTransitionMaintainsOwnership(qvNode))));
 
 	// stack
 	auto IsAssignedTo = [this](const VariableDeclaration& decl) {
@@ -99,11 +102,17 @@ std::unique_ptr<ConjunctionFormula> VarPostComputer::MakePostNow() {
 		return false;
 	};
 	for (auto var : info.solver.GetVariablesInScope()) {
-		if (!IsAssignedTo(*var)) continue;
+		if (IsAssignedTo(*var)) continue;
 		checker.AddPremise(encoder.MakeEqual(encoder.EncodeNow(*var), encoder.EncodeNext(*var)));
 	}
 	for (auto [lhs, rhs] : assignment) {
-		checker.AddPremise(encoder.MakeEqual(encoder.EncodeNext(lhs.get().decl), encoder.EncodeNow(rhs.get())));
+		checker.AddPremise(encoder.MakeEqual(encoder.EncodeNext(lhs), encoder.EncodeNow(rhs)));
+
+		// in case there are variable that are not covered by 'info.solver.GetVariablesInScope()'
+		// TODO: properly collect variables occuring in pre and assignment
+		auto [isRhsVar, rhsVar] = heal::is_of_type<VariableExpression>(rhs.get());
+		if (!isRhsVar) continue;
+		checker.AddPremise(encoder.MakeEqual(encoder.EncodeNow(*rhsVar), encoder.EncodeNext(*rhsVar)));
 	}
 
 	// done

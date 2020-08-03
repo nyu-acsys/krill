@@ -38,7 +38,9 @@ struct AnnotationJoiner {
 
 std::unique_ptr<Annotation> SolverImpl::Join(std::vector<std::unique_ptr<Annotation>> annotations) const {
 	log() << std::endl << "∫∫∫ JOIN: " << annotations.size() << std::endl;
-	return AnnotationJoiner(*this, std::move(annotations)).MakeJoin();
+	auto result = AnnotationJoiner(*this, std::move(annotations)).MakeJoin();
+	// log() << " ~~> " << std::endl << *result << std::endl;
+	return result;
 }
 
 std::unique_ptr<Annotation> SolverImpl::Join(std::unique_ptr<Annotation> annotation, std::unique_ptr<Annotation> other) const {
@@ -104,6 +106,7 @@ std::unique_ptr<Annotation> AnnotationJoiner::MakeJoinTime() {
 
 std::unique_ptr<Annotation> AnnotationJoiner::MakeJoin() {
 	// TODO: respect plankton::config->semantic_unification;
+	log() << " joining " << checkers.size() << std::endl;
 
 	switch (checkers.size()) {
 		case 0: return Annotation::make_false();
@@ -113,6 +116,5 @@ std::unique_ptr<Annotation> AnnotationJoiner::MakeJoin() {
 	auto joinedNow = MakeJoinNow();
 	auto result = MakeJoinTime();
 	result->now = std::move(joinedNow);
-	// log() << " ~~> " << std::endl << *result << std::endl;
 	return result;
 }

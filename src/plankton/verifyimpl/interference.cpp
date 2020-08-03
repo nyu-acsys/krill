@@ -85,6 +85,7 @@ void Verifier::extend_interference(const Assignment& command) {
 
 
 void Verifier::apply_interference() {
+	return; // TODO important: reenable <<<<<<<<<<<=====================================================================||||||||||||
 	if (inside_atomic) return;
 
 	auto stable = std::make_unique<ConjunctionFormula>();

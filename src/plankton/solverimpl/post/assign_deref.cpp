@@ -114,6 +114,7 @@ std::unique_ptr<Annotation> DerefPostComputer::MakePost() {
 		log() << "    => pruning: premise is false" << std::endl;
 		return Annotation::make_false();
 	}
+	log() << "**PRE**  " << info.preNow << std::endl << std::endl;
 
 	auto postNow = MakePostNow();
 	auto result = MakePostTime();
@@ -277,32 +278,45 @@ void DerefPostComputer::AddFootprintFlowRulesToSolver() {
 	// TODO: add flow rules; (1) how flow propagates, (2) only flow coming from root may change
 	// throw std::logic_error("not yet implemented: DerefPostComputer::AddFootprintFlowRulesToSolver");
 
-	// checker.AddPremise(encoder.MakeForall(qvNode, qvKey, encoder.MakeImplies(
-	// 	encoder.EncodeNowFlow(GetNode(0), qvKey).Negate(), // TODO: now or next? should not matter
+	// checker.AddPremise(encoder.MakeForall(qvNode, qvKey, encoder.MakeImplies( // TODO important: is this correct??
+	// 	encoder.EncodeNowFlow(GetNode(0), qvKey).Negate(),
 	// 	/* ==> */
 	// 	encoder.EncodeTransitionMaintainsFlow(qvNode, qvKey)
 	// )));
 	// if (lhs.sort() == Sort::PTR) {
 	// 	checker.AddPremise(encoder.MakeForall(qvNode, qvKey, encoder.MakeImplies( // TODO: only correct if the outflow of root did not change!!!!
-	// 		!encoder.EncodePredicate(info.solver.config.flowDomain->GetOutFlowContains(lhs.fieldname), GetNode(0), qvKey),
+	// 		encoder.EncodeNowPredicate(info.solver.config.flowDomain->GetOutFlowContains(lhs.fieldname), GetNode(0), qvKey).Negate(),
 	// 		/* ==> */
 	// 		encoder.EncodeTransitionMaintainsFlow(qvNode, qvKey)
 	// 	)));
 	// }
 
-	// for (auto tag : { EncodingTag::NOW, EncodingTag::NEXT }) {
-	// 	for (auto selector : pointerSelectors) {
-	// 		checker.AddPremise(encoder.MakeForall(qvNode, qvOtherNode, encoder.MakeImplies(
-	// 			encoder.MakeAnd({
-	// 				encoder.MakeDistinct(qvNode, encoder.MakeNullPtr()),
-	// 				encoder.EncodeHeapIs(qvNode, selector, qvOtherNode, tag),
-	// 				encoder.EncodePredicate(info.solver.config.flowDomain->GetOutFlowContains(selector.fieldname), qvNode, interfaceKey, tag)
-	// 			}),
-	// 			/* ==> */
-	// 			encoder.EncodeFlow(qvOtherNode, interfaceKey, tag)
-	// 		)));
-	// 	}
+	// checker.AddPremise(encoder.MakeForall(qvNode, encoder.MakeImplies( // TODO important: is this correct??
+	// 	encoder.EncodeNowFlow(GetNode(0), interfaceKey).Negate(),
+	// 	/* ==> */
+	// 	encoder.EncodeTransitionMaintainsFlow(qvNode, interfaceKey)
+	// )));
+	// if (lhs.sort() == Sort::PTR) { // TODO important: is this correct??
+	// 	checker.AddPremise(encoder.MakeForall(qvNode, encoder.MakeImplies( // TODO: only correct if the outflow of root did not change!!!!
+	// 		encoder.EncodeNowPredicate(info.solver.config.flowDomain->GetOutFlowContains(lhs.fieldname), GetNode(0), interfaceKey).Negate(),
+	// 		/* ==> */
+	// 		encoder.EncodeTransitionMaintainsFlow(qvNode, interfaceKey)
+	// 	)));
 	// }
+
+	for (auto tag : { EncodingTag::NOW, EncodingTag::NEXT }) {
+		for (auto selector : pointerSelectors) {
+			checker.AddPremise(encoder.MakeForall(qvNode, qvOtherNode, encoder.MakeImplies(
+				encoder.MakeAnd({
+					encoder.MakeDistinct(qvNode, encoder.MakeNullPtr()),
+					encoder.EncodeHeapIs(qvNode, selector, qvOtherNode, tag),
+					encoder.EncodePredicate(info.solver.config.flowDomain->GetOutFlowContains(selector.fieldname), qvNode, interfaceKey, tag)
+				}),
+				/* ==> */
+				encoder.EncodeFlow(qvOtherNode, interfaceKey, tag)
+			)));
+		}
+	}
 
 	// for (auto tag : { EncodingTag::NOW, EncodingTag::NEXT }) {
 	// 	for (auto selector : pointerSelectors) {
@@ -375,12 +389,23 @@ void DerefPostComputer::AddSpecificationRulesToSolver() {
 void DerefPostComputer::AddPointerAliasesToSolver(Node node) {
 	// TODO: remove this?
 
+	// get terms to solve
+	std::vector<Term> aliases;
 	for (auto variable : info.solver.GetVariablesInScope()) {
-		auto alias = encoder.EncodeNow(*variable);
-		if (checker.Implies(alias.Equal(node))) {
-			// TODO: also add NEXT version of alias?
-			log() << "    alias: " << node << " = " << alias << std::endl;
-		}
+		auto encodedVariable = encoder.EncodeNow(*variable);
+		aliases.push_back(encoder.MakeEqual(node, encodedVariable));
+		aliases.push_back(encoder.MakeDistinct(node, encodedVariable));
+	}
+
+	// compute implied terms
+	auto implied = checker.ComputeImplied(aliases);
+	assert(aliases.size() == implied.size());
+
+	// handle result
+	for (std::size_t index = 0; index < implied.size(); ++index) {
+		if (!implied[index]) continue;
+		checker.AddPremise(aliases.at(index));
+		log() << "    alias: " << aliases.at(index) << std::endl;
 	}
 }
 
@@ -488,6 +513,7 @@ Node DerefPostComputer::MakeFootprintRoot() {
 	assert(root.id == 0);
 	checker.AddPremise(encoder.MakeEqual(root, lhsNodeNext));
 	checker.AddPremise(encoder.MakeForall(qvKey, encoder.EncodeTransitionMaintainsFlow(root, qvKey)));
+	checker.AddPremise(encoder.EncodeTransitionMaintainsFlow(root, interfaceKey));
 	AddPointerAliasesToSolver(root);
 	AddToFootprint(root);
 
@@ -502,7 +528,7 @@ bool DerefPostComputer::ExtendFootprint(Node node, Selector selector, EncodingTa
 	log() << "    extending footprint: " << node << " -> " << selector << std::endl;
 	for (auto [otherNode, otherSelector, successor] : footprintIntraface) {
 		if (otherNode == node && otherSelector == selector) {
-			assert(false);
+			// assert(false);
 			return true;
 		}
 	}
@@ -574,7 +600,8 @@ void DerefPostComputer::CheckSpecification(Node node) {
 	auto IsUnchanged = [&](Symbol key) { return encoder.MakeIff(NodeContains(key, EncodingTag::NOW), NodeContains(key, EncodingTag::NEXT)); };
 
 	// check purity
-	auto pureCheck = encoder.MakeForall(qvKey, IsUnchanged(qvKey));
+	// auto pureCheck = encoder.MakeForall(qvKey, IsUnchanged(qvKey));
+	auto pureCheck = IsUnchanged(interfaceKey);
 	if (checker.Implies(pureCheck)) return;
 	if (purityStatus != PurityStatus::PURE)
 		Throw("Bad impure heap update", "not the first impure heap update");
@@ -605,12 +632,12 @@ void DerefPostComputer::CheckSpecification(Node node) {
 }
 
 void DerefPostComputer::CheckFootprint(Node node) {
-	log() << "    checking footprint: " << node << std::endl;
-	log() << "      checking invariant..." << std::endl;
+	log() << "  checking footprint: " << node << std::endl;
+	log() << "    checking invariant..." << std::endl;
 	CheckInvariant(node);
-	log() << "      checking specification..." << std::endl;
+	log() << "    checking specification..." << std::endl;
 	CheckSpecification(node);
-	log() << "      purity: " << (purityStatus == PurityStatus::PURE ? "pure" : (purityStatus == PurityStatus::INSERTION ? "insert" : "delete")) << std::endl;
+	log() << "    purity: " << (purityStatus == PurityStatus::PURE ? "pure" : (purityStatus == PurityStatus::INSERTION ? "insert" : "delete")) << std::endl;
 }
 
 bool DerefPostComputer::IsOutflowUnchanged(Node node, Selector selector) {
@@ -619,11 +646,17 @@ bool DerefPostComputer::IsOutflowUnchanged(Node node, Selector selector) {
 	auto root = GetNode(0);
 	assert(checker.ImpliesIsNonNull(node)); // TODO: assert with side effect
 
-	auto isUnchanged = encoder.MakeForall(qvKey, encoder.MakeImplies(
-		encoder.EncodeNowFlow(root, qvKey), // TODO: now or next? should not matter
+	// auto isUnchanged = encoder.MakeForall(qvKey, encoder.MakeImplies(
+	// 	encoder.EncodeNowFlow(root, qvKey), // TODO: now or next? should not matter
+	// 	/* ==> */
+	// 	encoder.MakeIff(encoder.EncodeNowPredicate(outflow, node, qvKey), encoder.EncodeNextPredicate(outflow, node, qvKey))
+	// ));
+
+	auto isUnchanged = encoder.MakeImplies(
+		encoder.EncodeNowFlow(root, interfaceKey), // TODO important: is this really correct????
 		/* ==> */
-		encoder.MakeIff(encoder.EncodeNowPredicate(outflow, node, qvKey), encoder.EncodeNextPredicate(outflow, node, qvKey))
-	));
+		encoder.MakeIff(encoder.EncodeNowPredicate(outflow, node, interfaceKey), encoder.EncodeNextPredicate(outflow, node, interfaceKey))
+	);
 
 	auto result = checker.Implies(isUnchanged);
 	log() << "        ==> unchanged = " << result << std::endl;
@@ -644,6 +677,7 @@ void DerefPostComputer::ExploreAndCheckFootprint() {
 
 	// decltype(footprint) checkedFootprint;
 	decltype(footprintBoundary) checkedBoundary;
+	auto maxFootprintSize = GetMaxFootprintSize();
 	bool done;
 
 	do {
@@ -665,7 +699,7 @@ void DerefPostComputer::ExploreAndCheckFootprint() {
 
 		log() << "  ~> footprint size = " << footprint.size() << std::endl;
 		log() << "  ~> done = " << done << std::endl;
-		if (GetMaxFootprintSize() > 4) // TODO important: configured by flow domain
+		if (footprint.size() > maxFootprintSize)
 			Throw("Cannot verify heap update", "footprint too large");
 
 	} while (!done);
