@@ -614,7 +614,8 @@ void DerefPostComputer::CheckSpecification(Node node) {
 
 	// check purity
 	// auto pureCheck = encoder.MakeForall(qvKey, IsUnchanged(qvKey));
-	auto pureCheck = IsUnchanged(interfaceKey);
+	// auto pureCheck = IsUnchanged(interfaceKey);
+	auto pureCheck = encoder.MakeImplies(encoder.EncodeNowFlow(GetNode(0), interfaceKey), IsUnchanged(interfaceKey)); // <<<<=========== premis does it all!!
 	if (checker.Implies(pureCheck)) return;
 	if (purityStatus != PurityStatus::PURE)
 		Throw("Bad impure heap update", "not the first impure heap update");
@@ -666,10 +667,25 @@ bool DerefPostComputer::IsOutflowUnchanged(Node node, Selector selector) {
 	// ));
 
 	auto isUnchanged = encoder.MakeImplies(
-		encoder.EncodeNowFlow(root, interfaceKey), // TODO important: is this really correct????
+		encoder.EncodeNowFlow(root, interfaceKey), // TODO important: is this really correct???? only for decreasing flow?
 		/* ==> */
 		encoder.MakeIff(encoder.EncodeNowPredicate(outflow, node, interfaceKey), encoder.EncodeNextPredicate(outflow, node, interfaceKey))
 	);
+
+	// // compute intraflow ==> everything produced within footprint // TODO important: avoid recomputing this
+	// std::vector<Term> vector;
+	// for (auto [intraNode, intraSelector, introSuccessor] : footprintIntraface) {
+	// 	auto& outflowPred = info.solver.config.flowDomain->GetOutFlowContains(intraSelector.fieldname);
+	// 	auto inOutflow = encoder.EncodeNowPredicate(outflowPred, intraNode, interfaceKey);
+	// 	vector.push_back(inOutflow.Negate());
+	// }
+	// auto intrafaceKeyNotProducedInFootprint = encoder.MakeAnd(vector);
+
+	// auto isUnchanged = encoder.MakeImplies(
+	// 	intrafaceKeyNotProducedInFootprint,
+	// 	/* ==> */
+	// 	encoder.MakeIff(encoder.EncodeNowPredicate(outflow, node, interfaceKey), encoder.EncodeNextPredicate(outflow, node, interfaceKey))
+	// );
 
 	auto result = checker.Implies(isUnchanged);
 	log() << "        ==> unchanged = " << result << std::endl;
