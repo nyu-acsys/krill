@@ -16,23 +16,52 @@ std::vector<std::pair<std::string, const Type*>> GetPointerFields(const PostConf
 	return result;
 }
 
+inline z3::sort MakePointerSort(z3::context& context) {
+	return context.int_sort(); // TODO important: use proper sort (with minimal overhead)
+}
+
+inline z3::sort MakeDataSort(z3::context& context) {
+	return context.int_sort(); // TODO important: use proper sort (with minimal overhead)
+}
+
+inline z3::sort MakeValueSort(z3::context& context) {
+	return context.int_sort(); // TODO important: use proper sort (with minimal overhead)
+}
+
+inline z3::sort MakeBoolSort(z3::context& context) {
+	return context.bool_sort();
+}
+
+inline z3::sort MakeSelectorSort(z3::context& context) {
+	return context.int_sort(); // TODO important: use proper sort (with minimal overhead)
+}
+
+inline z3::sort MakeSpecificationSort(z3::context& context) {
+	// return context.uninterpreted_sort("specSort");
+	return context.int_sort(); // TODO important: use proper sort (enum sort)
+}
+
 Z3Encoder::Z3Encoder(const PostConfig& config) :
 	Encoder(config),
-	intSort(context.int_sort()),
-	boolSort(context.bool_sort()),
-	nullPtr(context.constant("_NULL_", intSort)), 
-	minVal(context.constant("_MIN_", intSort)),
-	maxVal(context.constant("_MAX_", intSort)),
-	heapNow(context.function("$MEM-now", intSort, intSort, intSort)),
-	heapNext(context.function("$MEM-next", intSort, intSort, intSort)),
-	flowNow(context.function("$FLOW-now", intSort, intSort, boolSort)),
-	flowNext(context.function("$FLOW-next", intSort, intSort, boolSort)),
-	ownershipNow(context.function("$OWN-now", intSort, boolSort)),
-	ownershipNext(context.function("$OWN-next", intSort, boolSort)),
-	obligationNow(context.function("$OBL-now", intSort, intSort, boolSort)), // TODO: second paramter should be a finite sort
-	obligationNext(context.function("$OBL-next", intSort, intSort, boolSort)), // TODO: second paramter should be a finite sort
-	fulfillmentNow(context.function("$FUL-now", intSort, intSort, boolSort, boolSort)), // TODO: second paramter should be a finite sort
-	fulfillmentNext(context.function("$FUL-next", intSort, intSort, boolSort, boolSort)), // TODO: second paramter should be a finite sort
+	ptrSort(MakePointerSort(context)),
+	dataSort(MakeDataSort(context)),
+	valueSort(MakeValueSort(context)),
+	boolSort(MakeBoolSort(context)),
+	selectorSort(MakeSelectorSort(context)),
+	specSort(MakeSpecificationSort(context)),
+	nullPtr(context.constant("_NULL_", ptrSort)), 
+	minVal(context.constant("_MIN_", dataSort)),
+	maxVal(context.constant("_MAX_", dataSort)),
+	heapNow(context.function("$MEM-now", ptrSort, selectorSort, valueSort)),
+	heapNext(context.function("$MEM-next", ptrSort, selectorSort, valueSort)),
+	flowNow(context.function("$FLOW-now", ptrSort, dataSort, boolSort)),
+	flowNext(context.function("$FLOW-next", ptrSort, dataSort, boolSort)),
+	ownershipNow(context.function("$OWN-now", ptrSort, boolSort)),
+	ownershipNext(context.function("$OWN-next", ptrSort, boolSort)),
+	obligationNow(context.function("$OBL-now", dataSort, specSort, boolSort)),
+	obligationNext(context.function("$OBL-next", dataSort, specSort, boolSort)),
+	fulfillmentNow(context.function("$FUL-now", dataSort, specSort, boolSort, boolSort)),
+	fulfillmentNext(context.function("$FUL-next", dataSort, specSort, boolSort, boolSort)),
 	pointerFields(GetPointerFields(config))
 {
 	// TODO: currently nullPtr/minVal/maxValu are just some symbols that are not bound to a value
@@ -121,8 +150,8 @@ Z3Expr Z3Encoder::MakeZ3Forall(const std::vector<Z3Expr>& vars, Z3Expr term) {
 
 z3::sort Z3Encoder::EncodeZ3Sort(Sort sort) {
 	switch (sort) {
-		case Sort::PTR: return intSort;
-		case Sort::DATA: return intSort;
+		case Sort::PTR: return ptrSort;
+		case Sort::DATA: return dataSort;
 		case Sort::BOOL: return boolSort;
 		case Sort::VOID: throw Z3EncodingError("Cannot represent cola::Sort::VOID as z3::sort.");
 	}
@@ -265,5 +294,7 @@ Z3Expr Z3Encoder::EncodeZ3TransitionMaintainsHeap(Z3Expr node, Selector selector
 
 
 std::unique_ptr<ImplicationChecker> Z3Encoder::MakeImplicationChecker(EncodingTag tag) {
-	return std::make_unique<Z3ImplicationChecker>(shared_from_this(), tag, z3::solver(context));
+	z3::solver solver(context);
+	// solver.set("mbqi", false);
+	return std::make_unique<Z3ImplicationChecker>(shared_from_this(), tag, std::move(solver));
 }

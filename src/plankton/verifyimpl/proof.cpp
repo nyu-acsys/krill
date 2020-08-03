@@ -432,6 +432,7 @@ void Verifier::visit(const Macro& cmd) {
 	returning_annotations = std::move(outer_returning_annotations);
 
 	log() << std::endl << "________" << std::endl << "Post annotation for macro '" << cmd.decl.name << "':" << std::endl << *current_annotation << std::endl << std::endl;
+	throw std::logic_error("point du break");
 }
 
 void Verifier::visit(const CompareAndSwap& /*cmd*/) {

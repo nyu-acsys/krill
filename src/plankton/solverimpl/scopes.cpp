@@ -488,6 +488,7 @@ inline void fail_if(bool fail, const std::string_view msg) {
 void SolverImpl::ExtendCurrentScope(const std::vector<std::unique_ptr<cola::VariableDeclaration>>& decls) {
 	assert(!candidates.empty());
 	assert(!variablesInScope.empty());
+	assert(!instantiatedRules.empty());
 	assert(!instantiatedInvariants.empty());
 
 	// add variables to scope
@@ -507,11 +508,12 @@ void SolverImpl::ExtendCurrentScope(const std::vector<std::unique_ptr<cola::Vari
 
 	// add rules
 	auto rules = LazyStore::MakeRules(*this);
-	instantiatedInvariants.back() = heal::conjoin(std::move(instantiatedInvariants.back()), std::move(rules));
+	instantiatedRules.back() = heal::conjoin(std::move(instantiatedRules.back()), std::move(rules));
 }
 
 void SolverImpl::PushScope() {
 	candidates.emplace_back();
+	instantiatedRules.push_back(std::make_unique<ConjunctionFormula>());
 	instantiatedInvariants.push_back(std::make_unique<ConjunctionFormula>());
 	if (variablesInScope.empty()) {
 		// create empty scope
@@ -559,6 +561,7 @@ void SolverImpl::EnterScope(const Macro& macro) {
 
 void SolverImpl::LeaveScope() {
 	fail_if(candidates.empty(), ERR_LEAVE_NOSCOPE);
+	instantiatedRules.pop_back();
 	instantiatedInvariants.pop_back();
 	candidates.pop_back();
 	variablesInScope.pop_back();

@@ -61,6 +61,15 @@ namespace plankton {
 		inline bool operator==(const Symbol& other) const { return *repr == *other.repr; }
 		inline void Print(std::ostream& stream) const { repr->Print(stream); }
 		inline operator Term() const { return repr->ToTerm(); }
+
+		inline Term Negate() const { return Term(repr->ToTerm()->Negate()); }
+		inline Term And(Term term) const { return Term(repr->ToTerm()->And(term.repr)); }
+		inline Term Or(Term term) const { return Term(repr->ToTerm()->Or(term.repr)); }
+		inline Term XOr(Term term) const { return Term(repr->ToTerm()->XOr(term.repr)); }
+		inline Term Implies(Term term) const { return Term(repr->ToTerm()->Implies(term.repr)); }
+		inline Term Iff(Term term) const { return Term(repr->ToTerm()->Iff(term.repr)); }
+		inline Term Equal(Term term) const { return Term(repr->ToTerm()->Equal(term.repr)); }
+		inline Term Distinct(Term term) const { return Term(repr->ToTerm()->Distinct(term.repr)); }
 	};
 
 	struct Selector {

@@ -166,13 +166,13 @@ namespace plankton {
 			int selector_count = 0;
 
 			z3::context context;
-			z3::sort intSort, boolSort;
+			z3::sort ptrSort, dataSort, valueSort, boolSort, selectorSort, specSort; // valueSort = ptrSort + dataSort
 			z3::expr nullPtr, minVal, maxVal;
-			z3::func_decl heapNow, heapNext; // free function: Int x Int -> Int; 'heap(x, sel) = y' means that field 'sel' of node 'x' is 'y'
-			z3::func_decl flowNow, flowNext; // free function: Int x Int -> Bool; 'flow(x, k) = true' iff the flow in node 'x' contains 'k'
-			z3::func_decl ownershipNow, ownershipNext; // free function: Int -> Bool; 'ownership(x) = true' iff 'x' is owned
-			z3::func_decl obligationNow, obligationNext; // free function: Int x Int -> Bool; 'obligation(k, i) = true' iff 'OBL(k, i)'
-			z3::func_decl fulfillmentNow, fulfillmentNext; // free function: Int x Int x Bool -> Bool; 'fulfillment(k, i, r) = true' iff 'FUL(k, i, r)'
+			z3::func_decl heapNow, heapNext; // free function: Ptr x Sel -> Val; 'heap(x, sel) = y' means that field 'sel' of node 'x' is 'y'
+			z3::func_decl flowNow, flowNext; // free function: Ptr x Data -> Bool; 'flow(x, k) = true' iff the flow in node 'x' contains 'k'
+			z3::func_decl ownershipNow, ownershipNext; // free function: Ptr -> Bool; 'ownership(x) = true' iff 'x' is owned
+			z3::func_decl obligationNow, obligationNext; // free function: Data x Spec -> Bool; 'obligation(k, i) = true' iff 'OBL(k, i)'
+			z3::func_decl fulfillmentNow, fulfillmentNext; // free function: Data x Spec x Bool -> Bool; 'fulfillment(k, i, r) = true' iff 'FUL(k, i, r)'
 
 			std::vector<std::pair<std::string, const cola::Type*>> pointerFields;
 	};

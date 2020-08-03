@@ -17,7 +17,8 @@ namespace plankton {
 		private:
 			mutable std::shared_ptr<Encoder> encoder;
 			std::deque<std::unique_ptr<heal::ConjunctionFormula>> candidates;
-			std::deque<std::unique_ptr<heal::ConjunctionFormula>> instantiatedInvariants; // contains rules
+			std::deque<std::unique_ptr<heal::ConjunctionFormula>> instantiatedRules;
+			std::deque<std::unique_ptr<heal::ConjunctionFormula>> instantiatedInvariants;
 			std::deque<std::vector<const cola::VariableDeclaration*>> variablesInScope;
 
 			void PushScope();
@@ -28,6 +29,7 @@ namespace plankton {
 
 			inline std::shared_ptr<Encoder> GetEncoder() const { return encoder; }
 			inline const heal::ConjunctionFormula& GetCandidates() const { return *candidates.back(); }
+			inline const heal::ConjunctionFormula& GetInstantiatedRules() const { return *instantiatedRules.back(); }
 			inline const heal::ConjunctionFormula& GetInstantiatedInvariant() const { return *instantiatedInvariants.back(); }
 			inline const std::vector<const cola::VariableDeclaration*>& GetVariablesInScope() const { return variablesInScope.back(); }
 			
