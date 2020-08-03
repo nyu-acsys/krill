@@ -556,10 +556,23 @@ void DerefPostComputer::InitializeFootprint() {
 
 	if (lhs.sort() == Sort::PTR) {
 		// TODO: skip if no flow??
-		ExtendFootprint(root, Selector(nodeType, lhs.fieldname), EncodingTag::NOW);
-		ExtendFootprint(root, Selector(nodeType, lhs.fieldname), EncodingTag::NEXT);
+		// if (!checker.Implies(encoder.EncodeNowHasFlow(root).Negate())) {
+			ExtendFootprint(root, Selector(nodeType, lhs.fieldname), EncodingTag::NOW);
+			ExtendFootprint(root, Selector(nodeType, lhs.fieldname), EncodingTag::NEXT);
+		// }
 	}
 }
+
+/*
+	Das Problem
+	===========
+
+	Es kann passieren, dass man in PRE weiß, dass man Flow an einem Knoten gehabt hat, aber
+	man weiß nicht *woher* dieser kommt. Falls er von außerhalb des Footprints kommt, so sollte
+	er auf Grund von Distributivität von Edge-Functions ignoriert werden können.
+	Nur falls der Flow von innerhalb des Footprints stammt, muss man gucken dieser Flow im
+	PRE und POST Schritt gleich ist.
+*/
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
