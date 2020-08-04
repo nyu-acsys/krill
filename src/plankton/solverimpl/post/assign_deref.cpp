@@ -75,8 +75,6 @@ struct DerefPostComputer {
 	void Throw(std::string reason, std::string explanation="");
 	std::size_t GetMaxFootprintSize();
 	Term MakeFootprintContainsCheck(Symbol node);
-	// Term MakeIsIntrafaceKeyCheck(Symbol key);
-	Term MakeBoundaryKeyRestriction(Symbol key, Node node, Selector selector);
 	Term MakeBoundaryKeyRestriction(Symbol key);
 
 	void AddBaseRulesToSolver();
@@ -84,7 +82,6 @@ struct DerefPostComputer {
 	void AddSpecificationRulesToSolver();
 	void AddPointerAliasesToSolver(Node node);
 	void AddFootprintFlowRulesToSolver();
-	// void AddFlowRulesToSolver(Node node, std::string selector, Node successor, EncodingTag tag);
 
 	void CheckAssumptionIntegrity(Node node);
 	void AddEdgeToBoundary(Node node, Selector selector);
@@ -96,6 +93,7 @@ struct DerefPostComputer {
 	bool ExtendFootprint(Node node, Selector selector, EncodingTag tag);
 	bool ExtendFootprint(Node node, Selector selector);
 	void InitializeFootprint();
+	void ExploreFootprint();
 
 	void CheckInvariant(Node node);
 	void CheckSpecification(Node node);
@@ -225,45 +223,19 @@ Term DerefPostComputer::MakeFootprintContainsCheck(Symbol node) {
 	return encoder.MakeOr(vec);
 }
 
-// Term DerefPostComputer::MakeIsIntrafaceKeyCheck(Symbol key) {
-// 	std::vector<Term> vec;
-// 	for (auto [node, selector, successor] : footprintIntraface) {
-// 		auto& outflow = info.solver.config.flowDomain->GetOutFlowContains(selector.fieldname);
-// 		vec.push_back(encoder.EncodeNowPredicate(outflow, node, key)); // TODO important: encode for NOW or NEXT??
-// 	}
-// 	return encoder.MakeOr(vec);
-// }
-
-// Term DerefPostComputer::MakeBoundaryKeyRestriction(Node node, Selector selector, Symbol key) {
-// 	auto isInterfaceKey = MakeIsIntrafaceKeyCheck(key);
-// 	auto& outflow = info.solver.config.flowDomain->GetOutFlowContains(selector.fieldname);
-// 	auto isInOutflow = encoder.EncodeNowPredicate(outflow, node, key); // TODO important: encode for NOW or NEXT??
-// 	return encoder.MakeOr(isInterfaceKey, isInOutflow);
-// }
-
-inline void HandleEdge (Node node, Selector selector, Symbol key, Encoder& encoder, const PostInfo& info, std::vector<Term>& dst) {
-	auto& outflow = info.solver.config.flowDomain->GetOutFlowContains(selector.fieldname);
-	// TODO important: encode for NOW or NEXT??
-	dst.push_back(encoder.EncodeNowPredicate(outflow, node, key));
-	dst.push_back(encoder.EncodeNextPredicate(outflow, node, key));
-};
-
-Term DerefPostComputer::MakeBoundaryKeyRestriction(Symbol key, Node node, Selector selector) {
-	std::vector<Term> vec;
-	for (auto [node, selector, successor] : footprintIntraface) {
-		HandleEdge(node, selector, key, encoder, info, vec);
-	}
-	HandleEdge(node, selector, key, encoder, info, vec);
-	return encoder.MakeOr(vec);	
-}
-
 Term DerefPostComputer::MakeBoundaryKeyRestriction(Symbol key) {
 	std::vector<Term> vec;
+	auto HandleEdge = [&,this](Node node, Selector selector) {
+		auto& outflow = info.solver.config.flowDomain->GetOutFlowContains(selector.fieldname);
+		// TODO important: encode for NOW or NEXT??
+		vec.push_back(encoder.EncodeNowPredicate(outflow, node, key));
+		vec.push_back(encoder.EncodeNextPredicate(outflow, node, key));
+	};
 	for (auto [node, selector, successor] : footprintIntraface) {
-		HandleEdge(node, selector, key, encoder, info, vec);
+		HandleEdge(node, selector);
 	}
 	for (auto [node, selector] : footprintBoundary) {
-		HandleEdge(node, selector, key, encoder, info, vec);
+		HandleEdge(node, selector);
 	}
 	return encoder.MakeOr(vec);
 }
@@ -428,7 +400,7 @@ void DerefPostComputer::AddPointerAliasesToSolver(Node node) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-void DerefPostComputer::CheckAssumptionIntegrity(Node node) {
+void DerefPostComputer::CheckAssumptionIntegrity(Node node) { // TODO: is this still needed?
 	// for decreasing flows: nothing to do
 	if (info.solver.config.flowDomain->IsFlowDecreasing()) return;
 
@@ -452,9 +424,6 @@ void DerefPostComputer::AddEdgeToBoundary(Node node, Selector selector) {
 
 void DerefPostComputer::AddEdgeToIntraface(Node node, Selector selector, Node successor) {
 	footprintIntraface.emplace(node, selector, successor);
-	
-	// auto insertion = footprintIntraface.emplace(node, selector, successor);
-	// if (insertion.second) AddFlowRulesToSolver(node, selector, successor, EncodingTag::NEXT);
 }
 
 bool DerefPostComputer::AddToFootprint(Node node) {
@@ -502,7 +471,7 @@ bool DerefPostComputer::AddToFootprint(Node node) {
 	return true;
 }
 
-Symbol DerefPostComputer::GetNode(std::size_t index) {
+Symbol DerefPostComputer::GetNode(std::size_t index) { // TODO: move this to util.hpp?
 	static Type dummyType("dummy-post-deref-node-type", Sort::PTR);
 	static std::vector<std::unique_ptr<VariableDeclaration>> dummyPointers;
 	while (index >= dummyPointers.size()) {
@@ -542,7 +511,6 @@ bool DerefPostComputer::ExtendFootprint(Node node, Selector selector, EncodingTa
 	log() << "    extending footprint: " << node << " -> " << selector << std::endl;
 	for (auto [otherNode, otherSelector, successor] : footprintIntraface) {
 		if (otherNode == node && otherSelector == selector) {
-			// assert(false);
 			return true;
 		}
 	}
@@ -555,8 +523,6 @@ bool DerefPostComputer::ExtendFootprint(Node node, Selector selector, EncodingTa
 	auto added = AddToFootprint(successor);
 	if (!added) AddEdgeToBoundary(node, selector);
 	log() << "      " << (added ? "" : "not ") << "adding successor: " << successor << std::endl;
-	// if (added && tag == EncodingTag::NOW) AddFlowRulesToSolver(node, selector, successor, tag);
-	// else if (!added) AddEdgeToBoundary(node, selector);
 
 	return added;
 }
@@ -569,24 +535,12 @@ void DerefPostComputer::InitializeFootprint() {
 	auto root = MakeFootprintRoot();
 
 	if (lhs.sort() == Sort::PTR) {
-		// TODO: skip if no flow??
-		// if (!checker.Implies(encoder.EncodeNowHasFlow(root).Negate())) {
+		if (!checker.Implies(encoder.EncodeNowHasFlow(root).Negate())) { // TODO: make skipping configurable
 			ExtendFootprint(root, Selector(nodeType, lhs.fieldname), EncodingTag::NOW);
 			ExtendFootprint(root, Selector(nodeType, lhs.fieldname), EncodingTag::NEXT);
-		// }
+		}
 	}
 }
-
-/*
-	Das Problem
-	===========
-
-	Es kann passieren, dass man in PRE weiß, dass man Flow an einem Knoten gehabt hat, aber
-	man weiß nicht *woher* dieser kommt. Falls er von außerhalb des Footprints kommt, so sollte
-	er auf Grund von Distributivität von Edge-Functions ignoriert werden können.
-	Nur falls der Flow von innerhalb des Footprints stammt, muss man gucken dieser Flow im
-	PRE und POST Schritt gleich ist.
-*/
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -627,9 +581,6 @@ void DerefPostComputer::CheckSpecification(Node node) {
 	auto IsUnchanged = [&](Symbol key) { return encoder.MakeIff(NodeContains(key, EncodingTag::NOW), NodeContains(key, EncodingTag::NEXT)); };
 
 	// check purity
-	// auto pureCheck = encoder.MakeForall(qvKey, IsUnchanged(qvKey));
-	// auto pureCheck = IsUnchanged(interfaceKey);
-	// auto pureCheck = encoder.MakeImplies(encoder.EncodeNowFlow(GetNode(0), interfaceKey), IsUnchanged(interfaceKey)); // <<<<=========== premis does it all!!
 	auto pureCheck = encoder.MakeImplies(MakeBoundaryKeyRestriction(interfaceKey), IsUnchanged(interfaceKey));
 	if (checker.Implies(pureCheck)) return;
 	if (purityStatus != PurityStatus::PURE)
@@ -675,40 +626,10 @@ bool DerefPostComputer::IsOutflowUnchanged(Node node, Selector selector) {
 	auto root = GetNode(0);
 	assert(checker.ImpliesIsNonNull(node)); // TODO: assert with side effect
 
-	// auto isUnchanged = encoder.MakeImplies(
-	// 	MakeBoundaryKeyRestriction(interfaceKey, node, selector),
-	// 	// encoder.EncodeNowFlow(root, interfaceKey), // TODO important: is this really correct???? only for decreasing flow?
-	// 	/* ==> */
-	// 	encoder.MakeIff(encoder.EncodeNowPredicate(outflow, node, interfaceKey), encoder.EncodeNextPredicate(outflow, node, interfaceKey))
-	// );
-
 	auto isUnchanged = encoder.MakeIff(
 		encoder.EncodeNowPredicate(outflow, node, interfaceKey),
 		encoder.EncodeNextPredicate(outflow, node, interfaceKey)
 	);
-
-
-
-	// auto isUnchanged = encoder.MakeForall(qvKey, encoder.MakeImplies(
-	// 	encoder.EncodeNowFlow(root, qvKey), // TODO: now or next? should not matter
-	// 	/* ==> */
-	// 	encoder.MakeIff(encoder.EncodeNowPredicate(outflow, node, qvKey), encoder.EncodeNextPredicate(outflow, node, qvKey))
-	// ));
-
-	// // compute intraflow ==> everything produced within footprint // TODO important: avoid recomputing this
-	// std::vector<Term> vector;
-	// for (auto [intraNode, intraSelector, introSuccessor] : footprintIntraface) {
-	// 	auto& outflowPred = info.solver.config.flowDomain->GetOutFlowContains(intraSelector.fieldname);
-	// 	auto inOutflow = encoder.EncodeNowPredicate(outflowPred, intraNode, interfaceKey);
-	// 	vector.push_back(inOutflow.Negate());
-	// }
-	// auto intrafaceKeyNotProducedInFootprint = encoder.MakeAnd(vector);
-
-	// auto isUnchanged = encoder.MakeImplies(
-	// 	intrafaceKeyNotProducedInFootprint,
-	// 	/* ==> */
-	// 	encoder.MakeIff(encoder.EncodeNowPredicate(outflow, node, interfaceKey), encoder.EncodeNextPredicate(outflow, node, interfaceKey))
-	// );
 
 	auto result = checker.Implies(isUnchanged);
 	log() << "        ==> unchanged = " << result << std::endl;
@@ -720,19 +641,13 @@ bool DerefPostComputer::IsOutflowUnchanged(Node node, Selector selector) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-
-void DerefPostComputer::ExploreAndCheckFootprint() {
+void DerefPostComputer::ExploreFootprint() {
 	// TODO important: we are ignoring NULL during the exploration, can we ignore its flow / flow changes?? Are we ignoring NULL??
-
-	InitializeFootprint();
-	log() << "  initialized footprint with " << footprint.size() << " nodes" << std::endl;
-
-	// decltype(footprint) checkedFootprint;
-	decltype(footprintBoundary) checkedBoundary;
 	auto maxFootprintSize = GetMaxFootprintSize();
+	decltype(footprintBoundary) checkedBoundary;
 	bool done;
-	checker.Push();
 
+	log() << "  initialized footprint with " << footprint.size() << " nodes" << std::endl;
 	do {
 		log() << "  iterating" << std::endl;
 		done = true;
@@ -765,7 +680,15 @@ void DerefPostComputer::ExploreAndCheckFootprint() {
 			Throw("Cannot verify heap update", "footprint too large");
 
 	} while (!done);
-		
+}
+
+void DerefPostComputer::ExploreAndCheckFootprint() {
+	// find footprint
+	InitializeFootprint();
+	checker.Push();
+	ExploreFootprint();
+	checker.Pop(); // TODO: remove this?
+
 	// check invariant / specification
 	AddNonFootprintFlowRulesToSolver();
 	for (auto node : footprint) {
@@ -773,7 +696,6 @@ void DerefPostComputer::ExploreAndCheckFootprint() {
 	}
 
 	// explicitly add invariant
-	checker.Pop(); // TODO: should we do this??
 	checker.AddPremise(encoder.EncodeNext(info.solver.GetInstantiatedInvariant()));
 	log() << "  update looks good!" << std::endl;
 }
@@ -782,7 +704,7 @@ void DerefPostComputer::ExploreAndCheckFootprint() {
 std::unique_ptr<ConjunctionFormula> DerefPostComputer::MakePostNow() {
 	AddBaseRulesToSolver();
 	ExploreAndCheckFootprint();
-	AddNonFootprintFlowRulesToSolver();
+	// AddNonFootprintFlowRulesToSolver();
 	AddSpecificationRulesToSolver();
 
 	// TODO important: obey info.implicationCheck and if set skip checks
