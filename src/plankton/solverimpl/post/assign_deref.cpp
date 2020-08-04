@@ -39,7 +39,7 @@ Logger& Logger::operator<<(const Node& node) {
 }
 
 using InnerEdge = std::tuple<Node, Selector, Node>; // <node, selector, successor> encodes: {node}->{selector}=={successor} inside footprint
-using OuterEdge = std::tuple<Node, Selector>; // <node, selector> encodes: {node}->{selector} leads outside footprint
+using OuterEdge = std::tuple<Node, Selector>; // <node, selector> encodes: {node}->{selector} leads out of footprint
 
 
 struct DerefPostComputer {
