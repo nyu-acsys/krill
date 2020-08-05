@@ -83,11 +83,13 @@ struct DerefPostComputer {
 	void AddPointerAliasesToSolver(Node node);
 	void AddFootprintFlowRulesToSolver();
 
+	bool SkipRootSuccessors();
 	void CheckAssumptionIntegrity(Node node);
 	void AddEdgeToBoundary(Node node, Selector selector);
 	void AddEdgeToIntraface(Node node, Selector selector, Node successor);
 	bool AddToFootprint(Node node);
 	Symbol GetNode(std::size_t index);
+	Node GetRootNode();
 	Node MakeNewNode();
 	Node MakeFootprintRoot();
 	bool ExtendFootprint(Node node, Selector selector, EncodingTag tag);
@@ -97,7 +99,7 @@ struct DerefPostComputer {
 
 	void CheckInvariant(Node node);
 	void CheckSpecification(Node node);
-	void CheckFootprint(Node node);
+	void CheckDisjointness(Node node, Node other);
 	bool IsOutflowUnchanged(Node node, Selector fieldname);
 
 	void ExploreAndCheckFootprint();
@@ -483,6 +485,11 @@ Symbol DerefPostComputer::GetNode(std::size_t index) { // TODO: move this to uti
 	return encoder.EncodeNext(*dummyPointers.at(index));
 }
 
+Node DerefPostComputer::GetRootNode() {
+	if (footprintSize == 0) ++footprintSize;
+	return Node(0, GetNode(0));
+}
+
 Node DerefPostComputer::MakeNewNode() {
 	auto index = footprintSize++;
 	return Node(index, GetNode(index));
@@ -492,8 +499,7 @@ Node DerefPostComputer::MakeNewNode() {
 Node DerefPostComputer::MakeFootprintRoot() {
 	log() << "    adding root" << std::endl;
 	// primary root is 'lhs.expr'; flow is unchanged ==> see DerefPostComputer::CheckAssumptionIntegrity
-	auto root = MakeNewNode();
-	assert(root.id == 0);
+	auto root = GetRootNode();
 	checker.AddPremise(encoder.MakeEqual(root, lhsNodeNext));
 	checker.AddPremise(encoder.MakeForall(qvKey, encoder.EncodeTransitionMaintainsFlow(root, qvKey)));
 	checker.AddPremise(encoder.EncodeTransitionMaintainsFlow(root, interfaceKey));
@@ -509,9 +515,11 @@ Node DerefPostComputer::MakeFootprintRoot() {
 
 bool DerefPostComputer::ExtendFootprint(Node node, Selector selector, EncodingTag tag) {
 	log() << "    extending footprint: " << node << " -> " << selector << std::endl;
-	for (auto [otherNode, otherSelector, successor] : footprintIntraface) {
-		if (otherNode == node && otherSelector == selector) {
-			return true;
+	if (tag == EncodingTag::NEXT) {
+		for (auto [otherNode, otherSelector, successor] : footprintIntraface) {
+			if (otherNode == node && otherSelector == selector) {
+				return true;
+			}
 		}
 	}
 
@@ -531,14 +539,30 @@ bool DerefPostComputer::ExtendFootprint(Node node, Selector selector) {
 	return ExtendFootprint(node, selector, EncodingTag::NEXT);
 }
 
+bool DerefPostComputer::SkipRootSuccessors() {
+	if (lhs.sort() != Sort::PTR) return true;
+	
+	auto root = GetRootNode();
+	Selector selector(nodeType, lhs.fieldname);
+	auto& outflow = info.solver.config.flowDomain->GetOutFlowContains(lhs.fieldname);
+
+	auto sameHeap = encoder.MakeEqual(lhsNow, lhsNext);
+	auto unchangedEmptyOutflow = encoder.MakeForall(qvKey, encoder.MakeAnd(
+		encoder.EncodeNowPredicate(outflow, root, qvKey).Negate(),
+		encoder.EncodeNextPredicate(outflow, root, qvKey).Negate()
+	));
+
+	auto result = checker.Implies(sameHeap.Or(unchangedEmptyOutflow));
+	return result;
+}
+
 void DerefPostComputer::InitializeFootprint() {
 	auto root = MakeFootprintRoot();
 
-	if (lhs.sort() == Sort::PTR) {
-		if (!checker.Implies(encoder.EncodeNowHasFlow(root).Negate())) { // TODO: make skipping configurable
-			ExtendFootprint(root, Selector(nodeType, lhs.fieldname), EncodingTag::NOW);
-			ExtendFootprint(root, Selector(nodeType, lhs.fieldname), EncodingTag::NEXT);
-		}
+	if (!SkipRootSuccessors()) {
+		Selector selector(nodeType, lhs.fieldname);
+		ExtendFootprint(root, selector, EncodingTag::NEXT);
+		ExtendFootprint(root, selector, EncodingTag::NOW); // NOW must be done after NEXT
 	}
 }
 
@@ -549,25 +573,34 @@ void DerefPostComputer::InitializeFootprint() {
 
 void DerefPostComputer::CheckInvariant(Node node) {
 	if (!info.performInvariantCheck) return;
+	log() << "  checking invariant for: " << node << std::endl;
 
-	// invariant must handle NULL case itself
+	// check invariant
 	auto check = encoder.EncodeNextInvariant(*info.solver.config.invariant, node);
-	if (!checker.Implies(check)) {
-		log() << std::endl << std::endl << "Invariant violated in footprint: " << node << std::endl;
-		for (const auto& conjunct : info.solver.config.invariant->blueprint->conjuncts) {
-			auto encoded = encoder.MakeImplies(
-				encoder.MakeEqual(node, encoder.EncodeNext(*info.solver.config.invariant->vars.at(0))),
-				encoder.EncodeNext(*conjunct)
-			);
-			log() << "  - inv " << *conjunct << ": " << checker.Implies(encoded) << std::endl;
-		}
-		log() << std::endl << "PRE: " << info.preNow << std::endl;
-		Throw("Could not establish invariant for heap update", "invariant violated within footprint");
+	auto satisfiesInvariant = checker.Implies(check);
+	if (satisfiesInvariant) return;
+
+	// report error
+	log() << std::endl << std::endl << "Invariant violated in footprint: " << node << std::endl;
+	for (const auto& conjunct : info.solver.config.invariant->blueprint->conjuncts) {
+		auto encoded = encoder.MakeImplies(
+			encoder.MakeEqual(node, encoder.EncodeNext(*info.solver.config.invariant->vars.at(0))),
+			encoder.EncodeNext(*conjunct)
+		);
+		log() << "  - inv " << *conjunct << ": " << checker.Implies(encoded) << std::endl;
 	}
+	log() << std::endl << "PRE: " << info.preNow << std::endl;
+	Throw("Could not establish invariant for heap update", "invariant violated within footprint");
+}
+
+void DerefPostComputer::CheckDisjointness(Node /*node*/, Node /*other*/) {
+	std::cerr << "WARNING: disjointness not checked!" << std::endl;
+	// throw std::logic_error("not yet implemented: DerefPostComputer::CheckDisjointness");
 }
 
 void DerefPostComputer::CheckSpecification(Node node) {
 	if (!info.performSpecificationCheck) return;
+	log() << "  checking specification for: " << node << std::endl;
 
 	// helpers
 	auto NodeContains = [&,this](Symbol key, EncodingTag tag) {
@@ -581,7 +614,8 @@ void DerefPostComputer::CheckSpecification(Node node) {
 	auto IsUnchanged = [&](Symbol key) { return encoder.MakeIff(NodeContains(key, EncodingTag::NOW), NodeContains(key, EncodingTag::NEXT)); };
 
 	// check purity
-	auto pureCheck = encoder.MakeImplies(MakeBoundaryKeyRestriction(interfaceKey), IsUnchanged(interfaceKey));
+	// auto pureCheck = encoder.MakeImplies(MakeBoundaryKeyRestriction(interfaceKey), IsUnchanged(interfaceKey));
+	auto pureCheck = IsUnchanged(interfaceKey);
 	if (checker.Implies(pureCheck)) return;
 	if (purityStatus != PurityStatus::PURE)
 		Throw("Bad impure heap update", "not the first impure heap update");
@@ -611,20 +645,10 @@ void DerefPostComputer::CheckSpecification(Node node) {
 	else Throw("Failed to find specification for impure heap update", "unable to figure out if it is an insertion or a deletion");
 }
 
-void DerefPostComputer::CheckFootprint(Node node) {
-	log() << "  checking footprint: " << node << std::endl;
-	log() << "    checking invariant..." << std::endl;
-	CheckInvariant(node);
-	log() << "    checking specification..." << std::endl;
-	CheckSpecification(node);
-	log() << "    purity: " << (purityStatus == PurityStatus::PURE ? "pure" : (purityStatus == PurityStatus::INSERTION ? "insert" : "delete")) << std::endl;
-}
-
 bool DerefPostComputer::IsOutflowUnchanged(Node node, Selector selector) {
 	log() << "    checking outflow: " << node << " -> " << selector << std::endl;
 	const auto& outflow = info.solver.config.flowDomain->GetOutFlowContains(selector.fieldname);
-	auto root = GetNode(0);
-	assert(checker.ImpliesIsNonNull(node)); // TODO: assert with side effect
+	auto root = GetRootNode();
 
 	auto isUnchanged = encoder.MakeIff(
 		encoder.EncodeNowPredicate(outflow, node, interfaceKey),
@@ -646,6 +670,7 @@ void DerefPostComputer::ExploreFootprint() {
 	auto maxFootprintSize = GetMaxFootprintSize();
 	decltype(footprintBoundary) checkedBoundary;
 	bool done;
+	checker.Push();
 
 	log() << "  initialized footprint with " << footprint.size() << " nodes" << std::endl;
 	do {
@@ -658,7 +683,7 @@ void DerefPostComputer::ExploreFootprint() {
 		AddFootprintFlowRulesToSolver();
 
 		// check interface
-		auto Expanded = [this](Node node, Selector selector) {
+		auto Expand = [this](Node node, Selector selector) {
 			if (IsOutflowUnchanged(node, selector)) return false;
 			bool success = ExtendFootprint(node, selector);
 			if (!success) Throw("Cannot verify heap update", "failed to extend footprint");
@@ -666,7 +691,7 @@ void DerefPostComputer::ExploreFootprint() {
 		};
 		for (auto edge : footprintBoundary) {
 			if (checkedBoundary.count(edge)) continue;
-			if (std::apply(Expanded, edge)) {
+			if (std::apply(Expand, edge)) {
 				done = false;
 				break;
 			}
@@ -685,43 +710,54 @@ void DerefPostComputer::ExploreFootprint() {
 void DerefPostComputer::ExploreAndCheckFootprint() {
 	// find footprint
 	InitializeFootprint();
-	checker.Push();
 	ExploreFootprint();
-	checker.Pop(); // TODO: remove this?
 
 	// check invariant / specification
 	AddNonFootprintFlowRulesToSolver();
 	for (auto node : footprint) {
-		CheckFootprint(node);
+		CheckInvariant(node);
+		CheckSpecification(node);
 	}
 
 	// explicitly add invariant
 	checker.AddPremise(encoder.EncodeNext(info.solver.GetInstantiatedInvariant()));
-	log() << "  update looks good!" << std::endl;
+
+	// check flow disjointness
+	for (auto iterator = footprint.begin(); iterator != footprint.end(); ++iterator) {
+		for (auto other = std::next(iterator); other != footprint.end(); ++other) {
+			CheckDisjointness(*iterator, *other);
+		}
+	}
+
+	// debug
+	log() << "  update looks good! ~~> ";
+	switch (purityStatus) {
+		case PurityStatus::PURE: log() << "PURE"; break;
+		case PurityStatus::INSERTION: log() << "INSERTION"; break;
+		case PurityStatus::DELETION: log() << "DELETION"; break;
+	}
+	log() << std::endl;
 }
 
 
 std::unique_ptr<ConjunctionFormula> DerefPostComputer::MakePostNow() {
 	AddBaseRulesToSolver();
 	ExploreAndCheckFootprint();
-	// AddNonFootprintFlowRulesToSolver();
 	AddSpecificationRulesToSolver();
 
 	// TODO important: obey info.implicationCheck and if set skip checks
-	// TODO important: keyset disjointness check within footprint
-	std::cerr << "WARNING: missing disjointness check!!" << std::endl;
 
 	auto result = info.ComputeImpliedCandidates(checker);
 
 	// debug output
-	log() << "**PRE**     " << info.preNow << std::endl;
-	log() << "**POST**    " << *result << std::endl;
-	for (const auto& candidate : info.solver.GetCandidates()) {
-		bool inPre = heal::syntactically_contains_conjunct(info.preNow, *candidate);
-		bool inPost = heal::syntactically_contains_conjunct(*result, *candidate);
-		if (inPre == inPost) continue;
-		log() << " diff " << (inPre ? "lost" : "got") << " " << *candidate << std::endl;
-	}
+	// log() << "**PRE**     " << info.preNow << std::endl;
+	// log() << "**POST**    " << *result << std::endl;
+	// for (const auto& candidate : info.solver.GetCandidates()) {
+	// 	bool inPre = heal::syntactically_contains_conjunct(info.preNow, *candidate);
+	// 	bool inPost = heal::syntactically_contains_conjunct(*result, *candidate);
+	// 	if (inPre == inPost) continue;
+	// 	log() << " diff " << (inPre ? "lost" : "got") << " " << *candidate << std::endl;
+	// }
 
 	return result;
 }
