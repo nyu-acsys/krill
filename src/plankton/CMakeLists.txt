@@ -17,6 +17,7 @@ set(SOURCES
 	config.cpp
 	error.cpp
 	util.cpp
+	flow.cpp
 	solver.cpp
 
 	# verify

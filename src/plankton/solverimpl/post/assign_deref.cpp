@@ -188,17 +188,14 @@ DerefPostComputer::DerefPostComputer(PostInfo info_, const Dereference& lhs, con
 	}
 }
 
-inline const Type& GetDataType() { // TODO: we should get this from the flow domain
-	static Type dummyType("DerefPostComputer#dummy-data-type", Sort::DATA);
-	return dummyType;
-}
-
-inline std::array<Symbol, 5> MakeQVars(std::shared_ptr<Encoder> encoder, const Type& nodeType) {
-	return plankton::MakeQuantifiedVariables(encoder, nodeType, nodeType, GetDataType(), GetDataType(), GetDataType());
+inline std::array<Symbol, 5> MakeQVars(std::shared_ptr<Encoder> encoder, const PostConfig& config) {
+	auto& nodeType = config.flowDomain->GetNodeType();
+	auto& valueType = config.flowDomain->GetFlowValueType();
+	return plankton::MakeQuantifiedVariables(encoder, nodeType, nodeType, valueType, valueType, valueType);
 }
 
 DerefPostComputer::DerefPostComputer(PostInfo info, const Dereference& lhs, const Expression& rhs)
-	: DerefPostComputer(std::move(info), lhs, rhs, MakeQVars(info.solver.GetEncoder(), lhs.expr->type()))
+	: DerefPostComputer(std::move(info), lhs, rhs, MakeQVars(info.solver.GetEncoder(), info.solver.config))
 {}
 
 
@@ -211,9 +208,7 @@ void DerefPostComputer::Throw(std::string reason, std::string explanation) {
 }
 
 std::size_t DerefPostComputer::GetMaxFootprintSize() {
-	std::cerr << "WARNING: using dummy footprint size!!" << std::endl;
-	return 3;
-	// return info.solver.config.flowDomain->GetFootprintDepth(info.preNow, lhs, rhs);
+	return info.solver.config.maxFootprintSize;
 }
 
 Term DerefPostComputer::MakeFootprintContainsCheck(Symbol node) {

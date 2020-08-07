@@ -194,20 +194,20 @@ struct KeysetFlow : public FlowDomain {
 		return nodeType;
 	}
 
+	const Type& GetFlowValueType() const override {
+		return Type::data_type();
+	}
+
 	const Predicate& GetOutFlowContains(std::string fieldname) const override {
 		if (fieldname != "next") throw std::logic_error("KeysetFlow error: FlowDomain.GetOutFlowContains(std::string) expected 'next' but got '" + fieldname + "'.");
 		return *outflowContains;
-	}
-
-	std::size_t GetFootprintDepth(const ConjunctionFormula& /*pre*/, const Dereference& lhs, const Expression& /*rhs*/) const override {
-		// TODO important: if lhs.expr is owned, then a footprint of size 1 should do for pointer assignments?
-		return lhs.sort() == Sort::PTR ? 2 : 0;
 	}
 };
 
 std::unique_ptr<SolverImpl> plankton::MakeSolverImpl(const cola::Program& program) {
 	auto& nodeType = extract_node_type(program);
 	PostConfig config {
+		3,
 		std::make_unique<KeysetFlow>(nodeType, extract_outflow_predicate(program, nodeType)),
 		extract_contains_predicate(program, nodeType),
 		extract_invariant(program, nodeType)

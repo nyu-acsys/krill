@@ -16,6 +16,10 @@ namespace plankton {
 	/** Configuration for solvers.
 	  */
 	struct PostConfig {
+		/** Suggests an upper bound for the footprint size beyond which a solver may give up.
+		  */
+		std::size_t maxFootprintSize;
+
 		/** The underlying flow domain.
 		  */
 		std::unique_ptr<FlowDomain> flowDomain;
