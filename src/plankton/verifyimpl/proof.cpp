@@ -261,6 +261,7 @@ void Verifier::handle_loop(const ConditionalLoop& stmt, bool /*peelFirst*/) { //
 
 		if (plankton::config.interference_after_unification) apply_interference();
 	}
+	std::cout << std::endl << std::endl << " ------ loop end ------ " << std::endl;
 	
 	breaking_annotations.insert(breaking_annotations.begin(),
 		std::make_move_iterator(first_breaking_annotations.begin()), std::make_move_iterator(first_breaking_annotations.end())

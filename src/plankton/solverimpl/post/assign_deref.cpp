@@ -309,7 +309,7 @@ void DerefPostComputer::AddFootprintFlowRulesToSolver() {
 	// NOTE: these rules are invalidated by footprint changes / extensions
 	// TODO important: check soundness
 
-	auto MakeKeyIsReceivedFromWithinFootprintCheckElements = [&,this](Node node, Symbol key, EncodingTag tag) {
+	auto FromWithin = [&,this](Node node, Symbol key, EncodingTag tag) {
 		std::vector<Term> vec;
 		for (auto [pred, sel, succ] : footprintIntraface) {
 			auto& outflow = info.solver.config.flowDomain->GetOutFlowContains(sel.fieldname);
@@ -321,61 +321,27 @@ void DerefPostComputer::AddFootprintFlowRulesToSolver() {
 		return vec;
 	};
 
-	auto MakeKeyIsReceivedFromWithinFootprintCheck = [&,this](Node node, Symbol key, EncodingTag tag) {
-		return encoder.MakeOr(MakeKeyIsReceivedFromWithinFootprintCheckElements(node, key, tag));
-	};
-
-	auto MakeKeyIsReceivedUniquelyFromWithinFootprintCheck = [&,this](Node node, Symbol key, EncodingTag tag) {
-		return encoder.MakeAtMostOne(MakeKeyIsReceivedFromWithinFootprintCheckElements(node, key, tag));
-	};
-
-
-	// auto MakeIntraFaceFlowRuleForNode = [&,this](Node node, EncodingTag tag) {
-	// 	auto notFromWithin = MakeKeyIsReceivedFromWithinFootprintCheck(node, interfaceKey, tag).Negate();
-	// 	auto hasFlow = encoder.EncodeFlow(node, interfaceKey, tag);
-	// 	return encoder.MakeImplies(
-	// 		encoder.MakeAnd(hasFlow, notFromWithin),
-	// 		/* ==> */
-	// 		encoder.EncodeFlow(node, interfaceKey, InvertTag(tag))
-	// 	);
-	// };
-	auto MakeIntraFaceFlowRuleForNode = [&,this](Node node, EncodingTag tag) { // TODO important: which version to use? specific or general one?s
-		auto notFromWithin = MakeKeyIsReceivedFromWithinFootprintCheck(node, qvKey, tag).Negate();
-		auto hasFlow = encoder.EncodeFlow(node, qvKey, tag);
-		return encoder.MakeForall(qvKey, encoder.MakeImplies(
-			encoder.MakeAnd(hasFlow, notFromWithin),
-			/* ==> */
-			encoder.EncodeFlow(node, qvKey, InvertTag(tag))
-		));
-	};
-
-	// auto ROFLCOPTER = [&,this](Node node, EncodingTag tag) {
-	// 	for (auto selector : pointerSelectors) {
-	// 		for (auto other : footprint) {
-	// 			checker.AddPremise(encoder.MakeForall(qvKey, encoder.MakeImplies(
-	// 				encoder.MakeAnd({
-	// 					encoder.MakeDistinct(node, encoder.MakeNullPtr()),
-	// 					encoder.EncodeHeapIs(node, selector, other, tag),
-	// 					encoder.EncodePredicate(info.solver.config.flowDomain->GetOutFlowContains(selector.fieldname), node, qvKey, tag)
-	// 				}),
-	// 				/* ==> */
-	// 				encoder.EncodeFlow(other, qvKey, tag)
-	// 			)));
-	// 		}
-	// 	}
-	// };
-
-
-	auto MakeIntraFaceInflowRuleForNode = [&,this](Node node) {
+	for (auto node : footprint) {
 		auto nowUnique = encoder.EncodeNowUniqueInflow(node, qvKey);
 		auto nextUnique = encoder.EncodeNextUniqueInflow(node, qvKey);
-		auto nowNotInFlow = encoder.EncodeNowFlow(node, qvKey).Negate();
-		auto nextNotInFlow = encoder.EncodeNextFlow(node, qvKey).Negate();
+		auto nowInFlow = encoder.EncodeNowFlow(node, qvKey);
+		auto nextInFlow = encoder.EncodeNextFlow(node, qvKey);
+		auto nowNotInFlow = nowInFlow.Negate();
+		auto nextNotInFlow = nextInFlow.Negate();
 
-		auto nowFromWithin = MakeKeyIsReceivedFromWithinFootprintCheck(node, qvKey, EncodingTag::NOW);
-		auto nextNotFromWithin = MakeKeyIsReceivedFromWithinFootprintCheck(node, qvKey, EncodingTag::NEXT).Negate();
-		auto nextUniquelyFromWithin = MakeKeyIsReceivedUniquelyFromWithinFootprintCheck(node, qvKey, EncodingTag::NEXT);
+		auto nowFromWithin = encoder.MakeOr(FromWithin(node, qvKey, EncodingTag::NOW));
+		auto nextFromWithin = encoder.MakeOr(FromWithin(node, qvKey, EncodingTag::NEXT));
+		auto nowNotFromWithin = nowFromWithin.Negate();
+		auto nextNotFromWithin = nextFromWithin.Negate();
+		auto nextUniquelyFromWithin = encoder.MakeAtMostOne(FromWithin(node, qvKey, EncodingTag::NEXT));
 		
+		// flow from outside remains unchanged
+		auto nowFromOutside = encoder.MakeAnd(nowInFlow, nowNotFromWithin);
+		auto nextFromOutside = encoder.MakeAnd(nextInFlow, nextNotFromWithin);
+		checker.AddPremise(encoder.MakeForall(qvKey, nowFromOutside.Implies(nextInFlow)));
+		checker.AddPremise(encoder.MakeForall(qvKey, nextFromOutside.Implies(nowInFlow)));
+		
+		// uniqueness updates
 		auto uniquenessMaintained = encoder.MakeOr({
 			nextNotInFlow,
 			encoder.MakeAnd(nowUnique, nextNotFromWithin),
@@ -383,71 +349,19 @@ void DerefPostComputer::AddFootprintFlowRulesToSolver() {
 			encoder.MakeAnd({nowUnique, nowFromWithin, nextUniquelyFromWithin}),
 			encoder.MakeAnd({nowUnique, nowFromWithin, nextNotFromWithin}) // also implies not in flow at all
 		});
+		checker.AddPremise(encoder.MakeForall(qvKey, uniquenessMaintained.Implies(nextUnique)));
 
-		// TODO: better like this?
-		//   nowNotFromOutside = notInFlow || nowUnique && nowFromWithin;
-		//   ~~> nowNotFromOutside ==> nextNotFromOutside
-		//   ~~> nextNotFromOutside && nextUniquelyFromWithin ==> nextUnique
+		// removing unique intraflow removes flow altogether
+		auto intraflowRemoved = encoder.MakeAnd({nowUnique, nowFromWithin, nextNotFromWithin});
+		checker.AddPremise(encoder.MakeForall(qvKey, intraflowRemoved.Implies(nextNotInFlow)));
 
-		return encoder.MakeForall(qvKey, uniquenessMaintained.Implies(nextUnique));
-		// TODO important: add '!nextUnique && nextNotFromWithin ==> !nowUnique'?
-		// TODO important: add '!nextUnique && nextUniquelyFromWithin && nowFromWithin ==> !nowUnique'?
-	};
-
-	auto FOOBAR = [&,this](Node node) {
-		{
-			auto nowUnique = encoder.EncodeNowUniqueInflow(node, interfaceKey);
-			auto nextNotInFlow = encoder.EncodeNextFlow(node, interfaceKey).Negate();
-
-			auto nowFromWithin = MakeKeyIsReceivedFromWithinFootprintCheck(node, interfaceKey, EncodingTag::NOW);
-			auto nextNotFromWithin = MakeKeyIsReceivedFromWithinFootprintCheck(node, interfaceKey, EncodingTag::NEXT).Negate();
-			
-			checker.AddPremise(encoder.MakeImplies(
-				encoder.MakeAnd({nowUnique, nowFromWithin, nextNotFromWithin}),
-				/* ==> */
-				nextNotInFlow
-			));
-		}
-
-		auto nowUnique = encoder.EncodeNowUniqueInflow(node, interfaceKey);
-		auto nextUnique = encoder.EncodeNextUniqueInflow(node, interfaceKey);
-		auto nowNotInFlow = encoder.EncodeNowFlow(node, interfaceKey).Negate();
-		auto nextNotInFlow = encoder.EncodeNextFlow(node, interfaceKey).Negate();
-
-		auto nowFromWithin = MakeKeyIsReceivedFromWithinFootprintCheck(node, interfaceKey, EncodingTag::NOW);
-		auto nextNotFromWithin = MakeKeyIsReceivedFromWithinFootprintCheck(node, interfaceKey, EncodingTag::NEXT).Negate();
-		auto nextUniquelyFromWithin = MakeKeyIsReceivedUniquelyFromWithinFootprintCheck(node, interfaceKey, EncodingTag::NEXT);
-		
-		auto uniquenessMaintained = encoder.MakeOr({
-			nextNotInFlow,
-			encoder.MakeAnd(nowUnique, nextNotFromWithin),
-			encoder.MakeAnd({nowUnique, nowNotInFlow, nextUniquelyFromWithin}),
-			encoder.MakeAnd({nowUnique, nowFromWithin, nextUniquelyFromWithin})
-		});
-
-		log() << "^^^^^^^^^^^^^^ " << node << ":  "
-			 << "  nowUnique=" << checker.Implies(nowUnique)
-			 << "  nextUnique=" << checker.Implies(nextUnique)
-			 << "  nowNotInFlow=" << checker.Implies(nowNotInFlow)
-			 << "  nextNotInFlow=" << checker.Implies(nextNotInFlow)
-			 << "  nowFromWithin=" << checker.Implies(nowFromWithin)
-			 << "  nextNotFromWithin=" << checker.Implies(nextNotFromWithin)
-			 << "  nextUniquelyFromWithin=" << checker.Implies(nextUniquelyFromWithin)
-			 << "  uniquenessMaintained=" << checker.Implies(uniquenessMaintained)
-			<< std::endl;
-
-		// return uniquenessMaintained.Implies(nextUnique);
-	};
-
-
-	for (auto node : footprint) {
-		checker.AddPremise(MakeIntraFaceFlowRuleForNode(node, EncodingTag::NOW));
-		checker.AddPremise(MakeIntraFaceFlowRuleForNode(node, EncodingTag::NEXT));
-		checker.AddPremise(MakeIntraFaceInflowRuleForNode(node));
-
-		// ROFLCOPTER(node, EncodingTag::NOW);
-		// ROFLCOPTER(node, EncodingTag::NEXT);
-		FOOBAR(node);
+		// non-uniqueness
+		auto nowNotUnique = encoder.EncodeNowUniqueInflow(node, qvKey);
+		auto nextNotUnique = encoder.EncodeNextUniqueInflow(node, qvKey);
+		auto nowMultipleFromOutside = encoder.MakeAnd(nowNotUnique, nowNotFromWithin);
+		auto nextMultipleFromOutside = encoder.MakeAnd(nextNotUnique, nextNotFromWithin);
+		checker.AddPremise(encoder.MakeForall(qvKey, nowMultipleFromOutside.Implies(nextNotUnique)));
+		checker.AddPremise(encoder.MakeForall(qvKey, nextMultipleFromOutside.Implies(nowNotUnique)));
 	}
 
 	checker.AddPremise(MakeFootprintKeysetsDisjointCheck(EncodingTag::NOW));
@@ -458,9 +372,6 @@ void DerefPostComputer::AddNonFootprintFlowRulesToSolver() {
 	checker.AddPremise(encoder.MakeForall(qvNode, qvKey, encoder.MakeImplies(
 		MakeFootprintContainsCheck(qvNode).Negate(), /* ==> */ encoder.EncodeTransitionMaintainsFlow(qvNode, qvKey)
 	)));
-	// checker.AddPremise(encoder.MakeForall(qvNode, encoder.MakeImplies(
-	// 	MakeFootprintContainsCheck(qvNode).Negate(), /* ==> */ encoder.EncodeTransitionMaintainsFlow(qvNode, interfaceKey)
-	// )));
 }
 
 void DerefPostComputer::AddSpecificationRulesToSolver() {
@@ -499,7 +410,7 @@ void DerefPostComputer::AddSpecificationRulesToSolver() {
 }
 
 void DerefPostComputer::AddPointerAliasesToSolver(Node node) {
-	// TODO: remove this?
+	return; // TODO: remove this?
 
 	// get terms to solve
 	std::vector<Term> aliases;
@@ -705,15 +616,15 @@ void DerefPostComputer::CheckInvariant(Node node) {
 	if (satisfiesInvariant) return;
 
 	// report error
-	log() << std::endl << std::endl << "Invariant violated in footprint: " << node << std::endl;
-	for (const auto& conjunct : info.solver.config.invariant->blueprint->conjuncts) {
-		auto encoded = encoder.MakeImplies(
-			encoder.MakeEqual(node, encoder.EncodeNext(*info.solver.config.invariant->vars.at(0))),
-			encoder.EncodeNext(*conjunct)
-		);
-		log() << "  - inv " << *conjunct << ": " << checker.Implies(encoded) << std::endl;
-	}
-	log() << std::endl << "PRE: " << info.preNow << std::endl;
+//	log() << std::endl << std::endl << "Invariant violated in footprint: " << node << std::endl;
+//	for (const auto& conjunct : info.solver.config.invariant->blueprint->conjuncts) {
+//		auto encoded = encoder.MakeImplies(
+//			encoder.MakeEqual(node, encoder.EncodeNext(*info.solver.config.invariant->vars.at(0))),
+//			encoder.EncodeNext(*conjunct)
+//		);
+//		log() << "  - inv " << *conjunct << ": " << checker.Implies(encoded) << std::endl;
+//	}
+//	log() << std::endl << "PRE: " << info.preNow << std::endl;
 	Throw("Could not establish invariant for heap update", "invariant violated within footprint");
 }
 
@@ -748,13 +659,13 @@ void DerefPostComputer::CheckSpecification(Node node) {
 	if (!checker.Implies(othersUnchangedCheck))
 		Throw("Specification violated by impure heap update", "multiple keys inserted/deleted at once");
 
-	// begin debug output
-	for (auto var : info.solver.GetVariablesInScope()) {
-		if (checker.Implies(encoder.EncodeNow(*var).Equal(impureKey))) {
-			log() << "      impure key == " << var->name << std::endl;
-		}
-	}
-	// end debug output
+//	// begin debug output
+//	for (auto var : info.solver.GetVariablesInScope()) {
+//		if (checker.Implies(encoder.EncodeNow(*var).Equal(impureKey))) {
+//			log() << "      impure key == " << var->name << std::endl;
+//		}
+//	}
+//	// end debug output
 
 	// check impure, part 2: check insertion/deletion for 'impureKey'
 	bool isInsertion = checker.Implies(IsInserted(impureKey));
@@ -843,78 +754,44 @@ void DerefPostComputer::ExploreAndCheckFootprint() {
 	checker.AddPremise(encoder.EncodeNext(info.solver.GetInstantiatedInvariant()));
 
 	// check flow disjointness
-	log() << "  checking disjointness" << std::endl;
-	for (auto iterator = footprint.begin(); iterator != footprint.end(); ++iterator) {
-		for (auto other = footprint.begin(); other != footprint.end(); ++other) {
-			checker.Push();
-			checker.AddPremise(encoder.MakeDistinct(*iterator, *other));
-			checker.AddPremise(encoder.EncodeKeysetContains(*iterator, interfaceKey, EncodingTag::NEXT));
-			if (!checker.Implies(encoder.EncodeKeysetContains(*other, interfaceKey, EncodingTag::NEXT).Negate())) {
-				log() << "  potentially overlapping keyset: " << *iterator << " " << *other << std::endl;
-				AddFootprintFlowRulesToSolver();
-				for (auto fpnode : footprint) {
-					log() << "    - fpnode: " << fpnode << std::endl;
-
-					auto nowFlow = encoder.EncodeNowFlow(fpnode, interfaceKey);
-					auto nextFlow = encoder.EncodeNextFlow(fpnode, interfaceKey);
-					auto nowUnique = encoder.EncodeNowUniqueInflow(fpnode, interfaceKey);
-					auto nextUnique = encoder.EncodeNextUniqueInflow(fpnode, interfaceKey);
-					auto nowOut = encoder.EncodeNowPredicate(info.solver.config.flowDomain->GetOutFlowContains("next"), fpnode, interfaceKey);
-					auto nextOut = encoder.EncodeNextPredicate(info.solver.config.flowDomain->GetOutFlowContains("next"), fpnode, interfaceKey);
-
-					std::string res_nowFlow = checker.Implies(nowFlow) ? "1" : (checker.Implies(nowFlow.Negate()) ? "0" : "?");
-					std::string res_nextFlow = checker.Implies(nextFlow) ? "1" : (checker.Implies(nextFlow.Negate()) ? "0" : "?");
-					std::string res_nowUnique = checker.Implies(nowUnique) ? "1" : (checker.Implies(nowUnique.Negate()) ? "0" : "?");
-					std::string res_nextUnique = checker.Implies(nextUnique) ? "1" : (checker.Implies(nextUnique.Negate()) ? "0" : "?");
-					std::string res_nowOut = checker.Implies(nowOut) ? "1" : (checker.Implies(nowOut.Negate()) ? "0" : "?");
-					std::string res_nextOut = checker.Implies(nextOut) ? "1" : (checker.Implies(nextOut.Negate()) ? "0" : "?");
-					
-					log() << "       *  nowFlow  = " << res_nowFlow << std::endl;
-					log() << "       *  nextFlow = " << res_nextFlow << std::endl;
-					log() << "       *  nowUnique  = " << res_nowUnique << std::endl;
-					log() << "       *  nextUnique = " << res_nextUnique << std::endl;
-					log() << "       *  nowOut   = " << res_nowOut << std::endl;
-					log() << "       *  nextOut  = " << res_nextOut << std::endl;
-				}
-				log() << std::endl << info.preNow << std::endl;
-				throw std::logic_error("WARGELGARBEL!! no disjointness");
-			}
-			checker.Pop();
-		}
-	}
-	// for (auto iterator = footprint.begin(); iterator != footprint.end(); ++iterator) {
-	// 	for (auto other = std::next(iterator); other != footprint.end(); ++other) {
-	// 		auto disjoint = encoder.MakeAnd(
-	// 			encoder.EncodeKeysetContains(*iterator, interfaceKey, EncodingTag::NEXT),
-	// 			encoder.EncodeKeysetContains(*other, interfaceKey, EncodingTag::NEXT)
-	// 		).Negate();
-	// 		auto distinct = encoder.MakeDistinct(*iterator, *other);
-	// 		auto check = encoder.MakeImplies(distinct, disjoint);
-	// 		if (!checker.Implies(check)) {
-	// 			log() << "  potentially overlapping keyset: " << *iterator << " " << *other << std::endl;
-	// 			log() << "    - " << checker.Implies(encoder.EncodeNextFlow(*iterator, interfaceKey)) << std::endl;
-	// 			log() << "    - " << checker.Implies(encoder.EncodeNextPredicate(info.solver.config.flowDomain->GetOutFlowContains("next"), *iterator, interfaceKey)) << std::endl;
-	// 			log() << "    - " << checker.Implies(encoder.EncodeNextFlow(*other, interfaceKey)) << std::endl;
-	// 			log() << "    - " << checker.Implies(encoder.EncodeNextPredicate(info.solver.config.flowDomain->GetOutFlowContains("next"), *other, interfaceKey)) << std::endl;
-	// 			log() << "    - " << std::endl;
-	// 			log() << "    - " << checker.Implies(encoder.EncodeNextFlow(*iterator, interfaceKey).Negate()) << std::endl;
-	// 			log() << "    - " << checker.Implies(encoder.EncodeNextPredicate(info.solver.config.flowDomain->GetOutFlowContains("next"), *iterator, interfaceKey).Negate()) << std::endl;
-	// 			log() << "    - " << checker.Implies(encoder.EncodeNextFlow(*other, interfaceKey).Negate()) << std::endl;
-	// 			log() << "    - " << checker.Implies(encoder.EncodeNextPredicate(info.solver.config.flowDomain->GetOutFlowContains("next"), *other, interfaceKey).Negate()) << std::endl;
-	// 			log() << "    ------ " << std::endl;
-	// 			log() << "    - " << checker.Implies(encoder.EncodeNowFlow(*iterator, interfaceKey)) << std::endl;
-	// 			log() << "    - " << checker.Implies(encoder.EncodeNowPredicate(info.solver.config.flowDomain->GetOutFlowContains("next"), *iterator, interfaceKey)) << std::endl;
-	// 			log() << "    - " << checker.Implies(encoder.EncodeNowFlow(*other, interfaceKey)) << std::endl;
-	// 			log() << "    - " << checker.Implies(encoder.EncodeNowPredicate(info.solver.config.flowDomain->GetOutFlowContains("next"), *other, interfaceKey)) << std::endl;
-	// 			log() << "    - " << std::endl;
-	// 			log() << "    - " << checker.Implies(encoder.EncodeNowFlow(*iterator, interfaceKey).Negate()) << std::endl;
-	// 			log() << "    - " << checker.Implies(encoder.EncodeNowPredicate(info.solver.config.flowDomain->GetOutFlowContains("next"), *iterator, interfaceKey).Negate()) << std::endl;
-	// 			log() << "    - " << checker.Implies(encoder.EncodeNowFlow(*other, interfaceKey).Negate()) << std::endl;
-	// 			log() << "    - " << checker.Implies(encoder.EncodeNowPredicate(info.solver.config.flowDomain->GetOutFlowContains("next"), *other, interfaceKey).Negate()) << std::endl;
-	// 			throw std::logic_error("WARGELGARBEL!! no disjointness");
-	// 		}
-	// 	}
-	// }
+//	log() << "  checking disjointness" << std::endl;
+//	for (auto iterator = footprint.begin(); iterator != footprint.end(); ++iterator) {
+//		for (auto other = footprint.begin(); other != footprint.end(); ++other) {
+//			checker.Push();
+//			checker.AddPremise(encoder.MakeDistinct(*iterator, *other));
+//			checker.AddPremise(encoder.EncodeKeysetContains(*iterator, interfaceKey, EncodingTag::NEXT));
+//			if (!checker.Implies(encoder.EncodeKeysetContains(*other, interfaceKey, EncodingTag::NEXT).Negate())) {
+//				log() << "  potentially overlapping keyset: " << *iterator << " " << *other << std::endl;
+//				for (auto fpnode : footprint) {
+//					log() << "    - fpnode: " << fpnode << std::endl;
+//
+//					auto nowFlow = encoder.EncodeNowFlow(fpnode, interfaceKey);
+//					auto nextFlow = encoder.EncodeNextFlow(fpnode, interfaceKey);
+//					auto nowUnique = encoder.EncodeNowUniqueInflow(fpnode, interfaceKey);
+//					auto nextUnique = encoder.EncodeNextUniqueInflow(fpnode, interfaceKey);
+//					auto nowOut = encoder.EncodeNowPredicate(info.solver.config.flowDomain->GetOutFlowContains("next"), fpnode, interfaceKey);
+//					auto nextOut = encoder.EncodeNextPredicate(info.solver.config.flowDomain->GetOutFlowContains("next"), fpnode, interfaceKey);
+//
+//					std::string res_nowFlow = checker.Implies(nowFlow) ? "1" : (checker.Implies(nowFlow.Negate()) ? "0" : "?");
+//					std::string res_nextFlow = checker.Implies(nextFlow) ? "1" : (checker.Implies(nextFlow.Negate()) ? "0" : "?");
+//					std::string res_nowUnique = checker.Implies(nowUnique) ? "1" : (checker.Implies(nowUnique.Negate()) ? "0" : "?");
+//					std::string res_nextUnique = checker.Implies(nextUnique) ? "1" : (checker.Implies(nextUnique.Negate()) ? "0" : "?");
+//					std::string res_nowOut = checker.Implies(nowOut) ? "1" : (checker.Implies(nowOut.Negate()) ? "0" : "?");
+//					std::string res_nextOut = checker.Implies(nextOut) ? "1" : (checker.Implies(nextOut.Negate()) ? "0" : "?");
+//					
+//					log() << "       *  nowFlow  = " << res_nowFlow << std::endl;
+//					log() << "       *  nextFlow = " << res_nextFlow << std::endl;
+//					log() << "       *  nowUnique  = " << res_nowUnique << std::endl;
+//					log() << "       *  nextUnique = " << res_nextUnique << std::endl;
+//					log() << "       *  nowOut   = " << res_nowOut << std::endl;
+//					log() << "       *  nextOut  = " << res_nextOut << std::endl;
+//				}
+//				log() << std::endl << info.preNow << std::endl;
+//				throw std::logic_error("WARGELGARBEL!! no disjointness");
+//			}
+//			checker.Pop();
+//		}
+//	}
 	if (!checker.Implies(MakeFootprintKeysetsDisjointCheck(EncodingTag::NEXT)))
 		Throw("Could not establish invariant for heap update", "keysets are not disjoint");
 
@@ -926,9 +803,6 @@ void DerefPostComputer::ExploreAndCheckFootprint() {
 		case PurityStatus::DELETION: log() << "DELETION"; break;
 	}
 	log() << std::endl;
-	if (lhs.id == 213 && purityStatus != PurityStatus::INSERTION) {
-		throw std::logic_error("EXPECTED INSERTION");
-	}
 }
 
 
