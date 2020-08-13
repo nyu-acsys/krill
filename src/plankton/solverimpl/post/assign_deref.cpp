@@ -122,7 +122,8 @@ std::unique_ptr<Annotation> DerefPostComputer::MakePost() {
 }
 
 std::unique_ptr<Annotation> plankton::MakeDerefAssignPost(PostInfo info, const cola::Dereference& lhs, const cola::Expression& rhs) {
-	return DerefPostComputer(std::move(info), lhs, rhs).MakePost(); // TODO: get config
+	// TODO important: create lookup table and avoid computing post if already done
+	return DerefPostComputer(std::move(info), lhs, rhs).MakePost();
 }
 
 
