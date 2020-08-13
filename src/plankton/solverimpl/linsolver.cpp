@@ -1,5 +1,6 @@
 #include "plankton/solverimpl/linsolver.hpp"
 
+#include "heal/util.hpp"
 #include "plankton/backend/z3encoder.hpp"
 
 using namespace cola;

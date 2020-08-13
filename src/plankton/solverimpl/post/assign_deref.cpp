@@ -322,25 +322,30 @@ void DerefPostComputer::AddFootprintFlowRulesToSolver() {
 		return vec;
 	};
 
-	for (auto node : footprint) {
-		auto nowUnique = encoder.EncodeNowUniqueInflow(node, qvKey);
-		auto nextUnique = encoder.EncodeNextUniqueInflow(node, qvKey);
-		auto nowInFlow = encoder.EncodeNowFlow(node, qvKey);
-		auto nextInFlow = encoder.EncodeNextFlow(node, qvKey);
+	auto key = interfaceKey;
+	auto Add = [&,this](Term term) { checker.AddPremise(term); };
+	// auto key = qvKey;
+	// auto Add = [&,this](Term term) { checker.AddPremise(encoder.MakeForall(qvKey, term)); };
+
+	for (auto node : footprint) { // TODO: is this sound anymore???? <<<<<<<==============================================|||||||||||
+		auto nowUnique = encoder.EncodeNowUniqueInflow(node);
+		auto nextUnique = encoder.EncodeNextUniqueInflow(node);
+		auto nowInFlow = encoder.EncodeNowFlow(node, key);
+		auto nextInFlow = encoder.EncodeNextFlow(node, key);
 		auto nowNotInFlow = nowInFlow.Negate();
 		auto nextNotInFlow = nextInFlow.Negate();
 
-		auto nowFromWithin = encoder.MakeOr(FromWithin(node, qvKey, EncodingTag::NOW));
-		auto nextFromWithin = encoder.MakeOr(FromWithin(node, qvKey, EncodingTag::NEXT));
+		auto nowFromWithin = encoder.MakeOr(FromWithin(node, key, EncodingTag::NOW));
+		auto nextFromWithin = encoder.MakeOr(FromWithin(node, key, EncodingTag::NEXT));
 		auto nowNotFromWithin = nowFromWithin.Negate();
 		auto nextNotFromWithin = nextFromWithin.Negate();
-		auto nextUniquelyFromWithin = encoder.MakeAtMostOne(FromWithin(node, qvKey, EncodingTag::NEXT));
+		auto nextUniquelyFromWithin = encoder.MakeAtMostOne(FromWithin(node, key, EncodingTag::NEXT));
 		
 		// flow from outside remains unchanged
 		auto nowFromOutside = encoder.MakeAnd(nowInFlow, nowNotFromWithin);
 		auto nextFromOutside = encoder.MakeAnd(nextInFlow, nextNotFromWithin);
-		checker.AddPremise(encoder.MakeForall(qvKey, nowFromOutside.Implies(nextInFlow)));
-		checker.AddPremise(encoder.MakeForall(qvKey, nextFromOutside.Implies(nowInFlow)));
+		Add(nowFromOutside.Implies(nextInFlow));
+		Add(nextFromOutside.Implies(nowInFlow));
 		
 		// uniqueness updates
 		auto uniquenessMaintained = encoder.MakeOr({
@@ -350,19 +355,19 @@ void DerefPostComputer::AddFootprintFlowRulesToSolver() {
 			encoder.MakeAnd({nowUnique, nowFromWithin, nextUniquelyFromWithin}),
 			encoder.MakeAnd({nowUnique, nowFromWithin, nextNotFromWithin}) // also implies not in flow at all
 		});
-		checker.AddPremise(encoder.MakeForall(qvKey, uniquenessMaintained.Implies(nextUnique)));
+		// Add(uniquenessMaintained.Implies(nextUnique));
 
 		// removing unique intraflow removes flow altogether
 		auto intraflowRemoved = encoder.MakeAnd({nowUnique, nowFromWithin, nextNotFromWithin});
-		checker.AddPremise(encoder.MakeForall(qvKey, intraflowRemoved.Implies(nextNotInFlow)));
+		// Add(intraflowRemoved.Implies(nextNotInFlow));
 
 		// non-uniqueness
-		auto nowNotUnique = encoder.EncodeNowUniqueInflow(node, qvKey);
-		auto nextNotUnique = encoder.EncodeNextUniqueInflow(node, qvKey);
+		auto nowNotUnique = nowUnique.Negate();
+		auto nextNotUnique = nextUnique.Negate();
 		auto nowMultipleFromOutside = encoder.MakeAnd(nowNotUnique, nowNotFromWithin);
 		auto nextMultipleFromOutside = encoder.MakeAnd(nextNotUnique, nextNotFromWithin);
-		checker.AddPremise(encoder.MakeForall(qvKey, nowMultipleFromOutside.Implies(nextNotUnique)));
-		checker.AddPremise(encoder.MakeForall(qvKey, nextMultipleFromOutside.Implies(nowNotUnique)));
+		// Add(nowMultipleFromOutside.Implies(nextNotUnique));
+		// Add(nextMultipleFromOutside.Implies(nowNotUnique));
 	}
 
 	checker.AddPremise(MakeFootprintKeysetsDisjointCheck(EncodingTag::NOW));
@@ -411,7 +416,7 @@ void DerefPostComputer::AddSpecificationRulesToSolver() {
 }
 
 void DerefPostComputer::AddPointerAliasesToSolver(Node node) {
-	return; // TODO: remove this?
+	// return; // TODO: remove this?
 
 	// get terms to solve
 	std::vector<Term> aliases;
@@ -492,17 +497,19 @@ bool DerefPostComputer::AddToFootprint(Node node) {
 		AddEdgeToBoundary(node, selector);
 	}
 
-	// find new intraface edges
-	std::vector<OuterEdge> toBeDeleted;
-	for (auto [other, selector] : footprintBoundary) {
-		auto pointsToNode = encoder.EncodeNowHeapIs(other, selector, node);
-		if (checker.Implies(pointsToNode)) {
-			AddEdgeToIntraface(other, selector, node);
-			toBeDeleted.emplace_back(other, selector);
-		}
+	// find new intraface edges // TODO important: solve all at once
+	std::vector<OuterEdge> edges(footprintBoundary.begin(), footprintBoundary.end());
+	std::vector<Term> pointsToChecks;
+	pointsToChecks.reserve(footprintBoundary.size());
+	for (auto [other, selector] : edges) {
+		pointsToChecks.push_back(encoder.EncodeNowHeapIs(other, selector, node));
 	}
-	for (auto pair : toBeDeleted) {
-		footprintBoundary.erase(pair);
+	auto isInternal = checker.ComputeImplied(pointsToChecks);
+	for (std::size_t index = 0; index < isInternal.size(); index++) {
+		if (!isInternal[index]) continue;
+		auto [other, selector] = edges[index];
+		AddEdgeToIntraface(other, selector, node);
+		footprintBoundary.erase(edges[index]);
 	}
 
 	// done

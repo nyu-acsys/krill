@@ -113,6 +113,7 @@ class Generator {
 		void AddLogicallyContainsAxioms(std::unique_ptr<Expression> expr);
 		void AddDSContainsAxioms(std::unique_ptr<Expression> expr);
 		void AddHasFlowAxioms(std::unique_ptr<Expression> expr);
+		void AddUniqueInflowAxioms(std::unique_ptr<Expression> expr);
 		void AddNodeContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
 		void AddKeysetContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
 		void AddFlowContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other);
@@ -195,6 +196,11 @@ void Generator::AddHasFlowAxioms(std::unique_ptr<Expression> expr) {
 	PopulateAxiom(MakeHasFlowAxiom(std::move(expr)));
 }
 
+void Generator::AddUniqueInflowAxioms(std::unique_ptr<Expression> expr) {
+	if (expr->sort() != Sort::PTR) return;
+	PopulateAxiom(MakeUniqueInflowAxiom(std::move(expr)));
+}
+
 void Generator::AddNodeContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other) {
 	if (expr->sort() != Sort::PTR || other->sort() != Sort::DATA) return;
 	PopulateAxiom(MakeNodeContainsAxiom(std::move(expr), std::move(other)));
@@ -208,8 +214,7 @@ void Generator::AddKeysetContainsAxioms(std::unique_ptr<Expression> expr, std::u
 void Generator::AddFlowContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other) {
 	if (expr->sort() != Sort::PTR || other->sort() != Sort::DATA) return;
 	// TODO: add more?
-	PopulateAxiom(MakeFlowContainsAxiom(cola::copy(*expr), cola::copy(*other), cola::copy(*other)));
-	PopulateAxiom(MakeUniqueInflowAxiom(std::move(expr), cola::copy(*other), std::move(other)));
+	PopulateAxiom(MakeFlowContainsAxiom(std::move(expr), cola::copy(*other), std::move(other)));
 }
 
 void Generator::AddPureLinearizabilityRules(const VariableDeclaration& node, const VariableDeclaration& key) {
@@ -268,6 +273,7 @@ void Generator::AddCompoundSingles() {
 		auto expressions = MakeAllExpressions(*var);
 		for (auto& expr : expressions) {
 			AddDSContainsAxioms(cola::copy(*expr));
+			AddUniqueInflowAxioms(cola::copy(*expr));
 			AddHasFlowAxioms(std::move(expr));
 		}
 	}

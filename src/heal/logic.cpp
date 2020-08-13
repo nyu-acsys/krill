@@ -61,15 +61,9 @@ FlowContainsAxiom::FlowContainsAxiom(std::unique_ptr<cola::Expression> node_, st
 	assert(value_high->sort() == Sort::DATA);
 }
 
-UniqueInflowAxiom::UniqueInflowAxiom(std::unique_ptr<cola::Expression> node_, std::unique_ptr<cola::Expression> low_, std::unique_ptr<cola::Expression> high_)
-	: node(std::move(node_)), value_low(std::move(low_)), value_high(std::move(high_))
-{
+UniqueInflowAxiom::UniqueInflowAxiom(std::unique_ptr<cola::Expression> node_) : node(std::move(node_)) {
 	assert(node);
 	assert(node->sort() == Sort::PTR);
-	assert(value_low);
-	assert(value_low->sort() == Sort::DATA);
-	assert(value_high);
-	assert(value_high->sort() == Sort::DATA);
 }
 
 SpecificationAxiom::SpecificationAxiom(Kind kind_, std::unique_ptr<cola::VariableExpression> key_) : kind(kind_), key(std::move(key_)) {

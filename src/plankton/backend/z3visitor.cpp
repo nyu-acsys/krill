@@ -129,12 +129,7 @@ Z3Expr Z3Encoder::EncodeZ3(const FlowContainsAxiom& formula, EncodingTag tag) {
 
 Z3Expr Z3Encoder::EncodeZ3(const UniqueInflowAxiom& formula, EncodingTag tag) {
 	auto node = EncodeZ3(*formula.node, tag);
-	auto key = EncodeZ3Variable(Sort::DATA, "qv-key", tag);
-	z3::expr low = EncodeZ3(*formula.value_low, tag);
-	z3::expr high = EncodeZ3(*formula.value_high, tag);
-	auto keyInbetween = Z3Expr((low <= key) && (key <= high));
-	auto flow = EncodeZ3UniqueInflow(node, key, tag);
-	return z3::forall(key, keyInbetween.Implies(flow));
+	return EncodeZ3UniqueInflow(node, tag);
 }
 
 Z3Expr Z3Encoder::EncodeZ3(const ObligationAxiom& formula, EncodingTag tag) {

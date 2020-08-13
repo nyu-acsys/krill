@@ -59,7 +59,7 @@ std::unique_ptr<FlowContainsAxiom> heal::copy(const FlowContainsAxiom& formula) 
 }
 
 std::unique_ptr<UniqueInflowAxiom> heal::copy(const UniqueInflowAxiom& formula) {
-	return std::make_unique<UniqueInflowAxiom>(cola::copy(*formula.node), cola::copy(*formula.value_low), cola::copy(*formula.value_high));
+	return std::make_unique<UniqueInflowAxiom>(cola::copy(*formula.node));
 }
 
 std::unique_ptr<ObligationAxiom> heal::copy(const ObligationAxiom& formula) {

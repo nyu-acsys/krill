@@ -124,21 +124,19 @@ namespace heal {
 		ACCEPT_FORMULA_VISITOR
 	};
 
-	struct FlowContainsAxiom : public Axiom {
+	struct UniqueInflowAxiom : public Axiom {
+		std::unique_ptr<cola::Expression> node;
+
+		UniqueInflowAxiom(std::unique_ptr<cola::Expression> node);
+		ACCEPT_FORMULA_VISITOR
+	};
+
+	struct FlowContainsAxiom : public Axiom { // TODO: use a 'Predicate' instead of 'value_low' and 'value_high'
 		std::unique_ptr<cola::Expression> node;
 		std::unique_ptr<cola::Expression> value_low;
 		std::unique_ptr<cola::Expression> value_high;
 
 		FlowContainsAxiom(std::unique_ptr<cola::Expression> node, std::unique_ptr<cola::Expression> value_low, std::unique_ptr<cola::Expression> value_high);
-		ACCEPT_FORMULA_VISITOR
-	};
-
-	struct UniqueInflowAxiom : public Axiom {
-		std::unique_ptr<cola::Expression> node;
-		std::unique_ptr<cola::Expression> value_low;
-		std::unique_ptr<cola::Expression> value_high;
-
-		UniqueInflowAxiom(std::unique_ptr<cola::Expression> node, std::unique_ptr<cola::Expression> value_low, std::unique_ptr<cola::Expression> value_high);
 		ACCEPT_FORMULA_VISITOR
 	};
 

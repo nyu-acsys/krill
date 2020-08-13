@@ -215,9 +215,7 @@ struct LogicSyntacticEqualityChecker : public LogicVisitor {
 
 	void visit(const UniqueInflowAxiom& formula) override {
 		handle(formula, [](const auto& formula, const auto& other){
-			return heal::syntactically_equal(*formula.node, *other.node)
-			    && heal::syntactically_equal(*formula.value_low, *other.value_low)
-			    && heal::syntactically_equal(*formula.value_high, *other.value_high);
+			return heal::syntactically_equal(*formula.node, *other.node);
 		});
 	}
 

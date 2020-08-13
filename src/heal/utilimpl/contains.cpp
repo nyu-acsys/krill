@@ -100,8 +100,6 @@ struct ContainsChecker : public DefaultListener {
 
 	void enter(const UniqueInflowAxiom& formula) override {
 		handle_expression(formula.node);
-		handle_expression(formula.value_low);
-		handle_expression(formula.value_high);
 	}
 
 	void enter(const ObligationAxiom& formula) override {

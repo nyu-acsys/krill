@@ -1,6 +1,7 @@
 #include "plankton/solver.hpp"
 
 #include <set>
+#include "heal/util.hpp"
 #include "plankton/error.hpp"
 #include "plankton/solverimpl/linsolver.hpp"
 
@@ -69,7 +70,7 @@ struct PropertyChecker : public BaseVisitor, public DefaultListener {
 	void enter(const KeysetContainsAxiom& formula) override { formula.node->accept(*this); formula.value->accept(*this); }
 	void enter(const HasFlowAxiom& formula) override { formula.expr->accept(*this); }
 	void enter(const FlowContainsAxiom& formula) override { formula.node->accept(*this); formula.value_low->accept(*this); formula.value_high->accept(*this); }
-	void enter(const UniqueInflowAxiom& formula) override { formula.node->accept(*this); formula.value_low->accept(*this); formula.value_high->accept(*this); }
+	void enter(const UniqueInflowAxiom& formula) override { formula.node->accept(*this); }
 	
 	void visit(const VariableExpression& node) override {
 		if (node.decl.is_shared) return;

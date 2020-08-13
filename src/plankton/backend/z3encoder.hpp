@@ -78,7 +78,7 @@ namespace plankton {
 			Term EncodeHeapIs(Term node, Selector selector, Term value, EncodingTag tag) override;
 			Term EncodeHasFlow(Term node, EncodingTag tag) override;
 			Term EncodeIsOwned(Term node, EncodingTag tag) override;
-			Term EncodeUniqueInflow(Term node, Term value, EncodingTag tag) override;
+			Term EncodeUniqueInflow(Term node, EncodingTag tag) override;
 			Term EncodeKeysetContains(Term node, Term value, EncodingTag tag) override;
 			Term EncodeObligation(heal::SpecificationAxiom::Kind kind, Term value, EncodingTag tag) override;
 			Term EncodeFulfillment(heal::SpecificationAxiom::Kind kind, Term value, bool returnValue, EncodingTag tag) override;
@@ -112,7 +112,7 @@ namespace plankton {
 			Z3Expr EncodeZ3HeapIs(Z3Expr node, Selector selector, Z3Expr value, EncodingTag tag);
 			Z3Expr EncodeZ3HasFlow(Z3Expr node, EncodingTag tag);
 			Z3Expr EncodeZ3IsOwned(Z3Expr node, EncodingTag tag);
-			Z3Expr EncodeZ3UniqueInflow(Z3Expr node, Z3Expr value, EncodingTag tag);
+			Z3Expr EncodeZ3UniqueInflow(Z3Expr node, EncodingTag tag);
 			Z3Expr EncodeZ3KeysetContains(Z3Expr node, Z3Expr value, EncodingTag tag);
 			Z3Expr EncodeZ3Obligation(heal::SpecificationAxiom::Kind kind, Z3Expr value, EncodingTag tag);
 			Z3Expr EncodeZ3Fulfillment(heal::SpecificationAxiom::Kind kind, Z3Expr value, bool returnValue, EncodingTag tag);
@@ -177,7 +177,7 @@ namespace plankton {
 			z3::expr nullPtr, minVal, maxVal;
 			z3::func_decl heapNow, heapNext; // free function: Ptr x Sel -> Val; 'heap(x, sel) = y' means that field 'sel' of node 'x' is 'y'
 			z3::func_decl flowNow, flowNext; // free function: Ptr x Data -> Bool; 'flow(x, k) = true' iff the flow in node 'x' contains 'k'
-			z3::func_decl uniqueInflowNow, uniqueInflowNext; // free function: Ptr x Data -> Bool; 'uniqueInflow(x, k) = true' iff node 'x' receives 'k' from at most 1 node
+			z3::func_decl uniqueInflowNow, uniqueInflowNext; // free function: Ptr -> Bool; 'uniqueInflow(x) = true' iff node 'x' receives any key 'k' from at most 1 node
 			z3::func_decl ownershipNow, ownershipNext; // free function: Ptr -> Bool; 'ownership(x) = true' iff 'x' is owned
 			z3::func_decl obligationNow, obligationNext; // free function: Data x Spec -> Bool; 'obligation(k, i) = true' iff 'OBL(k, i)'
 			z3::func_decl fulfillmentNow, fulfillmentNext; // free function: Data x Spec x Bool -> Bool; 'fulfillment(k, i, r) = true' iff 'FUL(k, i, r)'

@@ -77,6 +77,7 @@ std::unique_ptr<ConjunctionFormula> VarPostComputer::MakePostNow() {
 
 	// flow remains unchanged
 	checker.AddPremise(encoder.MakeForall(qvNode, qvKey, encoder.EncodeTransitionMaintainsFlow(qvNode, qvKey)));
+	checker.AddPremise(encoder.MakeForall(qvNode, encoder.EncodeNowUniqueInflow(qvNode).Implies(encoder.EncodeNextUniqueInflow(qvNode))));
 
 	// obligations/fulfillments remain unchanged
 	for (auto kind : SpecificationAxiom::KindIteratable) {

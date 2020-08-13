@@ -89,8 +89,8 @@ Term Z3Encoder::EncodeIsOwned(Term node, EncodingTag tag) {
 	return EncodeZ3IsOwned(Z3Expr(node), tag);
 }
 
-Term Z3Encoder::EncodeUniqueInflow(Term node, Term value, EncodingTag tag) {
-	return EncodeZ3UniqueInflow(Z3Expr(node), Z3Expr(value), tag);
+Term Z3Encoder::EncodeUniqueInflow(Term node, EncodingTag tag) {
+	return EncodeZ3UniqueInflow(Z3Expr(node), tag);
 }
 
 Term Z3Encoder::EncodeKeysetContains(Term node, Term value, EncodingTag tag) {

@@ -41,7 +41,7 @@ inline std::unique_ptr<ConjunctionFormula> GetAllocationKnowledge(const Variable
 
 	// no flow
 	result->conjuncts.push_back(std::make_unique<NegatedAxiom>(std::make_unique<HasFlowAxiom>(dst())));
-	result->conjuncts.push_back(std::make_unique<UniqueInflowAxiom>(dst(), std::make_unique<MinValue>(), std::make_unique<MaxValue>()));
+	result->conjuncts.push_back(std::make_unique<UniqueInflowAxiom>(dst()));
 
 	// fields are default initialized
 	auto add_default = [&dst,&result](std::string fieldname, BinaryExpression::Operator op, std::unique_ptr<Expression> expr){

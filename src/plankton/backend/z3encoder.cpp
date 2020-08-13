@@ -56,8 +56,8 @@ Z3Encoder::Z3Encoder(const PostConfig& config) :
 	heapNext(context.function("$MEM-next", ptrSort, selectorSort, valueSort)),
 	flowNow(context.function("$FLOW-now", ptrSort, dataSort, boolSort)),
 	flowNext(context.function("$FLOW-next", ptrSort, dataSort, boolSort)),
-	uniqueInflowNow(context.function("$uINFLOW-now", ptrSort, dataSort, boolSort)),
-	uniqueInflowNext(context.function("$uINFLOW-next", ptrSort, dataSort, boolSort)),
+	uniqueInflowNow(context.function("$uINFLOW-now", ptrSort, boolSort)),
+	uniqueInflowNext(context.function("$uINFLOW-next", ptrSort, boolSort)),
 	ownershipNow(context.function("$OWN-now", ptrSort, boolSort)),
 	ownershipNext(context.function("$OWN-next", ptrSort, boolSort)),
 	obligationNow(context.function("$OBL-now", dataSort, specSort, boolSort)),
@@ -226,18 +226,10 @@ Z3Expr Z3Encoder::EncodeZ3IsOwned(Z3Expr node, EncodingTag tag) {
 	}
 }
 
-Z3Expr Z3Encoder::EncodeZ3UniqueInflow(Z3Expr node, Z3Expr value, EncodingTag tag) {
-	// throw std::logic_error("not yet implemented: Z3Encoder::EncodeZ3UniqueInflow");
-
-	// auto valueNotInFlow = EncodeZ3Flow(node, value, tag).Neg(); // TODO important: remove this and make it explicit when needed??
-	// switch (tag) {
-	// 	case EncodingTag::NOW: return MakeZ3Or({valueNotInFlow, uniqueInflowNow(node, value) == MakeZ3True()});
-	// 	case EncodingTag::NEXT: return MakeZ3Or({valueNotInFlow, uniqueInflowNext(node, value) == MakeZ3True()});
-	// }
-
+Z3Expr Z3Encoder::EncodeZ3UniqueInflow(Z3Expr node, EncodingTag tag) {
 	switch (tag) {
-		case EncodingTag::NOW: return uniqueInflowNow(node, value) == MakeZ3True();
-		case EncodingTag::NEXT: return uniqueInflowNext(node, value) == MakeZ3True();
+		case EncodingTag::NOW: return uniqueInflowNow(node) == MakeZ3True();
+		case EncodingTag::NEXT: return uniqueInflowNext(node) == MakeZ3True();
 	}
 }
 

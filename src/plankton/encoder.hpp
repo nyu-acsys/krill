@@ -56,7 +56,7 @@ namespace plankton {
 		virtual Term EncodeHeapIs(Term node, Selector selector, Term value, EncodingTag tag) = 0;
 		virtual Term EncodeHasFlow(Term node, EncodingTag tag) = 0;
 		virtual Term EncodeIsOwned(Term node, EncodingTag tag) = 0;
-		virtual Term EncodeUniqueInflow(Term node, Term value, EncodingTag tag) = 0;
+		virtual Term EncodeUniqueInflow(Term node, EncodingTag tag) = 0;
 		virtual Term EncodeKeysetContains(Term node, Term value, EncodingTag tag) = 0;
 		virtual Term EncodeObligation(heal::SpecificationAxiom::Kind kind, Term value, EncodingTag tag) = 0;
 		virtual Term EncodeFulfillment(heal::SpecificationAxiom::Kind kind, Term value, bool returnValue, EncodingTag tag) = 0;
@@ -71,7 +71,7 @@ namespace plankton {
 		inline Term EncodeNowHeapIs(Term node, Selector selector, Term value) { return EncodeHeapIs(node, selector, value, EncodingTag::NOW); }
 		inline Term EncodeNowHasFlow(Term node) { return EncodeHasFlow(node, EncodingTag::NOW); }
 		inline Term EncodeNowIsOwned(Term node) { return EncodeIsOwned(node, EncodingTag::NOW); }
-		inline Term EncodeNowUniqueInflow(Term node, Term value) { return EncodeUniqueInflow(node, value, EncodingTag::NOW); }
+		inline Term EncodeNowUniqueInflow(Term node) { return EncodeUniqueInflow(node, EncodingTag::NOW); }
 		inline Term EncodeNowKeysetContains(Term node, Term value) { return EncodeKeysetContains(node, value, EncodingTag::NOW); }
 		inline Term EncodeNowObligation(heal::SpecificationAxiom::Kind kind, Term value) { return EncodeObligation(kind, value, EncodingTag::NOW); }
 		inline Term EncodeNowFulfillment(heal::SpecificationAxiom::Kind kind, Term value, bool returnValue) { return EncodeFulfillment(kind, value, returnValue, EncodingTag::NOW); }
@@ -86,7 +86,7 @@ namespace plankton {
 		inline Term EncodeNextHeapIs(Term node, Selector selector, Term value) { return EncodeHeapIs(node, selector, value, EncodingTag::NEXT); }
 		inline Term EncodeNextHasFlow(Term node) { return EncodeHasFlow(node, EncodingTag::NEXT); }
 		inline Term EncodeNextIsOwned(Term node) { return EncodeIsOwned(node, EncodingTag::NEXT); }
-		inline Term EncodeNextUniqueInflow(Term node, Term value) { return EncodeUniqueInflow(node, value, EncodingTag::NEXT); }
+		inline Term EncodeNextUniqueInflow(Term node) { return EncodeUniqueInflow(node, EncodingTag::NEXT); }
 		inline Term EncodeNextKeysetContains(Term node, Term value) { return EncodeKeysetContains(node, value, EncodingTag::NEXT); }
 		inline Term EncodeNextObligation(heal::SpecificationAxiom::Kind kind, Term value) { return EncodeObligation(kind, value, EncodingTag::NEXT); }
 		inline Term EncodeNextFulfillment(heal::SpecificationAxiom::Kind kind, Term value, bool returnValue) { return EncodeFulfillment(kind, value, returnValue, EncodingTag::NEXT); }

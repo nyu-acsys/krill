@@ -122,11 +122,7 @@ struct FormulaPrinter : public LogicVisitor {
 	void visit(const UniqueInflowAxiom& formula) override {
 		stream << "@inflowUnique(";
 		cola::print(*formula.node, stream);
-		stream << ", " << "[";
-		cola::print(*formula.value_low, stream);
-		stream << ", ";
-		cola::print(*formula.value_high, stream);
-		stream << "])";
+		stream << ")";
 	}
 
 	void visit(const ObligationAxiom& formula) override {
