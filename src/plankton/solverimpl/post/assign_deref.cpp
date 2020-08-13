@@ -812,6 +812,7 @@ std::unique_ptr<ConjunctionFormula> DerefPostComputer::MakePostNow() {
 	ExploreAndCheckFootprint();
 	AddSpecificationRulesToSolver();
 
+	// TODO important: if impure, check if there is an appropriate obligation?
 	// TODO important: obey info.implicationCheck and if set skip checks
 
 	auto result = info.ComputeImpliedCandidates(checker);

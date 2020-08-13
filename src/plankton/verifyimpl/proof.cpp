@@ -109,8 +109,9 @@ std::unique_ptr<Annotation> get_init_annotation(SpecStore spec) {
 //	}
 //};
 
-inline void establish_linearizability_or_fail(const Solver& /*solver*/, SpecStore /*spec*/, const Annotation& /*annotation*/, const Return* /*cmd*/, const Function& /*function*/) {
-	throw std::logic_error("not yet implemented: Verifier::establish_linearizability_or_fail");
+inline void establish_linearizability_or_fail(const Solver& /*solver*/, SpecStore /*spec*/, const Annotation& annotation, const Return* /*cmd*/, const Function& function) {
+	// throw std::logic_error("not yet implemented: Verifier::establish_linearizability_or_fail");
+log() << std::endl << "________" << std::endl << "Post annotation for function '" << function.name << "':" << std::endl << annotation << std::endl << std::endl;
 //	auto checker = solver.MakeImplicationChecker(annotation);
 //
 //	// check for false

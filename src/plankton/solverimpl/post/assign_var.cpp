@@ -78,6 +78,18 @@ std::unique_ptr<ConjunctionFormula> VarPostComputer::MakePostNow() {
 	// flow remains unchanged
 	checker.AddPremise(encoder.MakeForall(qvNode, qvKey, encoder.EncodeTransitionMaintainsFlow(qvNode, qvKey)));
 
+	// obligations/fulfillments remain unchanged
+	for (auto kind : SpecificationAxiom::KindIteratable) {
+		checker.AddPremise(encoder.MakeForall(qvKey, encoder.MakeImplies(
+			encoder.EncodeNowObligation(kind, qvKey), /* ==> */ encoder.EncodeNextObligation(kind, qvKey)
+		)));
+		for (bool value : { true, false }) {
+			checker.AddPremise(encoder.MakeForall(qvKey, encoder.MakeImplies(
+				encoder.EncodeNowFulfillment(kind, qvKey, value), /* ==> */ encoder.EncodeNextFulfillment(kind, qvKey, value)
+			)));
+		}
+	}
+
 	// ownership
 	auto MaintainsOwnership = [](const VariableExpression& lhs, const Expression& rhs){
 		auto [isRhsVar, rhsVar] = heal::is_of_type<VariableExpression>(rhs);
