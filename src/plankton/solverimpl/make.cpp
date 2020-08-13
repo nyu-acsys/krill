@@ -65,6 +65,7 @@ std::unique_ptr<Invariant> make_dummy_invariant(const Program& program, const Ty
 			MakeAxiom(mk_non_null(MakeDerefExpr(head, "next"))),
 			MakeAxiom(MakeExpr(BinaryExpression::Operator::EQ, MakeDerefExpr(head, "val"), MakeMinExpr())),
 			MakeFlowContainsAxiom(MakeExpr(head), MakeMinExpr(), MakeMaxExpr()),
+			MakeUniqueInflowAxiom(MakeExpr(node), MakeMinExpr(), MakeMaxExpr()),
 			MakeImplication(
 				MakeAxiom(MakeExpr(BinaryExpression::Operator::NEQ, MakeExpr(head), MakeExpr(node))),
 				MakeAxiom(MakeExpr(BinaryExpression::Operator::LT, MakeMinExpr(), MakeDerefExpr(node, "val")))

@@ -21,6 +21,10 @@ Term Z3Encoder::MakeBool(bool value) {
 	return MakeZ3Bool(value);
 }
 
+Term Z3Encoder::MakeDataBounds(Term term) {
+	return MakeZ3DataBounds(Z3Expr(term));
+}
+
 
 template<typename T>
 std::vector<Z3Expr> InternalizeVector(const std::vector<T>& vector) {
@@ -38,6 +42,10 @@ Term Z3Encoder::MakeOr(const std::vector<Term>& disjuncts) {
 
 Term Z3Encoder::MakeAnd(const std::vector<Term>& conjuncts) {
 	return MakeZ3And(InternalizeVector(conjuncts));
+}
+
+Term Z3Encoder::MakeAtMostOne(const std::vector<Term>& elements) {
+	return MakeZ3AtMostOne(InternalizeVector(elements));
 }
 
 Term Z3Encoder::MakeExists(const std::vector<Symbol>& vars, Term term) {
@@ -79,6 +87,10 @@ Term Z3Encoder::EncodeHasFlow(Term node, EncodingTag tag) {
 
 Term Z3Encoder::EncodeIsOwned(Term node, EncodingTag tag) {
 	return EncodeZ3IsOwned(Z3Expr(node), tag);
+}
+
+Term Z3Encoder::EncodeUniqueInflow(Term node, Term value, EncodingTag tag) {
+	return EncodeZ3UniqueInflow(Z3Expr(node), Z3Expr(value), tag);
 }
 
 Term Z3Encoder::EncodeKeysetContains(Term node, Term value, EncodingTag tag) {

@@ -28,6 +28,14 @@ set(SOURCES
 	verifyimpl/renaming.cpp
 	verifyimpl/verify.cpp
 
+	# backend
+	backend/z3error.cpp
+	backend/z3expr.cpp
+	backend/z3interface.cpp
+	backend/z3encoder.cpp
+	backend/z3visitor.cpp
+	backend/z3chkimp.cpp
+
 	# solver
 	solverimpl/linsolver.cpp
 	solverimpl/make.cpp
@@ -39,14 +47,6 @@ set(SOURCES
 	solverimpl/post/assign.cpp
 	solverimpl/post/assign_var.cpp
 	solverimpl/post/assign_deref.cpp
-
-	# backend
-	backend/z3error.cpp
-	backend/z3expr.cpp
-	backend/z3interface.cpp
-	backend/z3encoder.cpp
-	backend/z3visitor.cpp
-	backend/z3chkimp.cpp
 )
 
 add_library(Plankton ${SOURCES})

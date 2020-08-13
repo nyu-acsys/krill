@@ -56,6 +56,8 @@ Z3Encoder::Z3Encoder(const PostConfig& config) :
 	heapNext(context.function("$MEM-next", ptrSort, selectorSort, valueSort)),
 	flowNow(context.function("$FLOW-now", ptrSort, dataSort, boolSort)),
 	flowNext(context.function("$FLOW-next", ptrSort, dataSort, boolSort)),
+	uniqueInflowNow(context.function("$uINFLOW-now", ptrSort, dataSort, boolSort)),
+	uniqueInflowNext(context.function("$uINFLOW-next", ptrSort, dataSort, boolSort)),
 	ownershipNow(context.function("$OWN-now", ptrSort, boolSort)),
 	ownershipNext(context.function("$OWN-next", ptrSort, boolSort)),
 	obligationNow(context.function("$OBL-now", dataSort, specSort, boolSort)),
@@ -114,6 +116,10 @@ Z3Expr Z3Encoder::MakeZ3Bool(bool value) {
 	return context.bool_val(value);
 }
 
+Z3Expr Z3Encoder::MakeZ3DataBounds(Z3Expr value) {
+	return (MakeZ3MinValue().expr <= value.expr) && (value.expr <= MakeZ3MaxValue().expr);
+}
+
 
 z3::expr_vector Z3Encoder::MakeZ3ExprVector() {
 	return z3::expr_vector(context);
@@ -133,6 +139,14 @@ Z3Expr Z3Encoder::MakeZ3Or(const std::vector<Z3Expr>& disjuncts) {
 
 Z3Expr Z3Encoder::MakeZ3And(const std::vector<Z3Expr>& conjuncts) {
 	return z3::mk_and(MakeZ3ExprVector(conjuncts));
+}
+
+Z3Expr Z3Encoder::MakeZ3AtMostOne(const std::vector<Z3Expr>& elements) {
+	switch (elements.size()) {
+		case 0: return MakeZ3True();
+		case 1: return elements.at(0);
+		default: return z3::atmost(MakeZ3ExprVector(elements), 1);
+	}
 }
 
 Z3Expr Z3Encoder::MakeZ3Exists(const std::vector<Z3Expr>& vars, Z3Expr term) {
@@ -209,6 +223,21 @@ Z3Expr Z3Encoder::EncodeZ3IsOwned(Z3Expr node, EncodingTag tag) {
 	switch (tag) {
 		case EncodingTag::NOW: return ownershipNow(node) == MakeZ3True();
 		case EncodingTag::NEXT: return ownershipNext(node) == MakeZ3True();
+	}
+}
+
+Z3Expr Z3Encoder::EncodeZ3UniqueInflow(Z3Expr node, Z3Expr value, EncodingTag tag) {
+	// throw std::logic_error("not yet implemented: Z3Encoder::EncodeZ3UniqueInflow");
+
+	// auto valueNotInFlow = EncodeZ3Flow(node, value, tag).Neg(); // TODO important: remove this and make it explicit when needed??
+	// switch (tag) {
+	// 	case EncodingTag::NOW: return MakeZ3Or({valueNotInFlow, uniqueInflowNow(node, value) == MakeZ3True()});
+	// 	case EncodingTag::NEXT: return MakeZ3Or({valueNotInFlow, uniqueInflowNext(node, value) == MakeZ3True()});
+	// }
+
+	switch (tag) {
+		case EncodingTag::NOW: return uniqueInflowNow(node, value) == MakeZ3True();
+		case EncodingTag::NEXT: return uniqueInflowNext(node, value) == MakeZ3True();
 	}
 }
 

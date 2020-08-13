@@ -45,6 +45,7 @@ struct LogicEffectSearcher : public DefaultListener {
 	void enter(const KeysetContainsAxiom& /*formula*/) override { result = true; }
 	void enter(const HasFlowAxiom& /*formula*/) override { result = true; }
 	void enter(const FlowContainsAxiom& /*formula*/) override { result = true; }
+	void enter(const UniqueInflowAxiom& /*formula*/) override { result = true; }
 };
 
 bool Verifier::has_effect(const SimpleFormula& formula) {

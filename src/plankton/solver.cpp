@@ -68,7 +68,8 @@ struct PropertyChecker : public BaseVisitor, public DefaultListener {
 	void enter(const NodeLogicallyContainsAxiom& formula) override { formula.node->accept(*this); formula.value->accept(*this); }
 	void enter(const KeysetContainsAxiom& formula) override { formula.node->accept(*this); formula.value->accept(*this); }
 	void enter(const HasFlowAxiom& formula) override { formula.expr->accept(*this); }
-	void enter(const FlowContainsAxiom& formula) override { formula.expr->accept(*this); formula.low_value->accept(*this); formula.high_value->accept(*this); }
+	void enter(const FlowContainsAxiom& formula) override { formula.node->accept(*this); formula.value_low->accept(*this); formula.value_high->accept(*this); }
+	void enter(const UniqueInflowAxiom& formula) override { formula.node->accept(*this); formula.value_low->accept(*this); formula.value_high->accept(*this); }
 	
 	void visit(const VariableExpression& node) override {
 		if (node.decl.is_shared) return;

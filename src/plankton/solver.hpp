@@ -28,7 +28,7 @@ namespace plankton {
 		  */
 		std::unique_ptr<heal::Predicate> logicallyContainsKey;
 
-		/** An invariant 'I(node)' that is implicitly universally quantified over all nodes in the
+		/** An invariant 'I(node)' that is implicitly universally quantified over all nodes in the heap.
 		  */
 		std::unique_ptr<heal::Invariant> invariant;
 	};

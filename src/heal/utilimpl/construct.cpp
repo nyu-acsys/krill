@@ -77,8 +77,12 @@ std::unique_ptr<KeysetContainsAxiom> heal::MakeKeysetContainsAxiom(std::unique_p
 	return std::make_unique<KeysetContainsAxiom>(std::move(expr), std::move(other));
 }
 
-std::unique_ptr<FlowContainsAxiom> heal::MakeFlowContainsAxiom(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other, std::unique_ptr<Expression> more) {
-	return std::make_unique<FlowContainsAxiom>(std::move(expr), std::move(other), std::move(more));
+std::unique_ptr<FlowContainsAxiom> heal::MakeFlowContainsAxiom(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> low, std::unique_ptr<Expression> high) {
+	return std::make_unique<FlowContainsAxiom>(std::move(expr), std::move(low), std::move(high));
+}
+
+std::unique_ptr<UniqueInflowAxiom> heal::MakeUniqueInflowAxiom(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> low, std::unique_ptr<Expression> high) {
+	return std::make_unique<UniqueInflowAxiom>(std::move(expr), std::move(low), std::move(high));
 }
 
 

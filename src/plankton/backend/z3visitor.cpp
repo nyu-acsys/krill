@@ -118,12 +118,22 @@ Z3Expr Z3Encoder::EncodeZ3(const HasFlowAxiom& formula, EncodingTag tag) {
 }
 
 Z3Expr Z3Encoder::EncodeZ3(const FlowContainsAxiom& formula, EncodingTag tag) {
-	auto node = EncodeZ3(*formula.expr, tag);
+	auto node = EncodeZ3(*formula.node, tag);
 	auto key = EncodeZ3Variable(Sort::DATA, "qv-key", tag);
-	z3::expr low = EncodeZ3(*formula.low_value, tag);
-	z3::expr high = EncodeZ3(*formula.high_value, tag);
+	z3::expr low = EncodeZ3(*formula.value_low, tag);
+	z3::expr high = EncodeZ3(*formula.value_high, tag);
 	auto keyInbetween = Z3Expr((low <= key) && (key <= high));
 	auto flow = EncodeZ3Flow(node, key, tag);
+	return z3::forall(key, keyInbetween.Implies(flow));
+}
+
+Z3Expr Z3Encoder::EncodeZ3(const UniqueInflowAxiom& formula, EncodingTag tag) {
+	auto node = EncodeZ3(*formula.node, tag);
+	auto key = EncodeZ3Variable(Sort::DATA, "qv-key", tag);
+	z3::expr low = EncodeZ3(*formula.value_low, tag);
+	z3::expr high = EncodeZ3(*formula.value_high, tag);
+	auto keyInbetween = Z3Expr((low <= key) && (key <= high));
+	auto flow = EncodeZ3UniqueInflow(node, key, tag);
 	return z3::forall(key, keyInbetween.Implies(flow));
 }
 
@@ -188,6 +198,7 @@ struct Z3EncoderCallback final : public cola::BaseVisitor, public BaseLogicVisit
 	void visit(const KeysetContainsAxiom& formula) override { result = encoder.EncodeZ3(formula, tag); }
 	void visit(const HasFlowAxiom& formula) override { result = encoder.EncodeZ3(formula, tag); }
 	void visit(const FlowContainsAxiom& formula) override { result = encoder.EncodeZ3(formula, tag); }
+	void visit(const UniqueInflowAxiom& formula) override { result = encoder.EncodeZ3(formula, tag); }
 	void visit(const ObligationAxiom& formula) override { result = encoder.EncodeZ3(formula, tag); }
 	void visit(const FulfillmentAxiom& formula) override { result = encoder.EncodeZ3(formula, tag); }
 	void visit(const PastPredicate& formula) override { result = encoder.EncodeZ3(formula, tag); }

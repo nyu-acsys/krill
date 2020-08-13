@@ -207,9 +207,17 @@ struct LogicSyntacticEqualityChecker : public LogicVisitor {
 
 	void visit(const FlowContainsAxiom& formula) override {
 		handle(formula, [](const auto& formula, const auto& other){
-			return heal::syntactically_equal(*formula.expr, *other.expr)
-			    && heal::syntactically_equal(*formula.low_value, *other.low_value)
-			    && heal::syntactically_equal(*formula.high_value, *other.high_value);
+			return heal::syntactically_equal(*formula.node, *other.node)
+			    && heal::syntactically_equal(*formula.value_low, *other.value_low)
+			    && heal::syntactically_equal(*formula.value_high, *other.value_high);
+		});
+	}
+
+	void visit(const UniqueInflowAxiom& formula) override {
+		handle(formula, [](const auto& formula, const auto& other){
+			return heal::syntactically_equal(*formula.node, *other.node)
+			    && heal::syntactically_equal(*formula.value_low, *other.value_low)
+			    && heal::syntactically_equal(*formula.value_high, *other.value_high);
 		});
 	}
 

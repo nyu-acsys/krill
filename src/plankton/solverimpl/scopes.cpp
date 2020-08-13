@@ -207,7 +207,9 @@ void Generator::AddKeysetContainsAxioms(std::unique_ptr<Expression> expr, std::u
 
 void Generator::AddFlowContainsAxioms(std::unique_ptr<Expression> expr, std::unique_ptr<Expression> other) {
 	if (expr->sort() != Sort::PTR || other->sort() != Sort::DATA) return;
-	PopulateAxiom(MakeFlowContainsAxiom(std::move(expr), cola::copy(*other), std::move(other)));
+	// TODO: add more?
+	PopulateAxiom(MakeFlowContainsAxiom(cola::copy(*expr), cola::copy(*other), cola::copy(*other)));
+	PopulateAxiom(MakeUniqueInflowAxiom(std::move(expr), cola::copy(*other), std::move(other)));
 }
 
 void Generator::AddPureLinearizabilityRules(const VariableDeclaration& node, const VariableDeclaration& key) {

@@ -56,35 +56,38 @@ namespace plankton {
 			inline Z3Expr Internalize(Term term) { return Z3Expr(term); }
 			inline Z3Expr Internalize(Symbol symbol) { return Z3Expr(symbol); }
 
-			Term MakeNullPtr();
-			Term MakeMinValue();
-			Term MakeMaxValue();
-			Term MakeBool(bool value);
+			Term MakeNullPtr() override;
+			Term MakeMinValue() override;
+			Term MakeMaxValue() override;
+			Term MakeBool(bool value) override;
 
-			Term MakeOr(const std::vector<Term>& disjuncts);
-			Term MakeAnd(const std::vector<Term>& conjuncts);
-			Term MakeExists(const std::vector<Symbol>& vars, Term term);
-			Term MakeForall(const std::vector<Symbol>& vars, Term term);
+			Term MakeOr(const std::vector<Term>& disjuncts) override;
+			Term MakeAnd(const std::vector<Term>& conjuncts) override;
+			Term MakeAtMostOne(const std::vector<Term>& elements) override;
+			Term MakeExists(const std::vector<Symbol>& vars, Term term) override;
+			Term MakeForall(const std::vector<Symbol>& vars, Term term) override;
 		
-			std::unique_ptr<ImplicationChecker> MakeImplicationChecker(EncodingTag tag = EncodingTag::NOW);
+			Term MakeDataBounds(Term term) override;
+			std::unique_ptr<ImplicationChecker> MakeImplicationChecker(EncodingTag tag = EncodingTag::NOW) override;
 
-			Symbol Encode(const cola::VariableDeclaration& decl, EncodingTag tag);
-			Term Encode(const heal::Formula& formula, EncodingTag tag);
-			Term Encode(const cola::Expression& expression, EncodingTag tag);
-			Term EncodeFlow(Term node, Term value, EncodingTag tag);
-			Term EncodeHeap(Term node, Selector selector, EncodingTag tag);
-			Term EncodeHeapIs(Term node, Selector selector, Term value, EncodingTag tag);
-			Term EncodeHasFlow(Term node, EncodingTag tag);
-			Term EncodeIsOwned(Term node, EncodingTag tag);
-			Term EncodeKeysetContains(Term node, Term value, EncodingTag tag);
-			Term EncodeObligation(heal::SpecificationAxiom::Kind kind, Term value, EncodingTag tag);
-			Term EncodeFulfillment(heal::SpecificationAxiom::Kind kind, Term value, bool returnValue, EncodingTag tag);
-			Term EncodeInvariant(const heal::Invariant& invariant, Term arg, EncodingTag tag);
-			Term EncodePredicate(const heal::Predicate& predicate, Term arg1, Term arg2, EncodingTag tag);
+			Symbol Encode(const cola::VariableDeclaration& decl, EncodingTag tag) override;
+			Term Encode(const heal::Formula& formula, EncodingTag tag) override;
+			Term Encode(const cola::Expression& expression, EncodingTag tag) override;
+			Term EncodeFlow(Term node, Term value, EncodingTag tag) override;
+			Term EncodeHeap(Term node, Selector selector, EncodingTag tag) override;
+			Term EncodeHeapIs(Term node, Selector selector, Term value, EncodingTag tag) override;
+			Term EncodeHasFlow(Term node, EncodingTag tag) override;
+			Term EncodeIsOwned(Term node, EncodingTag tag) override;
+			Term EncodeUniqueInflow(Term node, Term value, EncodingTag tag) override;
+			Term EncodeKeysetContains(Term node, Term value, EncodingTag tag) override;
+			Term EncodeObligation(heal::SpecificationAxiom::Kind kind, Term value, EncodingTag tag) override;
+			Term EncodeFulfillment(heal::SpecificationAxiom::Kind kind, Term value, bool returnValue, EncodingTag tag) override;
+			Term EncodeInvariant(const heal::Invariant& invariant, Term arg, EncodingTag tag) override;
+			Term EncodePredicate(const heal::Predicate& predicate, Term arg1, Term arg2, EncodingTag tag) override;
 
-			Term EncodeTransitionMaintainsOwnership(Term node);
-			Term EncodeTransitionMaintainsFlow(Term node, Term key);
-			Term EncodeTransitionMaintainsHeap(Term node, Selector selector);
+			Term EncodeTransitionMaintainsOwnership(Term node) override;
+			Term EncodeTransitionMaintainsFlow(Term node, Term key) override;
+			Term EncodeTransitionMaintainsHeap(Term node, Selector selector) override;
 
 		public: // Encoder interface for downcast'd terms/symbols
 			Z3Expr MakeZ3NullPtr();
@@ -93,9 +96,11 @@ namespace plankton {
 			Z3Expr MakeZ3Bool(bool value);
 			inline Z3Expr MakeZ3True() { return MakeZ3Bool(true); }
 			inline Z3Expr MakeZ3False() { return MakeZ3Bool(false); }
+			Z3Expr MakeZ3DataBounds(Z3Expr value);
 
 			Z3Expr MakeZ3Or(const std::vector<Z3Expr>& disjuncts);
 			Z3Expr MakeZ3And(const std::vector<Z3Expr>& conjuncts);
+			Z3Expr MakeZ3AtMostOne(const std::vector<Z3Expr>& elements);
 			Z3Expr MakeZ3Exists(const std::vector<Z3Expr>& vars, Z3Expr term);
 			Z3Expr MakeZ3Forall(const std::vector<Z3Expr>& vars, Z3Expr term);
 
@@ -107,6 +112,7 @@ namespace plankton {
 			Z3Expr EncodeZ3HeapIs(Z3Expr node, Selector selector, Z3Expr value, EncodingTag tag);
 			Z3Expr EncodeZ3HasFlow(Z3Expr node, EncodingTag tag);
 			Z3Expr EncodeZ3IsOwned(Z3Expr node, EncodingTag tag);
+			Z3Expr EncodeZ3UniqueInflow(Z3Expr node, Z3Expr value, EncodingTag tag);
 			Z3Expr EncodeZ3KeysetContains(Z3Expr node, Z3Expr value, EncodingTag tag);
 			Z3Expr EncodeZ3Obligation(heal::SpecificationAxiom::Kind kind, Z3Expr value, EncodingTag tag);
 			Z3Expr EncodeZ3Fulfillment(heal::SpecificationAxiom::Kind kind, Z3Expr value, bool returnValue, EncodingTag tag);
@@ -140,6 +146,7 @@ namespace plankton {
 			Z3Expr EncodeZ3(const heal::KeysetContainsAxiom& formula, EncodingTag tag);
 			Z3Expr EncodeZ3(const heal::HasFlowAxiom& formula, EncodingTag tag);
 			Z3Expr EncodeZ3(const heal::FlowContainsAxiom& formula, EncodingTag tag);
+			Z3Expr EncodeZ3(const heal::UniqueInflowAxiom& formula, EncodingTag tag);
 			Z3Expr EncodeZ3(const heal::ObligationAxiom& formula, EncodingTag tag);
 			Z3Expr EncodeZ3(const heal::FulfillmentAxiom& formula, EncodingTag tag);
 			Z3Expr EncodeZ3(const heal::PastPredicate& formula, EncodingTag tag);
@@ -170,6 +177,7 @@ namespace plankton {
 			z3::expr nullPtr, minVal, maxVal;
 			z3::func_decl heapNow, heapNext; // free function: Ptr x Sel -> Val; 'heap(x, sel) = y' means that field 'sel' of node 'x' is 'y'
 			z3::func_decl flowNow, flowNext; // free function: Ptr x Data -> Bool; 'flow(x, k) = true' iff the flow in node 'x' contains 'k'
+			z3::func_decl uniqueInflowNow, uniqueInflowNext; // free function: Ptr x Data -> Bool; 'uniqueInflow(x, k) = true' iff node 'x' receives 'k' from at most 1 node
 			z3::func_decl ownershipNow, ownershipNext; // free function: Ptr -> Bool; 'ownership(x) = true' iff 'x' is owned
 			z3::func_decl obligationNow, obligationNext; // free function: Data x Spec -> Bool; 'obligation(k, i) = true' iff 'OBL(k, i)'
 			z3::func_decl fulfillmentNow, fulfillmentNext; // free function: Data x Spec x Bool -> Bool; 'fulfillment(k, i, r) = true' iff 'FUL(k, i, r)'

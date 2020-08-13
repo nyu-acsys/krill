@@ -93,9 +93,15 @@ struct ContainsChecker : public DefaultListener {
 	}
 
 	void enter(const FlowContainsAxiom& formula) override {
-		handle_expression(formula.expr);
-		handle_expression(formula.low_value);
-		handle_expression(formula.high_value);
+		handle_expression(formula.node);
+		handle_expression(formula.value_low);
+		handle_expression(formula.value_high);
+	}
+
+	void enter(const UniqueInflowAxiom& formula) override {
+		handle_expression(formula.node);
+		handle_expression(formula.value_low);
+		handle_expression(formula.value_high);
 	}
 
 	void enter(const ObligationAxiom& formula) override {
@@ -173,6 +179,7 @@ struct ContainsConjunctChecker : public BaseLogicVisitor {
 	void visit(const KeysetContainsAxiom& formula) override { result = heal::syntactically_equal(formula, search); }
 	void visit(const HasFlowAxiom& formula) override { result = heal::syntactically_equal(formula, search); }
 	void visit(const FlowContainsAxiom& formula) override { result = heal::syntactically_equal(formula, search); }
+	void visit(const UniqueInflowAxiom& formula) override { result = heal::syntactically_equal(formula, search); }
 	void visit(const ObligationAxiom& formula) override { result = heal::syntactically_equal(formula, search); }
 	void visit(const FulfillmentAxiom& formula) override { result = heal::syntactically_equal(formula, search); }
 	

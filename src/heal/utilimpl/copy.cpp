@@ -55,7 +55,11 @@ std::unique_ptr<HasFlowAxiom> heal::copy(const HasFlowAxiom& formula) {
 }
 
 std::unique_ptr<FlowContainsAxiom> heal::copy(const FlowContainsAxiom& formula) {
-	return std::make_unique<FlowContainsAxiom>(cola::copy(*formula.expr), cola::copy(*formula.low_value), cola::copy(*formula.high_value));
+	return std::make_unique<FlowContainsAxiom>(cola::copy(*formula.node), cola::copy(*formula.value_low), cola::copy(*formula.value_high));
+}
+
+std::unique_ptr<UniqueInflowAxiom> heal::copy(const UniqueInflowAxiom& formula) {
+	return std::make_unique<UniqueInflowAxiom>(cola::copy(*formula.node), cola::copy(*formula.value_low), cola::copy(*formula.value_high));
 }
 
 std::unique_ptr<ObligationAxiom> heal::copy(const ObligationAxiom& formula) {
@@ -115,6 +119,7 @@ struct CopyVisitor : public LogicVisitor {
 	void visit(const KeysetContainsAxiom& formula) { set_result(heal::copy(formula)); }
 	void visit(const HasFlowAxiom& formula) { set_result(heal::copy(formula)); }
 	void visit(const FlowContainsAxiom& formula) { set_result(heal::copy(formula)); }
+	void visit(const UniqueInflowAxiom& formula) { set_result(heal::copy(formula)); }
 	void visit(const ObligationAxiom& formula) { set_result(heal::copy(formula)); }
 	void visit(const FulfillmentAxiom& formula) { set_result(heal::copy(formula)); }
 

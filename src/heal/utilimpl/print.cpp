@@ -110,13 +110,23 @@ struct FormulaPrinter : public LogicVisitor {
 	}
 
 	void visit(const FlowContainsAxiom& formula) override {
-		stream << "@flow(";
-		cola::print(*formula.expr, stream);
-		stream << ")⊇[";
-		cola::print(*formula.low_value, stream);
+		stream << "@flowContains(";
+		cola::print(*formula.node, stream);
+		stream << "[";
+		cola::print(*formula.value_low, stream);
 		stream << ", ";
-		cola::print(*formula.high_value, stream);
-		stream << "]";
+		cola::print(*formula.value_high, stream);
+		stream << "])";
+	}
+
+	void visit(const UniqueInflowAxiom& formula) override {
+		stream << "@inflowUnique(";
+		cola::print(*formula.node, stream);
+		stream << ", " << "[";
+		cola::print(*formula.value_low, stream);
+		stream << ", ";
+		cola::print(*formula.value_high, stream);
+		stream << "])";
 	}
 
 	void visit(const ObligationAxiom& formula) override {

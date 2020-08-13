@@ -38,6 +38,7 @@ namespace heal {
 	std::unique_ptr<KeysetContainsAxiom> copy(const KeysetContainsAxiom& formula);
 	std::unique_ptr<HasFlowAxiom> copy(const HasFlowAxiom& formula);
 	std::unique_ptr<FlowContainsAxiom> copy(const FlowContainsAxiom& formula);
+	std::unique_ptr<UniqueInflowAxiom> copy(const UniqueInflowAxiom& formula);
 	std::unique_ptr<ObligationAxiom> copy(const ObligationAxiom& formula);
 	std::unique_ptr<FulfillmentAxiom> copy(const FulfillmentAxiom& formula);
 	std::unique_ptr<PastPredicate> copy(const PastPredicate& formula);
@@ -124,7 +125,8 @@ namespace heal {
 	std::unique_ptr<NodeLogicallyContainsAxiom> MakeNodeContainsAxiom(std::unique_ptr<cola::Expression> node, std::unique_ptr<cola::Expression> value);
 	std::unique_ptr<HasFlowAxiom> MakeHasFlowAxiom(std::unique_ptr<cola::Expression> expr);
 	std::unique_ptr<KeysetContainsAxiom> MakeKeysetContainsAxiom(std::unique_ptr<cola::Expression> expr, std::unique_ptr<cola::Expression> other);
-	std::unique_ptr<FlowContainsAxiom> MakeFlowContainsAxiom(std::unique_ptr<cola::Expression> expr, std::unique_ptr<cola::Expression> other, std::unique_ptr<cola::Expression> more);
+	std::unique_ptr<FlowContainsAxiom> MakeFlowContainsAxiom(std::unique_ptr<cola::Expression> expr, std::unique_ptr<cola::Expression> low, std::unique_ptr<cola::Expression> high);
+	std::unique_ptr<UniqueInflowAxiom> MakeUniqueInflowAxiom(std::unique_ptr<cola::Expression> expr, std::unique_ptr<cola::Expression> low, std::unique_ptr<cola::Expression> high);
 
 	std::unique_ptr<ConjunctionFormula> MakeConjunction();
 	std::unique_ptr<ConjunctionFormula> MakeConjunction(std::deque<std::unique_ptr<SimpleFormula>> conjuncts);
