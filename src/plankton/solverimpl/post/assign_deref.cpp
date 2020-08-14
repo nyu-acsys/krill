@@ -323,11 +323,11 @@ void DerefPostComputer::AddFootprintFlowRulesToSolver() {
 	};
 
 	auto key = interfaceKey;
-	auto Add = [&,this](Term term) { checker.AddPremise(term); };
+	auto AddRule = [&,this](Term premise, Term conclusion) { checker.AddPremise(premise.Implies(conclusion)); };
 	// auto key = qvKey;
 	// auto Add = [&,this](Term term) { checker.AddPremise(encoder.MakeForall(qvKey, term)); };
 
-	for (auto node : footprint) { // TODO: is this sound anymore???? <<<<<<<==============================================|||||||||||
+	for (auto node : footprint) {
 		auto nowUnique = encoder.EncodeNowUniqueInflow(node);
 		auto nextUnique = encoder.EncodeNextUniqueInflow(node);
 		auto nowInFlow = encoder.EncodeNowFlow(node, key);
@@ -344,31 +344,41 @@ void DerefPostComputer::AddFootprintFlowRulesToSolver() {
 		// flow from outside remains unchanged
 		auto nowFromOutside = encoder.MakeAnd(nowInFlow, nowNotFromWithin);
 		auto nextFromOutside = encoder.MakeAnd(nextInFlow, nextNotFromWithin);
-		Add(nowFromOutside.Implies(nextInFlow));
-		Add(nextFromOutside.Implies(nowInFlow));
-		
+		AddRule(nowFromOutside, nextInFlow);
+		AddRule(nextFromOutside, nowInFlow);
+		checker.AddPremise(nowFromOutside.Implies(nextInFlow));
+		checker.AddPremise(nextFromOutside.Implies(nowInFlow));
+
+		// all flow from inside, lost
+		auto allLost = encoder.MakeAnd({nowUnique, nowFromWithin, nextNotFromWithin});
+		AddRule(allLost, nextNotInFlow);
+
 		// uniqueness updates
 		auto uniquenessMaintained = encoder.MakeOr({
 			nextNotInFlow,
 			encoder.MakeAnd(nowUnique, nextNotFromWithin),
 			encoder.MakeAnd({nowUnique, nowNotInFlow, nextUniquelyFromWithin}),
-			encoder.MakeAnd({nowUnique, nowFromWithin, nextUniquelyFromWithin}),
-			encoder.MakeAnd({nowUnique, nowFromWithin, nextNotFromWithin}) // also implies not in flow at all
+			encoder.MakeAnd({nowUnique, nowFromWithin, nextUniquelyFromWithin})
 		});
-		// Add(uniquenessMaintained.Implies(nextUnique));
+		// if (checker.Implies(uniquenessMaintained)) {
+		// 	checker.AddPremise(uniquenessMaintained);
+		// 	checker.AddPremise(nextUnique);
+		// }
+		AddRule(uniquenessMaintained, nextUnique); // TODO important: sound? really use rule here, or solve and add it??? <<<<<<<==============||||
 
 		// removing unique intraflow removes flow altogether
 		auto intraflowRemoved = encoder.MakeAnd({nowUnique, nowFromWithin, nextNotFromWithin});
-		// Add(intraflowRemoved.Implies(nextNotInFlow));
+		AddRule(intraflowRemoved, nextNotInFlow);
 
 		// non-uniqueness
 		auto nowNotUnique = nowUnique.Negate();
 		auto nextNotUnique = nextUnique.Negate();
 		auto nowMultipleFromOutside = encoder.MakeAnd(nowNotUnique, nowNotFromWithin);
 		auto nextMultipleFromOutside = encoder.MakeAnd(nextNotUnique, nextNotFromWithin);
-		// Add(nowMultipleFromOutside.Implies(nextNotUnique));
-		// Add(nextMultipleFromOutside.Implies(nowNotUnique));
+		AddRule(nowMultipleFromOutside, nextNotUnique);
+		AddRule(nextMultipleFromOutside, nowNotUnique);
 	}
+
 
 	checker.AddPremise(MakeFootprintKeysetsDisjointCheck(EncodingTag::NOW));
 }
@@ -377,6 +387,10 @@ void DerefPostComputer::AddNonFootprintFlowRulesToSolver() {
 	// the flow outside the footprint remains unchanged
 	checker.AddPremise(encoder.MakeForall(qvNode, qvKey, encoder.MakeImplies(
 		MakeFootprintContainsCheck(qvNode).Negate(), /* ==> */ encoder.EncodeTransitionMaintainsFlow(qvNode, qvKey)
+	)));
+
+	checker.AddPremise(encoder.MakeForall(qvNode, encoder.MakeImplies(
+		MakeFootprintContainsCheck(qvNode).Negate(), /* ==> */ encoder.EncodeNowUniqueInflow(qvNode).Iff(encoder.EncodeNextUniqueInflow(qvNode))
 	)));
 }
 
@@ -624,15 +638,15 @@ void DerefPostComputer::CheckInvariant(Node node) {
 	if (satisfiesInvariant) return;
 
 	// report error
-//	log() << std::endl << std::endl << "Invariant violated in footprint: " << node << std::endl;
-//	for (const auto& conjunct : info.solver.config.invariant->blueprint->conjuncts) {
-//		auto encoded = encoder.MakeImplies(
-//			encoder.MakeEqual(node, encoder.EncodeNext(*info.solver.config.invariant->vars.at(0))),
-//			encoder.EncodeNext(*conjunct)
-//		);
-//		log() << "  - inv " << *conjunct << ": " << checker.Implies(encoded) << std::endl;
-//	}
-//	log() << std::endl << "PRE: " << info.preNow << std::endl;
+	log() << std::endl << std::endl << "Invariant violated in footprint: " << node << std::endl;
+	for (const auto& conjunct : info.solver.config.invariant->blueprint->conjuncts) {
+		auto encoded = encoder.MakeImplies(
+			encoder.MakeEqual(node, encoder.EncodeNext(*info.solver.config.invariant->vars.at(0))),
+			encoder.EncodeNext(*conjunct)
+		);
+		log() << "  - inv " << *conjunct << ": " << checker.Implies(encoded) << std::endl;
+	}
+	log() << std::endl << "PRE: " << info.preNow << std::endl;
 	Throw("Could not establish invariant for heap update", "invariant violated within footprint");
 }
 
@@ -825,14 +839,14 @@ std::unique_ptr<ConjunctionFormula> DerefPostComputer::MakePostNow() {
 	auto result = info.ComputeImpliedCandidates(checker);
 
 	// debug output
-	// log() << "**PRE**     " << info.preNow << std::endl;
-	// log() << "**POST**    " << *result << std::endl;
-	// for (const auto& candidate : info.solver.GetCandidates()) {
-	// 	bool inPre = heal::syntactically_contains_conjunct(info.preNow, *candidate);
-	// 	bool inPost = heal::syntactically_contains_conjunct(*result, *candidate);
-	// 	if (inPre == inPost) continue;
-	// 	log() << " diff " << (inPre ? "lost" : "got") << " " << *candidate << std::endl;
-	// }
+	log() << "**PRE**     " << info.preNow << std::endl;
+	log() << "**POST**    " << *result << std::endl;
+	for (const auto& candidate : info.solver.GetCandidates()) {
+		bool inPre = heal::syntactically_contains_conjunct(info.preNow, *candidate);
+		bool inPost = heal::syntactically_contains_conjunct(*result, *candidate);
+		if (inPre == inPost) continue;
+		log() << " diff " << (inPre ? "lost" : "got") << " " << *candidate << std::endl;
+	}
 
 	return result;
 }
