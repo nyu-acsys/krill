@@ -122,10 +122,14 @@ std::unique_ptr<ConjunctionFormula> Z3ImplicationChecker::ComputeImpliedConjunct
 
 	// create result
 	auto result = std::make_unique<ConjunctionFormula>();
+	// log() << "Implied candidates:";
 	for (std::size_t index = 0; index < implied.size(); ++index) {
+		// log() << std::endl << *formula.conjuncts.at(index) << ":  ";
 		if (!implied.at(index)) continue;
+		// log() << "yes";
 		result->conjuncts.push_back(heal::copy(*formula.conjuncts.at(index)));
 	}
+	// log() << std::endl << "----" << std::endl << std::endl;
 	return result;
 }
 

@@ -12,6 +12,8 @@ using namespace heal;
 using namespace plankton;
 using parallel_assignment_t = Solver::parallel_assignment_t;
 
+#define BE_SYNTACTIC false
+
 
 struct VarPostComputer {
 	PostInfo info;
@@ -20,6 +22,8 @@ struct VarPostComputer {
 	VarPostComputer(PostInfo info_, const parallel_assignment_t& assignment) : info(std::move(info_)), assignment(assignment) {}
 
 	std::unique_ptr<Annotation> MakePost();
+	std::unique_ptr<ConjunctionFormula> MakePostNowSyntactic();
+	std::unique_ptr<ConjunctionFormula> MakePostNowSemantic();
 	std::unique_ptr<ConjunctionFormula> MakePostNow();
 	std::unique_ptr<PastPredicate> MakeInterimPostTime(const PastPredicate& predicate);
 	std::unique_ptr<FuturePredicate> MakeInterimPostTime(const FuturePredicate& predicate);
@@ -58,7 +62,54 @@ std::unique_ptr<Annotation> plankton::MakeVarAssignPost(PostInfo info, const Var
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+// TODO: semantic vs syntactic
 std::unique_ptr<ConjunctionFormula> VarPostComputer::MakePostNow() {
+	#if BE_SYNTACTIC
+		bool lhsContainsShared = false;
+		for (auto [lhs, rhs] : assignment) {
+			lhsContainsShared |= lhs.get().decl.is_shared;
+		}
+		if (!lhsContainsShared) return MakePostNowSyntactic();
+	#endif
+
+	return MakePostNowSemantic();
+}
+
+std::unique_ptr<ConjunctionFormula> InlineAssignment(std::unique_ptr<ConjunctionFormula> result, const parallel_assignment_t& assignment) {
+	for (auto [lhs, rhs] : assignment) {
+		auto inlined = heal::replace_expression(heal::copy(*result), rhs, lhs);
+		result = heal::conjoin(std::move(result), std::move(inlined));
+	}
+	return result;
+}
+
+std::unique_ptr<ConjunctionFormula> VarPostComputer::MakePostNowSyntactic() {
+	auto result = heal::copy(info.preNow);
+
+	// remove conjuncts containing lhs
+	result = heal::remove_conjuncts_if(std::move(result), [this](const SimpleFormula& conjunct){
+		for (auto [lhs, rhs] : assignment) {
+			if (heal::contains_expression(conjunct, lhs)) {
+				return true;
+			}
+		}
+		return false;
+	});
+
+	// ownership does not change // TODO: correct?
+
+	// add new bindings
+	result = InlineAssignment(std::move(result), assignment);
+	for (auto [lhs, rhs] : assignment) {
+		auto expr = heal::MakeExpr(BinaryExpression::Operator::EQ, cola::copy(lhs), cola::copy(rhs));
+		result->conjuncts.push_back(heal::MakeAxiom(std::move(expr)));
+	}
+
+	// done
+	return result;
+}
+
+std::unique_ptr<ConjunctionFormula> VarPostComputer::MakePostNowSemantic() {
 	auto checkerOwner = info.solver.MakeImplicationChecker(EncodingTag::NEXT);
 	auto encoderPtr = info.solver.GetEncoder();
 	auto& nodeType = info.solver.config.flowDomain->GetNodeType();
@@ -78,6 +129,30 @@ std::unique_ptr<ConjunctionFormula> VarPostComputer::MakePostNow() {
 	// flow remains unchanged
 	checker.AddPremise(encoder.MakeForall(qvNode, qvKey, encoder.EncodeTransitionMaintainsFlow(qvNode, qvKey)));
 	checker.AddPremise(encoder.MakeForall(qvNode, encoder.EncodeNowUniqueInflow(qvNode).Implies(encoder.EncodeNextUniqueInflow(qvNode))));
+	
+	// additional flow solving rules
+	for (auto decl : info.solver.GetVariablesInScope()) {
+		if (decl->type.sort != Sort::PTR) continue;
+		auto node = encoder.EncodeNow(*decl);
+		for (auto [fieldName, fieldType] : decl->type.fields) {
+			if (fieldType.get().sort != Sort::PTR) continue;
+			Selector selector(decl->type, fieldName);
+			auto& outflow = info.solver.config.flowDomain->GetOutFlowContains(fieldName);
+			auto deref = heal::MakeDerefExpr(*decl, fieldName);
+			auto next = encoder.EncodeNow(*deref);
+			for (auto other : info.solver.GetVariablesInScope()) {
+				if (other->type.sort != Sort::DATA) continue;
+				auto key = encoder.EncodeNow(*other);
+				checker.AddPremise(encoder.MakeImplies(
+					encoder.MakeAnd(
+						encoder.EncodeNowHeap(node, selector).Distinct(encoder.MakeNullPtr()),
+						encoder.EncodeNowPredicate(outflow, node, key)
+					),
+					encoder.EncodeNowFlow(next, key)
+				));
+			}
+		}
+	}
 
 	// obligations/fulfillments remain unchanged
 	for (auto kind : SpecificationAxiom::KindIteratable) {
@@ -121,7 +196,7 @@ std::unique_ptr<ConjunctionFormula> VarPostComputer::MakePostNow() {
 	for (auto [lhs, rhs] : assignment) {
 		checker.AddPremise(encoder.MakeEqual(encoder.EncodeNext(lhs), encoder.EncodeNow(rhs)));
 
-		// in case there are variable that are not covered by 'info.solver.GetVariablesInScope()'
+		// in case there are variables that are not covered by 'info.solver.GetVariablesInScope()'
 		// TODO: properly collect variables occuring in pre and assignment
 		auto [isRhsVar, rhsVar] = heal::is_of_type<VariableExpression>(rhs.get());
 		if (!isRhsVar) continue;

@@ -1,0 +1,106 @@
+struct Node {
+    Node next;
+    data_t val;
+};
+
+Node* Head;
+Node* Tail;
+
+void __init__() {
+    Tail = malloc;
+    Tail->next = NULL; // 10
+    Tail->val = MAX_VAL; // 14
+    Head = malloc;
+    Head->next = Tail; // 19
+    Head->val = MIN_VAL; // 23
+}
+
+inline <Node*, Node*, data_t> locate(data_t _key) {
+    Node* _pred;
+    Node* _curr;
+    data_t _k;
+
+    _curr = Head; // 39
+    do {
+        _pred = _curr; // 45
+        _curr = _pred->next; // 49
+        if (_curr == _pred->next && _curr != NULL) {
+            _k = _curr->val; // 61
+        } else {
+            _curr = Head; // 65
+            _k = MIN_VAL; // 68
+        }
+        if (_k >= _key) {
+            break;
+        } else {
+            skip;
+        }
+    } while (true);
+    return <_pred, _curr, _k>;
+}
+
+bool contains(data_t key) {
+    Node* pred;
+    Node* curr;
+    data_t k;
+
+    <pred, curr, k> = locate(key);
+    return k == key;
+}
+
+bool add(data_t key) {
+    Node* entry;
+
+    entry = malloc;
+    entry->val = key; // 110
+    while (true) {
+        Node* pred;
+        Node* curr;
+        data_t k;
+
+        <pred, curr, k> = locate(key);
+        if (k == key) {
+            return false;
+        } else {
+            entry->next = curr; // 129
+            choose {
+                atomic {
+                    assume(pred->next == curr); // 221
+                    pred->next = entry; // 215
+                }
+                return true;
+            }{
+                assume(pred->next != curr); // 220
+                skip;
+            }
+        }
+    }
+}
+
+bool remove(data_t key) {
+    while (true) {
+        Node* pred;
+        Node* curr;
+        data_t k;
+
+        <pred, curr, k> = locate(key);
+        if (k > key) {
+            return false;
+        } else {
+            Node* next;
+
+            next = curr->next; // 173
+            choose {
+                atomic {
+                    assume(pred->next == curr && curr->next == next); // 258
+                    pred->next = next; // 242
+                    curr->next = NULL; // 246
+                }
+                return true;
+            }{
+                assume(pred->next != curr || curr->next != next); // 257
+                skip;
+            }
+        }
+    }
+}

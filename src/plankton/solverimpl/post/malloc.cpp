@@ -87,6 +87,11 @@ std::unique_ptr<Annotation> SolverImpl::Post(const Annotation& pre, const Malloc
 	// execute a dummy assignment 'cmd.lhs = allocation'
 	VariableExpression lhs(cmd.lhs), rhs(allocation);
 	auto result = MakeVarAssignPost(PostInfo(*this, *extendedPre), lhs, rhs);
+
+	// TODO: semantic vs syntactic
+	result->now = heal::remove_conjuncts_if(std::move(result->now), [&rhs](const SimpleFormula& conjunct){
+		return heal::contains_expression(conjunct, rhs);
+	});
 	assert(!heal::contains_expression(*result, rhs));
 
 	// done
