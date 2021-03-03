@@ -20,5 +20,4 @@ set(SOURCES
 )
 
 add_library(HeaL ${SOURCES})
-# add_dependencies(HeaL CoLa)
 target_link_libraries(HeaL CoLa ${Z3_LIBRARY})
