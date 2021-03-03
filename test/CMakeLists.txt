@@ -8,8 +8,6 @@ set(TCLAP_REPO ${CMAKE_CURRENT_SOURCE_DIR}/tclap/tclap-1.2.2.tar.gz)
 LIST(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/tclap)
 include(ExternalTclap)
 
-add_library(TCLAP INTERFACE)
-target_include_directories(TCLAP INTERFACE ${TCLAP_INCLUDE_DIRS})
 
 ################################
 ####### setting up build #######

@@ -33,3 +33,6 @@ ExternalProject_ADD(
 ExternalProject_Get_Property(tclap SOURCE_DIR)
 list(APPEND TCLAP_INCLUDE_DIRS ${SOURCE_DIR}/include/)
 
+add_library(TCLAP INTERFACE)
+add_dependencies(TCLAP tclap)
+target_include_directories(TCLAP INTERFACE ${TCLAP_INCLUDE_DIRS})
