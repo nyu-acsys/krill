@@ -3,12 +3,11 @@
 #include <sstream>
 #include <iostream>
 #include <fstream>
-// #include <ifstream>
 #include "antlr4-runtime.h"
 #include "CoLaLexer.h"
 #include "CoLaParser.h"
 #include "cola/ast.hpp"
-#include "cola/parser/AstBuilder.hpp"
+#include "AstBuilder.hpp"
 
 using namespace antlr4;
 using namespace cola;

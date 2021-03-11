@@ -6,11 +6,19 @@ using namespace cola;
 using namespace heal;
 
 
-ImplicationFormula::ImplicationFormula() : premise(std::make_unique<AxiomConjunctionFormula>()), conclusion(std::make_unique<AxiomConjunctionFormula>()) {
+ImplicationFormula::ImplicationFormula() : premise(std::make_unique<ConjunctionFormula>()), conclusion(std::make_unique<ConjunctionFormula>()) {
 }
 
-NegatedAxiom::NegatedAxiom(std::unique_ptr<Axiom> axiom_) : axiom(std::move(axiom_)) {
-	assert(axiom);
+ImplicationFormula::ImplicationFormula(std::unique_ptr<Formula> premise, std::unique_ptr<Formula> conclusion) : premise(std::move(premise)), conclusion(std::move(conclusion)) {
+}
+
+ConjunctionFormula::ConjunctionFormula() = default;
+
+ConjunctionFormula::ConjunctionFormula(std::deque<std::unique_ptr<Formula>> conjuncts) : conjuncts(std::move(conjuncts)) {
+}
+
+NegationFormula::NegationFormula(std::unique_ptr<Formula> formula_) : formula(std::move(formula_)) {
+	assert(formula);
 }
 
 ExpressionAxiom::ExpressionAxiom(std::unique_ptr<cola::Expression> expr_) : expr(std::move(expr_)) {
@@ -78,11 +86,11 @@ FulfillmentAxiom::FulfillmentAxiom(Kind kind_, std::unique_ptr<VariableExpressio
  : SpecificationAxiom(kind_, std::move(key_)), return_value(return_value_) {
 }
 
-PastPredicate::PastPredicate(std::unique_ptr<ConjunctionFormula> formula_) : formula(std::move(formula_)) {
+PastPredicate::PastPredicate(std::unique_ptr<Formula> formula_) : formula(std::move(formula_)) {
 	assert(formula);
 }
 
-FuturePredicate::FuturePredicate(std::unique_ptr<ConjunctionFormula> pre_, std::unique_ptr<Assignment> cmd_, std::unique_ptr<ConjunctionFormula> post_)
+FuturePredicate::FuturePredicate(std::unique_ptr<Formula> pre_, std::unique_ptr<Assignment> cmd_, std::unique_ptr<Formula> post_)
  : pre(std::move(pre_)), command(std::move(cmd_)), post(std::move(post_)) {
 	assert(pre);
 	assert(command);
@@ -92,24 +100,22 @@ FuturePredicate::FuturePredicate(std::unique_ptr<ConjunctionFormula> pre_, std::
 Annotation::Annotation() : now(std::make_unique<ConjunctionFormula>()) {
 }
 
-Annotation::Annotation(std::unique_ptr<ConjunctionFormula> now_) : now(std::move(now_)) {
-	assert(now);
+Annotation::Annotation(std::unique_ptr<Formula> formula_) : now(std::move(formula_)) {
+    assert(now);
 }
 
-Annotation::Annotation(std::unique_ptr<ConjunctionFormula> now_, std::deque<std::unique_ptr<TimePredicate>> time_) : now(std::move(now_)), time(std::move(time_)) {
-	assert(now);
+Annotation::Annotation(std::unique_ptr<Formula> formula_, std::deque<std::unique_ptr<TimePredicate>> time_) : now(std::move(formula_)), time(std::move(time_)) {
+    assert(now);
 }
 
 inline std::unique_ptr<Annotation> mk_bool(bool value) {
-	auto result = std::make_unique<Annotation>();
-	result->now->conjuncts.push_back(std::make_unique<ExpressionAxiom>(std::make_unique<BooleanValue>(value)));
-	return result;
+	return std::make_unique<Annotation>(std::make_unique<ExpressionAxiom>(std::make_unique<BooleanValue>(value)));
 }
 
-std::unique_ptr<Annotation> Annotation::make_true() {
+std::unique_ptr<Annotation> Annotation::True() {
 	return mk_bool(true);
 }
 
-std::unique_ptr<Annotation> Annotation::make_false() {
+std::unique_ptr<Annotation> Annotation::False() {
 	return mk_bool(false);
 }

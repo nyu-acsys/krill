@@ -1,4 +1,4 @@
-#include "prover/solver.hpp"
+#include "solver/solver.hpp"
 
 #include <set>
 #include "heal/util.hpp"
@@ -9,6 +9,8 @@ using namespace cola;
 using namespace heal;
 using namespace prover;
 
+
+// TODO: this should be a facade for the logic; the candidate stuff is properly no longer needed
 
 std::unique_ptr<Solver> prover::MakeLinearizabilitySolver(const cola::Program& program) {
 	return prover::MakeSolverImpl(program);

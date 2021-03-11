@@ -3,7 +3,6 @@
 #include <memory>
 #include <deque>
 #include <unordered_map>
-// TODO: import string
 #include "antlr4-runtime.h"
 #include "CoLaVisitor.h"
 #include "cola/ast.hpp"

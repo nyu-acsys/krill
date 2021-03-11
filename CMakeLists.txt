@@ -26,7 +26,7 @@ add_definitions(-fshow-column)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # includes
-include_directories(src)
+include_directories(include)
 
 # sources/executables
 add_subdirectory(src)

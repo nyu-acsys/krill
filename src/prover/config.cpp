@@ -1,4 +1,4 @@
-#include "prover/config.hpp"
+#include "../../include/prover/config.hpp"
 
 using namespace prover;
 

@@ -1,6 +1,5 @@
 #include "heal/visitors.hpp"
 
-#include <cassert>
 #include "heal/logic.hpp"
 
 using namespace cola;
@@ -21,12 +20,6 @@ void LogicListener::visit(const ConjunctionFormula& formula) {
 	exit(formula);
 }
 
-void LogicListener::visit(const AxiomConjunctionFormula& formula) {
-	enter(formula);
-	visit_all(*this, formula.conjuncts);
-	exit(formula);
-}
-
 void LogicListener::visit(const ImplicationFormula& formula) {
 	enter(formula);
 	formula.premise->accept(*this);
@@ -34,9 +27,9 @@ void LogicListener::visit(const ImplicationFormula& formula) {
 	exit(formula);
 }
 
-void LogicListener::visit(const NegatedAxiom& formula) {
+void LogicListener::visit(const NegationFormula& formula) {
 	enter(formula);
-	formula.axiom->accept(*this);
+	formula.formula->accept(*this);
 	exit(formula);
 }
 
@@ -55,19 +48,13 @@ void LogicListener::visit(const FuturePredicate& formula) {
 
 void LogicListener::visit(const Annotation& formula) {
 	enter(formula);
-	formula.now->accept(*this);
-	visit_all(*this, formula.time);
+    formula.now->accept(*this);
+    visit_all(*this, formula.time);
 	exit(formula);
 }
 
 
 void LogicNonConstListener::visit(ConjunctionFormula& formula) {
-	enter(formula);
-	visit_all(*this, formula.conjuncts);
-	exit(formula);
-}
-
-void LogicNonConstListener::visit(AxiomConjunctionFormula& formula) {
 	enter(formula);
 	visit_all(*this, formula.conjuncts);
 	exit(formula);
@@ -80,9 +67,9 @@ void LogicNonConstListener::visit(ImplicationFormula& formula) {
 	exit(formula);
 }
 
-void LogicNonConstListener::visit(NegatedAxiom& formula) {
+void LogicNonConstListener::visit(NegationFormula& formula) {
 	enter(formula);
-	formula.axiom->accept(*this);
+	formula.formula->accept(*this);
 	exit(formula);
 }
 
@@ -102,6 +89,6 @@ void LogicNonConstListener::visit(FuturePredicate& formula) {
 void LogicNonConstListener::visit(Annotation& formula) {
 	enter(formula);
 	formula.now->accept(*this);
-	visit_all(*this, formula.time);
+    visit_all(*this, formula.time);
 	exit(formula);
 }

@@ -16,9 +16,6 @@ include_directories(${Z3_INCLUDE})
 set(SOURCES
 	config.cpp
 	error.cpp
-	util.cpp
-	flow.cpp
-	solver.cpp
 
 	# verify
 	verifyimpl/access.cpp
@@ -27,26 +24,6 @@ set(SOURCES
 	verifyimpl/proof.cpp
 	verifyimpl/renaming.cpp
 	verifyimpl/verify.cpp
-
-	# backend
-	backend/z3error.cpp
-	backend/z3expr.cpp
-	backend/z3interface.cpp
-	backend/z3encoder.cpp
-	backend/z3visitor.cpp
-	backend/z3chkimp.cpp
-
-	# solver
-	solverimpl/linsolver.cpp
-	solverimpl/make.cpp
-	solverimpl/join.cpp
-	solverimpl/scopes.cpp
-	solverimpl/post/info.cpp
-	solverimpl/post/assume.cpp
-	solverimpl/post/malloc.cpp
-	solverimpl/post/assign.cpp
-	solverimpl/post/assign_var.cpp
-	solverimpl/post/assign_deref.cpp
 )
 
 add_library(Prover ${SOURCES})

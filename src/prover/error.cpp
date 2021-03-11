@@ -1,7 +1,7 @@
-#include "prover/error.hpp"
+#include "../../include/prover/error.hpp"
 
 #include <sstream>
-#include "cola/util.hpp"
+#include "../../include/cola/util.hpp"
 
 using namespace cola;
 using namespace prover;

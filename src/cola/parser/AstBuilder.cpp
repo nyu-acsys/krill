@@ -1,6 +1,6 @@
-#include "cola/parser/AstBuilder.hpp"
+#include "AstBuilder.hpp"
 
-#include "cola/parser/TypeBuilder.hpp"
+#include "TypeBuilder.hpp"
 #include "cola/util.hpp"
 #include "cola/parse.hpp"
 #include <sstream>

@@ -1,4 +1,4 @@
-#include "prover/verify.hpp"
+#include "../../../include/prover/verify.hpp"
 
 
 using namespace cola;

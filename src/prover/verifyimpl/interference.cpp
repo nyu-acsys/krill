@@ -1,9 +1,9 @@
-#include "prover/verify.hpp"
+#include "../../../include/prover/verify.hpp"
 
 #include <map>
-#include "cola/util.hpp"
-#include "prover/config.hpp"
-#include "prover/logger.hpp" // TODO: delete
+#include "../../../include/cola/util.hpp"
+#include "../../../include/prover/config.hpp"
+#include "../../../include/prover/logger.hpp" // TODO: delete
 
 using namespace cola;
 using namespace heal;

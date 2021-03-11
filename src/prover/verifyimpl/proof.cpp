@@ -1,10 +1,10 @@
-#include "prover/verify.hpp"
+#include "../../../include/prover/verify.hpp"
 
 #include <set>
 #include <sstream>
-#include "cola/util.hpp"
-#include "prover/config.hpp"
-#include "prover/logger.hpp" // TODO:remove
+#include "../../../include/cola/util.hpp"
+#include "../../../include/prover/config.hpp"
+#include "../../../include/prover/logger.hpp" // TODO:remove
 
 using namespace cola;
 using namespace heal;

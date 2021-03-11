@@ -4,12 +4,12 @@
 #include <chrono>
 #include "tclap/CmdLine.h"
 
-#include "cola/parse.hpp"
-#include "cola/ast.hpp"
-#include "cola/util.hpp"
-#include "cola/transform.hpp"
+#include "../../include/cola/parse.hpp"
+#include "../../include/cola/ast.hpp"
+#include "../../include/cola/util.hpp"
+#include "../../include/cola/transform.hpp"
 
-#include "prover/verify.hpp"
+#include "../../include/prover/verify.hpp"
 
 using namespace TCLAP;
 using namespace cola;
