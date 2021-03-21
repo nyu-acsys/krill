@@ -115,8 +115,8 @@ struct LogicSyntacticEqualityChecker : public LogicVisitor {
 	}
 	
 	template<typename T>
-	bool is_equal(const std::deque<std::unique_ptr<T>>& conjuncts, const std::deque<std::unique_ptr<T>>& other) {
-		for (const auto& elem : conjuncts) {
+	bool is_equal(const std::deque<std::unique_ptr<T>>& elems, const std::deque<std::unique_ptr<T>>& other) {
+		for (const auto& elem : elems) {
 			bool has_match = false;
 			for (const auto& check : other) {
 				if (is_equal(*elem, *check)) {
@@ -138,33 +138,89 @@ struct LogicSyntacticEqualityChecker : public LogicVisitor {
 		}
 	}
 
-	void visit(const ConjunctionFormula& formula) override {
+	void visit(const LogicVariable& formula) override {
+		handle(formula, [](const auto& expr, const auto& other){
+			return &expr.Decl() == &other.Decl();
+		});
+	}
+
+	void visit(const SymbolicBool& formula) override {
+		handle(formula, [](const auto& expr, const auto& other){
+			return expr.value == other.value;
+		});
+	}
+
+	void visit(const SymbolicNull& formula) override {
+		handle(formula, [](const auto&, const auto&){
+			return true;
+		});
+	}
+
+	void visit(const SymbolicMin& formula) override {
+		handle(formula, [](const auto&, const auto&){
+			return true;
+		});
+	}
+
+	void visit(const SymbolicMax& formula) override {
+		handle(formula, [](const auto&, const auto&){
+			return true;
+		});
+	}
+
+
+
+	void visit(const SeparatingConjunction& formula) override {
 		handle(formula, [this](const auto& formula, const auto& other){
 			return is_equal(formula.conjuncts, other.conjuncts);
 		});
 	}
 
-	void visit(const ImplicationFormula& formula) override {
+	void visit(const FlatSeparatingConjunction& formula) override {
+		handle(formula, [this](const auto& formula, const auto& other){
+			return is_equal(formula.conjuncts, other.conjuncts);
+		});
+	}
+
+	void visit(const SeparatingImplication& formula) override {
 		handle(formula, [this](const auto& formula, const auto& other){
 			return is_equal(*formula.premise, *other.premise) && is_equal(*formula.conclusion, *other.conclusion);
 		});
 	}
 
-	void visit(const NegationFormula& formula) override {
+	void visit(const NegatedAxiom& formula) override {
 		handle(formula, [this](const auto& formula, const auto& other){
-			return is_equal(*formula.formula, *other.formula);
+			return is_equal(*formula.axiom, *other.axiom);
 		});
 	}
 
-	void visit(const ExpressionAxiom& formula) override {
+	void visit(const BoolAxiom& formula) override {
 		handle(formula, [](const auto& formula, const auto& other){
-			return heal::SyntacticallyEqual(*formula.expr, *other.expr);
+			return formula.value == other.value;
+		});
+	}
+
+	void visit(const PointsToAxiom& formula) override {
+		handle(formula, [this](const auto& formula, const auto& other){
+			return formula.fieldname == other.fieldname && is_equal(*formula.node, *other.node) && is_equal(*formula.value, *other.value);
+		});
+	}
+
+	void visit(const StackAxiom& formula) override {
+		handle(formula, [this](const auto& formula, const auto& other){
+			return formula.op == other.op && is_equal(*formula.lhs, *other.lhs) && is_equal(*formula.rhs, *other.rhs);
+		});
+	}
+
+	void visit(const StackDisjunction& formula) override {
+		handle(formula, [this](const auto& formula, const auto& other){
+			return is_equal(formula.axioms, other.axioms);
 		});
 	}
 
 	void visit(const OwnershipAxiom& formula) override {
 		handle(formula, [](const auto& formula, const auto& other){
-			return heal::SyntacticallyEqual(*formula.expr, *other.expr);
+			return heal::SyntacticallyEqual(*formula.node, *other.node);
 		});
 	}
 
@@ -190,7 +246,7 @@ struct LogicSyntacticEqualityChecker : public LogicVisitor {
 
 	void visit(const HasFlowAxiom& formula) override {
 		handle(formula, [](const auto& formula, const auto& other){
-			return heal::SyntacticallyEqual(*formula.expr, *other.expr);
+			return heal::SyntacticallyEqual(*formula.node, *other.node);
 		});
 	}
 

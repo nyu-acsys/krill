@@ -7,7 +7,6 @@ set(SOURCES
 	logic.cpp
 	visitors.cpp
 	flow.cpp
-	symbolic.cpp
 
 	# util
 	util/conjoin.cpp
@@ -18,6 +17,7 @@ set(SOURCES
 	util/simplify.cpp
 	util/print.cpp
 	util/replace.cpp
+	util/symbolic.cpp
 )
 
 add_library(HeaL ${SOURCES})

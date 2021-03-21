@@ -5,128 +5,136 @@
 using namespace cola;
 using namespace heal;
 
-
-class CopyVisitor : public LogicVisitor {
-    std::unique_ptr<Formula> resultFormula;
-    std::unique_ptr<TimePredicate> resultPredicate;
-    std::unique_ptr<Annotation> resultAnnotation;
-
-    void visit(const ConjunctionFormula& formula) override {
-        auto copy = std::make_unique<ConjunctionFormula>();
-        for (const auto& conjunct : formula.conjuncts) {
-            conjunct->accept(*this);
-            copy->conjuncts.push_back(std::move(resultFormula));
-        }
-        resultFormula = std::move(copy);
+template<typename T>
+std::deque<std::unique_ptr<T>> CopyAll(const std::deque<std::unique_ptr<T>>& elems) {
+    std::deque<std::unique_ptr<T>> result;
+    for (const auto& elem : elems) {
+        result.push_back(heal::Copy(*elem));
     }
-
-    void visit(const ImplicationFormula& formula) override {
-        formula.premise->accept(*this);
-        auto premise = std::move(resultFormula);
-        formula.conclusion->accept(*this);
-        auto conclusion = std::move(resultFormula);
-        resultFormula = std::make_unique<ImplicationFormula>(std::move(premise), std::move(conclusion));
-    }
-
-    void visit(const NegationFormula& formula) override {
-        formula.formula->accept(*this);
-        resultFormula = std::make_unique<NegationFormula>(std::move(resultFormula));
-    }
-
-    void visit(const ExpressionAxiom& formula) override {
-        resultFormula = std::make_unique<ExpressionAxiom>(cola::copy(*formula.expr));
-    }
-
-    void visit(const OwnershipAxiom& formula) override {
-        resultFormula = std::make_unique<OwnershipAxiom>(std::make_unique<VariableExpression>(formula.expr->decl));
-    }
-
-    void visit(const DataStructureLogicallyContainsAxiom& formula) override {
-        resultFormula = std::make_unique<DataStructureLogicallyContainsAxiom>(cola::copy(*formula.value));
-    }
-
-    void visit(const NodeLogicallyContainsAxiom& formula) override {
-        resultFormula = std::make_unique<NodeLogicallyContainsAxiom>(cola::copy(*formula.node), cola::copy(*formula.value));
-    }
-
-    void visit(const KeysetContainsAxiom& formula) override {
-        resultFormula = std::make_unique<KeysetContainsAxiom>(cola::copy(*formula.node), cola::copy(*formula.value));
-    }
-
-    void visit(const HasFlowAxiom& formula) override {
-        resultFormula = std::make_unique<HasFlowAxiom>(cola::copy(*formula.expr));
-    }
-
-    void visit(const FlowContainsAxiom& formula) override {
-        resultFormula = std::make_unique<FlowContainsAxiom>(cola::copy(*formula.node), cola::copy(*formula.value_low), cola::copy(*formula.value_high));
-    }
-
-    void visit(const UniqueInflowAxiom& formula) override {
-        resultFormula = std::make_unique<UniqueInflowAxiom>(cola::copy(*formula.node));
-    }
-
-    void visit(const ObligationAxiom& formula) override {
-        resultFormula = std::make_unique<ObligationAxiom>(formula.kind, std::make_unique<VariableExpression>(formula.key->decl));
-    }
-
-    void visit(const FulfillmentAxiom& formula) override {
-        resultFormula = std::make_unique<FulfillmentAxiom>(formula.kind, std::make_unique<VariableExpression>(formula.key->decl), formula.return_value);
-    }
-
-    void visit(const PastPredicate& predicate) override {
-        predicate.formula->accept(*this);
-        resultPredicate = std::make_unique<PastPredicate>(std::move(resultFormula));
-    }
-
-    void visit(const FuturePredicate& predicate) override {
-        predicate.pre->accept(*this);
-        auto pre = std::move(resultFormula);
-        predicate.post->accept(*this);
-        auto post = std::move(resultFormula);
-        auto cmd = std::make_unique<Assignment>(cola::copy(*predicate.command->lhs), cola::copy(*predicate.command->rhs));
-        resultPredicate = std::make_unique<FuturePredicate>(std::move(pre), std::move(cmd), std::move(post));
-    }
-
-    void visit(const Annotation& annotation) override {
-        resultAnnotation = std::make_unique<Annotation>();
-        annotation.now->accept(*this);
-        resultAnnotation->now = std::move(resultFormula);
-        for (const auto& predicate : annotation.time) {
-            predicate->accept(*this);
-            resultAnnotation->time.push_back(std::move(resultPredicate));
-        }
-    }
-
-    template<typename T>
-    static CopyVisitor Handle(const T& object) {
-        CopyVisitor visitor;
-        object.accept(visitor);
-        return visitor;
-    }
-
-    public:
-    static std::unique_ptr<Formula> Copy(const Formula& formula) {
-        auto visitor = Handle(formula);
-        return std::move(visitor.resultFormula);
-    }
-    static std::unique_ptr<TimePredicate> Copy(const TimePredicate& predicate) {
-        auto visitor = Handle(predicate);
-        return std::move(visitor.resultPredicate);
-    }
-    static std::unique_ptr<Annotation> Copy(const Annotation& annotation) {
-        auto visitor = Handle(annotation);
-        return std::move(visitor.resultAnnotation);
-    }
-};
-
-std::unique_ptr<Formula> heal::Copy(const Formula& formula) {
-    return CopyVisitor::Copy(formula);
+    return result;
 }
 
-std::unique_ptr<TimePredicate> heal::Copy(const TimePredicate& predicate) {
-    return CopyVisitor::Copy(predicate);
+std::unique_ptr<LogicVariable> heal::Copy(const LogicVariable& expression) {
+    return std::make_unique<LogicVariable>(expression.Decl());
+}
+
+std::unique_ptr<SeparatingConjunction> heal::Copy(const SeparatingConjunction& formula) {
+    return std::make_unique<SeparatingConjunction>(CopyAll(formula.conjuncts));
+}
+
+std::unique_ptr<FlatSeparatingConjunction> heal::Copy(const FlatSeparatingConjunction& formula) {
+    return std::make_unique<FlatSeparatingConjunction>(CopyAll(formula.conjuncts));
+}
+
+std::unique_ptr<StackAxiom> heal::Copy(const StackAxiom& formula) {
+    return std::make_unique<StackAxiom>(heal::Copy(*formula.lhs), formula.op, heal::Copy(*formula.rhs));
 }
 
 std::unique_ptr<Annotation> heal::Copy(const Annotation& annotation) {
-    return CopyVisitor::Copy(annotation);
+    return std::make_unique<Annotation>(heal::Copy(*annotation.now), CopyAll(annotation.time));
+}
+
+struct StackExpressionReplicator : public BaseLogicVisitor {
+    std::unique_ptr<StackExpression> result;
+
+    void visit(const LogicVariable& expression) override { result = heal::Copy(expression); }
+    void visit(const SymbolicBool& expression) override { result = std::make_unique<SymbolicBool>(expression.value); }
+    void visit(const SymbolicNull& /*expression*/) override { result = std::make_unique<SymbolicNull>(); }
+    void visit(const SymbolicMin& /*expression*/) override { result = std::make_unique<SymbolicMin>(); }
+    void visit(const SymbolicMax& /*expression*/) override { result = std::make_unique<SymbolicMax>(); }
+
+};
+
+std::unique_ptr<StackExpression> heal::Copy(const StackExpression& expression) {
+    static StackExpressionReplicator replicator;
+    expression.accept(replicator);
+    return std::move(replicator.result);
+}
+
+struct AxiomReplicator : public BaseLogicVisitor {
+    std::unique_ptr<Axiom> result;
+
+    void visit(const StackAxiom& formula) override {
+        result = heal::Copy(formula);
+    }
+    void visit(const BoolAxiom& formula) override {
+        result = std::make_unique<BoolAxiom>(formula.value);
+    }
+    void visit(const NegatedAxiom& formula) override {
+        formula.axiom->accept(*this);
+        result = std::make_unique<NegatedAxiom>(std::move(result));
+    }
+    void visit(const PointsToAxiom& formula) override {
+        result = std::make_unique<PointsToAxiom>(heal::Copy(*formula.node), formula.fieldname, heal::Copy(*formula.value));
+    }
+    void visit(const StackDisjunction& formula) override {
+        result = std::make_unique<StackDisjunction>(CopyAll(formula.axioms));
+    }
+    void visit(const OwnershipAxiom& formula) override {
+        result = std::make_unique<OwnershipAxiom>(heal::Copy(*formula.node));
+    }
+    void visit(const DataStructureLogicallyContainsAxiom& formula) override {
+        result = std::make_unique<DataStructureLogicallyContainsAxiom>(heal::Copy(*formula.value));
+    }
+    void visit(const NodeLogicallyContainsAxiom& formula) override {
+        result = std::make_unique<NodeLogicallyContainsAxiom>(heal::Copy(*formula.node), heal::Copy(*formula.value));
+    }
+    void visit(const KeysetContainsAxiom& formula) override {
+        result = std::make_unique<KeysetContainsAxiom>(heal::Copy(*formula.node), heal::Copy(*formula.value));
+    }
+    void visit(const HasFlowAxiom& formula) override {
+        result = std::make_unique<HasFlowAxiom>(heal::Copy(*formula.node));
+    }
+    void visit(const FlowContainsAxiom& formula) override {
+        result = std::make_unique<FlowContainsAxiom>(heal::Copy(*formula.node), heal::Copy(*formula.value_low), heal::Copy(*formula.value_high));
+    }
+    void visit(const UniqueInflowAxiom& formula) override {
+        result = std::make_unique<UniqueInflowAxiom>(heal::Copy(*formula.node));
+    }
+    void visit(const ObligationAxiom& formula) override {
+        result = std::make_unique<ObligationAxiom>(formula.kind, heal::Copy(*formula.key));
+    }
+    void visit(const FulfillmentAxiom& formula) override {
+        result = std::make_unique<FulfillmentAxiom>(formula.kind, heal::Copy(*formula.key), formula.return_value);
+    }
+
+};
+
+std::unique_ptr<Axiom> heal::Copy(const Axiom& formula) {
+    static AxiomReplicator replicator;
+    formula.accept(replicator);
+    return std::move(replicator.result);
+}
+
+struct FormulaReplicator : public BaseLogicVisitor {
+    std::unique_ptr<Formula> result;
+
+    void visit(const FlatSeparatingConjunction& formula) override { result = heal::Copy(formula); }
+    void visit(const SeparatingConjunction& formula) override { result = heal::Copy(formula); }
+    void visit(const SeparatingImplication& formula) override { result = heal::Copy(formula); }
+};
+
+std::unique_ptr<Formula> heal::Copy(const Formula& formula) {
+    static FormulaReplicator replicator;
+    formula.accept(replicator);
+    return std::move(replicator.result);
+}
+
+struct TimePredicateReplicator : public BaseLogicVisitor {
+    std::unique_ptr<TimePredicate> result;
+
+    void visit(const PastPredicate& predicate) override {
+        result = std::make_unique<PastPredicate>(heal::Copy(*predicate.formula));
+    }
+
+    void visit(const FuturePredicate& predicate) override {
+        auto assign = std::make_unique<Assignment>(cola::copy(*predicate.command->lhs), cola::copy(*predicate.command->rhs));
+        result = std::make_unique<FuturePredicate>(heal::Copy(*predicate.pre), std::move(assign), heal::Copy(*predicate.post));
+    }
+};
+
+std::unique_ptr<TimePredicate> heal::Copy(const TimePredicate& predicate) {
+    static TimePredicateReplicator replicator;
+    predicate.accept(replicator);
+    return std::move(replicator.result);
 }

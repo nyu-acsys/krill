@@ -22,7 +22,7 @@ namespace heal {
 	};
 
 
-	template<std::size_t N = 1, typename T = ConjunctionFormula, typename = std::enable_if_t<std::is_base_of_v<Formula, T>>>
+	template<std::size_t N = 1, typename T = SeparatingConjunction, typename = std::enable_if_t<std::is_base_of_v<Formula, T>>>
 	struct Property {
 		std::string name;
 		std::array<std::unique_ptr<cola::VariableDeclaration>, N> vars;
@@ -49,15 +49,12 @@ namespace heal {
 			}
 
 			// create instantiation
-			return heal::ReplaceExpression(heal::Copy(*blueprint), [&dummy2real](const cola::Expression &expr) {
-                auto[is_var, var_expr] = heal::IsOfType<cola::VariableExpression>(expr);
-                if (is_var) {
-                    auto find = dummy2real.find(&var_expr->decl);
-                    if (find != dummy2real.end()) {
-                        return std::make_pair(true, std::make_unique<cola::VariableExpression>(*find->second));
-                    }
+			return heal::Replace(heal::Copy(*blueprint), [&dummy2real](const auto& var) {
+                auto find = dummy2real.find(&var.decl);
+                if (find != dummy2real.end()) {
+                    return std::make_pair(true, std::make_unique<LogicVariable>(*find->second));
                 }
-                return std::make_pair(false, std::unique_ptr<cola::VariableExpression>(nullptr));
+                return std::make_pair(false, nullptr);
             });
 		}
 
@@ -69,8 +66,8 @@ namespace heal {
 	};
 
 
-	using Invariant = Property<1, ConjunctionFormula>;
-	using Predicate = Property<2, ConjunctionFormula>;
+	using Invariant = Property<1, SeparatingConjunction>;
+	using Predicate = Property<2, SeparatingConjunction>;
 
 } // namespace heal
 

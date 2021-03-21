@@ -4,211 +4,277 @@ using namespace cola;
 using namespace heal;
 
 
-inline BinaryExpression::Operator negatedOp(BinaryExpression::Operator op) {
-    switch (op) {
-        case BinaryExpression::Operator::EQ: return BinaryExpression::Operator::NEQ;
-        case BinaryExpression::Operator::NEQ: return BinaryExpression::Operator::EQ;
-        case BinaryExpression::Operator::LEQ: return BinaryExpression::Operator::GT;
-        case BinaryExpression::Operator::LT: return BinaryExpression::Operator::GEQ;
-        case BinaryExpression::Operator::GEQ: return BinaryExpression::Operator::LT;
-        case BinaryExpression::Operator::GT: return BinaryExpression::Operator::LEQ;
-        default:
-            throw std::logic_error("Cannot negate " + cola::toString(op) + "."); // TODO: custom error subclass
-    }
-}
+struct ConstantChecker : public BaseLogicVisitor {
+    enum VALUE { TRUE, FALSE, UNKNOWN };
+    VALUE result;
 
-std::unique_ptr<cola::Expression> heal::Simplify(std::unique_ptr<cola::Expression> expression) {
-    if (auto negation = dynamic_cast<NegatedExpression*>(expression.get())) {
-        if (auto boolean = dynamic_cast<BooleanValue*>(negation->expr.get())) {
-            return MakeBoolExpr(!boolean->value);
-        }
-        if (auto binary = dynamic_cast<BinaryExpression*>(negation->expr.get())) {
-            if (binary->op == BinaryExpression::Operator::OR) {
-                binary->lhs = heal::Simplify(std::move(binary->lhs));
-                binary->rhs = heal::Simplify(std::move(binary->rhs));
-                return std::move(negation->expr);
-            } else if (binary->op != BinaryExpression::Operator::AND) {
-                binary->op = negatedOp(binary->op);
-                return std::move(negation->expr);
-            }
+    static inline VALUE Invert(VALUE value) {
+        switch (value) {
+            case TRUE: return FALSE;
+            case FALSE: return TRUE;
+            case UNKNOWN: return UNKNOWN;
         }
     }
-    return expression;
-}
 
-std::unique_ptr<Formula> FlattenExpression(std::unique_ptr<Expression> expression) {
-    expression = heal::Simplify(std::move(expression));
-    if (auto negation = dynamic_cast<NegatedExpression*>(expression.get())) {
-        return heal::Simplify(heal::MakeNegation(FlattenExpression(std::move(negation->expr))));
-    }
-    if (auto binary = dynamic_cast<BinaryExpression*>(expression.get())) {
-        if (binary->op == BinaryExpression::Operator::AND) {
-            return heal::Simplify(heal::MakeConjunction(FlattenExpression(std::move(binary->lhs)), FlattenExpression(std::move(binary->rhs))));
+    static inline VALUE And(VALUE value, VALUE other) {
+        switch (value) {
+            case TRUE: return other;
+            case FALSE: return other == UNKNOWN ? UNKNOWN : FALSE;
+            case UNKNOWN: return UNKNOWN;
         }
     }
-    return heal::MakeAxiom(std::move(expression));
-}
 
-struct FormulaSimplifier : public DefaultNonConstListener {
-    std::unique_ptr<Formula> result;
-
-    static const ExpressionAxiom& True() {
-        static ExpressionAxiom trueAxiom = ExpressionAxiom(heal::MakeTrueExpr());
-        return trueAxiom;
+    static inline VALUE Or(VALUE value, VALUE other) {
+        switch (value) {
+            case TRUE: return other == UNKNOWN ? UNKNOWN : TRUE;
+            case FALSE: return other;
+            case UNKNOWN: return UNKNOWN;
+        }
     }
 
-    static const ExpressionAxiom& False() {
-        static ExpressionAxiom falseAxiom = ExpressionAxiom(heal::MakeFalseExpr());
-        return falseAxiom;
+    template<typename T, typename C>
+    void HandleConjunction(const T& elements, const C& combine, VALUE init) {
+        VALUE oldResult = init;
+        for (const auto& conjunct : elements) {
+            conjunct->accept(*this);
+            result = combine(oldResult, result);
+            if (result == UNKNOWN) break;
+        }
     }
 
-    static std::unique_ptr<ExpressionAxiom> MakeTrue() {
-        return heal::MakeAxiom(heal::MakeTrueExpr());
+    void visit(const FlatSeparatingConjunction& formula) override {
+        HandleConjunction(formula.conjuncts, And, TRUE);
     }
 
-    static std::unique_ptr<ExpressionAxiom> MakeFalse() {
-        return heal::MakeAxiom(heal::MakeFalseExpr());
+    void visit(const SeparatingConjunction& formula) override {
+        HandleConjunction(formula.conjuncts, And, TRUE);
     }
 
-    static bool IsTrue(const std::unique_ptr<Formula>& obj) {
-        return heal::SyntacticallyEqual(*obj, True());
+    void visit(const StackDisjunction& axiom) override {
+        HandleConjunction(axiom.axioms, Or, FALSE);
     }
 
-    static bool IsFalse(const std::unique_ptr<Formula>& obj) {
-        return heal::SyntacticallyEqual(*obj, False());
-    }
-
-    void enter(ExpressionAxiom& formula) override {
-        assert(&formula == result.get());
-        result = FlattenExpression(std::move(formula.expr));
-    }
-
-    void enter(DataStructureLogicallyContainsAxiom& formula) override {
-        assert(&formula == result.get());
-        formula.value = heal::Simplify(std::move(formula.value));
-    }
-
-    void enter(NodeLogicallyContainsAxiom& formula) override {
-        assert(&formula == result.get());
-        formula.node = heal::Simplify(std::move(formula.node));
-        formula.value = heal::Simplify(std::move(formula.value));
-    }
-
-    void enter(KeysetContainsAxiom& formula) override {
-        assert(&formula == result.get());
-        formula.node = heal::Simplify(std::move(formula.node));
-        formula.value = heal::Simplify(std::move(formula.value));
-    }
-
-    void enter(HasFlowAxiom& formula) override {
-        assert(&formula == result.get());
-        formula.expr = heal::Simplify(std::move(formula.expr));
-    }
-
-    void enter(FlowContainsAxiom& formula) override {
-        assert(&formula == result.get());
-        formula.node = heal::Simplify(std::move(formula.node));
-        formula.value_low = heal::Simplify(std::move(formula.value_low));
-        formula.value_high = heal::Simplify(std::move(formula.value_high));
-    }
-
-    void enter(UniqueInflowAxiom& formula) override {
-        assert(&formula == result.get());
-        formula.node = heal::Simplify(std::move(formula.node));
-    }
-
-    void exit(ImplicationFormula& formula) override {
-        assert(&formula == result.get());
-        if (IsFalse(formula.premise)) result = MakeTrue();
-        else if (IsTrue(formula.conclusion)) result = MakeTrue();
-        else if (IsTrue(formula.premise)) result = std::move(formula.conclusion);
-        else if (IsFalse(formula.conclusion)) result = std::make_unique<NegationFormula>(std::move(formula.premise));
-    }
-
-    void exit(ConjunctionFormula& formula) override {
-        assert(&formula == result.get());
-
-        // false conjunct makes entire formula false
-        if (formula.conjuncts.end() != std::find_if(formula.conjuncts.begin(), formula.conjuncts.end(), IsFalse)) {
-            result = MakeFalse();
+    void visit(const SeparatingImplication& formula) override {
+        formula.premise->accept(*this);
+        if (result == FALSE) {
+            result = TRUE;
             return;
         }
-
-        // flatten nested conjunctions
-        std::deque<std::unique_ptr<Formula>> pullOut;
-        for (auto& conjunct : formula.conjuncts) {
-            if (auto nestedConjunction = dynamic_cast<ConjunctionFormula*>(conjunct.get())) {
-                std::move(nestedConjunction->conjuncts.begin(), nestedConjunction->conjuncts.end(), std::back_inserter(pullOut));
-                conjunct = MakeTrue();
-            }
-        }
-        std::move(pullOut.begin(), pullOut.end(), std::back_inserter(formula.conjuncts));
-
-        // remove duplicates
-        for (auto iter = formula.conjuncts.begin(); iter != formula.conjuncts.end(); ++iter) {
-            for (auto other = std::next(iter); other != formula.conjuncts.end(); ++iter) {
-                if (heal::SyntacticallyEqual(**iter, **other)) *other = MakeTrue();
-            }
-        }
-
-        // true conjuncts are redundant
-        formula.conjuncts.erase(std::remove_if(formula.conjuncts.begin(), formula.conjuncts.end(), IsTrue), formula.conjuncts.end());
-
-        // no conjuncts means true
-        if (formula.conjuncts.empty()) result = MakeTrue();
-
-        // one conjunct means simple formula
-        if (formula.conjuncts.size() == 1) result = std::move(formula.conjuncts.front());
-    }
-
-    void exit(NegationFormula& formula) override {
-        assert(&formula == result.get());
-        if (IsTrue(formula.formula)) result = MakeFalse();
-        else if (IsFalse(formula.formula)) result = MakeTrue();
-        else if (auto implication = dynamic_cast<ImplicationFormula*>(formula.formula.get())) {
-            // rewrite negated implication into a conjunction
-            result = heal::MakeConjunction(std::move(implication->premise), heal::MakeNegation(std::move(implication->conclusion)));
-        } else if (auto negation = dynamic_cast<NegationFormula*>(formula.formula.get())) {
-            // remove double negation
-            result = std::move(negation->formula);
+        formula.conclusion->accept(*this);
+        if (result != TRUE) {
+            result = UNKNOWN;
         }
     }
 
-    std::unique_ptr<Formula> Simplify(std::unique_ptr<Formula> formula) {
-        auto uPtr = std::move(result); // allow recursive decent
-        result = std::move(formula);
-        result->accept(*this);
-        result.swap(uPtr);
-        return uPtr;
+    void visit(const NegatedAxiom& axiom) override {
+        axiom.axiom->accept(*this);
+        result = Invert(result);
+    }
+
+    void visit(const StackAxiom& axiom) override {
+        if (heal::SyntacticallyEqual(*axiom.lhs, *axiom.rhs)) {
+            switch (axiom.op) {
+                case StackAxiom::LEQ:
+                case StackAxiom::GEQ:
+                case StackAxiom::EQ:
+                    result = TRUE;
+                case StackAxiom::NEQ:
+                case StackAxiom::LT:
+                case StackAxiom::GT:
+                    result = FALSE;
+            }
+        } else {
+            // TODO: there are more cases that can be detected syntactically (involving only constants)
+            result = UNKNOWN;
+        }
+    }
+
+    void visit(const BoolAxiom& axiom) override {
+        result = axiom.value ? TRUE : FALSE;
+    }
+
+    void visit(const PointsToAxiom& /*formula*/) override { result = UNKNOWN; }
+    void visit(const OwnershipAxiom& /*formula*/) override { result = UNKNOWN; }
+    void visit(const DataStructureLogicallyContainsAxiom& /*formula*/) override { result = UNKNOWN; }
+    void visit(const NodeLogicallyContainsAxiom& /*formula*/) override { result = UNKNOWN; }
+    void visit(const KeysetContainsAxiom& /*formula*/) override { result = UNKNOWN; }
+    void visit(const HasFlowAxiom& /*formula*/) override { result = UNKNOWN; }
+    void visit(const FlowContainsAxiom& /*formula*/) override { result = UNKNOWN; }
+    void visit(const UniqueInflowAxiom& /*formula*/) override { result = UNKNOWN; }
+    void visit(const ObligationAxiom& /*formula*/) override { result = UNKNOWN; }
+    void visit(const FulfillmentAxiom& /*formula*/) override { result = UNKNOWN; }
+};
+
+static bool IsTrue(const LogicObject& object) {
+    static ConstantChecker checker;
+    object.accept(checker);
+    return checker.result == ConstantChecker::TRUE;
+}
+
+static bool IsFalse(const LogicObject& object) {
+    static ConstantChecker checker;
+    object.accept(checker);
+    return checker.result == ConstantChecker::FALSE;
+}
+
+static StackAxiom::Operator NegateOperator(StackAxiom::Operator op) {
+    switch (op) {
+        case StackAxiom::EQ: return StackAxiom::NEQ;
+        case StackAxiom::NEQ: return StackAxiom::EQ;
+        case StackAxiom::LEQ: return StackAxiom::GT;
+        case StackAxiom::LT: return StackAxiom::GEQ;
+        case StackAxiom::GEQ: return StackAxiom::LT;
+        case StackAxiom::GT: return StackAxiom::LEQ;
+    }
+}
+
+template<typename T>
+void FlattenAxiom(std::unique_ptr<T>& axiom, bool rewriteBool=true) {
+    if (auto negation = dynamic_cast<NegatedAxiom*>(axiom.get())) {
+        if (auto stack = dynamic_cast<StackAxiom *>(negation->axiom.get())) {
+            axiom = heal::MakeStackAxiom(std::move(stack->lhs), NegateOperator(stack->op), std::move(stack->rhs));
+
+        } else if (auto subnegation = dynamic_cast<NegatedAxiom *>(negation->axiom.get())) {
+            axiom = std::move(subnegation->axiom);
+        }
+
+    } else if (auto disjunction = dynamic_cast<StackDisjunction*>(axiom.get())) {
+        if (disjunction->axioms.size() == 1) {
+            axiom = std::move(disjunction->axioms.front());
+        }
+
+    } else if (rewriteBool && IsTrue(*axiom)) {
+        axiom = heal::MakeBoolAxiom(true);
+    } else if (rewriteBool && IsFalse(*axiom)) {
+        axiom = heal::MakeBoolAxiom(false);
+    }
+}
+
+template<typename T>
+void FlattenFlatFormula(std::unique_ptr<T>& formula) {
+    FlattenAxiom(formula, false);
+
+    if (auto conjunction = dynamic_cast<FlatSeparatingConjunction*>(formula.get())) {
+        if (conjunction->conjuncts.empty()) formula = heal::MakeBoolAxiom(true);
+        else if (conjunction->conjuncts.size() == 1) formula = std::move(conjunction->conjuncts.front());
+
+    } else if (auto negation = dynamic_cast<NegatedAxiom*>(formula.get())) {
+        if (auto disjunction = dynamic_cast<StackDisjunction*>(negation->axiom.get())) {
+            auto result = std::make_unique<FlatSeparatingConjunction>();
+            std::move(disjunction->axioms.begin(), disjunction->axioms.end(), std::back_inserter(result->conjuncts));
+            formula = std::move(result);
+        }
+    }
+}
+
+template<typename T>
+void FlattenFormula(std::unique_ptr<T>& formula) {
+    FlattenFlatFormula(formula);
+
+    if (auto implication = dynamic_cast<SeparatingImplication*>(formula.get())) {
+        if (IsTrue(*implication->premise)) { formula = std::move(implication->conclusion); }
+        else if (IsFalse(*implication->premise)) { formula = heal::MakeBoolAxiom(true); }
+        else if (IsTrue(*implication->conclusion)) { formula = heal::MakeBoolAxiom(true); }
+        else if (IsFalse(*implication->conclusion)) { implication->conclusion = heal::MakeBoolAxiom(false); } // cannot encode negation of implication->premise
+    }
+}
+
+void FlattenConjunction(std::deque<std::unique_ptr<Formula>>& container) {
+    for (auto& element : container) {
+        FlattenFormula(element);
+    }
+
+    // remove nested conjunctions
+    std::deque<std::unique_ptr<Formula>> pullDown;
+    for (auto& element : container) {
+        if (auto conjunction = dynamic_cast<SeparatingConjunction*>(element.get())) {
+            std::move(conjunction->conjuncts.begin(), conjunction->conjuncts.end(), std::back_inserter(pullDown));
+            element = heal::MakeBoolAxiom(true);
+        } else if (auto flatConjunction = dynamic_cast<FlatSeparatingConjunction*>(element.get())) {
+            std::move(flatConjunction->conjuncts.begin(), flatConjunction->conjuncts.end(), std::back_inserter(pullDown));
+            element = heal::MakeBoolAxiom(true);
+        }
+    }
+}
+
+template<typename T>
+void RemoveDuplicates(std::deque<std::unique_ptr<T>>& container) {
+    // reset duplicates
+    for (auto it = container.begin(); it != container.end(); ++it) {
+        for (auto other = std::next(it); other != container.end(); ++other) {
+            if (heal::SyntacticallyEqual(**it, **other)) {
+                other->reset();
+            }
+        }
+    }
+
+    // remove duplicates
+    container.erase(std::remove_if(container.begin(), container.end(), [](const auto& uptr)->bool{
+        return uptr.get() != nullptr;
+    }), container.end());
+}
+
+template<typename T>
+void RemoveElementIf(std::deque<std::unique_ptr<T>>& container, const std::function<bool(const LogicObject&)>& predicate) {
+    container.erase(std::remove_if(container.begin(), container.end(), [&predicate](const auto& uptr){
+        return predicate(*uptr);
+    }), container.end());
+}
+
+template<typename T>
+[[nodiscard]] bool ContainsElementIf(std::deque<std::unique_ptr<T>>& container, const std::function<bool(const LogicObject&)>& predicate) {
+    return container.end() != std::find_if(container.begin(), container.end(), [&predicate](const auto& uptr){
+        return predicate(*uptr);
+    });
+}
+
+struct Simplifier : public DefaultLogicNonConstListener {
+    template<typename T>
+    void ExitConjunction(T& formula) {
+        RemoveDuplicates(formula.conjuncts);
+        RemoveElementIf(formula.conjuncts, IsTrue);
+        if (formula.conjuncts.empty()) {
+            formula.conjuncts.push_back(heal::MakeBoolAxiom(true));
+        } else if (ContainsElementIf(formula.conjuncts, IsFalse)) {
+            formula.conjuncts.clear();
+            formula.conjuncts.push_back(heal::MakeBoolAxiom(false));
+        }
+    }
+    void exit(SeparatingConjunction& formula) override { FlattenConjunction(formula.conjuncts); ExitConjunction(formula); }
+    void exit(FlatSeparatingConjunction& formula) override { ExitConjunction(formula); }
+
+    void exit(SeparatingImplication& formula) override {
+        FlattenFlatFormula(formula.premise);
+        FlattenFlatFormula(formula.conclusion);
+    }
+
+    void exit(StackDisjunction& axiom) override {
+        RemoveDuplicates(axiom.axioms);
+        RemoveElementIf(axiom.axioms, IsFalse);
+        if (axiom.axioms.empty()) {
+            axiom.axioms.push_back(heal::MakeStackAxiom(heal::MakeMin(), StackAxiom::NEQ, heal::MakeMin())); // add false axiom
+        } else if (ContainsElementIf(axiom.axioms, IsTrue)) {
+            axiom.axioms.clear();
+            axiom.axioms.push_back(heal::MakeStackAxiom(heal::MakeMin(), StackAxiom::EQ, heal::MakeMin())); // add true axiom
+        }
+    }
+
+    void exit(NegatedAxiom& axiom) override {
+        FlattenAxiom(axiom.axiom);
+    }
+
+     void exit(PastPredicate& predicate) override {
+         FlattenFormula(predicate.formula);
+    }
+
+     void exit(FuturePredicate& predicate) override {
+         FlattenFormula(predicate.pre);
+         FlattenFormula(predicate.post);
     }
 };
 
-std::unique_ptr<Formula> heal::Simplify(std::unique_ptr<Formula> formula) {
-    static FormulaSimplifier simplifier;
-    return simplifier.Simplify(std::move(formula));
-}
 
-struct TimePredicateSimplifier : public DefaultNonConstListener {
-    void enter(PastPredicate& predicate) override {
-        predicate.formula = heal::Simplify(std::move(predicate.formula));
-    }
-
-    void enter(FuturePredicate& predicate) override {
-        predicate.pre = heal::Simplify(std::move(predicate.pre));
-        predicate.post = heal::Simplify(std::move(predicate.post));
-    }
-};
-
-std::unique_ptr<TimePredicate> heal::Simplify(std::unique_ptr<TimePredicate> predicate) {
-    static TimePredicateSimplifier simplifier;
-    predicate->accept(simplifier);
-    return predicate;
-}
-
-std::unique_ptr<Annotation> heal::Simplify(std::unique_ptr<Annotation> annotation) {
-    auto result = std::make_unique<Annotation>(Simplify(std::move(annotation->now)));
-    for (auto& predicate : annotation->time) {
-        result->time.push_back(Simplify(std::move(predicate)));
-    }
-    return result;
+void heal::Simplify(LogicObject& object) {
+    static Simplifier simplifier;
+    object.accept(simplifier);
 }

@@ -7,18 +7,45 @@ using namespace cola;
 using namespace heal;
 
 
-const std::string AND_STR = "  ∧  "; // TODO: constexpr std::string_view AND_STR = "  ∧  "sv;
-const std::string EMPTY_STR = "true";
+static constexpr std::string_view STAR_STR = "  *  ";
+static constexpr std::string_view OR_STR = "  ∨  ";
+static constexpr std::string_view EMPTY_STR = "true";
+
+
+std::string heal::ToString(const LogicObject& object) {
+    std::stringstream stream;
+    heal::Print(object, stream);
+    return stream.str();
+}
+
+std::string heal::ToString(SpecificationAxiom::Kind kind) {
+    switch (kind) {
+        case SpecificationAxiom::Kind::CONTAINS: return "contains";
+        case SpecificationAxiom::Kind::INSERT: return "insert";
+        case SpecificationAxiom::Kind::DELETE: return "delete";
+    }
+}
+
+std::string heal::ToString(StackAxiom::Operator op) {
+    switch (op) {
+        case StackAxiom::EQ: return "=";
+        case StackAxiom::NEQ: return "≠";
+        case StackAxiom::GT: return ">";
+        case StackAxiom::GEQ: return "≥";
+        case StackAxiom::LT: return "<";
+        case StackAxiom::LEQ: return "≤";
+    }
+}
 
 
 inline void print_spec(const SpecificationAxiom& spec, std::ostream& stream) {
-	stream << heal::to_string(spec.kind) << "(";
-	cola::print(*spec.key, stream);
+	stream << heal::ToString(spec.kind) << "(";
+	heal::Print(*spec.key, stream);
 	stream << ")";
 }
 
 template<typename T, typename U>
-void print_elems(std::ostream& stream, const T& elems, U printer, std::string delim=AND_STR, std::string empty=EMPTY_STR) {
+void print_elems(std::ostream& stream, const T& elems, U printer, std::string_view delim=STAR_STR, std::string_view empty=EMPTY_STR) {
 	if (elems.empty()) {
 		stream << empty;
 	} else {
@@ -38,84 +65,124 @@ struct FormulaPrinter : public LogicVisitor {
 	std::ostream& stream;
 	explicit FormulaPrinter(std::ostream& stream_) : stream(stream_) {}
 
-	template<typename T>
-	static void print(const T& obj, std::ostream& stream) {
-		FormulaPrinter printer(stream);
-		obj.accept(printer);
+    void visit(const LogicVariable& expression) override {
+	    stream << expression.Decl().name;
 	}
 
-	void visit(const ConjunctionFormula& formula) override {
-		print_elems(stream, formula.conjuncts, [this](const auto& e){
-			e->accept(*this);
-		});
+    void visit(const SymbolicBool& expression) override {
+        stream << (expression.value ? "true" : "false");
 	}
 
-	void visit(const ImplicationFormula& formula) override {
+    void visit(const SymbolicNull& /*expression*/) override {
+        stream << "NULL";
+	}
+
+    void visit(const SymbolicMin& /*expression*/) override {
+        stream << "MIN_VAL";
+	}
+
+    void visit(const SymbolicMax& /*expression*/) override {
+        stream << "MAX_VAL";
+	}
+
+    void visit(const SeparatingConjunction& formula) override {
+        print_elems(stream, formula.conjuncts, [this](const auto& e){
+            e->accept(*this);
+        });
+    }
+
+    void visit(const FlatSeparatingConjunction& formula) override {
+        print_elems(stream, formula.conjuncts, [this](const auto& e){
+            e->accept(*this);
+        });
+    }
+
+	void visit(const SeparatingImplication& formula) override {
 		stream << "[";
 		formula.premise->accept(*this);
-		stream << "]==>";
+		stream << "]--*";
 		stream << "[";
 		formula.conclusion->accept(*this);
 		stream << "]";
 	}
 
-	void visit(const NegationFormula& formula) override {
-		stream << "¬[";
-		formula.formula->accept(*this);
-		stream << "]";
+	void visit(const NegatedAxiom& formula) override {
+		stream << "¬";
+		formula.axiom->accept(*this);
+		stream << "";
 	}
 
-	void visit(const ExpressionAxiom& formula) override {
-		cola::print(*formula.expr, stream);
+	void visit(const BoolAxiom& formula) override {
+        stream << (formula.value ? "true" : "false");
+	}
+
+    void visit(const PointsToAxiom& formula) override {
+        formula.node->accept(*this);
+        stream << "." << formula.fieldname << "↦";
+        formula.value->accept(*this);
+	}
+
+    void visit(const StackAxiom& formula) override {
+        formula.lhs->accept(*this);
+        stream << " " << heal::ToString(formula.op) << " ";
+        formula.rhs->accept(*this);
+	}
+
+    void visit(const StackDisjunction& formula) override {
+        stream << "[";
+        print_elems(stream, formula.axioms, [this](const auto& e){
+            e->accept(*this);
+        }, OR_STR);
+        stream << "]";
 	}
 
 	void visit(const OwnershipAxiom& formula) override {
 		stream << "@owned(";
-		cola::print(*formula.expr, stream);
+		formula.node->accept(*this);
 		stream << ")";
 	}
 
 	void visit(const DataStructureLogicallyContainsAxiom& formula) override {
 		stream << "@DScontains(";
-		cola::print(*formula.value, stream);
+        formula.value->accept(*this);
 		stream << ")";
 	}
 
 	void visit(const NodeLogicallyContainsAxiom& formula) override {
 		stream << "@lcontains(";
-		cola::print(*formula.node, stream);
+        formula.node->accept(*this);
 		stream << ", ";
-		cola::print(*formula.value, stream);
+        formula.value->accept(*this);
 		stream << ")";
 	}
 
 	void visit(const KeysetContainsAxiom& formula) override {
 		stream << "@KScontained(";
-		cola::print(*formula.node, stream);
+        formula.node->accept(*this);
 		stream << ", ";
-		cola::print(*formula.value, stream);
+        formula.value->accept(*this);
 		stream << ")";
 	}
 
 	void visit(const HasFlowAxiom& formula) override {
 		stream << "@flow(";
-		cola::print(*formula.expr, stream);
+        formula.node->accept(*this);
 		stream << ")≠⊥";
 	}
 
 	void visit(const FlowContainsAxiom& formula) override {
 		stream << "@flowContains(";
-		cola::print(*formula.node, stream);
+        formula.node->accept(*this);
 		stream << "[";
-		cola::print(*formula.value_low, stream);
+        formula.value_low->accept(*this);
 		stream << ", ";
-		cola::print(*formula.value_high, stream);
+        formula.value_high->accept(*this);
 		stream << "])";
 	}
 
 	void visit(const UniqueInflowAxiom& formula) override {
 		stream << "@inflowUnique(";
-		cola::print(*formula.node, stream);
+        formula.node->accept(*this);
 		stream << ")";
 	}
 
@@ -150,7 +217,7 @@ struct FormulaPrinter : public LogicVisitor {
 		stream << "{" << std::endl << "    " ;
         annotation.now->accept(*this);
         if (!annotation.time.empty()) {
-            stream << AND_STR;
+            stream << STAR_STR;
             print_elems(stream, annotation.time, [this](const auto &e) {
                 e->accept(*this);
             });
@@ -161,5 +228,6 @@ struct FormulaPrinter : public LogicVisitor {
 };
 
 void heal::Print(const LogicObject& object, std::ostream& stream) {
-	FormulaPrinter::print(object, stream);
+    FormulaPrinter printer(stream);
+    object.accept(printer);
 }

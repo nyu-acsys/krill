@@ -1,24 +1,27 @@
 #include "heal/util.hpp"
 
-#include "heal/symbolic.hpp"
-
 using namespace cola;
 using namespace heal;
 
 
 static constexpr bool SIMPLIFY_CONJUNCTION = true; // TODO: have a configuration file for this
 
-std::unique_ptr<Formula> heal::Conjoin(std::unique_ptr<Formula> formula, std::unique_ptr<Formula> other) {
-    auto result = heal::MakeConjunction(std::move(formula), std::move(other));
-    if (!SIMPLIFY_CONJUNCTION) return result;
-    return heal::Simplify(std::move(result));
+template<typename T>
+std::unique_ptr<T> PostProcess(std::unique_ptr<T> ptr) {
+    if (SIMPLIFY_CONJUNCTION) heal::Simplify(*ptr);
+    return ptr;
 }
 
-std::unique_ptr<Annotation> heal::Conjoin(std::unique_ptr<Annotation> annotation, std::unique_ptr<Annotation> other) {
-    other = heal::RenameSymbolicVariables(std::move(other), *annotation);
-    annotation->now = heal::Conjoin(std::move(annotation->now), std::move(other->now));
-    for (auto& pred : other->time) {
-        annotation->time.push_back(std::move(pred));
-    }
-    return annotation;
+std::unique_ptr<SeparatingConjunction> heal::Conjoin(std::unique_ptr<Formula> formula, std::unique_ptr<Formula> other) {
+    return PostProcess(heal::MakeConjunction(std::move(formula), std::move(other)));
+}
+
+std::unique_ptr<FlatSeparatingConjunction> heal::Conjoin(std::unique_ptr<FlatFormula> formula, std::unique_ptr<FlatFormula> other) {
+    return PostProcess(heal::MakeFlatConjunction(std::move(formula), std::move(other)));
+}
+
+std::unique_ptr<Annotation> Conjoin(std::unique_ptr<Annotation> annotation, std::unique_ptr<Annotation> other) {
+    std::move(other->now->conjuncts.begin(), other->now->conjuncts.end(), std::back_inserter(annotation->now->conjuncts));
+    std::move(other->time.begin(), other->time.end(), std::back_inserter(annotation->time));
+    return PostProcess(std::move(annotation));
 }
