@@ -9,6 +9,8 @@ using namespace heal;
 using namespace prover;
 using parallel_assignment_t = Solver::parallel_assignment_t;
 
+//TODO:
+//[[nodiscard]] std::unique_ptr<heal::Annotation> DefaultSolver::Post(const heal::Annotation &pre, const cola::Malloc &cmd) const override;
 
 static const VariableDeclaration& GetDummyAllocation(const Type& type) {
 	// keep track of dummy variables to avoid spoiling the encoder with copies

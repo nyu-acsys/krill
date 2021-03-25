@@ -131,7 +131,7 @@ namespace cola {
 	};
 
 
-	struct BaseVisitor : Visitor {
+	struct BaseVisitor : public Visitor {
 		virtual void visit(const VariableDeclaration& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const VariableDeclaration&"); }
 		virtual void visit(const Expression& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Expression&"); }
 		virtual void visit(const BooleanValue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const BooleanValue&"); }

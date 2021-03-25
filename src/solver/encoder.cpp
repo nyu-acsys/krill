@@ -5,5 +5,5 @@ using namespace solver;
 
 
 std::unique_ptr<Encoder> solver::MakeDefaultEncoder(std::shared_ptr<SolverConfig> config) {
-    return std::make_unique<Z3Encoder>(config);
+    return std::make_unique<Z3Encoder>(std::move(config));
 }

@@ -11,6 +11,12 @@ using namespace prover;
 
 #define BE_SYNTACTIC false
 
+//TODO:
+//std::unique_ptr<Annotation> DefaultSolver::Post(const Annotation &pre, const cola::Assume &cmd) const {
+//    // TODO: implement
+//    throw std::logic_error("not yet implemented");
+//}
+
 
 std::unique_ptr<Annotation> SolverImpl::Post(const Annotation& pre, const Assume& cmd) const {
 	log() << std::endl << "ΩΩΩ POST for assume:  " << *cmd.expr << std::endl;

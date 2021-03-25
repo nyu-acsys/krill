@@ -14,6 +14,9 @@ using parallel_assignment_t = Solver::parallel_assignment_t;
 
 #define BE_SYNTACTIC false
 
+//TODO:
+//[[nodiscard]] std::unique_ptr<heal::Annotation> PostAssignVar(const heal::Annotation &pre, const cola::VariableDeclaration& lhs, const cola::Expression rhs, bool deepCheck=true) const;
+
 
 struct VarPostComputer {
 	PostInfo info;

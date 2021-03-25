@@ -15,8 +15,6 @@ include_directories(${Z3_INCLUDE})
 
 set(SOURCES
         solver.cpp
-        default_solver.cpp
-        default_solver.hpp
         encoder.cpp
 
         # backend
@@ -28,13 +26,14 @@ set(SOURCES
         z3encoder/z3chkimp.cpp
 
         # post
+        post/default_solver.cpp
 #        post/info.cpp
 #        post/assume.cpp
 #        post/malloc.cpp
 #        post/assign.cpp
 #        post/assign_var.cpp
 #        post/assign_deref.cpp
-)
+        post/join.cpp post/postprocess.cpp)
 
 add_library(Solver ${SOURCES})
 target_link_libraries(Solver CoLa HeaL ${Z3_LIBRARY})

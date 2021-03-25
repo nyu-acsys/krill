@@ -9,6 +9,8 @@ using namespace cola;
 using namespace heal;
 using namespace prover;
 
+//TODO:
+//[[nodiscard]] std::unique_ptr<heal::Annotation> PostAssignDeref(const heal::Annotation &pre, const cola::VariableDeclaration& lhs, std::string field, const cola::VariableDeclaration& rhs, bool deepCheck=true) const;
 
 enum struct PurityStatus { PURE, INSERTION, DELETION };
 

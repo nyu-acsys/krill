@@ -31,7 +31,7 @@ namespace solver {
         [[nodiscard]] virtual bool ImpliesIsNonNull(const cola::Expression& expression) const = 0;
 
         [[nodiscard]] virtual std::vector<bool> ComputeImplied(const std::vector<Term>& terms) const = 0;
-        [[nodiscard]] virtual std::unique_ptr<heal::ConjunctionFormula> ComputeImpliedConjuncts(const heal::ConjunctionFormula& conjuncts) const = 0;
+        [[nodiscard]] virtual std::unique_ptr<heal::SeparatingConjunction> ComputeImpliedConjuncts(const heal::SeparatingConjunction& conjuncts) const = 0;
     };
 
 } // namespace solver

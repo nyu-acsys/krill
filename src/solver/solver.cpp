@@ -1,6 +1,6 @@
 #include "solver/solver.hpp"
 
-#include "default_solver.hpp"
+#include "post/default_solver.hpp"
 #include "solver/encoder.hpp"
 #include "heal/util.hpp"
 
@@ -25,7 +25,7 @@ std::unique_ptr<heal::Annotation> Solver::Join(std::vector<std::unique_ptr<Annot
 }
 
 bool Solver::PostEntailsUnchecked(const Formula& pre, const Assignment& cmd, const Formula& post) const {
-    Annotation dummy(heal::Copy(pre));
+    Annotation dummy(heal::MakeConjunction(heal::Copy(pre)));
     auto computedPost = Post(dummy, cmd);
     auto checker = MakeImplicationChecker(*computedPost->now);
     return checker->Implies(post);
