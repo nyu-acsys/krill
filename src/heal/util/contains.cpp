@@ -20,7 +20,7 @@ struct ContainsChecker : public DefaultLogicListener {
         foundInsideObligation |= objectIsSearch && withinObligation;
     }
 
-    void enter(const LogicVariable& object) override { CheckObject(object); }
+    void enter(const SymbolicVariable& object) override { CheckObject(object); }
     void enter(const SymbolicBool& object) override { CheckObject(object); }
     void enter(const SymbolicNull& object) override { CheckObject(object); }
     void enter(const SymbolicMin& object) override { CheckObject(object); }

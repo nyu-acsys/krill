@@ -4,81 +4,110 @@ using namespace cola;
 using namespace heal;
 
 
-bool SymbolicVariableSetComparator::operator() (const std::reference_wrapper<const SymbolicVariableDeclaration>& var, const std::reference_wrapper<const SymbolicVariableDeclaration>& other) const {
-    return &var.get() < &other.get();
-}
-
-bool heal::IsSymbolicVariable(const VariableDeclaration& decl) {
-    return heal::IsOfType<SymbolicVariableDeclaration>(decl).first;
-}
-
-bool heal::IsSymbolicVariable(const LogicVariable& variable) {
-    return heal::IsSymbolicVariable(variable.Decl());
-}
-
-const SymbolicVariableDeclaration& heal::MakeFreshSymbolicVariable(const Type& type) {
-    return SymbolicVariablePool::MakeFresh(type);
-}
-
-const SymbolicVariableDeclaration& heal::GetUnusedSymbolicVariable(const Type& type, const SymbolicVariableSet& variablesInUse) {
-    auto isUsed = [&variablesInUse](const auto* decl) -> bool {
-        return variablesInUse.end() != std::find_if(variablesInUse.begin(), variablesInUse.end(), [&decl](const auto& other) { return &other.get() == decl; });
-    };
-    for (const auto& decl : SymbolicVariablePool::GetAll()) {
-        if (decl->type == type && !isUsed(decl.get())) return *decl;
-    }
-    return MakeFreshSymbolicVariable(type);
-}
-
-const SymbolicVariableDeclaration& heal::GetUnusedSymbolicVariable(const Type& type, const LogicObject& object) {
-    return heal::GetUnusedSymbolicVariable(type, heal::CollectSymbolicVariables(object));
+bool heal::IsSymbolicSymbol(const VariableDeclaration& decl) {
+    return heal::IsOfType<SymbolicVariableDeclaration>(decl).first || heal::IsOfType<SymbolicFlowDeclaration>(decl).first;
 }
 
 template<typename T>
-std::unique_ptr<T> ApplyRenaming(std::unique_ptr<T> object, const LogicObject& avoidSymbolicVariablesFrom, bool* changed) {
-    auto variablesInUse = heal::CollectSymbolicVariables(avoidSymbolicVariablesFrom);
-    auto variablesToRename = heal::CollectSymbolicVariables(*object);
-    std::map<const VariableDeclaration*, const VariableDeclaration*> replacementMap;
-    for (const VariableDeclaration& decl : variablesToRename) {
-        auto& replacement = GetUnusedSymbolicVariable(decl.type, variablesInUse);
-        replacementMap[&decl] = &replacement;
-        variablesInUse.insert(std::ref(replacement));
+const T* GetUnusedSymbol(const Type& type, const std::set<const cola::VariableDeclaration*>& inUse, const std::deque<std::unique_ptr<T>>& allSymbols) {
+    auto find = std::find_if(allSymbols.begin(), allSymbols.end(), [&inUse,&type](const auto& decl){
+        return &decl->type == &type && inUse.count(decl.get()) == 0;
+    });
+    if (find != allSymbols.end()) return find->get();
+    return nullptr;
+}
+
+
+//    std::set<const cola::VariableDeclaration*> inUse;
+
+SymbolicFactory::SymbolicFactory() = default;
+SymbolicFactory::SymbolicFactory(const LogicObject& avoid) : inUse(CollectSymbolicSymbols(avoid)) {}
+
+const SymbolicVariableDeclaration& SymbolicFactory::GetUnusedSymbolicVariable(const cola::Type& type) {
+    auto result = GetUnusedSymbol(type, inUse, SymbolicPool::GetAllVariables());
+    if (!result) result = &SymbolicPool::MakeFreshVariable(type);
+    inUse.insert(result);
+    return *result;
+}
+
+const SymbolicFlowDeclaration& SymbolicFactory::GetUnusedFlowVariable(const cola::Type& type) {
+    auto result = GetUnusedSymbol(type, inUse, SymbolicPool::GetAllFlows());
+    if (!result) result = &SymbolicPool::MakeFreshFlow(type);
+    inUse.insert(result);
+    return *result;
+}
+
+//
+// Rename
+//
+
+struct SymbolRenaming {
+    bool appliedRenaming = false;
+    std::set<const VariableDeclaration*> avoid;
+    std::map<const VariableDeclaration*, const SymbolicVariableDeclaration*> renameVar;
+    std::map<const VariableDeclaration*, const SymbolicFlowDeclaration*> renameFlow;
+
+    explicit SymbolRenaming(const LogicObject& avoidSymbolsFrom) : avoid(CollectSymbolicSymbols(avoidSymbolsFrom)) {}
+
+    template<typename T, typename M, typename N>
+    const T& GetRenaming(const T& decl, M& map, N mk) {
+        auto find = map.find(&decl);
+        if (find != map.end()) return *find->second;
+        const T* newBinding;
+        if (avoid.count(&decl) == 0) newBinding = &decl;
+        else {
+            newBinding = mk();
+            appliedRenaming = true;
+        }
+        avoid.insert(newBinding);
+        return *newBinding;
     }
-    auto transformer = [&replacementMap](const VariableDeclaration& decl){
-        auto find = replacementMap.find(&decl);
-        return find != replacementMap.end() ? find->second : nullptr;
-    };
-    return heal::Replace(std::move(object), transformer, changed);
-}
 
-std::unique_ptr<LogicObject> heal::RenameSymbolicVariables(std::unique_ptr<LogicObject> object, const LogicObject& avoidSymbolicVariablesFrom, bool* changed) {
-    return ApplyRenaming(std::move(object), avoidSymbolicVariablesFrom, changed);
-}
-std::unique_ptr<SeparatingConjunction> heal::RenameSymbolicVariables(std::unique_ptr<SeparatingConjunction> formula, const LogicObject& avoidSymbolicVariablesFrom, bool* changed) {
-    return ApplyRenaming(std::move(formula), avoidSymbolicVariablesFrom, changed);
-}
-std::unique_ptr<TimePredicate> heal::RenameSymbolicVariables(std::unique_ptr<TimePredicate> predicate, const LogicObject& avoidSymbolicVariablesFrom, bool* changed) {
-    return ApplyRenaming(std::move(predicate), avoidSymbolicVariablesFrom, changed);
-}
-std::unique_ptr<Annotation> heal::RenameSymbolicVariables(std::unique_ptr<Annotation> annotation, const LogicObject& avoidSymbolicVariablesFrom, bool* changed) {
-    return ApplyRenaming(std::move(annotation), avoidSymbolicVariablesFrom, changed);
-}
+    const SymbolicVariableDeclaration& operator()(const SymbolicVariableDeclaration& decl) {
+        return GetRenaming(decl, renameVar, [&](){
+            return GetUnusedSymbol(decl.type, avoid, SymbolicPool::GetAllVariables());
+        });
+    }
+    const SymbolicFlowDeclaration& operator()(const SymbolicFlowDeclaration& decl) {
+        return GetRenaming(decl, renameFlow, [&](){
+            return GetUnusedSymbol(decl.type, avoid, SymbolicPool::GetAllFlows());
+        });
+    }
+};
 
+struct Renamer : public DefaultLogicNonConstListener {
+    SymbolRenaming renaming;
+
+    explicit Renamer(const LogicObject& avoidSymbolsFrom) : renaming(avoidSymbolsFrom) {}
+
+    void enter(SymbolicVariable& object) override { object.decl_storage = renaming(object.decl_storage); }
+    void enter(PointsToAxiom& object) override { object.flow = renaming(object.flow); }
+    void enter(InflowContainsValueAxiom& object) override { object.flow = renaming(object.flow); }
+    void enter(InflowContainsRangeAxiom& object) override { object.flow = renaming(object.flow); }
+    void enter(InflowEmptinessAxiom& object) override { object.flow = renaming(object.flow); }
+};
+
+bool heal::RenameSymbolicSymbols(LogicObject& object, const LogicObject& avoidSymbolsFrom) {
+    Renamer renamer(avoidSymbolsFrom);
+    object.accept(renamer);
+    return renamer.renaming.appliedRenaming;
+}
 
 //
 // Collect
 //
 
 struct SymbolicVariableCollector : public DefaultLogicListener {
-    SymbolicVariableSet result;
+    std::set<const cola::VariableDeclaration*> result;
 
-    void enter(const LogicVariable& node) override {
-        auto [isSymbolic, var] = heal::IsOfType<SymbolicVariableDeclaration>(node.Decl());
-        if (isSymbolic) result.insert(*var);
-    }
+    void enter(const SymbolicVariable& object) override { result.insert(&object.decl_storage.get()); }
+    void enter(const PointsToAxiom& object) override { result.insert(&object.flow.get()); }
+    void enter(const InflowContainsValueAxiom& object) override { result.insert(&object.flow.get()); }
+    void enter(const InflowContainsRangeAxiom& object) override { result.insert(&object.flow.get()); }
+    void enter(const InflowEmptinessAxiom& object) override { result.insert(&object.flow.get()); }
 };
 
-SymbolicVariableSet heal::CollectSymbolicVariables(const LogicObject& object) {
+std::set<const cola::VariableDeclaration*> heal::CollectSymbolicSymbols(const LogicObject& object) {
     SymbolicVariableCollector collector;
     object.accept(collector);
     return std::move(collector.result);

@@ -35,6 +35,10 @@ namespace cola {
 	  */
 	void rename_variables(Program& program);
 
+	/** Simplifies conditions.
+	 */
+	void simplify_conditions(Program& program);
+
 	/** Rewrites program to CoLa Light.
 	  */
 	inline void simplify(Program& program) {
@@ -43,6 +47,7 @@ namespace cola {
 		remove_cas(program);
 		remove_useless_scopes(program);
 		rename_variables(program);
+        simplify_conditions(program);
 	}
 
 } // namespace cola

@@ -138,7 +138,7 @@ struct LogicSyntacticEqualityChecker : public LogicVisitor {
 		}
 	}
 
-	void visit(const LogicVariable& formula) override {
+	void visit(const SymbolicVariable& formula) override {
 		handle(formula, [](const auto& expr, const auto& other){
 			return &expr.Decl() == &other.Decl();
 		});

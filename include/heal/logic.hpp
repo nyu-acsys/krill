@@ -33,33 +33,43 @@ namespace heal {
 
         private:
             using cola::VariableDeclaration::VariableDeclaration;
-            friend struct SymbolicVariablePool;
+            friend struct SymbolicPool;
     };
 
-    struct SymbolicVariablePool {
-        static const SymbolicVariableDeclaration& MakeFresh(const cola::Type& type);
-        static const std::deque<std::unique_ptr<SymbolicVariableDeclaration>>& GetAll();
+    struct SymbolicFlowDeclaration final : public cola::VariableDeclaration {
+        SymbolicFlowDeclaration(const SymbolicFlowDeclaration&) = delete;
+
+        private:
+            using cola::VariableDeclaration::VariableDeclaration;
+            friend struct SymbolicPool;
+    };
+
+    struct SymbolicPool {
+        static const SymbolicVariableDeclaration& MakeFreshVariable(const cola::Type& type);
+        static const SymbolicFlowDeclaration& MakeFreshFlow(const cola::Type& type);
+        static const std::deque<std::unique_ptr<SymbolicVariableDeclaration>>& GetAllVariables();
+        static const std::deque<std::unique_ptr<SymbolicFlowDeclaration>>& GetAllFlows();
     };
 
     //
-    // Expressions
+    // Symbolic Expressions
     //
 
-    struct StackExpression : public LogicObject {
+    struct SymbolicExpression : public LogicObject {
         [[nodiscard]] virtual const cola::Type& Type() const = 0;
         [[nodiscard]] cola::Sort Sort() const { return Type().sort; }
     };
 
-    struct LogicVariable : StackExpression {
-        std::reference_wrapper<const cola::VariableDeclaration> decl_storage;
+    struct SymbolicVariable : SymbolicExpression {
+        std::reference_wrapper<const SymbolicVariableDeclaration> decl_storage;
 
-        explicit LogicVariable(const cola::VariableDeclaration& decl);
-        [[nodiscard]] inline const cola::VariableDeclaration& Decl() const { return decl_storage.get(); };
+        explicit SymbolicVariable(const SymbolicVariableDeclaration& decl);
+        [[nodiscard]] inline const SymbolicVariableDeclaration& Decl() const { return decl_storage.get(); };
         [[nodiscard]] const cola::Type& Type() const override { return Decl().type; }
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct SymbolicBool : public StackExpression {
+    struct SymbolicBool : public SymbolicExpression {
         bool value;
 
         explicit SymbolicBool(bool value) : value(value) {}
@@ -67,19 +77,19 @@ namespace heal {
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct SymbolicNull : public StackExpression {
+    struct SymbolicNull : public SymbolicExpression {
         explicit SymbolicNull() = default;
         [[nodiscard]] const cola::Type& Type() const override { return cola::Type::null_type(); }
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct SymbolicMin : public StackExpression {
+    struct SymbolicMin : public SymbolicExpression {
         explicit SymbolicMin() = default;
         [[nodiscard]] const cola::Type& Type() const override { return cola::Type::data_type(); }
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct SymbolicMax : public StackExpression {
+    struct SymbolicMax : public SymbolicExpression {
         explicit SymbolicMax() = default;
         [[nodiscard]] const cola::Type& Type() const override { return cola::Type::data_type(); }
         ACCEPT_LOGIC_VISITOR
@@ -92,10 +102,7 @@ namespace heal {
     struct Formula : public LogicObject {
     };
 
-    struct FlatFormula : public Formula {
-    };
-
-    struct Axiom : public FlatFormula {
+    struct Axiom : public Formula {
     };
 
     struct SeparatingConjunction : public Formula {
@@ -106,7 +113,7 @@ namespace heal {
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct FlatSeparatingConjunction : public FlatFormula {
+    struct FlatSeparatingConjunction : public Formula {
         std::deque<std::unique_ptr<Axiom>> conjuncts;
 
         explicit FlatSeparatingConjunction();
@@ -115,10 +122,11 @@ namespace heal {
     };
 
     struct SeparatingImplication : public Formula {
-        std::unique_ptr<FlatFormula> premise;
-        std::unique_ptr<FlatFormula> conclusion;
+        std::unique_ptr<FlatSeparatingConjunction> premise;
+        std::unique_ptr<FlatSeparatingConjunction> conclusion;
 
-        explicit SeparatingImplication(std::unique_ptr<FlatFormula> premise, std::unique_ptr<FlatFormula> conclusion);
+        explicit SeparatingImplication(std::unique_ptr<FlatSeparatingConjunction> premise,
+                                       std::unique_ptr<FlatSeparatingConjunction> conclusion);
         ACCEPT_LOGIC_VISITOR
     };
 
@@ -126,118 +134,92 @@ namespace heal {
 	// Axioms
 	//
 
-    struct NegatedAxiom : public Axiom {
-        std::unique_ptr<Axiom> axiom;
-
-        explicit NegatedAxiom(std::unique_ptr<Axiom> axiom);
-        ACCEPT_LOGIC_VISITOR
-    };
-
-    struct BoolAxiom : public Axiom {
-        bool value;
-
-        explicit BoolAxiom(bool value) : value(value) {}
-        ACCEPT_LOGIC_VISITOR
-    };
-
     struct PointsToAxiom : public Axiom {
-        std::unique_ptr<LogicVariable> node;
-        std::string fieldname;
-        std::unique_ptr<LogicVariable> value;
+        std::unique_ptr<SymbolicVariable> node;
+        bool isLocal;
+        std::reference_wrapper<const SymbolicFlowDeclaration> flow;
+        std::map<std::string, std::unique_ptr<SymbolicVariable>> fieldToValue;
 
-        explicit PointsToAxiom(std::unique_ptr<LogicVariable> node, std::string fieldname, std::unique_ptr<LogicVariable> value);
+        explicit PointsToAxiom(std::unique_ptr<SymbolicVariable> node,
+                               bool isLocal, const SymbolicFlowDeclaration& flow,
+                               std::map<std::string, std::unique_ptr<SymbolicVariable>> fieldToValue);
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct StackAxiom : public Axiom {
-        enum Operator { EQ, NEQ, LEQ, LT, GEQ, GT };
-        std::unique_ptr<StackExpression> lhs;
-        Operator op;
-        std::unique_ptr<StackExpression> rhs;
+    struct EqualsToAxiom : public Axiom {
+        std::unique_ptr<cola::VariableExpression> variable;
+        std::unique_ptr<SymbolicVariable> value;
 
-        explicit StackAxiom(std::unique_ptr<StackExpression> lhs, Operator op, std::unique_ptr<StackExpression> rhs);
+        explicit EqualsToAxiom(std::unique_ptr<cola::VariableExpression> variable,
+                               std::unique_ptr<SymbolicVariable> value);
+        ACCEPT_LOGIC_VISITOR
+    };
+
+    struct SymbolicAxiom : public Axiom {
+        enum Operator { EQ, NEQ, LEQ, LT, GEQ, GT };
+        std::unique_ptr<SymbolicExpression> lhs;
+        Operator op;
+        std::unique_ptr<SymbolicExpression> rhs;
+
+        explicit SymbolicAxiom(std::unique_ptr<SymbolicExpression> lhs, Operator op,
+                               std::unique_ptr<SymbolicExpression> rhs);
         ACCEPT_LOGIC_VISITOR
     };
 
     struct StackDisjunction : public Axiom {
-        std::deque<std::unique_ptr<StackAxiom>> axioms;
+        std::deque<std::unique_ptr<SymbolicAxiom>> axioms;
 
-        StackDisjunction();
-        explicit StackDisjunction(std::deque<std::unique_ptr<StackAxiom>> axioms);
+        explicit StackDisjunction();
+        explicit StackDisjunction(std::deque<std::unique_ptr<SymbolicAxiom>> axioms);
         ACCEPT_LOGIC_VISITOR
     };
 
-	struct OwnershipAxiom : public Axiom {
-        std::unique_ptr<LogicVariable> node;
+    struct InflowContainsValueAxiom : public Axiom {
+        std::reference_wrapper<const SymbolicFlowDeclaration> flow;
+        std::unique_ptr<SymbolicVariable> value;
 
-		explicit OwnershipAxiom(std::unique_ptr<LogicVariable> node);
-		ACCEPT_LOGIC_VISITOR
-	};
+        explicit InflowContainsValueAxiom(const SymbolicFlowDeclaration& flow,
+                                          std::unique_ptr<SymbolicVariable> value);
+        ACCEPT_LOGIC_VISITOR
+    };
 
-	struct DataStructureLogicallyContainsAxiom : public Axiom {
-        std::unique_ptr<LogicVariable> value;
+    struct InflowContainsRangeAxiom : public Axiom {
+        std::reference_wrapper<const SymbolicFlowDeclaration> flow;
+        std::unique_ptr<SymbolicVariable> valueLow;
+        std::unique_ptr<SymbolicVariable> valueHigh;
 
-		explicit DataStructureLogicallyContainsAxiom(std::unique_ptr<LogicVariable> value);
-		ACCEPT_LOGIC_VISITOR
-	};
+        explicit InflowContainsRangeAxiom(const SymbolicFlowDeclaration& flow,
+                                          std::unique_ptr<SymbolicVariable> valueLow,
+                                          std::unique_ptr<SymbolicVariable> valueHigh);
+        ACCEPT_LOGIC_VISITOR
+    };
 
-	struct NodeLogicallyContainsAxiom : public Axiom {
-        std::unique_ptr<LogicVariable> node;
-        std::unique_ptr<LogicVariable> value;
+    struct InflowEmptinessAxiom : public Axiom {
+        std::reference_wrapper<const SymbolicFlowDeclaration> flow;
+        bool isEmpty;
 
-        explicit NodeLogicallyContainsAxiom(std::unique_ptr<LogicVariable> node, std::unique_ptr<LogicVariable> value);
-		ACCEPT_LOGIC_VISITOR
-	};
-
-	struct KeysetContainsAxiom : public Axiom {
-        std::unique_ptr<LogicVariable> node;
-        std::unique_ptr<LogicVariable> value;
-
-        explicit KeysetContainsAxiom(std::unique_ptr<LogicVariable> node, std::unique_ptr<LogicVariable> value);
-		ACCEPT_LOGIC_VISITOR
-	};
-
-	struct HasFlowAxiom : public Axiom {
-        std::unique_ptr<LogicVariable> node;
-
-		explicit HasFlowAxiom(std::unique_ptr<LogicVariable> node);
-		ACCEPT_LOGIC_VISITOR
-	};
-
-	struct UniqueInflowAxiom : public Axiom {
-        std::unique_ptr<LogicVariable> node;
-
-		explicit UniqueInflowAxiom(std::unique_ptr<LogicVariable> node);
-		ACCEPT_LOGIC_VISITOR
-	};
-
-	struct FlowContainsAxiom : public Axiom { // TODO: use a 'Predicate' instead of 'value_low' and 'value_high'
-        std::unique_ptr<LogicVariable> node;
-        std::unique_ptr<StackExpression> value_low; // TODO: StackExpression vs SymbolicVariable
-        std::unique_ptr<StackExpression> value_high; // TODO: StackExpression vs SymbolicVariable
-
-        explicit FlowContainsAxiom(std::unique_ptr<LogicVariable> node, std::unique_ptr<StackExpression> value_low, std::unique_ptr<StackExpression> value_high);
-		ACCEPT_LOGIC_VISITOR
-	};
+        explicit InflowEmptinessAxiom(const SymbolicFlowDeclaration& flow, bool isEmpty);
+        ACCEPT_LOGIC_VISITOR
+    };
 
 	struct SpecificationAxiom : public Axiom {
 		enum struct Kind { CONTAINS, INSERT, DELETE };
-		static constexpr std::array<Kind, 3> KindIterable {Kind::CONTAINS, Kind::INSERT, Kind::DELETE };
+//		static constexpr std::array<Kind, 3> AllKinds {Kind::CONTAINS, Kind::INSERT, Kind::DELETE };
 		Kind kind;
-		std::unique_ptr<LogicVariable> key;
+		std::unique_ptr<SymbolicVariable> key;
 
-        explicit SpecificationAxiom(Kind kind, std::unique_ptr<LogicVariable> key);
+        explicit SpecificationAxiom(Kind kind, std::unique_ptr<SymbolicVariable> key);
 	};
 
 	struct ObligationAxiom : public SpecificationAxiom {
-        explicit ObligationAxiom(Kind kind, std::unique_ptr<LogicVariable> key);
+        explicit ObligationAxiom(Kind kind, std::unique_ptr<SymbolicVariable> key);
 		ACCEPT_LOGIC_VISITOR
 	};
 
 	struct FulfillmentAxiom : public SpecificationAxiom {
 		bool return_value;
 
-        explicit FulfillmentAxiom(Kind kind, std::unique_ptr<LogicVariable> key, bool return_value);
+        explicit FulfillmentAxiom(Kind kind, std::unique_ptr<SymbolicVariable> key, bool return_value);
 		ACCEPT_LOGIC_VISITOR
 	};
 
@@ -257,10 +239,11 @@ namespace heal {
 
 	struct FuturePredicate : public TimePredicate  {
 		std::unique_ptr<Formula> pre;
-		std::unique_ptr<cola::Assignment> command;
+		const cola::Assignment& command;
 		std::unique_ptr<Formula> post;
 
-        explicit FuturePredicate(std::unique_ptr<Formula> pre, std::unique_ptr<cola::Assignment> cmd, std::unique_ptr<Formula> post);
+        explicit FuturePredicate(std::unique_ptr<Formula> pre, const cola::Assignment& command,
+                                 std::unique_ptr<Formula> post);
 		ACCEPT_LOGIC_VISITOR
 	};
 
@@ -274,9 +257,8 @@ namespace heal {
 
         explicit Annotation();
         explicit Annotation(std::unique_ptr<SeparatingConjunction> now);
-        explicit Annotation(std::unique_ptr<SeparatingConjunction> now, std::deque<std::unique_ptr<TimePredicate>> time);
-		static std::unique_ptr<Annotation> True();
-		static std::unique_ptr<Annotation> False();
+        explicit Annotation(std::unique_ptr<SeparatingConjunction> now,
+                            std::deque<std::unique_ptr<TimePredicate>> time);
 		ACCEPT_LOGIC_VISITOR
 	};
 

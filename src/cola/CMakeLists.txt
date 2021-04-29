@@ -72,7 +72,7 @@ set(SOURCES
 	util/cpStmt.cpp
 	util/negExpr.cpp
 	util/print.cpp
-)
+        transform/simplifyconditions.cpp)
 
 add_library(CoLa ${antlr4cpp_src_files} ${SOURCES})
 add_dependencies(CoLa antlr4cpp)

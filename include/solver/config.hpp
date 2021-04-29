@@ -10,7 +10,7 @@
 
 namespace solver {
 
-    struct SolverConfig { // TODO: make immutable
+    struct SolverConfig {
         /** Suggests an upper bound for the footprint size beyond which a the post image computation may give up.
           */
         const std::size_t maxFootprintSize;
@@ -31,8 +31,7 @@ namespace solver {
         SolverConfig(std::size_t maxFootprintSize, std::unique_ptr<heal::FlowDomain> flowDomain,
                      std::unique_ptr<heal::Predicate> containsKey, std::unique_ptr<heal::Invariant> invariant)
                 : maxFootprintSize(maxFootprintSize), flowDomain(std::move(flowDomain)),
-                  logicallyContainsKey(std::move(containsKey)), invariant(std::move(invariant))
-        {
+                  logicallyContainsKey(std::move(containsKey)), invariant(std::move(invariant)) {
             assert(this->flowDomain);
             assert(this->logicallyContainsKey);
             assert(this->invariant);

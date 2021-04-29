@@ -15,25 +15,22 @@ include_directories(${Z3_INCLUDE})
 
 set(SOURCES
         solver.cpp
-        encoder.cpp
+#        encoder.cpp
 
         # backend
-        z3encoder/z3error.cpp
-        z3encoder/z3expr.cpp
-        z3encoder/z3interface.cpp
-        z3encoder/z3encoder.cpp
-        z3encoder/z3visitor.cpp
-        z3encoder/z3chkimp.cpp
+#        z3encoder/z3error.cpp
+#        z3encoder/z3expr.cpp
+#        z3encoder/z3interface.cpp
+#        z3encoder/z3encoder.cpp
+#        z3encoder/z3visitor.cpp
+#        z3encoder/z3chkimp.cpp
 
         # post
-        post/default_solver.cpp
-#        post/info.cpp
-#        post/assume.cpp
-#        post/malloc.cpp
-#        post/assign.cpp
-#        post/assign_var.cpp
-#        post/assign_deref.cpp
-        post/join.cpp post/postprocess.cpp)
+        default/eval.cpp
+        default/post.cpp
+        default/join.cpp
+        default/interference.cpp
+)
 
 add_library(Solver ${SOURCES})
 target_link_libraries(Solver CoLa HeaL ${Z3_LIBRARY})

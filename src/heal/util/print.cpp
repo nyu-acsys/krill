@@ -26,14 +26,14 @@ std::string heal::ToString(SpecificationAxiom::Kind kind) {
     }
 }
 
-std::string heal::ToString(StackAxiom::Operator op) {
+std::string heal::ToString(SymbolicAxiom::Operator op) {
     switch (op) {
-        case StackAxiom::EQ: return "=";
-        case StackAxiom::NEQ: return "≠";
-        case StackAxiom::GT: return ">";
-        case StackAxiom::GEQ: return "≥";
-        case StackAxiom::LT: return "<";
-        case StackAxiom::LEQ: return "≤";
+        case SymbolicAxiom::EQ: return "=";
+        case SymbolicAxiom::NEQ: return "≠";
+        case SymbolicAxiom::GT: return ">";
+        case SymbolicAxiom::GEQ: return "≥";
+        case SymbolicAxiom::LT: return "<";
+        case SymbolicAxiom::LEQ: return "≤";
     }
 }
 
@@ -65,7 +65,7 @@ struct FormulaPrinter : public LogicVisitor {
 	std::ostream& stream;
 	explicit FormulaPrinter(std::ostream& stream_) : stream(stream_) {}
 
-    void visit(const LogicVariable& expression) override {
+    void visit(const SymbolicVariable& expression) override {
 	    stream << expression.Decl().name;
 	}
 
@@ -106,23 +106,26 @@ struct FormulaPrinter : public LogicVisitor {
 		stream << "]";
 	}
 
-	void visit(const NegatedAxiom& formula) override {
-		stream << "¬";
-		formula.axiom->accept(*this);
-		stream << "";
-	}
-
-	void visit(const BoolAxiom& formula) override {
-        stream << (formula.value ? "true" : "false");
-	}
-
     void visit(const PointsToAxiom& formula) override {
         formula.node->accept(*this);
-        stream << "." << formula.fieldname << "↦";
-        formula.value->accept(*this);
+        stream << "↦";
+        stream << (formula.isLocal ? "L" : "G");
+        stream << "(";
+        stream << formula.flow.get().name;
+        for (const auto& [field, value] : formula.fieldToValue) {
+            stream << ", " << field << ":";
+            value->accept(*this);
+        }
+        stream << ")";
 	}
 
-    void visit(const StackAxiom& formula) override {
+    void visit(const EqualsToAxiom& formula) override {
+	    cola::print(*formula.variable, stream);
+        stream << "↦";
+        formula.value->accept(*this);
+    }
+
+    void visit(const SymbolicAxiom& formula) override {
         formula.lhs->accept(*this);
         stream << " " << heal::ToString(formula.op) << " ";
         formula.rhs->accept(*this);
@@ -136,55 +139,23 @@ struct FormulaPrinter : public LogicVisitor {
         stream << "]";
 	}
 
-	void visit(const OwnershipAxiom& formula) override {
-		stream << "@owned(";
-		formula.node->accept(*this);
-		stream << ")";
-	}
-
-	void visit(const DataStructureLogicallyContainsAxiom& formula) override {
-		stream << "@DScontains(";
+    void visit(const InflowContainsValueAxiom& formula) override {
         formula.value->accept(*this);
-		stream << ")";
-	}
+        stream << "∈" << formula.flow.get().name;
+    }
 
-	void visit(const NodeLogicallyContainsAxiom& formula) override {
-		stream << "@lcontains(";
-        formula.node->accept(*this);
-		stream << ", ";
-        formula.value->accept(*this);
-		stream << ")";
-	}
+    void visit(const InflowContainsRangeAxiom& formula) override {
+        stream << "(";
+        formula.valueLow->accept(*this);
+        stream << ", ";
+        formula.valueHigh->accept(*this);
+        stream << "⊆" << formula.flow.get().name;
+    }
 
-	void visit(const KeysetContainsAxiom& formula) override {
-		stream << "@KScontained(";
-        formula.node->accept(*this);
-		stream << ", ";
-        formula.value->accept(*this);
-		stream << ")";
-	}
-
-	void visit(const HasFlowAxiom& formula) override {
-		stream << "@flow(";
-        formula.node->accept(*this);
-		stream << ")≠⊥";
-	}
-
-	void visit(const FlowContainsAxiom& formula) override {
-		stream << "@flowContains(";
-        formula.node->accept(*this);
-		stream << "[";
-        formula.value_low->accept(*this);
-		stream << ", ";
-        formula.value_high->accept(*this);
-		stream << "])";
-	}
-
-	void visit(const UniqueInflowAxiom& formula) override {
-		stream << "@inflowUnique(";
-        formula.node->accept(*this);
-		stream << ")";
-	}
+    void visit(const InflowEmptinessAxiom& formula) override {
+	    stream << formula.flow.get().name;
+	    stream << (formula.isEmpty ? "=" : "≠") << "∅";
+    }
 
 	void visit(const ObligationAxiom& formula) override {
 		stream << "@OBL:";
@@ -207,7 +178,7 @@ struct FormulaPrinter : public LogicVisitor {
 		stream << "FUT<< ";
 		predicate.pre->accept(*this);
 		stream << " >> ";
-		cola::print(*predicate.command, stream);
+		cola::print(predicate.command, stream);
 		stream << " << ";
 		predicate.post->accept(*this);
 		stream << " >>";

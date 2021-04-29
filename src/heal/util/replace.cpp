@@ -12,7 +12,7 @@ struct VariableReplacer : public DefaultLogicNonConstListener {
 
 	explicit VariableReplacer(const transformer_t& transformer_) : transformer(transformer_) {}
 
-	void enter(LogicVariable& variable) override {
+	void enter(SymbolicVariable& variable) override {
 	    auto replacement = transformer(variable.Decl());
 	    if (replacement) {
 	        variable.decl_storage = *replacement;

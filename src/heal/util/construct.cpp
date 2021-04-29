@@ -28,8 +28,8 @@ std::unique_ptr<SymbolicMin> heal::MakeMin() {
 }
 
 
-std::unique_ptr<LogicVariable> heal::MakeVar(const VariableDeclaration& decl) {
-	return std::make_unique<LogicVariable>(decl);
+std::unique_ptr<SymbolicVariable> heal::MakeVar(const VariableDeclaration& decl) {
+	return std::make_unique<SymbolicVariable>(decl);
 }
 
 std::unique_ptr<NegatedAxiom> heal::MakeNegation(std::unique_ptr<Axiom> axiom) {
@@ -44,7 +44,7 @@ std::unique_ptr<PointsToAxiom> heal::MakePointsToAxiom(const VariableDeclaration
     return std::make_unique<PointsToAxiom>(heal::MakeVar(node), std::move(field), heal::MakeVar(value));
 }
 
-std::unique_ptr<StackAxiom> heal::MakeStackAxiom(std::unique_ptr<StackExpression> lhs, StackAxiom::Operator op, std::unique_ptr<StackExpression> rhs) {
+std::unique_ptr<StackAxiom> heal::MakeStackAxiom(std::unique_ptr<SymbolicExpression> lhs, StackAxiom::Operator op, std::unique_ptr<SymbolicExpression> rhs) {
     return std::make_unique<StackAxiom>(std::move(lhs), op, std::move(rhs));
 }
 
@@ -76,7 +76,7 @@ std::unique_ptr<KeysetContainsAxiom> heal::MakeKeysetContainsAxiom(const Variabl
 	return std::make_unique<KeysetContainsAxiom>(heal::MakeVar(expr), heal::MakeVar(other));
 }
 
-std::unique_ptr<FlowContainsAxiom> heal::MakeFlowContainsAxiom(const VariableDeclaration& expr, std::unique_ptr<StackExpression> low, std::unique_ptr<StackExpression> high) {
+std::unique_ptr<FlowContainsAxiom> heal::MakeFlowContainsAxiom(const VariableDeclaration& expr, std::unique_ptr<SymbolicExpression> low, std::unique_ptr<SymbolicExpression> high) {
 	return std::make_unique<FlowContainsAxiom>(heal::MakeVar(expr), std::move(low), std::move(high));
 }
 

@@ -7,359 +7,304 @@
 
 
 namespace heal {
-    struct LogicVariable;
+
+    struct LogicObject;
+    struct SymbolicVariableDeclaration;
+    struct SymbolicFlowDeclaration;
+    struct SymbolicExpression;
+    struct Formula;
+    struct Axiom;
+    struct SpecificationAxiom;
+    struct TimePredicate;
+
+    struct SymbolicVariable;
     struct SymbolicBool;
     struct SymbolicNull;
     struct SymbolicMin;
     struct SymbolicMax;
-    struct FlatSeparatingConjunction;
     struct SeparatingConjunction;
+    struct FlatSeparatingConjunction;
     struct SeparatingImplication;
-    struct NegatedAxiom;
-    struct BoolAxiom;
     struct PointsToAxiom;
-    struct StackAxiom;
+    struct EqualsToAxiom;
+    struct SymbolicAxiom;
     struct StackDisjunction;
-    struct OwnershipAxiom;
-    struct DataStructureLogicallyContainsAxiom;
-    struct NodeLogicallyContainsAxiom;
-    struct KeysetContainsAxiom;
-    struct HasFlowAxiom;
-    struct UniqueInflowAxiom;
-    struct FlowContainsAxiom;
+    struct InflowContainsValueAxiom;
+    struct InflowContainsRangeAxiom;
+    struct InflowEmptinessAxiom;
     struct ObligationAxiom;
     struct FulfillmentAxiom;
-	struct PastPredicate;
-	struct FuturePredicate;
-	struct Annotation;
+    struct PastPredicate;
+    struct FuturePredicate;
+    struct Annotation;
 
 
 	struct LogicVisitor {
-        virtual void visit(const LogicVariable& expression) = 0;
-        virtual void visit(const SymbolicBool& expression) = 0;
-        virtual void visit(const SymbolicNull& expression) = 0;
-        virtual void visit(const SymbolicMin& expression) = 0;
-        virtual void visit(const SymbolicMax& expression) = 0;
-		virtual void visit(const FlatSeparatingConjunction& formula) = 0;
-        virtual void visit(const SeparatingConjunction& formula) = 0;
-        virtual void visit(const SeparatingImplication& formula) = 0;
-        virtual void visit(const NegatedAxiom& formula) = 0;
-        virtual void visit(const BoolAxiom& formula) = 0;
-        virtual void visit(const PointsToAxiom& formula) = 0;
-        virtual void visit(const StackAxiom& formula) = 0;
-        virtual void visit(const StackDisjunction& formula) = 0;
-		virtual void visit(const OwnershipAxiom& formula) = 0;
-		virtual void visit(const DataStructureLogicallyContainsAxiom& formula) = 0;
-		virtual void visit(const NodeLogicallyContainsAxiom& formula) = 0;
-		virtual void visit(const KeysetContainsAxiom& formula) = 0;
-		virtual void visit(const HasFlowAxiom& formula) = 0;
-		virtual void visit(const FlowContainsAxiom& formula) = 0;
-		virtual void visit(const UniqueInflowAxiom& formula) = 0;
-		virtual void visit(const ObligationAxiom& formula) = 0;
-		virtual void visit(const FulfillmentAxiom& formula) = 0;
-		virtual void visit(const PastPredicate& formula) = 0;
-		virtual void visit(const FuturePredicate& formula) = 0;
-		virtual void visit(const Annotation& formula) = 0;
-	};
+        virtual void visit(const SymbolicVariable& object) = 0;
+        virtual void visit(const SymbolicBool& object) = 0;
+        virtual void visit(const SymbolicNull& object) = 0;
+        virtual void visit(const SymbolicMin& object) = 0;
+        virtual void visit(const SymbolicMax& object) = 0;
+        virtual void visit(const SeparatingConjunction& object) = 0;
+        virtual void visit(const FlatSeparatingConjunction& object) = 0;
+        virtual void visit(const SeparatingImplication& object) = 0;
+        virtual void visit(const PointsToAxiom& object) = 0;
+        virtual void visit(const EqualsToAxiom& object) = 0;
+        virtual void visit(const SymbolicAxiom& object) = 0;
+        virtual void visit(const StackDisjunction& object) = 0;
+        virtual void visit(const InflowContainsValueAxiom& object) = 0;
+        virtual void visit(const InflowContainsRangeAxiom& object) = 0;
+        virtual void visit(const InflowEmptinessAxiom& object) = 0;
+        virtual void visit(const ObligationAxiom& object) = 0;
+        virtual void visit(const FulfillmentAxiom& object) = 0;
+        virtual void visit(const PastPredicate& object) = 0;
+        virtual void visit(const FuturePredicate& object) = 0;
+        virtual void visit(const Annotation& object) = 0;
+    };
 
 	struct LogicNonConstVisitor {
-        virtual void visit(LogicVariable& expression) = 0;
-        virtual void visit(SymbolicBool& expression) = 0;
-        virtual void visit(SymbolicNull& expression) = 0;
-        virtual void visit(SymbolicMin& expression) = 0;
-        virtual void visit(SymbolicMax& expression) = 0;
-        virtual void visit(FlatSeparatingConjunction& formula) = 0;
-        virtual void visit(SeparatingConjunction& formula) = 0;
-        virtual void visit(SeparatingImplication& formula) = 0;
-        virtual void visit(NegatedAxiom& formula) = 0;
-        virtual void visit(BoolAxiom& formula) = 0;
-        virtual void visit(PointsToAxiom& formula) = 0;
-        virtual void visit(StackAxiom& formula) = 0;
-        virtual void visit(StackDisjunction& formula) = 0;
-		virtual void visit(OwnershipAxiom& formula) = 0;
-		virtual void visit(DataStructureLogicallyContainsAxiom& formula) = 0;
-		virtual void visit(NodeLogicallyContainsAxiom& formula) = 0;
-		virtual void visit(KeysetContainsAxiom& formula) = 0;
-		virtual void visit(HasFlowAxiom& formula) = 0;
-		virtual void visit(FlowContainsAxiom& formula) = 0;
-		virtual void visit(UniqueInflowAxiom& formula) = 0;
-		virtual void visit(ObligationAxiom& formula) = 0;
-		virtual void visit(FulfillmentAxiom& formula) = 0;
-		virtual void visit(PastPredicate& formula) = 0;
-		virtual void visit(FuturePredicate& formula) = 0;
-		virtual void visit(Annotation& formula) = 0;
+        virtual void visit(SymbolicVariable& object) = 0;
+        virtual void visit(SymbolicBool& object) = 0;
+        virtual void visit(SymbolicNull& object) = 0;
+        virtual void visit(SymbolicMin& object) = 0;
+        virtual void visit(SymbolicMax& object) = 0;
+        virtual void visit(SeparatingConjunction& object) = 0;
+        virtual void visit(FlatSeparatingConjunction& object) = 0;
+        virtual void visit(SeparatingImplication& object) = 0;
+        virtual void visit(PointsToAxiom& object) = 0;
+        virtual void visit(EqualsToAxiom& object) = 0;
+        virtual void visit(SymbolicAxiom& object) = 0;
+        virtual void visit(StackDisjunction& object) = 0;
+        virtual void visit(InflowContainsValueAxiom& object) = 0;
+        virtual void visit(InflowContainsRangeAxiom& object) = 0;
+        virtual void visit(InflowEmptinessAxiom& object) = 0;
+        virtual void visit(ObligationAxiom& object) = 0;
+        virtual void visit(FulfillmentAxiom& object) = 0;
+        virtual void visit(PastPredicate& object) = 0;
+        virtual void visit(FuturePredicate& object) = 0;
+        virtual void visit(Annotation& object) = 0;
 	};
 
 
 	struct BaseLogicVisitor : public LogicVisitor {
-        void visit(const LogicVariable& /*expression*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const LogicVariable&"); }
-        void visit(const SymbolicBool& /*expression*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SymbolicBool&"); }
-        void visit(const SymbolicNull& /*expression*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SymbolicNull&"); }
-        void visit(const SymbolicMin& /*expression*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SymbolicMin&"); }
-        void visit(const SymbolicMax& /*expression*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SymbolicMax&"); }
-        void visit(const FlatSeparatingConjunction& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const FlatSeparatingConjunction&"); }
-        void visit(const SeparatingConjunction& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SeparatingConjunction&"); }
-        void visit(const SeparatingImplication& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SeparatingImplication&"); }
-        void visit(const NegatedAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const NegatedAxiom&"); }
-        void visit(const BoolAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const BoolAxiom&"); }
-        void visit(const PointsToAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const PointsToAxiom&"); }
-        void visit(const StackAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const StackAxiom&"); }
-        void visit(const StackDisjunction& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const StackDisjunction&"); }
-		void visit(const OwnershipAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const OwnershipAxiom&"); }
-		void visit(const DataStructureLogicallyContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const DataStructureLogicallyContainsAxiom&"); }
-		void visit(const NodeLogicallyContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const NodeLogicallyContainsAxiom&"); }
-		void visit(const KeysetContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const KeysetContainsAxiom&"); }
-		void visit(const HasFlowAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const HasFlowAxiom&"); }
-		void visit(const FlowContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const FlowContainsAxiom&"); }
-		void visit(const UniqueInflowAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const UniqueInflowAxiom&"); }
-		void visit(const ObligationAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const ObligationAxiom&"); }
-		void visit(const FulfillmentAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const FulfillmentAxiom&"); }
-		void visit(const PastPredicate& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const PastPredicate&"); }
-		void visit(const FuturePredicate& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const FuturePredicate&"); }
-		void visit(const Annotation& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const Annotation&"); }
+        void visit(const SymbolicVariable&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SymbolicVariable&"); }
+        void visit(const SymbolicBool&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SymbolicBool&"); }
+        void visit(const SymbolicNull&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SymbolicNull&"); }
+        void visit(const SymbolicMin&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SymbolicMin&"); }
+        void visit(const SymbolicMax&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SymbolicMax&"); }
+        void visit(const SeparatingConjunction&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SeparatingConjunction&"); }
+        void visit(const FlatSeparatingConjunction&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const FlatSeparatingConjunction&"); }
+        void visit(const SeparatingImplication&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SeparatingImplication&"); }
+        void visit(const PointsToAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const PointsToAxiom&"); }
+        void visit(const EqualsToAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const EqualsToAxiom&"); }
+        void visit(const SymbolicAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SymbolicAxiom&"); }
+        void visit(const StackDisjunction&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const StackDisjunction&"); }
+        void visit(const InflowContainsValueAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const InflowContainsValueAxiom&"); }
+        void visit(const InflowContainsRangeAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const InflowContainsRangeAxiom&"); }
+        void visit(const InflowEmptinessAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const InflowEmptinessAxiom&"); }
+        void visit(const ObligationAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const ObligationAxiom&"); }
+        void visit(const FulfillmentAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const FulfillmentAxiom&"); }
+        void visit(const PastPredicate&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const PastPredicate&"); }
+        void visit(const FuturePredicate&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const FuturePredicate&"); }
+        void visit(const Annotation&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const Annotation&"); }
 	};
 
 	struct BaseLogicNonConstVisitor : public LogicNonConstVisitor {
-        void visit(LogicVariable& /*expression*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(ProgramVariable&"); }
-        void visit(SymbolicBool& /*expression*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(SymbolicBool&"); }
-        void visit(SymbolicNull& /*expression*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(SymbolicNull&"); }
-        void visit(SymbolicMin& /*expression*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(SymbolicMin&"); }
-        void visit(SymbolicMax& /*expression*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(SymbolicMax&"); }
-        void visit(FlatSeparatingConjunction& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(FlatSeparatingConjunction&"); }
-        void visit(SeparatingConjunction& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(SeparatingConjunction&"); }
-        void visit(SeparatingImplication& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(SeparatingImplication&"); }
-        void visit(NegatedAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(NegatedAxiom&"); }
-        void visit(BoolAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(BoolAxiom&"); }
-        void visit(PointsToAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(PointsToAxiom&"); }
-        void visit(StackAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(StackAxiom&"); }
-        void visit(StackDisjunction& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(StackDisjunction&"); }
-		void visit(OwnershipAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(OwnershipAxiom&"); }
-		void visit(DataStructureLogicallyContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(DataStructureLogicallyContainsAxiom&"); }
-		void visit(NodeLogicallyContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(NodeLogicallyContainsAxiom&"); }
-		void visit(KeysetContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(KeysetContainsAxiom&"); }
-		void visit(HasFlowAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(HasFlowAxiom&"); }
-		void visit(FlowContainsAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(FlowContainsAxiom&"); }
-		void visit(UniqueInflowAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(UniqueInflowAxiom&"); }
-		void visit(ObligationAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(ObligationAxiom&"); }
-		void visit(FulfillmentAxiom& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(FulfillmentAxiom&"); }
-		void visit(PastPredicate& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(PastPredicate&"); }
-		void visit(FuturePredicate& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(FuturePredicate&"); }
-		void visit(Annotation& /*formula*/) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "visit(Annotation&"); }
+        void visit(SymbolicVariable&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "SymbolicVariable&"); }
+        void visit(SymbolicBool&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "SymbolicBool&"); }
+        void visit(SymbolicNull&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "SymbolicNull&"); }
+        void visit(SymbolicMin&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "SymbolicMin&"); }
+        void visit(SymbolicMax&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "SymbolicMax&"); }
+        void visit(SeparatingConjunction&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "SeparatingConjunction&"); }
+        void visit(FlatSeparatingConjunction&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "FlatSeparatingConjunction&"); }
+        void visit(SeparatingImplication&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "SeparatingImplication&"); }
+        void visit(PointsToAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "PointsToAxiom&"); }
+        void visit(EqualsToAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "EqualsToAxiom&"); }
+        void visit(SymbolicAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "SymbolicAxiom&"); }
+        void visit(StackDisjunction&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "StackDisjunction&"); }
+        void visit(InflowContainsValueAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "InflowContainsValueAxiom&"); }
+        void visit(InflowContainsRangeAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "InflowContainsRangeAxiom&"); }
+        void visit(InflowEmptinessAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "InflowEmptinessAxiom&"); }
+        void visit(ObligationAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "ObligationAxiom&"); }
+        void visit(FulfillmentAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "FulfillmentAxiom&"); }
+        void visit(PastPredicate&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "PastPredicate&"); }
+        void visit(FuturePredicate&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "FuturePredicate&"); }
+        void visit(Annotation&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "Annotation&"); }
 	};
 
 
 	struct LogicListener : public LogicVisitor {
-		// visit
-        void visit(const LogicVariable& expression) override;
-        void visit(const SymbolicBool& expression) override;
-        void visit(const SymbolicNull& expression) override;
-        void visit(const SymbolicMin& expression) override;
-        void visit(const SymbolicMax& expression) override;
-        void visit(const FlatSeparatingConjunction& formula) override;
-        void visit(const SeparatingConjunction& formula) override;
-        void visit(const SeparatingImplication& formula) override;
-        void visit(const NegatedAxiom& formula) override;
-        void visit(const BoolAxiom& formula) override;
-        void visit(const PointsToAxiom& formula) override;
-        void visit(const StackAxiom& formula) override;
-        void visit(const StackDisjunction& formula) override;
-		void visit(const OwnershipAxiom& formula) override;
-		void visit(const DataStructureLogicallyContainsAxiom& formula) override;
-		void visit(const NodeLogicallyContainsAxiom& formula) override;
-		void visit(const KeysetContainsAxiom& formula) override;
-		void visit(const HasFlowAxiom& formula) override;
-		void visit(const FlowContainsAxiom& formula) override;
-		void visit(const UniqueInflowAxiom& formula) override;
-		void visit(const ObligationAxiom& formula) override;
-		void visit(const FulfillmentAxiom& formula) override;
-        void visit(const PastPredicate& formula) override;
-        void visit(const FuturePredicate& formula) override;
-        void visit(const Annotation& formula) override;
+	    // visit
+        void visit(const SymbolicVariable& object) override;
+        void visit(const SymbolicBool& object) override;
+        void visit(const SymbolicNull& object) override;
+        void visit(const SymbolicMin& object) override;
+        void visit(const SymbolicMax& object) override;
+        void visit(const SeparatingConjunction& object) override;
+        void visit(const FlatSeparatingConjunction& object) override;
+        void visit(const SeparatingImplication& object) override;
+        void visit(const PointsToAxiom& object) override;
+        void visit(const EqualsToAxiom& object) override;
+        void visit(const SymbolicAxiom& object) override;
+        void visit(const StackDisjunction& object) override;
+        void visit(const InflowContainsValueAxiom& object) override;
+        void visit(const InflowContainsRangeAxiom& object) override;
+        void visit(const InflowEmptinessAxiom& object) override;
+        void visit(const ObligationAxiom& object) override;
+        void visit(const FulfillmentAxiom& object) override;
+        void visit(const PastPredicate& object) override;
+        void visit(const FuturePredicate& object) override;
+        void visit(const Annotation& object) override;
 
-		// callbacks
-        virtual void enter(const LogicVariable& decl) = 0;
-        virtual void enter(const SymbolicBool& expression) = 0;
-        virtual void enter(const SymbolicNull& expression) = 0;
-        virtual void enter(const SymbolicMin& expression) = 0;
-        virtual void enter(const SymbolicMax& expression) = 0;
-        virtual void enter(const FlatSeparatingConjunction& formula) = 0;
-        virtual void enter(const SeparatingConjunction& formula) = 0;
-        virtual void enter(const SeparatingImplication& formula) = 0;
-        virtual void enter(const NegatedAxiom& formula) = 0;
-        virtual void enter(const BoolAxiom& formula) = 0;
-        virtual void enter(const PointsToAxiom& formula) = 0;
-        virtual void enter(const StackAxiom& formula) = 0;
-        virtual void enter(const StackDisjunction& formula) = 0;
-        virtual void enter(const OwnershipAxiom& formula) = 0;
-        virtual void enter(const DataStructureLogicallyContainsAxiom& formula) = 0;
-        virtual void enter(const NodeLogicallyContainsAxiom& formula) = 0;
-        virtual void enter(const KeysetContainsAxiom& formula) = 0;
-        virtual void enter(const HasFlowAxiom& formula) = 0;
-        virtual void enter(const FlowContainsAxiom& formula) = 0;
-        virtual void enter(const UniqueInflowAxiom& formula) = 0;
-        virtual void enter(const ObligationAxiom& formula) = 0;
-        virtual void enter(const FulfillmentAxiom& formula) = 0;
-        virtual void enter(const PastPredicate& formula) = 0;
-        virtual void enter(const FuturePredicate& formula) = 0;
-        virtual void enter(const Annotation& formula) = 0;
+        // callback
+        virtual void enter(const SymbolicVariable& object) = 0;
+        virtual void enter(const SymbolicBool& object) = 0;
+        virtual void enter(const SymbolicNull& object) = 0;
+        virtual void enter(const SymbolicMin& object) = 0;
+        virtual void enter(const SymbolicMax& object) = 0;
+        virtual void enter(const SeparatingConjunction& object) = 0;
+        virtual void enter(const FlatSeparatingConjunction& object) = 0;
+        virtual void enter(const SeparatingImplication& object) = 0;
+        virtual void enter(const PointsToAxiom& object) = 0;
+        virtual void enter(const EqualsToAxiom& object) = 0;
+        virtual void enter(const SymbolicAxiom& object) = 0;
+        virtual void enter(const StackDisjunction& object) = 0;
+        virtual void enter(const InflowContainsValueAxiom& object) = 0;
+        virtual void enter(const InflowContainsRangeAxiom& object) = 0;
+        virtual void enter(const InflowEmptinessAxiom& object) = 0;
+        virtual void enter(const ObligationAxiom& object) = 0;
+        virtual void enter(const FulfillmentAxiom& object) = 0;
+        virtual void enter(const PastPredicate& object) = 0;
+        virtual void enter(const FuturePredicate& object) = 0;
+        virtual void enter(const Annotation& object) = 0;
 
-        virtual void exit(const LogicVariable& decl) = 0;
-        virtual void exit(const SymbolicBool& expression) = 0;
-        virtual void exit(const SymbolicNull& expression) = 0;
-        virtual void exit(const SymbolicMin& expression) = 0;
-        virtual void exit(const SymbolicMax& expression) = 0;
-        virtual void exit(const FlatSeparatingConjunction& formula) = 0;
-        virtual void exit(const SeparatingConjunction& formula) = 0;
-        virtual void exit(const SeparatingImplication& formula) = 0;
-        virtual void exit(const NegatedAxiom& formula) = 0;
-        virtual void exit(const BoolAxiom& formula) = 0;
-        virtual void exit(const PointsToAxiom& formula) = 0;
-        virtual void exit(const StackAxiom& formula) = 0;
-        virtual void exit(const StackDisjunction& formula) = 0;
-        virtual void exit(const OwnershipAxiom& formula) = 0;
-        virtual void exit(const DataStructureLogicallyContainsAxiom& formula) = 0;
-        virtual void exit(const NodeLogicallyContainsAxiom& formula) = 0;
-        virtual void exit(const KeysetContainsAxiom& formula) = 0;
-        virtual void exit(const HasFlowAxiom& formula) = 0;
-        virtual void exit(const FlowContainsAxiom& formula) = 0;
-        virtual void exit(const UniqueInflowAxiom& formula) = 0;
-        virtual void exit(const ObligationAxiom& formula) = 0;
-        virtual void exit(const FulfillmentAxiom& formula) = 0;
-        virtual void exit(const PastPredicate& formula) = 0;
-        virtual void exit(const FuturePredicate& formula) = 0;
-        virtual void exit(const Annotation& formula) = 0;
+        virtual void exit(const SymbolicVariable& object) = 0;
+        virtual void exit(const SymbolicBool& object) = 0;
+        virtual void exit(const SymbolicNull& object) = 0;
+        virtual void exit(const SymbolicMin& object) = 0;
+        virtual void exit(const SymbolicMax& object) = 0;
+        virtual void exit(const SeparatingConjunction& object) = 0;
+        virtual void exit(const FlatSeparatingConjunction& object) = 0;
+        virtual void exit(const SeparatingImplication& object) = 0;
+        virtual void exit(const PointsToAxiom& object) = 0;
+        virtual void exit(const EqualsToAxiom& object) = 0;
+        virtual void exit(const SymbolicAxiom& object) = 0;
+        virtual void exit(const StackDisjunction& object) = 0;
+        virtual void exit(const InflowContainsValueAxiom& object) = 0;
+        virtual void exit(const InflowContainsRangeAxiom& object) = 0;
+        virtual void exit(const InflowEmptinessAxiom& object) = 0;
+        virtual void exit(const ObligationAxiom& object) = 0;
+        virtual void exit(const FulfillmentAxiom& object) = 0;
+        virtual void exit(const PastPredicate& object) = 0;
+        virtual void exit(const FuturePredicate& object) = 0;
+        virtual void exit(const Annotation& object) = 0;
 	};
 
 	struct LogicNonConstListener : public LogicNonConstVisitor {
-		// visit
-        void visit(LogicVariable& expression) override;
-        void visit(SymbolicBool& expression) override;
-        void visit(SymbolicNull& expression) override;
-        void visit(SymbolicMin& expression) override;
-        void visit(SymbolicMax& expression) override;
-        void visit(FlatSeparatingConjunction& formula) override;
-        void visit(SeparatingConjunction& formula) override;
-        void visit(SeparatingImplication& formula) override;
-        void visit(NegatedAxiom& formula) override;
-        void visit(BoolAxiom& formula) override;
-        void visit(PointsToAxiom& formula) override;
-        void visit(StackAxiom& formula) override;
-        void visit(StackDisjunction& formula) override;
-        void visit(OwnershipAxiom& formula) override;
-        void visit(DataStructureLogicallyContainsAxiom& formula) override;
-        void visit(NodeLogicallyContainsAxiom& formula) override;
-        void visit(KeysetContainsAxiom& formula) override;
-        void visit(HasFlowAxiom& formula) override;
-        void visit(FlowContainsAxiom& formula) override;
-        void visit(UniqueInflowAxiom& formula) override;
-        void visit(ObligationAxiom& formula) override;
-        void visit(FulfillmentAxiom& formula) override;
-        void visit(PastPredicate& formula) override;
-        void visit(FuturePredicate& formula) override;
-        void visit(Annotation& formula) override;
+	    // visit
+        void visit(SymbolicVariable& object) override;
+        void visit(SymbolicBool& object) override;
+        void visit(SymbolicNull& object) override;
+        void visit(SymbolicMin& object) override;
+        void visit(SymbolicMax& object) override;
+        void visit(SeparatingConjunction& object) override;
+        void visit(FlatSeparatingConjunction& object) override;
+        void visit(SeparatingImplication& object) override;
+        void visit(PointsToAxiom& object) override;
+        void visit(EqualsToAxiom& object) override;
+        void visit(SymbolicAxiom& object) override;
+        void visit(StackDisjunction& object) override;
+        void visit(InflowContainsValueAxiom& object) override;
+        void visit(InflowContainsRangeAxiom& object) override;
+        void visit(InflowEmptinessAxiom& object) override;
+        void visit(ObligationAxiom& object) override;
+        void visit(FulfillmentAxiom& object) override;
+        void visit(PastPredicate& object) override;
+        void visit(FuturePredicate& object) override;
+        void visit(Annotation& object) override;
 
-		// callbacks
-        virtual void enter(LogicVariable& decl) = 0;
-        virtual void enter(SymbolicBool& expression) = 0;
-        virtual void enter(SymbolicNull& expression) = 0;
-        virtual void enter(SymbolicMin& expression) = 0;
-        virtual void enter(SymbolicMax& expression) = 0;
-        virtual void enter(FlatSeparatingConjunction& formula) = 0;
-        virtual void enter(SeparatingConjunction& formula) = 0;
-        virtual void enter(SeparatingImplication& formula) = 0;
-        virtual void enter(NegatedAxiom& formula) = 0;
-        virtual void enter(BoolAxiom& formula) = 0;
-        virtual void enter(PointsToAxiom& formula) = 0;
-        virtual void enter(StackAxiom& formula) = 0;
-        virtual void enter(StackDisjunction& formula) = 0;
-        virtual void enter(OwnershipAxiom& formula) = 0;
-        virtual void enter(DataStructureLogicallyContainsAxiom& formula) = 0;
-        virtual void enter(NodeLogicallyContainsAxiom& formula) = 0;
-        virtual void enter(KeysetContainsAxiom& formula) = 0;
-        virtual void enter(HasFlowAxiom& formula) = 0;
-        virtual void enter(FlowContainsAxiom& formula) = 0;
-        virtual void enter(UniqueInflowAxiom& formula) = 0;
-        virtual void enter(ObligationAxiom& formula) = 0;
-        virtual void enter(FulfillmentAxiom& formula) = 0;
-        virtual void enter(PastPredicate& formula) = 0;
-        virtual void enter(FuturePredicate& formula) = 0;
-        virtual void enter(Annotation& formula) = 0;
+        // callback
+        virtual void enter(SymbolicVariable& object) = 0;
+        virtual void enter(SymbolicBool& object) = 0;
+        virtual void enter(SymbolicNull& object) = 0;
+        virtual void enter(SymbolicMin& object) = 0;
+        virtual void enter(SymbolicMax& object) = 0;
+        virtual void enter(SeparatingConjunction& object) = 0;
+        virtual void enter(FlatSeparatingConjunction& object) = 0;
+        virtual void enter(SeparatingImplication& object) = 0;
+        virtual void enter(PointsToAxiom& object) = 0;
+        virtual void enter(EqualsToAxiom& object) = 0;
+        virtual void enter(SymbolicAxiom& object) = 0;
+        virtual void enter(StackDisjunction& object) = 0;
+        virtual void enter(InflowContainsValueAxiom& object) = 0;
+        virtual void enter(InflowContainsRangeAxiom& object) = 0;
+        virtual void enter(InflowEmptinessAxiom& object) = 0;
+        virtual void enter(ObligationAxiom& object) = 0;
+        virtual void enter(FulfillmentAxiom& object) = 0;
+        virtual void enter(PastPredicate& object) = 0;
+        virtual void enter(FuturePredicate& object) = 0;
+        virtual void enter(Annotation& object) = 0;
 
-        virtual void exit(LogicVariable& decl) = 0;
-        virtual void exit(SymbolicBool& expression) = 0;
-        virtual void exit(SymbolicNull& expression) = 0;
-        virtual void exit(SymbolicMin& expression) = 0;
-        virtual void exit(SymbolicMax& expression) = 0;
-        virtual void exit(FlatSeparatingConjunction& formula) = 0;
-        virtual void exit(SeparatingConjunction& formula) = 0;
-        virtual void exit(SeparatingImplication& formula) = 0;
-        virtual void exit(NegatedAxiom& formula) = 0;
-        virtual void exit(BoolAxiom& formula) = 0;
-        virtual void exit(PointsToAxiom& formula) = 0;
-        virtual void exit(StackAxiom& formula) = 0;
-        virtual void exit(StackDisjunction& formula) = 0;
-        virtual void exit(OwnershipAxiom& formula) = 0;
-        virtual void exit(DataStructureLogicallyContainsAxiom& formula) = 0;
-        virtual void exit(NodeLogicallyContainsAxiom& formula) = 0;
-        virtual void exit(KeysetContainsAxiom& formula) = 0;
-        virtual void exit(HasFlowAxiom& formula) = 0;
-        virtual void exit(FlowContainsAxiom& formula) = 0;
-        virtual void exit(UniqueInflowAxiom& formula) = 0;
-        virtual void exit(ObligationAxiom& formula) = 0;
-        virtual void exit(FulfillmentAxiom& formula) = 0;
-        virtual void exit(PastPredicate& formula) = 0;
-        virtual void exit(FuturePredicate& formula) = 0;
-        virtual void exit(Annotation& formula) = 0;
+        virtual void exit(SymbolicVariable& object) = 0;
+        virtual void exit(SymbolicBool& object) = 0;
+        virtual void exit(SymbolicNull& object) = 0;
+        virtual void exit(SymbolicMin& object) = 0;
+        virtual void exit(SymbolicMax& object) = 0;
+        virtual void exit(SeparatingConjunction& object) = 0;
+        virtual void exit(FlatSeparatingConjunction& object) = 0;
+        virtual void exit(SeparatingImplication& object) = 0;
+        virtual void exit(PointsToAxiom& object) = 0;
+        virtual void exit(EqualsToAxiom& object) = 0;
+        virtual void exit(SymbolicAxiom& object) = 0;
+        virtual void exit(StackDisjunction& object) = 0;
+        virtual void exit(InflowContainsValueAxiom& object) = 0;
+        virtual void exit(InflowContainsRangeAxiom& object) = 0;
+        virtual void exit(InflowEmptinessAxiom& object) = 0;
+        virtual void exit(ObligationAxiom& object) = 0;
+        virtual void exit(FulfillmentAxiom& object) = 0;
+        virtual void exit(PastPredicate& object) = 0;
+        virtual void exit(FuturePredicate& object) = 0;
+        virtual void exit(Annotation& object) = 0;
 	};
 
 
 	struct DefaultLogicListener : public LogicListener {
-        void enter(const LogicVariable&) override {}
+        void enter(const SymbolicVariable&) override {}
         void enter(const SymbolicBool&) override {}
         void enter(const SymbolicNull&) override {}
         void enter(const SymbolicMin&) override {}
         void enter(const SymbolicMax&) override {}
-        void enter(const FlatSeparatingConjunction&) override {}
         void enter(const SeparatingConjunction&) override {}
+        void enter(const FlatSeparatingConjunction&) override {}
         void enter(const SeparatingImplication&) override {}
-        void enter(const NegatedAxiom&) override {}
-        void enter(const BoolAxiom&) override {}
         void enter(const PointsToAxiom&) override {}
-        void enter(const StackAxiom&) override {}
+        void enter(const EqualsToAxiom&) override {}
+        void enter(const SymbolicAxiom&) override {}
         void enter(const StackDisjunction&) override {}
-        void enter(const OwnershipAxiom&) override {}
-        void enter(const DataStructureLogicallyContainsAxiom&) override {}
-        void enter(const NodeLogicallyContainsAxiom&) override {}
-        void enter(const KeysetContainsAxiom&) override {}
-        void enter(const HasFlowAxiom&) override {}
-        void enter(const FlowContainsAxiom&) override {}
-        void enter(const UniqueInflowAxiom&) override {}
+        void enter(const InflowContainsValueAxiom&) override {}
+        void enter(const InflowContainsRangeAxiom&) override {}
+        void enter(const InflowEmptinessAxiom&) override {}
         void enter(const ObligationAxiom&) override {}
         void enter(const FulfillmentAxiom&) override {}
         void enter(const PastPredicate&) override {}
         void enter(const FuturePredicate&) override {}
         void enter(const Annotation&) override {}
 
-        void exit(const LogicVariable&) override {}
+        void exit(const SymbolicVariable&) override {}
         void exit(const SymbolicBool&) override {}
         void exit(const SymbolicNull&) override {}
         void exit(const SymbolicMin&) override {}
         void exit(const SymbolicMax&) override {}
-        void exit(const FlatSeparatingConjunction&) override {}
         void exit(const SeparatingConjunction&) override {}
+        void exit(const FlatSeparatingConjunction&) override {}
         void exit(const SeparatingImplication&) override {}
-        void exit(const NegatedAxiom&) override {}
-        void exit(const BoolAxiom&) override {}
         void exit(const PointsToAxiom&) override {}
-        void exit(const StackAxiom&) override {}
+        void exit(const EqualsToAxiom&) override {}
+        void exit(const SymbolicAxiom&) override {}
         void exit(const StackDisjunction&) override {}
-        void exit(const OwnershipAxiom&) override {}
-        void exit(const DataStructureLogicallyContainsAxiom&) override {}
-        void exit(const NodeLogicallyContainsAxiom&) override {}
-        void exit(const KeysetContainsAxiom&) override {}
-        void exit(const HasFlowAxiom&) override {}
-        void exit(const FlowContainsAxiom&) override {}
-        void exit(const UniqueInflowAxiom&) override {}
+        void exit(const InflowContainsValueAxiom&) override {}
+        void exit(const InflowContainsRangeAxiom&) override {}
+        void exit(const InflowEmptinessAxiom&) override {}
         void exit(const ObligationAxiom&) override {}
         void exit(const FulfillmentAxiom&) override {}
         void exit(const PastPredicate&) override {}
@@ -368,52 +313,42 @@ namespace heal {
 	};
 
 	struct DefaultLogicNonConstListener : public LogicNonConstListener {
-        void enter(LogicVariable&) override {}
+        void enter(SymbolicVariable&) override {}
         void enter(SymbolicBool&) override {}
         void enter(SymbolicNull&) override {}
         void enter(SymbolicMin&) override {}
         void enter(SymbolicMax&) override {}
-        void enter(FlatSeparatingConjunction&) override {}
         void enter(SeparatingConjunction&) override {}
+        void enter(FlatSeparatingConjunction&) override {}
         void enter(SeparatingImplication&) override {}
-        void enter(NegatedAxiom&) override {}
-        void enter(BoolAxiom&) override {}
         void enter(PointsToAxiom&) override {}
-        void enter(StackAxiom&) override {}
+        void enter(EqualsToAxiom&) override {}
+        void enter(SymbolicAxiom&) override {}
         void enter(StackDisjunction&) override {}
-        void enter(OwnershipAxiom&) override {}
-        void enter(DataStructureLogicallyContainsAxiom&) override {}
-        void enter(NodeLogicallyContainsAxiom&) override {}
-        void enter(KeysetContainsAxiom&) override {}
-        void enter(HasFlowAxiom&) override {}
-        void enter(FlowContainsAxiom&) override {}
-        void enter(UniqueInflowAxiom&) override {}
+        void enter(InflowContainsValueAxiom&) override {}
+        void enter(InflowContainsRangeAxiom&) override {}
+        void enter(InflowEmptinessAxiom&) override {}
         void enter(ObligationAxiom&) override {}
         void enter(FulfillmentAxiom&) override {}
         void enter(PastPredicate&) override {}
         void enter(FuturePredicate&) override {}
         void enter(Annotation&) override {}
 
-        void exit(LogicVariable&) override {}
+        void exit(SymbolicVariable&) override {}
         void exit(SymbolicBool&) override {}
         void exit(SymbolicNull&) override {}
         void exit(SymbolicMin&) override {}
         void exit(SymbolicMax&) override {}
-        void exit(FlatSeparatingConjunction&) override {}
         void exit(SeparatingConjunction&) override {}
+        void exit(FlatSeparatingConjunction&) override {}
         void exit(SeparatingImplication&) override {}
-        void exit(NegatedAxiom&) override {}
-        void exit(BoolAxiom&) override {}
         void exit(PointsToAxiom&) override {}
-        void exit(StackAxiom&) override {}
+        void exit(EqualsToAxiom&) override {}
+        void exit(SymbolicAxiom&) override {}
         void exit(StackDisjunction&) override {}
-        void exit(OwnershipAxiom&) override {}
-        void exit(DataStructureLogicallyContainsAxiom&) override {}
-        void exit(NodeLogicallyContainsAxiom&) override {}
-        void exit(KeysetContainsAxiom&) override {}
-        void exit(HasFlowAxiom&) override {}
-        void exit(FlowContainsAxiom&) override {}
-        void exit(UniqueInflowAxiom&) override {}
+        void exit(InflowContainsValueAxiom&) override {}
+        void exit(InflowContainsRangeAxiom&) override {}
+        void exit(InflowEmptinessAxiom&) override {}
         void exit(ObligationAxiom&) override {}
         void exit(FulfillmentAxiom&) override {}
         void exit(PastPredicate&) override {}
