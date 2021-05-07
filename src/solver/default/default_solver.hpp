@@ -7,7 +7,7 @@
 namespace solver {
 
     struct DefaultSolver final : public Solver {
-        explicit DefaultSolver(std::shared_ptr<SolverConfig> config) : Solver(std::move(config)) {}
+        explicit DefaultSolver(std::shared_ptr<SolverConfig> config) : Solver(std::move(config)) {} // TODO: using Solver::Solver?
 
         [[nodiscard]] std::unique_ptr<heal::Annotation> Join(std::vector<std::unique_ptr<heal::Annotation>> annotations) const override;
 

@@ -20,10 +20,10 @@ namespace solver {
     struct Effect {
         std::unique_ptr<heal::Annotation> change;
         std::unique_ptr<heal::Annotation> context;
-        const cola::Assignment& command;
 
-        explicit Effect(std::unique_ptr<heal::Formula> change, std::unique_ptr<heal::Formula> context, const cola::Assignment& command);
-        explicit Effect(std::unique_ptr<heal::Annotation> change, std::unique_ptr<heal::Annotation> context, const cola::Assignment& command);
+        explicit Effect();
+        explicit Effect(std::unique_ptr<heal::Formula> change, std::unique_ptr<heal::Formula> context);
+        explicit Effect(std::unique_ptr<heal::Annotation> change, std::unique_ptr<heal::Annotation> context);
     };
 
 	/** A solver for post images. The solver works relative to an invariant that it implicitly assumes and enforces.

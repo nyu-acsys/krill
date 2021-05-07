@@ -19,6 +19,7 @@ set(SOURCES
 	util/print.cpp
 #	util/replace.cpp
 	util/symbolic.cpp
+    util/inline.cpp
 )
 
 add_library(HeaL ${SOURCES})

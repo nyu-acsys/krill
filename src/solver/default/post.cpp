@@ -8,6 +8,7 @@ using namespace cola;
 using namespace heal;
 using namespace solver;
 
+
 //
 // Assumptions
 //
@@ -24,41 +25,9 @@ inline SymbolicAxiom::Operator TranslateOp(BinaryExpression::Operator op) {
     }
 }
 
-struct RelationTranslator : public BaseVisitor {
-    LazyValuationMap valueMap;
-    std::unique_ptr<SymbolicExpression> result;
-
-    explicit RelationTranslator(const Annotation& context) : valueMap(context) {}
-
-    const SymbolicVariableDeclaration& GetValue(const VariableExpression& expr) { return valueMap.GetValueOrFail(expr.decl); }
-    const SymbolicVariableDeclaration& GetValue(const Dereference& expr) { return valueMap.GetValueOrFail(expr); }
-
-    void visit(const BooleanValue& expr) override { result = std::make_unique<SymbolicBool>(expr.value); }
-    void visit(const NullValue& /*expr*/) override { result = std::make_unique<SymbolicNull>(); }
-    void visit(const MaxValue& /*expr*/) override { result = std::make_unique<SymbolicMax>(); }
-    void visit(const MinValue& /*expr*/) override { result = std::make_unique<SymbolicMin>(); }
-    void visit(const VariableExpression& expr) override { result = std::make_unique<SymbolicVariable>(GetValue(expr)); }
-    void visit(const Dereference& expr) override { result = std::make_unique<SymbolicVariable>(GetValue(expr)); }
-
-    void visit(const NegatedExpression& expr) override { throw std::logic_error("Cannot translate expression into logic: '!' not supported"); }
-    void visit(const EmptyValue& expr) override { throw std::logic_error("Cannot translate expression into logic: 'EMPTY' not supported"); }
-    void visit(const NDetValue& expr) override { throw std::logic_error("Cannot translate expression into logic: '*' not supported"); }
-
-    std::unique_ptr<SymbolicAxiom> Translate(const BinaryExpression& expr) {
-        assert(expr.op != BinaryExpression::Operator::OR);
-        assert(expr.op != BinaryExpression::Operator::AND);
-        expr.lhs->accept(*this);
-        auto lhs = std::move(result);
-        expr.rhs->accept(*this);
-        auto rhs = std::move(result);
-        auto op = TranslateOp(expr.op);
-        return std::make_unique<SymbolicAxiom>(std::move(lhs), op, std::move(rhs));
-    }
-};
-
 struct ExpressionTranslator : public BaseVisitor {
-    RelationTranslator translator;
-    explicit ExpressionTranslator(const Annotation& context) : translator(context) {}
+    LazyValuationMap evaluator;
+    explicit ExpressionTranslator(const Annotation& context) : evaluator(context) {}
 
     std::unique_ptr<SeparatingConjunction> result = std::make_unique<SeparatingConjunction>();
     std::unique_ptr<StackDisjunction> disjunction = nullptr;
@@ -82,7 +51,7 @@ struct ExpressionTranslator : public BaseVisitor {
     }
 
     void HandleRelation(const BinaryExpression& expr) {
-        auto axiom = translator.Translate(expr);
+        auto axiom = std::make_unique<SymbolicAxiom>(evaluator.Evaluate(*expr.lhs), TranslateOp(expr.op), evaluator.Evaluate(*expr.rhs));
         if (disjunction) disjunction->axioms.push_back(std::move(axiom));
         else result->conjuncts.push_back(std::move(axiom));
     }
@@ -94,6 +63,8 @@ struct ExpressionTranslator : public BaseVisitor {
             default: HandleRelation(expr); return;
         }
     }
+
+    // TODO: all other expressions are not supported => override visit to print better error message (or ignore and rely on preprocessing?)
 };
 
 std::unique_ptr<Formula> ExpressionToFormula(const Expression& expression, const Annotation& context) {
@@ -162,44 +133,18 @@ std::pair<std::unique_ptr<heal::Annotation>, std::unique_ptr<Effect>> DefaultSol
     }
 }
 
-struct PostVariableAssignmentVisitor : public BaseVisitor {
-    std::unique_ptr<SymbolicVariable> value;
-    std::unique_ptr<Formula> context;
-
-    void visit(const BooleanValue& expr) override { value = std::make_unique<SymbolicBool>(expr.value); }
-    void visit(const NullValue& /*expr*/) override { value = std::make_unique<SymbolicNull>(); }
-    void visit(const MaxValue& /*expr*/) override { value = std::make_unique<SymbolicMax>(); }
-    void visit(const MinValue& /*expr*/) override { value = std::make_unique<SymbolicMin>(); }
-    void visit(const VariableExpression& expr) override { value = std::make_unique<SymbolicVariable>(GetValue(expr)); }
-    void visit(const Dereference& expr) override { value = std::make_unique<SymbolicVariable>(GetValue(expr)); }
-
-    void visit(const BooleanValue& node) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const BooleanValue&"); }
-    void visit(const NullValue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const NullValue&"); }
-    void visit(const MaxValue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const MaxValue&"); }
-    void visit(const MinValue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const MinValue&"); }
-    void visit(const VariableExpression& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const VariableExpression&"); }
-    void visit(const BinaryExpression& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const BinaryExpression&"); }
-    void visit(const Dereference& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Dereference&"); }
-
-    void visit(const NegatedExpression& /*node*/) override { throw std::logic_error("Unsupported assignment: right-hand side must not be negated."); } // TODO: better error class
-    void visit(const EmptyValue& /*node*/) override { throw std::logic_error("Unsupported assignment: right-hand side must not be 'EMPTY'."); } // TODO: better error class
-    void visit(const NDetValue& /*node*/) override { throw std::logic_error("Unsupported assignment: right-hand side must not be '*'."); } // TODO: better error class
-};
-
-std::pair<std::unique_ptr<SymbolicVariable>, std::unique_ptr<Formula>> Eval(const Expression& expression) {
-    // TODO: implement (should be done in eval.hpp, maybe yields an additional formula with info about the value?)
-    throw std::logic_error("not yet implemented");
-}
-
 std::pair<std::unique_ptr<heal::Annotation>, std::unique_ptr<Effect>> DefaultSolver::Post(std::unique_ptr<heal::Annotation> pre, const cola::Assignment& cmd, const cola::VariableExpression& lhs) const {
-    if (lhs.decl.is_shared) throw std::logic_error("Unsupported assignment: cannot assign to shared variables."); // TODO: better error class
-    auto resource = solver::FindResource(lhs.decl, *pre);
-    auto [value, context] = Eval(*cmd.rhs);
-    resource->value = std::move(value);
-    auto effect = std::make_unique<Effect>(heal::Copy(*resource), std::move(context), cmd);
-    return { std::move(pre), std::move(effect) };
-}
+    if (lhs.decl.is_shared)
+        throw std::logic_error("Unsupported assignment: cannot assign to shared variables."); // TODO: better error class
+    auto effect = std::make_unique<Effect>(); // local variable update => no effect
 
-std::pair<std::unique_ptr<heal::Annotation>, std::unique_ptr<Effect>> DefaultSolver::Post(std::unique_ptr<heal::Annotation> pre, const cola::Assignment& cmd, const cola::Dereference& lhs) const {
-    throw std::logic_error("not yet implemented");
+    auto resource = solver::FindResource(lhs.decl, *pre);
+    auto value = EagerValuationMap(*pre).Evaluate(*cmd.rhs);
+    auto& symbol = SymbolicFactory(*pre).GetUnusedSymbolicVariable(lhs.type());
+    resource->value = std::make_unique<SymbolicVariable>(symbol);
+    pre->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(symbol), SymbolicAxiom::EQ, std::move(value)));
+    heal::Simplify(*pre->now); // TODO: have trivial equalities inlined
+
+    // TODO: generate points to for newly traversed/reached memory
+    return { std::move(pre), std::move(effect) };
 }

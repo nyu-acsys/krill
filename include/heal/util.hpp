@@ -42,8 +42,6 @@ namespace heal {
     std::unique_ptr<FlatSeparatingConjunction> Conjoin(std::unique_ptr<FlatSeparatingConjunction> formula, std::unique_ptr<FlatSeparatingConjunction> other);
     std::unique_ptr<Annotation> Conjoin(std::unique_ptr<Annotation> annotation, std::unique_ptr<Annotation> other);
 
-    void Simplify(LogicObject& object);
-
 	//
 	// Inspection
 	//
@@ -77,6 +75,9 @@ namespace heal {
 //    std::unique_ptr<SeparatingConjunction> Replace(std::unique_ptr<SeparatingConjunction> formula, const transformer_t& transformer, bool* changed= nullptr);
 //    std::unique_ptr<TimePredicate> Replace(std::unique_ptr<TimePredicate> predicate, const transformer_t& transformer, bool* changed= nullptr);
 //    std::unique_ptr<Annotation> Replace(std::unique_ptr<Annotation> annotation, const transformer_t& transformer, bool* changed= nullptr);
+
+    void Simplify(LogicObject& object);
+    void InlineAndSimplify(LogicObject& object);
 
     bool RenameSymbolicSymbols(LogicObject& object, const LogicObject& avoidSymbolsFrom);
 

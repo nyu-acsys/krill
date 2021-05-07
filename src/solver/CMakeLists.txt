@@ -28,6 +28,7 @@ set(SOURCES
         # post
         default/eval.cpp
         default/post.cpp
+        default/post_heap.cpp
         default/join.cpp
         default/interference.cpp
 )

@@ -9,14 +9,17 @@ using namespace heal;
 using namespace solver;
 
 
-Effect::Effect(std::unique_ptr<Annotation> change_, std::unique_ptr<Annotation> context_, const cola::Assignment &command)
-        : change(std::move(change_)), context(std::move(context_)), command(command) {
+Effect::Effect() : change(std::make_unique<Annotation>()), context(std::make_unique<Annotation>()) {
+}
+
+Effect::Effect(std::unique_ptr<Annotation> change_, std::unique_ptr<Annotation> context_)
+        : change(std::move(change_)), context(std::move(context_)) {
     assert(change);
     assert(context);
 }
 
-Effect::Effect(std::unique_ptr<Formula> change_, std::unique_ptr<Formula> context_, const cola::Assignment& command)
-        : change(std::make_unique<Annotation>()), context(std::make_unique<Annotation>()), command(command) {
+Effect::Effect(std::unique_ptr<Formula> change_, std::unique_ptr<Formula> context_)
+        : change(std::make_unique<Annotation>()), context(std::make_unique<Annotation>()) {
     change->now->conjuncts.push_back(std::move(change_));
     context->now->conjuncts.push_back(std::move(context_));
     heal::Simplify(*change->now);
