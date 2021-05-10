@@ -9,66 +9,49 @@ using namespace solver;
 
 constexpr const std::size_t FOOTPRINT_DEPTH = 1; // TODO: value should come from flow/config
 
+enum struct Mode { PRE, POST };
 
-struct BaseField {
-    virtual ~BaseField() = default;
+
+struct Field { // TODO: delete copy constructor to avoid accidental copying?
     const std::string name;
     const Type& type;
     std::reference_wrapper<const SymbolicVariableDeclaration> preValue;
     std::reference_wrapper<const SymbolicVariableDeclaration> postValue;
-
-    BaseField(std::string name, const Type& type, const SymbolicVariableDeclaration& preValue, const SymbolicVariableDeclaration& postValue)
-            : name(std::move(name)), type(type), preValue(preValue), postValue(postValue) {}
+    std::optional<std::reference_wrapper<const SymbolicFlowDeclaration>> preAllOutflow;
+    std::optional<std::reference_wrapper<const SymbolicFlowDeclaration>> preRootOutflow;
+    std::optional<std::reference_wrapper<const SymbolicFlowDeclaration>> postAllOutflow;
+    std::optional<std::reference_wrapper<const SymbolicFlowDeclaration>> postRootOutflow;
 };
 
-struct DataField final : public BaseField {
-    DataField(std::string name, const Type& type, const SymbolicVariableDeclaration& preValue, const SymbolicVariableDeclaration& postValue)
-            : BaseField(std::move(name), type, preValue, postValue) { assert(type.sort != Sort::PTR); }
-};
-
-struct PointerField final : public BaseField {
-    std::reference_wrapper<const SymbolicFlowDeclaration> preRootOutflow;
-    std::reference_wrapper<const SymbolicFlowDeclaration> postRootOutflow;
-
-    PointerField(std::string name, const Type& type, const SymbolicVariableDeclaration& preValue, const SymbolicVariableDeclaration& postValue,
-                 const SymbolicFlowDeclaration& preRootOutflow, const SymbolicFlowDeclaration& postRootOutflow)
-            : BaseField(std::move(name), type, preValue, postValue), preRootOutflow(preRootOutflow), postRootOutflow(postRootOutflow) {
-        assert(type.sort != Sort::PTR);
-    }
-};
-
-//struct FieldInfo {
-//    std::string name;
-//    const Type& type;
-//    std::reference_wrapper<const SymbolicVariableDeclaration> preValue;
-//    std::reference_wrapper<const SymbolicVariableDeclaration> postValue;
-//    std::reference_wrapper<const SymbolicFlowDeclaration> preRootOutflow;
-//    std::reference_wrapper<const SymbolicFlowDeclaration> postRootOutflow;
-//};
-
-struct FootprintNode {
+struct FootprintNode { // TODO: delete copy constructor to avoid accidental copying?
     const SymbolicVariableDeclaration& address;
+    bool needed;
     bool preLocal;
     bool postLocal;
-    std::reference_wrapper<const SymbolicFlowDeclaration> preInflowFlow;
-    std::reference_wrapper<const SymbolicFlowDeclaration> postInflowFlow;
-    std::map<std::string, FieldInfo> fields;
+    std::reference_wrapper<const SymbolicFlowDeclaration> preAllInflow;
+    std::reference_wrapper<const SymbolicFlowDeclaration> preRootInflow;
+    std::reference_wrapper<const SymbolicFlowDeclaration> preKeyset;
+    std::reference_wrapper<const SymbolicFlowDeclaration> postAllInflow;
+    std::reference_wrapper<const SymbolicFlowDeclaration> postRootInflow;
+    std::reference_wrapper<const SymbolicFlowDeclaration> postKeyset;
+    std::reference_wrapper<const SymbolicFlowDeclaration> frameInflow;
+    std::vector<Field> dataFields;
+    std::vector<Field> pointerFields;
 };
 
-struct Footprint {
+struct Footprint { // TODO: delete copy constructor to avoid accidental copying?
     std::deque<FootprintNode> nodes;
-    std::unique_ptr<Annotation> pre;
     SymbolicFactory factory;
-    LazyValuationMap eval;
+    std::unique_ptr<Annotation> pre;
 };
 
-std::unique_ptr<Formula> InstantiateInvariant(const Footprint& footprint, const FootprintNode& node, bool forPre) {
+std::unique_ptr<Formula> InstantiateInvariant(const Footprint& footprint, const FootprintNode& node, Mode mode) {
     throw std::logic_error("not yet implemented");
 }
 
-//
-// Create Footprint, updating local bits and invoking invariant for nodes
-//
+std::unique_ptr<Formula> InstantiateOutflow(LazyValuationMap& eval, const FootprintNode& node, const Field& field, Mode mode) {
+    throw std::logic_error("not yet implemented");
+}
 
 FootprintNode* GetNodeOrNull(Footprint& footprint, const SymbolicVariableDeclaration& address) {
     // search for an existing node at the given address
@@ -78,49 +61,76 @@ FootprintNode* GetNodeOrNull(Footprint& footprint, const SymbolicVariableDeclara
     return nullptr;
 }
 
-FootprintNode* GetOrCreateNode(Footprint& footprint, const SymbolicVariableDeclaration& nextAddress) {
+//
+// Create Footprint, updating local bits and invoking invariant for nodes
+//
+
+FootprintNode* GetOrCreateNode(Footprint& footprint, LazyValuationMap& eval, const SymbolicVariableDeclaration& nextAddress) {
     // search for an existing node at the given address
     if (auto find = GetNodeOrNull(footprint, nextAddress)) return find;
 
     // abort if we do not have the resource for expanding the footprint
-    auto* resource = footprint.eval.GetMemoryResourceOrNull(nextAddress);
+    auto* resource = eval.GetMemoryResourceOrNull(nextAddress);
     if (!resource) return nullptr;
 
     // create a new node
-    auto& postAllFlow = footprint.factory.GetUnusedFlowVariable(resource->flow.get().type); // flow might have changed
-    auto& preRootFlow = footprint.factory.GetUnusedFlowVariable(resource->flow.get().type); // computed later
-    auto& postRootFlow = footprint.factory.GetUnusedFlowVariable(resource->flow.get().type); // computed later
-    std::map<std::string, FieldInfo> fields; // fields are unchanged
+    auto& flowType = resource->flow.get().type;
+    auto& preRootInflow = footprint.factory.GetUnusedFlowVariable(flowType); // compute later
+    auto& postRootInflow = footprint.factory.GetUnusedFlowVariable(flowType); // compute later
+    auto& postAllInflow = footprint.factory.GetUnusedFlowVariable(flowType); // flow might have changed
+    auto& preKeyset = footprint.factory.GetUnusedFlowVariable(flowType); // compute later
+    auto& postKeyset = footprint.factory.GetUnusedFlowVariable(flowType); // compute later
+    auto& frameInflow = footprint.factory.GetUnusedFlowVariable(flowType); // compute later
+    FootprintNode result{ nextAddress, false, resource->isLocal, resource->isLocal, resource->flow, preRootInflow, preKeyset,
+                          postAllInflow, postRootInflow, postKeyset, frameInflow, {}, {} };
+    result.dataFields.reserve(resource->fieldToValue.size());
+    result.pointerFields.reserve(resource->fieldToValue.size());
     for (const auto& [name, value] : resource->fieldToValue) {
-        fields.insert({ name, FieldInfo{ name, value->Type(), value->Decl(), value->Decl() } });
+        Field field{ name, value->Type(), value->Decl(), value->Decl(), std::nullopt, std::nullopt, std::nullopt, std::nullopt };
+        if (value->Sort() == Sort::PTR) {
+            field.preAllOutflow = footprint.factory.GetUnusedFlowVariable(flowType); // compute later
+            field.postRootOutflow = footprint.factory.GetUnusedFlowVariable(flowType); // compute later
+            field.preAllOutflow = footprint.factory.GetUnusedFlowVariable(flowType); // compute later
+            field.postRootOutflow = footprint.factory.GetUnusedFlowVariable(flowType); // compute later
+            result.pointerFields.push_back(std::move(field));
+        } else {
+            result.dataFields.push_back(std::move(field));
+        }
     }
-    footprint.nodes.push_back({ nextAddress, resource->isLocal, resource->isLocal, resource->flow, postAllFlow, preRootFlow, postRootFlow, std::move(fields) });
-    footprint.pre->now->conjuncts.push_back(InstantiateInvariant(footprint, footprint.nodes.back(), true));
+
+    // add to footprint
+    footprint.nodes.push_back(std::move(result));
+    footprint.pre->now->conjuncts.push_back(InstantiateInvariant(footprint, footprint.nodes.back(), Mode::PRE));
     return &footprint.nodes.back();
 }
 
-void ExpandFootprint(Footprint& footprint, FootprintNode& node, std::size_t depth) {
+void ExpandFootprint(Footprint& footprint, LazyValuationMap& eval, FootprintNode& node, std::size_t depth) {
     if (depth == 0) return;
-    for (auto& elem : node.fields) {
-        if (elem.second.type.sort != Sort::PTR) continue;
+    for (auto& field : node.pointerFields) {
         auto descend = [&](const auto& nextAddress) {
-            auto* nextNode = GetOrCreateNode(footprint, nextAddress);
+            auto* nextNode = GetOrCreateNode(footprint, eval, nextAddress);
             if (!nextNode) return;
             if (!node.postLocal) nextNode->postLocal = false; // publish node
-            ExpandFootprint(footprint, *nextNode, depth-1);
+            ExpandFootprint(footprint, eval, *nextNode, depth-1);
         };
-        descend(elem.second.preValue);
-        descend(elem.second.postValue);
+        descend(field.preValue);
+        descend(field.postValue);
     }
 }
 
-void ExpandFootprint(Footprint& footprint, std::size_t depth) {
-    ExpandFootprint(footprint, footprint.nodes.front(), depth);
+Field& GetFieldOrFail(FootprintNode& node, const std::string& name) {
+    for (auto& field : node.pointerFields) {
+        if (field.name == name) return field;
+    }
+    for (auto& field : node.dataFields) {
+        if (field.name == name) return field;
+    }
+    throw std::logic_error("Could not find field."); // TODO: better error handling
 }
 
-Footprint MakeFootprint(std::unique_ptr<Annotation> pre, const VariableDeclaration& lhsVar, std::string lhsField, const SimpleExpression& rhs) {
-    LazyValuationMap eval(*pre);
-    SymbolicFactory factory(*pre);
+Footprint MakeFootprint(std::unique_ptr<Annotation> pre_, const VariableDeclaration& lhsVar, const std::string& lhsField, const SimpleExpression& rhs) {
+    Footprint footprint = { {}, SymbolicFactory(*pre_), std::move(pre_) };
+    LazyValuationMap eval(*footprint.pre);
 
     // get variable for rhs value
     const SymbolicVariableDeclaration* rhsEval;
@@ -128,45 +138,27 @@ Footprint MakeFootprint(std::unique_ptr<Annotation> pre, const VariableDeclarati
         rhsEval = &eval.GetValueOrFail(var->decl);
     } else {
         auto rhsValue = eval.Evaluate(rhs);
-        rhsEval = &factory.GetUnusedSymbolicVariable(rhs.type());
+        rhsEval = &footprint.factory.GetUnusedSymbolicVariable(rhs.type());
         auto axiom = std::make_unique<SymbolicAxiom>(std::move(rhsValue), SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(*rhsEval));
-        pre->now->conjuncts.push_back(std::move(axiom));
+        footprint.pre->now->conjuncts.push_back(std::move(axiom));
     }
 
-    // create footprint
-    Footprint footprint = { {}, std::move(pre), std::move(factory), std::move(eval) };
-
     // make root node (update lhsField, do not change flow)
-    FootprintNode* root = GetOrCreateNode(footprint, footprint.eval.GetValueOrFail(lhsVar));
+    FootprintNode* root = GetOrCreateNode(footprint, eval, eval.GetValueOrFail(lhsVar));
     if (!root) throw std::logic_error("Cannot initialize footprint."); // TODO: better error handling
-    root->preRootFlow = root->preAllFlow;
-    root->postAllFlow = root->preAllFlow;
-    root->postRootFlow = root->preAllFlow;
-    root->fields.at(lhsField).postValue = *rhsEval;
+    root->needed = true;
+    root->preRootInflow = root->preAllInflow;
+    root->postRootInflow = root->preAllInflow;
+    root->postAllInflow = root->preAllInflow;
+    GetFieldOrFail(*root, lhsField).postValue = *rhsEval;
 
     // generate flow graph
-    ExpandFootprint(footprint, FOOTPRINT_DEPTH); // TODO: start with smaller footprint and increase if too small?
+    ExpandFootprint(footprint, eval, *root, FOOTPRINT_DEPTH); // TODO: start with smaller footprint and increase if too small?
     return footprint;
 }
 
 //
-// Check that footprint contains all newly published nodes
-//
-
-void CheckPublishing(Footprint& footprint) {
-    for (auto& node : footprint.nodes) {
-        if (node.preLocal == node.postLocal) continue;
-        for (auto& elem : node.fields) {
-            if (elem.second.type.sort != Sort::PTR) continue;
-            auto next = GetNodeOrNull(footprint, elem.second.postValue);
-            if (!next) throw std::logic_error("Footprint too small to capture publishing"); // TODO: better error handling
-        }
-    }
-}
-
-//
-// Check that footprint contains all nodes with changed inflow
-// TODO: make footprint more concise by removing nodes the inflow of which did not change (except root)
+// Encode footprint
 //
 
 struct ResourceCollector : public DefaultLogicListener {
@@ -207,12 +199,12 @@ struct FootprintEncoder : public BaseLogicVisitor {
     void visit(const InflowContainsRangeAxiom& obj) override {
         auto qv = context.int_const("__qv");
         auto premise = (Encode(*obj.valueLow) < qv) && (qv <= Encode(*obj.valueHigh));
-        auto conclusion = EncodeFlow(obj.flow)(qv) == context.bool_val(true);
+        auto conclusion = EncodeFlow(obj.flow)(qv);
         result = z3::forall(qv, z3::implies(premise, conclusion));
     }
     void visit(const InflowEmptinessAxiom& obj) override {
         auto qv = context.int_const("__qv");
-        result = z3::exists(qv, EncodeFlow(obj.flow)(qv) == context.bool_val(true));
+        result = z3::exists(qv, EncodeFlow(obj.flow)(qv));
         if (obj.isEmpty) result = !result;
     }
 
@@ -290,128 +282,307 @@ private:
     }
 };
 
-z3::expr EncodeOutFlow(const Footprint& footprint, FootprintEncoder& encoder, const FootprintNode& node, const FieldInfo& field, bool forPre) {
+z3::expr EncodeOutflow(const Footprint& footprint, FootprintEncoder& encoder, const FootprintNode& node, const Field& field, Mode mode) {
 //    successor inflow contains x if node sends x via field
 
+// TODO: populate pre/post keyset
+// TODO: populate pre/post rootinflow?
+// TODO: populate pre/post rootoutflow?
+// TODO: populate pre/post alloutflow?
+
+//    auto qv = encoder.context.int_const("__qv");
+//    auto inflow = encode(forPre ? node.preRootInflow : node.postRootInflow);
+//    auto outflow = encoder(InstantiateOutflow(eval, node, field, forPre));
+//    return z3::forall(qv, z3::implies(inflow, outflow));
+    throw std::logic_error("not yet implemented");
 }
 
-z3::expr EncodeFlow(const Footprint& footprint, FootprintEncoder& encoder) {
+z3::expr EncodeFlowRules(FootprintEncoder& encoder, const FootprintNode& node) {
+    auto qv = encoder.context.int_const("__qv");
+    z3::expr_vector result(encoder.context);
+    auto addRule = [&qv, &result](auto pre, auto imp) { result.push_back(z3::forall(qv, z3::implies(pre, imp))); };
+
+    z3::expr_vector preOuts(encoder.context), postOuts(encoder.context);
+    for (const auto& field : node.pointerFields) {
+        preOuts.push_back(encoder(*field.preAllOutflow)(qv));
+        postOuts.push_back(encoder(*field.postAllOutflow)(qv));
+    }
+
+    auto preRoot = encoder(node.preRootInflow)(qv);
+    auto postRoot = encoder(node.postRootInflow)(qv);
+    auto preAll = encoder(node.preAllInflow)(qv);
+    auto postAll = encoder(node.postAllInflow)(qv);
+    auto preKey = encoder(node.preKeyset)(qv);
+    auto postKey = encoder(node.postKeyset)(qv);
+    auto frame = encoder(node.frameInflow)(qv);
+    auto preOut = z3::mk_or(preOuts);
+    auto postOut = z3::mk_or(postOuts);
+
+    // root flow is subset of all flow
+    addRule(preRoot, preAll);
+    addRule(postRoot, postAll);
+
+    // frame flow is subset of all flow
+    addRule(frame, preAll);
+    addRule(frame, postAll);
+
+    // all flow is either frame flow or root flow
+    addRule(preAll, preRoot || frame);
+    addRule(postAll, postRoot || frame);
+
+    // keyset is subset of all flow
+    addRule(preKey, preAll);
+    addRule(preKey, postAll);
+
+    // keyset is inflow minus outflow
+    addRule(preAll && !preOuts, preKey);
+    addRule(postAll && !postOuts, postKey);
+
+    return mk_and(result);
+}
+
+z3::expr EncodeKeysetDisjointness(const Footprint& footprint, FootprintEncoder& encoder, Mode mode) {
+    auto qv = encoder.context.int_const("__qv");
+    z3::expr_vector preKeyset(encoder.context);
+    for (const auto& node : footprint.nodes) {
+        auto& keyset = mode == Mode::PRE ? node.preKeyset.get() : node.postKeyset.get();
+        preKeyset.push_back(encoder(keyset)(qv));
+    }
+    return z3::forall(qv, z3::distinct(preKeyset));
+}
+
+z3::expr EncodeInflowUniqueness(const Footprint& footprint, FootprintEncoder& encoder, Mode mode) {
+    // create predecessor map
+    std::map<const SymbolicVariableDeclaration*, std::set<const SymbolicFlowDeclaration*>> incoming;
+    for (const auto& node : footprint.nodes) {
+        for (const auto& field : node.pointerFields) {
+            auto& outflow = mode == Mode::PRE ? field.preRootOutflow->get() : field.postRootOutflow->get();
+            incoming[&node.address].insert(&outflow);
+        }
+    }
+
+    // uniqueness
+    auto qv = encoder.context.int_const("__qv");
     z3::expr_vector result(encoder.context);
 
-    // same inflow in root before and after update
-    auto& root = footprint.nodes.front();
-    assert(&root.preAllFlow.get() == &root.preRootFlow.get());
-    assert(&root.preAllFlow.get() == &root.postRootFlow.get());
-    assert(&root.preAllFlow.get() == &root.postAllFlow.get());
-
-    // go over graph and encode flow
     for (const auto& node : footprint.nodes) {
-        for (const auto& [name, field] : node.fields) {
-            if (field.type.sort != Sort::PTR) continue;
-            result.push_back(EncodeOutFlow(footprint, encoder, node, field, true));
-            result.push_back(EncodeOutFlow(footprint, encoder, node, field, false));
-            //
-            // successor inflow contains x if node sends x via field
-            // Eigentlich will man hier nicht den echten Flow betrachten, sondern nur den der aus der Wurzel stammt.
-            // Dazu sollte der Encoder bzw. der Frame keine Infos über den Flow produzieren.
-            // Die Flow Information aus footprint.pre benutzen/brauchen wir erst später.
-            //
-            throw std::logic_error("not yet implemented");
+        z3::expr_vector inflow(encoder.context);
+        inflow.push_back(encoder(node.frameInflow)(qv));
+        for (auto& incomingFlow : incoming[&node.address]) {
+            inflow.push_back(encoder(*incomingFlow)(qv));
         }
+        result.push_back(z3::forall(qv, z3::distinct(inflow)));
     }
 
     return z3::mk_and(result);
 }
 
-void CheckFlowConstraints(Footprint& footprint) {
+z3::expr EncodeFlow(const Footprint& footprint, FootprintEncoder& encoder) {
+    z3::expr_vector result(encoder.context);
+    result.push_back(encoder(*footprint.pre));
+    auto qv = encoder.context.int_const("__qv");
+
+    // same inflow in root before and after update
+    auto& root = footprint.nodes.front();
+    assert(&root.preAllInflow.get() == &root.preRootInflow.get());
+    assert(&root.preAllInflow.get() == &root.postRootInflow.get());
+    assert(&root.preAllInflow.get() == &root.postAllInflow.get());
+
+    // go over graph and encode flow
+    for (const auto& node : footprint.nodes) {
+        result.push_back(EncodeFlowRules(encoder, node));
+
+        // outflow
+        for (const auto& field : node.pointerFields) {
+            result.push_back(EncodeOutflow(footprint, encoder, node, field, Mode::PRE));
+            result.push_back(EncodeOutflow(footprint, encoder, node, field, Mode::POST));
+        }
+    }
+
+    // add assumptions for pre flow: keysets are disjoint, inflow is unique
+    result.push_back(EncodeKeysetDisjointness(footprint, encoder, Mode::PRE));
+    result.push_back(EncodeInflowUniqueness(footprint, encoder, Mode::POST));
+
+    return z3::mk_and(result);
+}
+
+struct FootprintEncoding { // TODO: delete copy constructor to avoid accidental copying?
+    Footprint footprint;
     z3::context context;
-    z3::solver solver(context);
-    FootprintEncoder encoder(context);
+    z3::solver solver;
+    FootprintEncoder encoder;
+    std::deque<std::pair<z3::expr, std::function<void(FootprintEncoding&,bool)>>> checks;
 
-    auto frame = encoder.Encode(*footprint.pre, Mode::PRE);
-    auto flowPre = EncodeFlow(footprint, encoder);
-}
-
-// Algo: (1) create footprint, (2) check local bit update, (3) check unchanged outflow, (4) check invariant, (5) check spec/pure
-// at (3): remove nodes the inflow of which did not change
-// at (3): check keyset uniqueness and inflow uniqueness
-
-
-
-
-
-template<typename T, typename R>
-const T& As(const R& obj) {
-    auto [is, cast] = heal::IsOfType<T>(obj);
-    if (!is) throw std::logic_error("Unsupported assignment"); // TODO: better error handling
-    return *cast;
-}
-
-struct Info {
-    const Assignment& assignment;
-    const Dereference& lhs;
-    const VariableDeclaration& lhsVar;
-    const SimpleExpression& rhs;
-
-    std::unique_ptr<SeparatingConjunction> pre;
-    std::unique_ptr<SeparatingConjunction> frame;
-    std::deque<std::unique_ptr<TimePredicate>> timePredicates;
-
-    std::unique_ptr<SymbolicExpression> currentValue;
-    std::unique_ptr<SymbolicExpression> newValue;
-
-    Info(std::unique_ptr<Annotation> pre_, const Assignment &cmd, const Dereference &lhs);
-
-//    void AddPre(std::unique_ptr<Formula> formula) {
-//        pre->conjuncts.push_back(std::move(formula));
-//    }
-
-//    void UnframeKnowledge(const VariableDeclaration& decl) {
-//        throw std::logic_error("not yet implemented");
-//    }
-
-    const EqualsToAxiom& UnframeVariableResource(const VariableDeclaration& decl);
-    const PointsToAxiom& UnframeMemoryResource(const SymbolicVariableDeclaration& decl);
-    void UnframeKnowledge(const SymbolicVariableDeclaration& decl);
+    explicit FootprintEncoding(Footprint&& footprint) : footprint(std::move(footprint)), solver(context), encoder(context) {
+        solver.add(EncodeFlow(footprint, encoder));
+    }
 };
 
-Info::Info(std::unique_ptr<Annotation> pre_, const Assignment &cmd, const Dereference &lhs)
-        : assignment(cmd), lhs(lhs), lhsVar(As<VariableExpression>(lhs).decl), rhs(As<SimpleExpression>(*cmd.rhs)),
-          pre(std::make_unique<SeparatingConjunction>()), frame(std::move(pre_->now)), timePredicates(std::move(pre_->time)) {
+//std::vector<bool> ComputeImplied(FootprintEncoding& encoding, const z3::expr_vector& expressions, const std::string& prefix) {
+////    encoding.solver.push();
+//
+//    // prepare required vectors
+//    z3::expr_vector variables(encoding.context);
+//    z3::expr_vector assumptions(encoding.context);
+//    z3::expr_vector consequences(encoding.context);
+//
+//    // prepare solver
+//    for (std::size_t index = 0; index < expressions.size(); ++index) {
+//        std::string name = "__chk_" + prefix + std::to_string(index);
+//        auto var = encoding.context.bool_const(name.c_str());
+//        variables.push_back(var);
+//        encoding.solver.add(var == expressions[index]);
+//    }
+//
+//    // check
+//    auto answer = encoding.solver.consequences(assumptions, variables, consequences);
+////    encoding.solver.pop();
+//
+//    // create result
+//    std::vector<bool> result(expressions.size(), false);
+//    switch (answer) {
+//        case z3::unknown:
+//            throw std::logic_error("SMT solving failed: Z3 was unable to prove/disprove satisfiability; solving result was 'UNKNOWN'.");
+//
+//        case z3::unsat:
+//            result.flip();
+//            return result;
+//
+//        case z3::sat:
+//            // TODO: implement more robust version (add result to solver and then check given exprs?)
+//            for (std::size_t index = 0; index < expressions.size(); ++index) {
+//                auto searchFor = z3::implies(encoding.context.bool_val(true), variables[index]);
+//                for (auto implication : consequences) {
+//                    bool syntacticallyEqual = z3::eq(implication, searchFor);
+//                    if (!syntacticallyEqual) continue;
+//                    result.at(index) = true;
+//                    break;
+//                }
+//            }
+//            return result;
+//    }
+//}
 
-    // get resources for left-hand side and remove them from the frame
-    auto& variableResource = UnframeVariableResource(lhsVar); // dereferenced variable
-    auto& memoryResource = UnframeMemoryResource(variableResource.value->Decl()); // accessed memory
+//
+// Check that footprint contains all newly published nodes
+//
 
-    // get resources for right-hand side and remove them from the frame
-    if (auto rhsVar = dynamic_cast<const VariableExpression*>(&rhs)) {
-        UnframeVariableResource(rhsVar->decl);
+void CheckPublishing(Footprint& footprint) {
+    for (auto& node : footprint.nodes) {
+        if (node.preLocal == node.postLocal) continue;
+        node.needed = true;
+        for (auto& field : node.pointerFields) {
+            auto next = GetNodeOrNull(footprint, field.postValue);
+            if (!next) throw std::logic_error("Footprint too small to capture publishing"); // TODO: better error handling
+            next->needed = true;
+        }
     }
 }
 
-const EqualsToAxiom& Info::UnframeVariableResource(const VariableDeclaration& decl) {
-    throw std::logic_error("not yet implemented"); // TODO: reuse/rewrite eval.hpp
+//
+// Check that footprint contains all nodes with changed inflow
+//
+
+void CheckFlowCoverage(FootprintEncoding& encoding) {
+    // find nodes the outflow of which has changed
+    auto qv = encoding.encoder.context.int_const("__qv");
+    z3::expr_vector equalities(encoding.context);
+    std::deque<std::pair<const FootprintNode*, const Field*>> fields;
+    for (const auto& node : encoding.footprint.nodes) {
+        for (const auto& field : node.pointerFields) {
+            auto sameFlow = encoding.encoder(*field.preRootOutflow)(qv) == encoding.encoder(*field.postRootOutflow)(qv);
+            equalities.push_back(z3::forall(qv, sameFlow));
+            fields.emplace_back(&node, &field);
+        }
+    }
+    auto unchanged = ComputeImplied(encoding, equalities, "flow");
+    assert(unchanged.size() == fields.size());
+
+    // find minimal footprint
+    std::set<const SymbolicVariableDeclaration*> footprintMustContain;
+    footprintMustContain.insert(&encoding.footprint.nodes.front().address);
+    for (std::size_t index = 0; index < unchanged.size(); ++index) {
+        if (unchanged[index]) continue;
+        footprintMustContain.insert(&fields[index].first->address);
+        footprintMustContain.insert(&fields[index].second->preValue.get());
+        footprintMustContain.insert(&fields[index].second->postValue.get());
+    }
+
+    // check that minimal footprint contains changes
+    for (auto address : footprintMustContain) {
+        auto mustHaveNode = GetNodeOrNull(encoding.footprint, *address);
+        if (!mustHaveNode) throw std::logic_error("Footprint too small: does not cover address the inflow of which changed"); // TODO: better error handling
+        mustHaveNode->needed = true;
+    }
 }
 
-const PointsToAxiom& Info::UnframeMemoryResource(const SymbolicVariableDeclaration& decl) {
-    throw std::logic_error("not yet implemented"); // TODO: reuse/rewrite eval.hpp
+//
+// Check keyset and inflow uniqueness
+//
+
+void CheckFlowUniqueness(FootprintEncoding& encoding) {
+    z3::expr_vector checks(encoding.context);
+    checks.push_back(EncodeKeysetDisjointness(encoding.footprint, encoding.encoder, Mode::POST));
+    checks.push_back(EncodeInflowUniqueness(encoding.footprint, encoding.encoder, Mode::POST));
+    auto isSatisfied = ComputeImplied(encoding, checks, "unique");
+
+    if (!isSatisfied[0]) throw std::logic_error("Unsafe update: keysets are not disjoint."); // TODO: better error handling
+    if (!isSatisfied[1]) throw std::logic_error("Unsafe update: inflow not unique."); // TODO: better error handling
 }
 
-void Info::UnframeKnowledge(const SymbolicVariableDeclaration& decl) {
-    throw std::logic_error("not yet implemented"); // TODO: collect everything that narrows down decl
+//
+// Check invariant
+//
+
+void CheckInvariant(FootprintEncoding& encoding) {
+    z3::expr_vector checks(encoding.context);
+    for (const auto& node : encoding.footprint.nodes) {
+        auto nodeInvariant = InstantiateInvariant(encoding.footprint, node, Mode::POST);
+        checks.push_back(encoding.encoder(*nodeInvariant));
+    }
+    auto isSatisfied = ComputeImplied(encoding, checks, "invariant");
+    if (std::none_of(isSatisfied.begin(), isSatisfied.end(), std::logical_not<>())) return;
+    throw std::logic_error("Unsafe update: invariant is not maintained."); // TODO: better error handling
 }
 
+//
+// Check specification
+//
+
+void CheckSpecification(FootprintEncoding& encoding) {
+    z3::expr_vector checks(encoding.context);
+
+}
+
+//
+// Post image
+//
+
+void MinimizeFootprint(Footprint& footprint) {
+    footprint.nodes.erase(std::remove_if(footprint.nodes.begin(), footprint.nodes.end(),
+                                         [](const auto& node) { return !node.needed; }), footprint.nodes.end());
+}
 
 std::pair<std::unique_ptr<heal::Annotation>, std::unique_ptr<Effect>> DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assignment& cmd, const Dereference& lhs) const {
     // TODO: use future
     // TODO: create and use update/effect lookup table
     // TODO: inline as much as possible?
 
-    Info info(std::move(pre), cmd, lhs);
+    auto [isVar, lhsVar] = heal::IsOfType<VariableExpression>(*lhs.expr);
+    if (!isVar) throw std::logic_error("Unsupported assignment: dereference of non-variable"); // TODO: better error handling
+    auto [isSimple, rhs] = heal::IsOfType<SimpleExpression>(*cmd.rhs);
+    if (!isSimple) throw std::logic_error("Unsupported assignment: right-hand side is not simple"); // TODO:: better error handling
 
+    Footprint footprint = MakeFootprint(std::move(pre), lhsVar->decl, lhs.fieldname, *rhs);
+    auto encoding = FootprintEncoding(std::move(footprint));
 
-    // TODO: implement
+    CheckPublishing(encoding.footprint);
+    CheckFlowCoverage(encoding);
+    CheckFlowUniqueness(encoding);
+    CheckInvariant(encoding);
+    CheckSpecification(encoding);
+
+    MinimizeFootprint(encoding.footprint);
+    // TODO: extract effect
     throw std::logic_error("not yet implemented");
-
-
 }
