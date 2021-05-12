@@ -2,7 +2,7 @@
 #ifndef HEAL_LOGIC
 #define HEAL_LOGIC
 
-
+#include <iostream> // TODO: remove
 #include <array>
 #include <deque>
 #include <memory>

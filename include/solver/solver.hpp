@@ -18,12 +18,14 @@ namespace solver {
 
     // TODO: what is an effect? what does it say/mean?
     struct Effect {
-        std::unique_ptr<heal::Annotation> change;
-        std::unique_ptr<heal::Annotation> context;
+        // TODO: add command
+        std::unique_ptr<heal::Annotation> pre;
+        std::unique_ptr<heal::Annotation> post;
+        std::unique_ptr<heal::Annotation> context; // required but unaltered resources (not a frame!)
 
         explicit Effect();
-        explicit Effect(std::unique_ptr<heal::Formula> change, std::unique_ptr<heal::Formula> context);
-        explicit Effect(std::unique_ptr<heal::Annotation> change, std::unique_ptr<heal::Annotation> context);
+        explicit Effect(std::unique_ptr<heal::Formula> pre, std::unique_ptr<heal::Formula> post, std::unique_ptr<heal::Formula> context);
+        explicit Effect(std::unique_ptr<heal::Annotation> pre, std::unique_ptr<heal::Annotation> post, std::unique_ptr<heal::Annotation> context);
     };
 
 	/** A solver for post images. The solver works relative to an invariant that it implicitly assumes and enforces.

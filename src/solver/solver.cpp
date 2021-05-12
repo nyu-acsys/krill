@@ -9,24 +9,30 @@ using namespace heal;
 using namespace solver;
 
 
-Effect::Effect() : change(std::make_unique<Annotation>()), context(std::make_unique<Annotation>()) {
+Effect::Effect() : pre(std::make_unique<Annotation>()), post(std::make_unique<Annotation>()), context(std::make_unique<Annotation>()) {
 }
 
-Effect::Effect(std::unique_ptr<Annotation> change_, std::unique_ptr<Annotation> context_)
-        : change(std::move(change_)), context(std::move(context_)) {
-    assert(change);
+Effect::Effect(std::unique_ptr<Annotation> pre_, std::unique_ptr<Annotation> post_, std::unique_ptr<Annotation> context_)
+        : pre(std::move(pre_)), post(std::move(post_)), context(std::move(context_)) {
+    assert(pre);
+    assert(post);
     assert(context);
 }
 
-Effect::Effect(std::unique_ptr<Formula> change_, std::unique_ptr<Formula> context_)
-        : change(std::make_unique<Annotation>()), context(std::make_unique<Annotation>()) {
-    change->now->conjuncts.push_back(std::move(change_));
+Effect::Effect(std::unique_ptr<Formula> pre_, std::unique_ptr<Formula> post_, std::unique_ptr<Formula> context_)
+        : pre(std::make_unique<Annotation>()), post(std::make_unique<Annotation>()), context(std::make_unique<Annotation>()) {
+    assert(pre_);
+    assert(post_);
+    assert(context_);
+    pre->now->conjuncts.push_back(std::move(pre_));
+    post->now->conjuncts.push_back(std::move(post_));
     context->now->conjuncts.push_back(std::move(context_));
-    heal::Simplify(*change->now);
+    heal::Simplify(*pre->now);
+    heal::Simplify(*post->now);
     heal::Simplify(*context->now);
 }
 
-Solver::Solver(std::shared_ptr<SolverConfig> config) : config(std::move(config)) {
+Solver::Solver(std::shared_ptr<SolverConfig> config_) : config(std::move(config_)) {
     assert(config);
 }
 

@@ -6,8 +6,6 @@
 set(SOURCES
 	logic.cpp
 	visitors.cpp
-	flow.cpp
-	properties.cpp
 
 	# util
 	util/conjoin.cpp

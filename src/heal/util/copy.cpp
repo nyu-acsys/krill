@@ -30,6 +30,10 @@ std::unique_ptr<SymbolicAxiom> heal::Copy(const SymbolicAxiom& formula) {
     return std::make_unique<SymbolicAxiom>(heal::Copy(*formula.lhs), formula.op, heal::Copy(*formula.rhs));
 }
 
+std::unique_ptr<ObligationAxiom> heal::Copy(const ObligationAxiom& formula) {
+    return std::make_unique<ObligationAxiom>(formula.kind, heal::Copy(*formula.key));
+}
+
 std::unique_ptr<Annotation> heal::Copy(const Annotation& annotation) {
     return std::make_unique<Annotation>(heal::Copy(*annotation.now), CopyAll(annotation.time));
 }
@@ -80,7 +84,7 @@ struct AxiomReplicator : public BaseLogicVisitor {
         result = std::make_unique<InflowEmptinessAxiom>(formula.flow, formula.isEmpty);
     }
     void visit(const ObligationAxiom& formula) override {
-        result = std::make_unique<ObligationAxiom>(formula.kind, heal::Copy(*formula.key));
+        result = heal::Copy(formula);
     }
     void visit(const FulfillmentAxiom& formula) override {
         result = std::make_unique<FulfillmentAxiom>(formula.kind, heal::Copy(*formula.key), formula.return_value);

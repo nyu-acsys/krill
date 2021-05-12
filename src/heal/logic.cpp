@@ -21,7 +21,7 @@ class SymbolicVariablePoolImpl {
     }
 
     static inline std::string MakeSuffix() {
-        return std::to_string(variables.size());
+        return std::to_string(variables.size() + flows.size());
     }
 
     template<typename T>
@@ -50,6 +50,9 @@ public:
         return flows;
     }
 };
+
+std::deque<std::unique_ptr<SymbolicVariableDeclaration>> SymbolicVariablePoolImpl::variables = std::deque<std::unique_ptr<SymbolicVariableDeclaration>>();
+std::deque<std::unique_ptr<SymbolicFlowDeclaration>> SymbolicVariablePoolImpl::flows = std::deque<std::unique_ptr<SymbolicFlowDeclaration>>();
 
 const SymbolicVariableDeclaration &SymbolicPool::MakeFreshVariable(const cola::Type &type) {
     return SymbolicVariablePoolImpl::MakeFreshVariable(type);

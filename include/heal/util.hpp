@@ -32,6 +32,7 @@ namespace heal {
     std::unique_ptr<FlatSeparatingConjunction> Copy(const FlatSeparatingConjunction& formula);
     std::unique_ptr<Axiom> Copy(const Axiom& formula);
     std::unique_ptr<SymbolicAxiom> Copy(const SymbolicAxiom& formula);
+    std::unique_ptr<ObligationAxiom> Copy(const ObligationAxiom& formula);
     std::unique_ptr<SymbolicExpression> Copy(const SymbolicExpression& expression);
     std::unique_ptr<SymbolicVariable> Copy(const SymbolicVariable& expression);
     std::unique_ptr<TimePredicate> Copy(const TimePredicate& predicate);

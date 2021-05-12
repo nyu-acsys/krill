@@ -146,5 +146,6 @@ std::pair<std::unique_ptr<heal::Annotation>, std::unique_ptr<Effect>> DefaultSol
     heal::Simplify(*pre->now); // TODO: have trivial equalities inlined
 
     // TODO: generate points to for newly traversed/reached memory
+    // TODO: generate fulfillments for pure specs
     return { std::move(pre), std::move(effect) };
 }

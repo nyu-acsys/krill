@@ -2,6 +2,7 @@
 
 #include <set>
 #include "cola/util.hpp"
+#include "heal/util.hpp" // TODO: delete
 
 using namespace cola;
 using namespace heal;
@@ -28,14 +29,14 @@ struct BaseResourceFinder : public DefaultLogicListener, DefaultLogicNonConstLis
     void visit(const StackDisjunction& axiom) override { if(axiom.axioms.size() == 1) axiom.axioms.front()->accept(*this); }
 
     // ignore separating implications
-    void visit(SeparatingConjunction& object) override { /* do nothing */ }
-    void visit(const SeparatingConjunction& object) override { /* do nothing */ }
+    void visit(SeparatingImplication&) override { /* do nothing */ }
+    void visit(const SeparatingImplication&) override { /* do nothing */ }
 
     // ignore time predicates
-    void visit(PastPredicate& object) override { /* do nothing */ }
-    void visit(const PastPredicate& object) override { /* do nothing */ }
-    void visit(FuturePredicate& object) override { /* do nothing */ }
-    void visit(const FuturePredicate& object) override { /* do nothing */ }
+    void visit(PastPredicate&) override { /* do nothing */ }
+    void visit(const PastPredicate&) override { /* do nothing */ }
+    void visit(FuturePredicate&) override { /* do nothing */ }
+    void visit(const FuturePredicate&) override { /* do nothing */ }
 };
 
 //
@@ -80,15 +81,12 @@ const EqualsToAxiom* solver::FindResource(const VariableDeclaration& variable, c
 // Dereferences
 //
 
-struct MemoryResourceFinder : public BaseResourceFinder {
-    std::set<const VariableDeclaration*> search;
-    PointsToAxiom* resultNonConst = nullptr;
-    const PointsToAxiom* resultConst = nullptr;
-
-    explicit MemoryResourceFinder(const VariableDeclaration& search) : search({ &search }) {}
-
-    // collect equalities among variables
+struct EqualityFinder : public BaseResourceFinder {
     using DefaultLogicListener::enter; using DefaultLogicNonConstListener::enter;
+
+    std::set<const VariableDeclaration*> search;
+    explicit EqualityFinder(const VariableDeclaration& search) : search({ &search }) {}
+
     void Handle(const EqualsToAxiom& axiom) {
         if (search.count(&axiom.variable->decl) != 0) search.insert(&axiom.value->Decl());
         if (search.count(&axiom.value->Decl()) != 0) search.insert(&axiom.variable->decl);
@@ -107,6 +105,22 @@ struct MemoryResourceFinder : public BaseResourceFinder {
     void enter(SymbolicAxiom& axiom) override { Handle(axiom); }
     void enter(const SymbolicAxiom& axiom) override { Handle(axiom); }
 
+    static std::set<const VariableDeclaration*> FindEqualities(const VariableDeclaration& decl, const LogicObject& obj) {
+        EqualityFinder finder(decl);
+        for (std::size_t oldSize = 0; oldSize != finder.search.size(); oldSize = finder.search.size()) {
+            obj.accept(finder);
+        }
+        return std::move(finder.search);
+    }
+};
+
+struct MemoryResourceFinder : public BaseResourceFinder {
+    std::set<const VariableDeclaration*> search;
+    PointsToAxiom* resultNonConst = nullptr;
+    const PointsToAxiom* resultConst = nullptr;
+
+    explicit MemoryResourceFinder(std::set<const VariableDeclaration*> search) : search(std::move(search)) {}
+
     // extract resource
     bool Matches(const PointsToAxiom& axiom) {
         bool matches = search.count(&axiom.node->Decl()) != 0;
@@ -120,11 +134,16 @@ struct MemoryResourceFinder : public BaseResourceFinder {
 };
 
 template<typename T>
-MemoryResourceFinder MakeMemoryResourceFinder(const SimpleSelector& dereference, T& object) {
-    MemoryResourceFinder finder(*dereference.first);
+MemoryResourceFinder MakeMemoryResourceFinder(const VariableDeclaration& decl, T& object) {
+    MemoryResourceFinder finder(EqualityFinder::FindEqualities(decl, object));
     object.accept(finder);
-    assert(finder.resultConst == nullptr || &finder.resultConst->node->Type() == &dereference.first->type);
+    assert(finder.resultConst == nullptr || &finder.resultConst->node->Type() == &decl.type);
     return finder;
+}
+
+template<typename T>
+MemoryResourceFinder MakeMemoryResourceFinder(const SimpleSelector& dereference, T& object) {
+    return MakeMemoryResourceFinder(*dereference.first, object);
 }
 
 PointsToAxiom* FindDereferenceResource(const SimpleSelector& dereference, LogicObject& object) {
@@ -143,9 +162,35 @@ const PointsToAxiom* solver::FindResource(const cola::Dereference& dereference, 
     return FindDereferenceResource(DereferenceToSelector(dereference), object);
 }
 
+heal::PointsToAxiom* solver::FindMemory(const heal::SymbolicVariableDeclaration& address, heal::LogicObject& object) {
+    return MakeMemoryResourceFinder(address, object).resultNonConst;
+}
+
+const heal::PointsToAxiom* solver::FindMemory(const heal::SymbolicVariableDeclaration& address, const heal::LogicObject& object) {
+    return MakeMemoryResourceFinder(address, object).resultConst;
+}
+
 //
 // ValuationMap
 //
+
+template<bool LAZY>
+const heal::PointsToAxiom* ValuationMap<LAZY>::GetMemoryResourceOrNull(const heal::SymbolicVariableDeclaration& variable) {
+    if (LAZY) {
+        auto find = addressToMemory.find(&variable);
+        if (find != addressToMemory.end()) return find->second;
+    }
+    auto* result = solver::FindMemory(variable, context);
+    if (LAZY) addressToMemory[&variable] = result;
+    return result;
+}
+
+template<bool LAZY>
+const heal::PointsToAxiom& ValuationMap<LAZY>::GetMemoryResourceOrFail(const heal::SymbolicVariableDeclaration& variable) {
+    auto result = GetMemoryResourceOrNull(variable);
+    if (result) return *result;
+    throw std::logic_error("Unsafe operation: memory at '" + variable.name + "' is not accessible"); // TODO: better error class
+}
 
 template<bool LAZY>
 const SymbolicVariableDeclaration* ValuationMap<LAZY>::GetValueOrNull(const VariableDeclaration &decl) {
@@ -194,12 +239,12 @@ const SymbolicVariableDeclaration& ValuationMap<LAZY>::GetValueOrFail(const Dere
 
 template<bool LAZY>
 std::unique_ptr<heal::SymbolicVariable> ValuationMap<LAZY>::Evaluate(const VariableExpression& expr) {
-    return std::make_unique<SymbolicVariable>(GetValueOrNull(expr.decl));
+    return std::make_unique<SymbolicVariable>(GetValueOrFail(expr.decl));
 }
 
 template<bool LAZY>
 std::unique_ptr<heal::SymbolicVariable> ValuationMap<LAZY>::Evaluate(const Dereference& expr) {
-    return std::make_unique<SymbolicVariable>(GetValueOrNull(expr));
+    return std::make_unique<SymbolicVariable>(GetValueOrFail(expr));
 }
 
 template<bool LAZY>
@@ -225,6 +270,9 @@ struct Evaluator : public BaseVisitor {
 template<bool LAZY>
 std::unique_ptr<heal::SymbolicExpression> ValuationMap<LAZY>::Evaluate(const Expression& expr) {
     Evaluator evaluator(*this);
-    expr.accept(*this);
+    expr.accept(evaluator);
     return std::move(evaluator.result);
 }
+
+template class solver::ValuationMap<true>;
+template class solver::ValuationMap<false>;

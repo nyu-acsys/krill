@@ -16,6 +16,9 @@ include(ExternalTclap)
 add_executable(${TOOL_NAME} Main.cpp)
 target_link_libraries(${TOOL_NAME} CoLa HeaL Prover Tclap)
 
+add_executable(Test Test.cpp)
+target_link_libraries(Test CoLa HeaL Solver)
+
 
 ################################
 ######### installation #########

@@ -11,7 +11,7 @@
 
 namespace heal {
 
-	/** Flow domain base class to parametrize a solvers in (almost) arbitrary flows.
+	/** Flow domain base class to parametrize a solvers in decreasing flows.
 	  *
 	  * ASSUMPTION: heaps are homogeneous, i.e., consist of a single type of nodes only.
 	  */
@@ -31,20 +31,12 @@ namespace heal {
 		  * and 'val' are those provided by 'GetNodeType()' and 'GetFlowValueType()', respectively.
 		  * The function will be called for 'fieldName's of pointer sort only.
 		  *
-		  * NOTE: if the outflow contains 'val' only if 'val' is contained in the flow of 'node', then the
-		  *       predicate 'P' has to ensure this itself.
+		  * NOTE: the outflow is constrained by the inflow of node, i.e., the outflow is precisely
+		  *       the set '{ v | v ∈ Inflow(node) && P(node, v) }'.
 		  *
 		  * ASSUMPTION: edge functions are node-local, i.e., may only access the fields of 'node'.
 		  */
 		[[nodiscard]] virtual const Predicate& GetOutFlowContains(std::string fieldName) const = 0;
-
-		/** May return ture only if a node's outflow never exceeds its flow.
-		  * If the function is not overridden an approximate check is performed; it is advisable to prove
-		  * or disprove the flow decreasing in the meta theory and simply return the appropriate flag.
-		  *
-		  * NOTE: non-decreasing flows may degrade solver performance and/or precision.
-		  */
-		[[nodiscard]] virtual bool IsFlowDecreasing() const;
 	};
 
 } // namespace heal
