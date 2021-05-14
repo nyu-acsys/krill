@@ -113,22 +113,30 @@ namespace heal {
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct FlatSeparatingConjunction : public Formula {
-        std::deque<std::unique_ptr<Axiom>> conjuncts;
-
-        explicit FlatSeparatingConjunction();
-        explicit FlatSeparatingConjunction(std::deque<std::unique_ptr<Axiom>> conjuncts);
-        ACCEPT_LOGIC_VISITOR
-    };
-
     struct SeparatingImplication : public Formula {
-        std::unique_ptr<FlatSeparatingConjunction> premise;
-        std::unique_ptr<FlatSeparatingConjunction> conclusion;
+        std::unique_ptr<Formula> premise;
+        std::unique_ptr<Formula> conclusion;
 
-        explicit SeparatingImplication(std::unique_ptr<FlatSeparatingConjunction> premise,
-                                       std::unique_ptr<FlatSeparatingConjunction> conclusion);
+        explicit SeparatingImplication(std::unique_ptr<Formula> premise, std::unique_ptr<Formula> conclusion);
         ACCEPT_LOGIC_VISITOR
     };
+
+//    struct FlatSeparatingConjunction : public Formula {
+//        std::deque<std::unique_ptr<Axiom>> conjuncts;
+//
+//        explicit FlatSeparatingConjunction();
+//        explicit FlatSeparatingConjunction(std::deque<std::unique_ptr<Axiom>> conjuncts);
+//        ACCEPT_LOGIC_VISITOR
+//    };
+//
+//    struct SeparatingImplication : public Formula {
+//        std::unique_ptr<FlatSeparatingConjunction> premise;
+//        std::unique_ptr<FlatSeparatingConjunction> conclusion;
+//
+//        explicit SeparatingImplication(std::unique_ptr<FlatSeparatingConjunction> premise,
+//                                       std::unique_ptr<FlatSeparatingConjunction> conclusion);
+//        ACCEPT_LOGIC_VISITOR
+//    };
 
 	//
 	// Axioms

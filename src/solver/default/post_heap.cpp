@@ -2,11 +2,14 @@
 
 #include "z3++.h"
 #include "eval.hpp"
+#include "cola/util.hpp" // TODO: delete
 
 using namespace cola;
 using namespace heal;
 using namespace solver;
 
+
+static constexpr const bool INVARIANT_FOR_LOCAL_RESOURCES = false; // TODO: REMOVE! should be done by the invariant
 
 enum struct Mode { PRE, POST };
 
@@ -343,10 +346,12 @@ private:
     }
 
     z3::expr MakeResourceGuarantee(const LogicObject& obj) {
+        static SymbolicNull nullPtr;
         ResourceCollector collector;
         obj.accept(collector);
         if (collector.resources.empty()) return context.bool_val(true);
         z3::expr_vector vec(context);
+        vec.push_back(Encode(nullPtr));
         for (const auto* resource : collector.resources) {
             vec.push_back(EncodeSymbol(*resource));
         }
@@ -355,6 +360,9 @@ private:
 };
 
 z3::expr EncodeInvariant(const SolverConfig& config, FootprintEncoder& encoder, const FootprintNode& node, Mode mode) {
+    if (!INVARIANT_FOR_LOCAL_RESOURCES && mode == Mode::PRE ? node.preLocal : node.postLocal)
+        return encoder.context.bool_val(true); // TODO: should be done by the invariant itself
+
     auto invariant = config.invariant->Instantiate(*ToLogic(node, mode));
     return encoder(*invariant);
 }
@@ -626,35 +634,32 @@ void AddFlowUniquenessChecks(FootprintEncoding& encoding, FootprintChecks& check
 void AddSpecificationChecks(FootprintEncoding& encoding, FootprintChecks& checks) {
     auto obligation = GetObligationOrNull(encoding.footprint);
     auto qv = encoding.encoder.QuantifiedVariable(encoding.footprint.config.flowDomain->GetFlowValueType().sort);
+    auto contains = [&encoding](auto& node, auto var, auto mode) {
+        return EncodePredicate(*encoding.footprint.config.logicallyContainsKey, encoding.encoder, node, var, mode);
+    };
 
     // check purity
 //    z3::expr_vector purity(encoding.encoder.context);
 //    for (const auto& node : encoding.footprint.nodes) {
 //        purity.push_back(z3::forall(qv, encoding.encoder(node.preKeyset)(qv) == encoding.encoder(node.postKeyset)(qv)));
 //    }
-    z3::expr_vector keysPre(encoding.encoder.context);
-    z3::expr_vector keysPost(encoding.encoder.context);
+    z3::expr_vector preContains(encoding.encoder.context);
+    z3::expr_vector postContains(encoding.encoder.context);
     for (const auto& node : encoding.footprint.nodes) {
-        keysPre.push_back(encoding.encoder(node.preKeyset)(qv));
-        keysPost.push_back(encoding.encoder(node.postKeyset)(qv));
+        preContains.push_back(encoding.encoder(node.preKeyset)(qv) && contains(node, qv, Mode::PRE));
+        postContains.push_back(encoding.encoder(node.postKeyset)(qv) && contains(node, qv, Mode::POST));
     }
-    auto preFootprintKeyset = z3::mk_or(keysPre);
-    auto postFootprintKeyset = z3::mk_or(keysPost);
-    auto isPure = z3::forall(qv, preFootprintKeyset == postFootprintKeyset);
+    auto isPure = z3::forall(qv, z3::mk_or(preContains) == z3::mk_or(postContains));
     checks.Add(isPure, [obligation,&checks](bool isPure){
         std::cout << "Checking purity: isPure=" << isPure << std::endl;
+        if (!isPure && !obligation) throw std::logic_error("Unsafe update: impure update without obligation."); // TODO: better error handling
         if (isPure && obligation) checks.postSpec.push_back(heal::Copy(*obligation));
-        if (isPure) return;
-        throw std::logic_error("Unsafe update: impure update without obligation."); // TODO: better error handling
     });
 
     // impure updates require obligation, checked together with purity
     if (!obligation) return;
     if (obligation->kind == SpecificationAxiom::Kind::CONTAINS) return;
     auto key = encoding.encoder(*obligation->key);
-    auto contains = [&encoding](auto& node, auto var, auto mode) {
-        return EncodePredicate(*encoding.footprint.config.logicallyContainsKey, encoding.encoder, node, var, mode);
-    };
 
     // check impure
     z3::expr_vector othersPreContained(encoding.encoder.context);
@@ -669,15 +674,20 @@ void AddSpecificationChecks(FootprintEncoding& encoding, FootprintChecks& checks
         keyPreContained.push_back(preKeys(key) && contains(node, key, Mode::PRE));
         keyPostContained.push_back(postKeys(key) && contains(node, key, Mode::POST));
     }
-    auto othersUnchanged = z3::forall(qv, z3::mk_or(othersPreContained) == z3::mk_or(othersPostContained));
-    auto insertion = !z3::mk_or(keyPreContained) && z3::mk_or(keyPostContained) && othersUnchanged;
-    auto deletion = z3::mk_or(keyPreContained) && !z3::mk_or(keyPostContained) && othersUnchanged;
-    auto target = obligation->kind == SpecificationAxiom::Kind::INSERT ? insertion : deletion;
+    auto othersUnchanged = z3::forall(qv, z3::implies(qv != key, z3::mk_or(othersPreContained) == z3::mk_or(othersPostContained)));
+    auto isInsertion = !z3::mk_or(keyPreContained) && z3::mk_or(keyPostContained) && othersUnchanged;
+    auto isDeletion = z3::mk_or(keyPreContained) && !z3::mk_or(keyPostContained) && othersUnchanged;
+    auto isTarget = obligation->kind == SpecificationAxiom::Kind::INSERT ? isInsertion : isDeletion;
     
-    checks.Add(target, [&checks,obligation](bool isTarget){
+    checks.Add(isTarget, [&checks,obligation](bool isTarget){
         std::cout << "Checking impure specification wrt obligation: holds=" << isTarget << std::endl;
-        if (!isTarget) return; // this is okay if the update is pure => check that later by inspecting checks.postSpec
-        checks.postSpec.push_back(std::make_unique<FulfillmentAxiom>(obligation->kind, heal::Copy(*obligation->key), true));
+        if (isTarget) {
+            checks.postSpec.push_back(std::make_unique<FulfillmentAxiom>(obligation->kind, heal::Copy(*obligation->key), true));
+        } else if (checks.postSpec.empty()) {
+            // if the update was pure, then there was an obligation in checks.postSpec
+            // hence, the update must be impure and it does not satisfy the spec
+            throw std::logic_error("Unsafe update: impure update that does not satisfy the specification");
+        }
     });
 }
 
@@ -696,46 +706,68 @@ void AddInvariantChecks(FootprintEncoding& encoding, FootprintChecks& checks) {
 // Post image
 //
 
+//std::vector<bool> ComputeImplied(FootprintEncoding& encoding, const z3::expr_vector& expressions) {
+//    // prepare required vectors
+//    z3::expr_vector variables(encoding.context);
+//    z3::expr_vector assumptions(encoding.context);
+//    z3::expr_vector consequences(encoding.context);
+//
+//    // prepare solver
+//    for (unsigned int index = 0; index < expressions.size(); ++index) {
+//        std::string name = "__chk" + std::to_string(index);
+//        auto var = encoding.context.bool_const(name.c_str());
+//        variables.push_back(var);
+//        encoding.solver.add(var == expressions[(int) index]);
+//    }
+//
+//    // check
+//    auto answer = encoding.solver.consequences(assumptions, variables, consequences);
+//
+//    // create result
+//    std::vector<bool> result(expressions.size(), false);
+//    switch (answer) {
+//        case z3::unknown:
+//            throw std::logic_error("SMT solving failed: Z3 was unable to prove/disprove satisfiability; solving result was 'UNKNOWN'.");
+//
+//        case z3::unsat:
+//            result.flip();
+//            return result;
+//
+//        case z3::sat:
+//            // TODO: implement more robust version (add result to solver and then check given expressions?)
+//            for (unsigned int index = 0; index < expressions.size(); ++index) {
+//                auto searchFor = z3::implies(encoding.context.bool_val(true), variables[(int) index]);
+//                for (auto implication : consequences) {
+//                    bool syntacticallyEqual = z3::eq(implication, searchFor);
+//                    if (!syntacticallyEqual) continue;
+//                    result.at(index) = true;
+//                    break;
+//                }
+//            }
+//            return result;
+//    }
+//}
+
 std::vector<bool> ComputeImplied(FootprintEncoding& encoding, const z3::expr_vector& expressions) {
-    // prepare required vectors
-    z3::expr_vector variables(encoding.context);
-    z3::expr_vector assumptions(encoding.context);
-    z3::expr_vector consequences(encoding.context);
+    // TODO: solve all expressions in one shot
+    std::vector<bool> result;
 
-    // prepare solver
-    for (unsigned int index = 0; index < expressions.size(); ++index) {
-        std::string name = "__chk" + std::to_string(index);
-        auto var = encoding.context.bool_const(name.c_str());
-        variables.push_back(var);
-        encoding.solver.add(var == expressions[(int) index]);
+    for (const auto& expr : expressions) {
+        encoding.solver.push();
+        encoding.solver.add(!expr);
+        auto res = encoding.solver.check();
+        encoding.solver.pop();
+        bool chk;
+        switch (res) {
+            case z3::unsat: chk = true; break;
+            case z3::sat: chk = false; break;
+            case z3::unknown: throw std::logic_error("Solving failed."); // TODO: better error handling
+        }
+        if (chk) encoding.solver.add(expr); // TODO: really do this?
+        result.push_back(chk);
     }
 
-    // check
-    auto answer = encoding.solver.consequences(assumptions, variables, consequences);
-
-    // create result
-    std::vector<bool> result(expressions.size(), false);
-    switch (answer) {
-        case z3::unknown:
-            throw std::logic_error("SMT solving failed: Z3 was unable to prove/disprove satisfiability; solving result was 'UNKNOWN'.");
-
-        case z3::unsat:
-            result.flip();
-            return result;
-
-        case z3::sat:
-            // TODO: implement more robust version (add result to solver and then check given expressions?)
-            for (unsigned int index = 0; index < expressions.size(); ++index) {
-                auto searchFor = z3::implies(encoding.context.bool_val(true), variables[(int) index]);
-                for (auto implication : consequences) {
-                    bool syntacticallyEqual = z3::eq(implication, searchFor);
-                    if (!syntacticallyEqual) continue;
-                    result.at(index) = true;
-                    break;
-                }
-            }
-            return result;
-    }
+    return result;
 }
 
 void PerformChecks(FootprintEncoding& encoding, const FootprintChecks& checks) {
@@ -767,6 +799,15 @@ std::pair<std::unique_ptr<heal::Annotation>, std::unique_ptr<Effect>> DefaultSol
     // TODO: inline as much as possible?
     // TODO: start with smaller footprint and increase if too small?
 
+    // debug
+    std::cout << std::endl << std::endl << std::endl << "====================" << std::endl;
+    unsigned int major, minor, build, revision;
+    Z3_get_version(&major, &minor, &build, &revision);
+    std::cout << "Using Z3 version: " << major << "." << minor << "." << build << "." << revision << std::endl;
+    std::cout << "Command: "; cola::print(cmd, std::cout);
+    std::cout << "Pre: " << std::endl; heal::Print(*pre, std::cout); std::cout << std::endl << std::flush;
+    // end debug
+
     auto [isVar, lhsVar] = heal::IsOfType<VariableExpression>(*lhs.expr);
     if (!isVar) throw std::logic_error("Unsupported assignment: dereference of non-variable"); // TODO: better error handling
     auto [isSimple, rhs] = heal::IsOfType<SimpleExpression>(*cmd.rhs);
@@ -788,7 +829,7 @@ std::pair<std::unique_ptr<heal::Annotation>, std::unique_ptr<Effect>> DefaultSol
     AddFlowCoverageChecks(encoding, checks);
     AddFlowUniquenessChecks(encoding, checks);
     AddSpecificationChecks(encoding, checks);
-//    AddInvariantChecks(encoding, checks);
+    AddInvariantChecks(encoding, checks);
 
     CheckPublishing(encoding.footprint);
     PerformChecks(encoding, checks);
