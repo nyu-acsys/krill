@@ -25,7 +25,6 @@ void LogicListener::visit(const SymbolicBool& expression) { enter(expression); e
 void LogicListener::visit(const SymbolicNull& expression) { enter(expression); exit(expression); }
 void LogicListener::visit(const SymbolicMin& expression) { enter(expression); exit(expression); }
 void LogicListener::visit(const SymbolicMax& expression) { enter(expression); exit(expression); }
-void LogicListener::visit(const FlatSeparatingConjunction& formula) { enter(formula); visit_all(*this, formula.conjuncts); exit(formula); }
 void LogicListener::visit(const SeparatingConjunction& formula) { enter(formula); visit_all(*this, formula.conjuncts); exit(formula); }
 void LogicListener::visit(const SeparatingImplication& formula) { enter(formula); formula.premise->accept(*this); formula.conclusion->accept(*this); exit(formula); }
 void LogicListener::visit(const PointsToAxiom& formula) { enter(formula); formula.node->accept(*this); visit_all_values(*this, formula.fieldToValue); exit(formula); }
@@ -47,7 +46,6 @@ void LogicNonConstListener::visit(SymbolicBool& expression) { enter(expression);
 void LogicNonConstListener::visit(SymbolicNull& expression) { enter(expression); exit(expression); }
 void LogicNonConstListener::visit(SymbolicMin& expression) { enter(expression); exit(expression); }
 void LogicNonConstListener::visit(SymbolicMax& expression) { enter(expression); exit(expression); }
-void LogicNonConstListener::visit(FlatSeparatingConjunction& formula) { enter(formula); visit_all(*this, formula.conjuncts); exit(formula); }
 void LogicNonConstListener::visit(SeparatingConjunction& formula) { enter(formula); visit_all(*this, formula.conjuncts); exit(formula); }
 void LogicNonConstListener::visit(SeparatingImplication& formula) { enter(formula); formula.premise->accept(*this); formula.conclusion->accept(*this); exit(formula); }
 void LogicNonConstListener::visit(PointsToAxiom& formula) { enter(formula); formula.node->accept(*this); visit_all_values(*this, formula.fieldToValue); exit(formula); }

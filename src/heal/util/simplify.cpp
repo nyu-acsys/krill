@@ -281,9 +281,6 @@ void Flatten(T& container) {
         if (auto conjunction = dynamic_cast<SeparatingConjunction*>(element.get())) {
             std::move(conjunction->conjuncts.begin(), conjunction->conjuncts.end(), std::back_inserter(pullDown));
             element.reset();
-        } else if (auto flatConjunction = dynamic_cast<FlatSeparatingConjunction*>(element.get())) {
-            std::move(flatConjunction->conjuncts.begin(), flatConjunction->conjuncts.end(), std::back_inserter(pullDown));
-            element.reset();
         } else if (auto disjunction = dynamic_cast<StackDisjunction*>(element.get())) {
             if (disjunction->axioms.size() == 1) element = std::move(disjunction->axioms.front());
         }
@@ -296,7 +293,6 @@ void Flatten(T& container) {
 
 struct Simplifier : public DefaultLogicNonConstListener {
     void exit(SeparatingConjunction& formula) override { Flatten(formula.conjuncts); }
-    void exit(FlatSeparatingConjunction& formula) override { Flatten(formula.conjuncts); }
 };
 
 void heal::Simplify(LogicObject& object) {

@@ -29,7 +29,6 @@ namespace heal {
 
     std::unique_ptr<Formula> Copy(const Formula& formula);
     std::unique_ptr<SeparatingConjunction> Copy(const SeparatingConjunction& formula);
-    std::unique_ptr<FlatSeparatingConjunction> Copy(const FlatSeparatingConjunction& formula);
     std::unique_ptr<Axiom> Copy(const Axiom& formula);
     std::unique_ptr<SymbolicAxiom> Copy(const SymbolicAxiom& formula);
     std::unique_ptr<ObligationAxiom> Copy(const ObligationAxiom& formula);
@@ -39,8 +38,6 @@ namespace heal {
     std::unique_ptr<Annotation> Copy(const Annotation& annotation);
 
     std::unique_ptr<SeparatingConjunction> Conjoin(std::unique_ptr<Formula> formula, std::unique_ptr<Formula> other);
-    std::unique_ptr<FlatSeparatingConjunction> Conjoin(std::unique_ptr<FlatSeparatingConjunction> formula, std::unique_ptr<Axiom> other);
-    std::unique_ptr<FlatSeparatingConjunction> Conjoin(std::unique_ptr<FlatSeparatingConjunction> formula, std::unique_ptr<FlatSeparatingConjunction> other);
     std::unique_ptr<Annotation> Conjoin(std::unique_ptr<Annotation> annotation, std::unique_ptr<Annotation> other);
 
 	//

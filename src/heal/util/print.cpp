@@ -91,12 +91,6 @@ struct FormulaPrinter : public LogicVisitor {
         });
     }
 
-    void visit(const FlatSeparatingConjunction& formula) override {
-        print_elems(stream, formula.conjuncts, [this](const auto& e){
-            e->accept(*this);
-        });
-    }
-
 	void visit(const SeparatingImplication& formula) override {
 		stream << "[";
 		formula.premise->accept(*this);

@@ -273,9 +273,6 @@ struct FootprintEncoder : public BaseLogicVisitor {
     void visit(const SeparatingConjunction& obj) override {
         result = z3::mk_and(EncodeAll(obj.conjuncts)) && MakeResourceGuarantee(obj);
     }
-    void visit(const FlatSeparatingConjunction& obj) override {
-        result = z3::mk_and(EncodeAll(obj.conjuncts)) && MakeResourceGuarantee(obj);
-    }
     void visit(const StackDisjunction& obj) override {
         result = z3::mk_or(EncodeAll(obj.axioms));
     }
@@ -839,3 +836,11 @@ std::pair<std::unique_ptr<heal::Annotation>, std::unique_ptr<Effect>> DefaultSol
     // TODO: extract effect
     throw std::logic_error("not yet implemented");
 }
+
+
+/////////// WIP
+
+std::deque<Effect> ExtractEffects(FootprintEncoding& encoding) {
+    // TODO: go every node and check if something changed; if so, create an effect for that node
+}
+

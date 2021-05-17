@@ -22,10 +22,6 @@ std::unique_ptr<SeparatingConjunction> heal::Copy(const SeparatingConjunction& f
     return std::make_unique<SeparatingConjunction>(CopyAll(formula.conjuncts));
 }
 
-std::unique_ptr<FlatSeparatingConjunction> heal::Copy(const FlatSeparatingConjunction& formula) {
-    return std::make_unique<FlatSeparatingConjunction>(CopyAll(formula.conjuncts));
-}
-
 std::unique_ptr<SymbolicAxiom> heal::Copy(const SymbolicAxiom& formula) {
     return std::make_unique<SymbolicAxiom>(heal::Copy(*formula.lhs), formula.op, heal::Copy(*formula.rhs));
 }
@@ -101,9 +97,18 @@ std::unique_ptr<Axiom> heal::Copy(const Axiom& formula) {
 struct FormulaReplicator : public BaseLogicVisitor {
     std::unique_ptr<Formula> result;
 
-    void visit(const FlatSeparatingConjunction& formula) override { result = heal::Copy(formula); }
+    void visit(const SeparatingImplication& formula) override {
+        result = std::make_unique<SeparatingImplication>(heal::Copy(*formula.premise), heal::Copy(*formula.conclusion));
+    }
     void visit(const SeparatingConjunction& formula) override { result = heal::Copy(formula); }
-    void visit(const SeparatingImplication& formula) override { result = heal::Copy(formula); }
+    void visit(const PointsToAxiom& axiom) override { result = heal::Copy(axiom); }
+    void visit(const EqualsToAxiom& axiom) override { result = heal::Copy(axiom); }
+    void visit(const SymbolicAxiom& axiom) override { result = heal::Copy(axiom); }
+    void visit(const StackDisjunction& axiom) override { result = heal::Copy(axiom); }
+    void visit(const InflowContainsValueAxiom& axiom) override { result = heal::Copy(axiom); }
+    void visit(const InflowContainsRangeAxiom& axiom) override { result = heal::Copy(axiom); }
+    void visit(const InflowEmptinessAxiom& axiom) override { result = heal::Copy(axiom); }
+    void visit(const ObligationAxiom& axiom) override { result = heal::Copy(axiom); }
 };
 
 std::unique_ptr<Formula> heal::Copy(const Formula& formula) {

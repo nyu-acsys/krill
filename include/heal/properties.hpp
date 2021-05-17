@@ -18,11 +18,11 @@ namespace heal {
         std::string name;
         std::unique_ptr<PointsToAxiom> resource;
         std::array<std::reference_wrapper<const SymbolicVariableDeclaration>, N> vars;
-        std::unique_ptr<FlatSeparatingConjunction> blueprint;
+        std::unique_ptr<SeparatingConjunction> blueprint;
 
         NodeProperty(std::string name_, std::unique_ptr<PointsToAxiom> node_,
                      std::array<std::reference_wrapper<const SymbolicVariableDeclaration>, N> vars_,
-                     std::unique_ptr<FlatSeparatingConjunction> blueprint_)
+                     std::unique_ptr<SeparatingConjunction> blueprint_)
                 : name(std::move(name_)), resource(std::move(node_)), vars(std::move(vars_)),
                   blueprint(std::move(blueprint_)) {
             assert(!name.empty());
@@ -30,7 +30,7 @@ namespace heal {
             assert(blueprint);
         }
 
-        std::unique_ptr<FlatSeparatingConjunction> Instantiate(const PointsToAxiom& node, std::array<std::reference_wrapper<const SymbolicVariableDeclaration>, N> decls) const {
+        std::unique_ptr<SeparatingConjunction> Instantiate(const PointsToAxiom& node, std::array<std::reference_wrapper<const SymbolicVariableDeclaration>, N> decls) const {
             // TODO: proper error handling instead of asserts
             struct ReplacementVisitor : public DefaultLogicNonConstListener {
                 std::map<const SymbolicVariableDeclaration*, const SymbolicVariableDeclaration*> symbolMap;
@@ -74,13 +74,13 @@ namespace heal {
 
         std::unique_ptr<SeparatingImplication> InstantiatePure(const PointsToAxiom& node, std::array<std::reference_wrapper<const SymbolicVariableDeclaration>, N> decls) const {
             auto conclusion = Instantiate(node, std::move(decls));
-            auto premise = std::make_unique<FlatSeparatingConjunction>();
+            auto premise = std::make_unique<SeparatingConjunction>();
             premise->conjuncts.push_back(heal::Copy(node));
             return std::make_unique<SeparatingImplication>(std::move(premise), std::move(conclusion));
         }
 
         template<typename... Targs>
-        std::unique_ptr<FlatSeparatingConjunction> Instantiate(const PointsToAxiom& node, const Targs&... args) const {
+        std::unique_ptr<SeparatingConjunction> Instantiate(const PointsToAxiom& node, const Targs&... args) const {
             std::array<std::reference_wrapper<const SymbolicVariableDeclaration>, N> decls { args... };
             return Instantiate(node, std::move(decls));
         }

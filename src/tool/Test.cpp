@@ -52,12 +52,18 @@ std::unique_ptr<Predicate> MakePredicate(const Type& nodeType, const Type& flowT
 
 std::unique_ptr<Invariant> MakeInvariant(const Type& nodeType, const Type& flowType) {
     auto dummy = MakePredicate(nodeType, flowType, "invariant", [](auto& node, auto&){
-        auto blueprint = std::make_unique<FlatSeparatingConjunction>();
-        blueprint->conjuncts.push_back(std::make_unique<InflowContainsValueAxiom>(
+        auto blueprint = std::make_unique<SeparatingConjunction>();
+        auto isUnmarked = std::make_unique<SymbolicAxiom>(
+                std::make_unique<SymbolicVariable>(node.fieldToValue.at("mark")->Decl()),
+                SymbolicAxiom::EQ, std::make_unique<SymbolicBool>(false)
+        );
+        auto dataInInflow = std::make_unique<InflowContainsValueAxiom>(
                 node.flow, heal::Copy(*node.fieldToValue.at("data"))
+        );
+        blueprint->conjuncts.push_back(std::make_unique<SeparatingImplication>(
+                std::move(isUnmarked), std::move(dataInInflow)
         ));
 
-        // TODO: insert dummy invariant
         return blueprint;
     });
     std::array<std::reference_wrapper<const SymbolicVariableDeclaration>, 0> vars = {};
@@ -74,7 +80,7 @@ std::unique_ptr<Predicate> MakeContainsPredicate(const Type& nodeType, const Typ
                 std::make_unique<SymbolicVariable>(node.fieldToValue.at("data")->Decl()),
                 SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(vars[0])
         );
-        auto blueprint = std::make_unique<FlatSeparatingConjunction>();
+        auto blueprint = std::make_unique<SeparatingConjunction>();
         blueprint->conjuncts.push_back(std::move(unmarked));
         blueprint->conjuncts.push_back(std::move(data));
         return blueprint;
@@ -102,7 +108,7 @@ std::unique_ptr<Predicate> MakeOutflowPredicate(const Type& nodeType, const Type
         auto disjunction = std::make_unique<StackDisjunction>();
         disjunction->axioms.push_back(std::move(marked));
         disjunction->axioms.push_back(std::move(unmarked));
-        auto blueprint = std::make_unique<FlatSeparatingConjunction>();
+        auto blueprint = std::make_unique<SeparatingConjunction>();
         blueprint->conjuncts.push_back(std::move(disjunction));
         return blueprint;
     });

@@ -23,7 +23,6 @@ namespace heal {
     struct SymbolicMin;
     struct SymbolicMax;
     struct SeparatingConjunction;
-    struct FlatSeparatingConjunction;
     struct SeparatingImplication;
     struct PointsToAxiom;
     struct EqualsToAxiom;
@@ -46,7 +45,6 @@ namespace heal {
         virtual void visit(const SymbolicMin& object) = 0;
         virtual void visit(const SymbolicMax& object) = 0;
         virtual void visit(const SeparatingConjunction& object) = 0;
-        virtual void visit(const FlatSeparatingConjunction& object) = 0;
         virtual void visit(const SeparatingImplication& object) = 0;
         virtual void visit(const PointsToAxiom& object) = 0;
         virtual void visit(const EqualsToAxiom& object) = 0;
@@ -69,7 +67,6 @@ namespace heal {
         virtual void visit(SymbolicMin& object) = 0;
         virtual void visit(SymbolicMax& object) = 0;
         virtual void visit(SeparatingConjunction& object) = 0;
-        virtual void visit(FlatSeparatingConjunction& object) = 0;
         virtual void visit(SeparatingImplication& object) = 0;
         virtual void visit(PointsToAxiom& object) = 0;
         virtual void visit(EqualsToAxiom& object) = 0;
@@ -93,7 +90,6 @@ namespace heal {
         void visit(const SymbolicMin&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SymbolicMin&"); }
         void visit(const SymbolicMax&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SymbolicMax&"); }
         void visit(const SeparatingConjunction&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SeparatingConjunction&"); }
-        void visit(const FlatSeparatingConjunction&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const FlatSeparatingConjunction&"); }
         void visit(const SeparatingImplication&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const SeparatingImplication&"); }
         void visit(const PointsToAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const PointsToAxiom&"); }
         void visit(const EqualsToAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicVisitor", "const EqualsToAxiom&"); }
@@ -116,7 +112,6 @@ namespace heal {
         void visit(SymbolicMin&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "SymbolicMin&"); }
         void visit(SymbolicMax&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "SymbolicMax&"); }
         void visit(SeparatingConjunction&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "SeparatingConjunction&"); }
-        void visit(FlatSeparatingConjunction&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "FlatSeparatingConjunction&"); }
         void visit(SeparatingImplication&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "SeparatingImplication&"); }
         void visit(PointsToAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "PointsToAxiom&"); }
         void visit(EqualsToAxiom&) override { throw cola::VisitorNotImplementedError(*this, "BaseLogicNonConstVisitor", "EqualsToAxiom&"); }
@@ -141,7 +136,6 @@ namespace heal {
         void visit(const SymbolicMin& object) override;
         void visit(const SymbolicMax& object) override;
         void visit(const SeparatingConjunction& object) override;
-        void visit(const FlatSeparatingConjunction& object) override;
         void visit(const SeparatingImplication& object) override;
         void visit(const PointsToAxiom& object) override;
         void visit(const EqualsToAxiom& object) override;
@@ -163,7 +157,6 @@ namespace heal {
         virtual void enter(const SymbolicMin& object) = 0;
         virtual void enter(const SymbolicMax& object) = 0;
         virtual void enter(const SeparatingConjunction& object) = 0;
-        virtual void enter(const FlatSeparatingConjunction& object) = 0;
         virtual void enter(const SeparatingImplication& object) = 0;
         virtual void enter(const PointsToAxiom& object) = 0;
         virtual void enter(const EqualsToAxiom& object) = 0;
@@ -184,7 +177,6 @@ namespace heal {
         virtual void exit(const SymbolicMin& object) = 0;
         virtual void exit(const SymbolicMax& object) = 0;
         virtual void exit(const SeparatingConjunction& object) = 0;
-        virtual void exit(const FlatSeparatingConjunction& object) = 0;
         virtual void exit(const SeparatingImplication& object) = 0;
         virtual void exit(const PointsToAxiom& object) = 0;
         virtual void exit(const EqualsToAxiom& object) = 0;
@@ -208,7 +200,6 @@ namespace heal {
         void visit(SymbolicMin& object) override;
         void visit(SymbolicMax& object) override;
         void visit(SeparatingConjunction& object) override;
-        void visit(FlatSeparatingConjunction& object) override;
         void visit(SeparatingImplication& object) override;
         void visit(PointsToAxiom& object) override;
         void visit(EqualsToAxiom& object) override;
@@ -230,7 +221,6 @@ namespace heal {
         virtual void enter(SymbolicMin& object) = 0;
         virtual void enter(SymbolicMax& object) = 0;
         virtual void enter(SeparatingConjunction& object) = 0;
-        virtual void enter(FlatSeparatingConjunction& object) = 0;
         virtual void enter(SeparatingImplication& object) = 0;
         virtual void enter(PointsToAxiom& object) = 0;
         virtual void enter(EqualsToAxiom& object) = 0;
@@ -251,7 +241,6 @@ namespace heal {
         virtual void exit(SymbolicMin& object) = 0;
         virtual void exit(SymbolicMax& object) = 0;
         virtual void exit(SeparatingConjunction& object) = 0;
-        virtual void exit(FlatSeparatingConjunction& object) = 0;
         virtual void exit(SeparatingImplication& object) = 0;
         virtual void exit(PointsToAxiom& object) = 0;
         virtual void exit(EqualsToAxiom& object) = 0;
@@ -275,7 +264,6 @@ namespace heal {
         void enter(const SymbolicMin&) override {}
         void enter(const SymbolicMax&) override {}
         void enter(const SeparatingConjunction&) override {}
-        void enter(const FlatSeparatingConjunction&) override {}
         void enter(const SeparatingImplication&) override {}
         void enter(const PointsToAxiom&) override {}
         void enter(const EqualsToAxiom&) override {}
@@ -296,7 +284,6 @@ namespace heal {
         void exit(const SymbolicMin&) override {}
         void exit(const SymbolicMax&) override {}
         void exit(const SeparatingConjunction&) override {}
-        void exit(const FlatSeparatingConjunction&) override {}
         void exit(const SeparatingImplication&) override {}
         void exit(const PointsToAxiom&) override {}
         void exit(const EqualsToAxiom&) override {}
@@ -319,7 +306,6 @@ namespace heal {
         void enter(SymbolicMin&) override {}
         void enter(SymbolicMax&) override {}
         void enter(SeparatingConjunction&) override {}
-        void enter(FlatSeparatingConjunction&) override {}
         void enter(SeparatingImplication&) override {}
         void enter(PointsToAxiom&) override {}
         void enter(EqualsToAxiom&) override {}
@@ -340,7 +326,6 @@ namespace heal {
         void exit(SymbolicMin&) override {}
         void exit(SymbolicMax&) override {}
         void exit(SeparatingConjunction&) override {}
-        void exit(FlatSeparatingConjunction&) override {}
         void exit(SeparatingImplication&) override {}
         void exit(PointsToAxiom&) override {}
         void exit(EqualsToAxiom&) override {}

@@ -74,13 +74,6 @@ const std::deque<std::unique_ptr<SymbolicFlowDeclaration>> &SymbolicPool::GetAll
 SymbolicVariable::SymbolicVariable(const SymbolicVariableDeclaration &decl) : decl_storage(decl) {
 }
 
-FlatSeparatingConjunction::FlatSeparatingConjunction() = default;
-
-FlatSeparatingConjunction::FlatSeparatingConjunction(std::deque<std::unique_ptr<Axiom>> conjuncts_)
-        : conjuncts(std::move(conjuncts_)) {
-    for ([[maybe_unused]] const auto &conjunct : conjuncts) assert(conjunct);
-}
-
 SeparatingConjunction::SeparatingConjunction() = default;
 
 SeparatingConjunction::SeparatingConjunction(std::deque<std::unique_ptr<Formula>> conjuncts_) : conjuncts(
@@ -88,8 +81,7 @@ SeparatingConjunction::SeparatingConjunction(std::deque<std::unique_ptr<Formula>
     for ([[maybe_unused]] const auto &conjunct : conjuncts) assert(conjunct);
 }
 
-SeparatingImplication::SeparatingImplication(std::unique_ptr<FlatSeparatingConjunction> premise_,
-                                             std::unique_ptr<FlatSeparatingConjunction> conclusion_)
+SeparatingImplication::SeparatingImplication(std::unique_ptr<Formula> premise_, std::unique_ptr<Formula> conclusion_)
         : premise(std::move(premise_)), conclusion(std::move(conclusion_)) {
     assert(premise);
     assert(conclusion);
