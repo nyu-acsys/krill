@@ -139,7 +139,7 @@ struct FormulaPrinter : public LogicVisitor {
     }
 
     void visit(const InflowContainsRangeAxiom& formula) override {
-        stream << "(";
+        stream << "[";
         formula.valueLow->accept(*this);
         stream << ", ";
         formula.valueHigh->accept(*this);

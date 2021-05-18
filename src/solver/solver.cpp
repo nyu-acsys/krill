@@ -9,27 +9,31 @@ using namespace heal;
 using namespace solver;
 
 
-Effect::Effect() : pre(std::make_unique<Annotation>()), post(std::make_unique<Annotation>()), context(std::make_unique<Annotation>()) {
-}
+Effect::Effect() : pre(std::make_unique<SeparatingConjunction>()), post(std::make_unique<SeparatingConjunction>()),
+                   context(std::make_unique<SeparatingConjunction>()) {}
 
-Effect::Effect(std::unique_ptr<Annotation> pre_, std::unique_ptr<Annotation> post_, std::unique_ptr<Annotation> context_)
+Effect::Effect(std::unique_ptr<Formula> pre_, std::unique_ptr<Formula> post_, std::unique_ptr<Formula> context_)
         : pre(std::move(pre_)), post(std::move(post_)), context(std::move(context_)) {
     assert(pre);
     assert(post);
     assert(context);
 }
 
-Effect::Effect(std::unique_ptr<Formula> pre_, std::unique_ptr<Formula> post_, std::unique_ptr<Formula> context_)
-        : pre(std::make_unique<Annotation>()), post(std::make_unique<Annotation>()), context(std::make_unique<Annotation>()) {
-    assert(pre_);
-    assert(post_);
-    assert(context_);
-    pre->now->conjuncts.push_back(std::move(pre_));
-    post->now->conjuncts.push_back(std::move(post_));
-    context->now->conjuncts.push_back(std::move(context_));
-    heal::Simplify(*pre->now);
-    heal::Simplify(*post->now);
-    heal::Simplify(*context->now);
+PostImage::PostImage(std::unique_ptr<heal::Annotation> post_) : post(std::move(post_)) {
+    assert(post);
+}
+
+PostImage::PostImage(std::unique_ptr<heal::Annotation> post_, std::unique_ptr<Effect> effect_)
+: post(std::move(post_)) {
+    assert(post);
+    assert(effect_);
+    effects.push_back(std::move(effect_));
+}
+
+PostImage::PostImage(std::unique_ptr<heal::Annotation> post_, std::deque<std::unique_ptr<Effect>> effects_)
+: post(std::move(post_)), effects(std::move(effects_)) {
+    assert(post);
+    for (const auto& effect : effects) assert(effect);
 }
 
 Solver::Solver(std::shared_ptr<SolverConfig> config_) : config(std::move(config_)) {
@@ -43,15 +47,15 @@ std::unique_ptr<Annotation> Solver::Join(std::unique_ptr<Annotation> annotation,
     return Join(std::move(vector));
 }
 
-std::unique_ptr<Annotation> Solver::Post(const Annotation& pre, const Assume& cmd) const {
+PostImage Solver::Post(const Annotation& pre, const Assume& cmd) const {
     return Post(heal::Copy(pre), cmd);
 }
 
-std::unique_ptr<Annotation> Solver::Post(const Annotation& pre, const Malloc& cmd) const {
+PostImage Solver::Post(const Annotation& pre, const Malloc& cmd) const {
     return Post(heal::Copy(pre), cmd);
 }
 
-std::pair<std::unique_ptr<Annotation>, std::unique_ptr<Effect>> Solver::Post(const Annotation& pre, const Assignment& cmd) const {
+PostImage Solver::Post(const Annotation& pre, const Assignment& cmd) const {
     return Post(heal::Copy(pre), cmd);
 }
 

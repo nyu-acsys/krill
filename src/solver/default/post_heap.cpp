@@ -9,8 +9,6 @@ using namespace heal;
 using namespace solver;
 
 
-static constexpr const bool INVARIANT_FOR_LOCAL_RESOURCES = false; // TODO: REMOVE! should be done by the invariant
-
 enum struct Mode { PRE, POST };
 
 struct Field {
@@ -56,12 +54,16 @@ struct Footprint {
     Footprint(const Footprint& other) = delete;
 };
 
-FootprintNode* GetNodeOrNull(Footprint& footprint, const SymbolicVariableDeclaration& address) {
+const FootprintNode* GetNodeOrNull(const Footprint& footprint, const SymbolicVariableDeclaration& address) {
     // search for an existing node at the given address
     auto pred = [&address](const auto& item){ return &item.address == &address; };
     auto find = std::find_if(footprint.nodes.begin(), footprint.nodes.end(), pred);
     if (find != footprint.nodes.end()) return &(*find);
     return nullptr;
+}
+
+FootprintNode* GetNodeOrNull(Footprint& footprint, const SymbolicVariableDeclaration& address) {
+    return const_cast<FootprintNode*>(GetNodeOrNull(std::as_const(footprint), address));
 }
 
 Field& GetFieldOrFail(FootprintNode& node, const std::string& name) {
@@ -78,7 +80,7 @@ bool IsRoot(const Footprint& footprint, const FootprintNode& node) {
     return &node == &footprint.nodes.front();
 }
 
-std::vector<const Field*> IncomingEdges(Footprint& footprint, const FootprintNode& target, Mode mode) {
+std::vector<const Field*> IncomingEdges(const Footprint& footprint, const FootprintNode& target, Mode mode) {
     std::vector<const Field*> result;
     result.reserve(footprint.nodes.size() * target.pointerFields.size());
 
@@ -236,7 +238,8 @@ struct FootprintEncoder : public BaseLogicVisitor {
     static constexpr int MAX_VALUE = 65536;
 
     z3::context& context;
-    explicit FootprintEncoder(z3::context& context) : context(context), result(context) {}
+    z3::solver& solver;
+    FootprintEncoder(z3::context& context, z3::solver& solver) : context(context), solver(solver), result(context) {}
     FootprintEncoder(const FootprintEncoder& other) = delete;
 
     z3::expr operator()(const LogicObject& obj) { return Encode(obj); }
@@ -247,8 +250,8 @@ struct FootprintEncoder : public BaseLogicVisitor {
     void visit(const SymbolicVariable& obj) override { result = EncodeSymbol(obj.Decl()); }
     void visit(const SymbolicBool& obj) override { result = context.bool_val(obj.value); }
     void visit(const SymbolicNull& /*obj*/) override { result = context.int_val(NULL_VALUE); }
-    void visit(const SymbolicMin& /*obj*/) override { result = context.int_val(MIN_VALUE); }
-    void visit(const SymbolicMax& /*obj*/) override { result = context.int_val(MAX_VALUE); }
+    void visit(const SymbolicMin& /*obj*/) override { result = MinData(); }
+    void visit(const SymbolicMax& /*obj*/) override { result = MaxData(); }
     void visit(const PointsToAxiom& /*obj*/) override { result = context.bool_val(true); }
     void visit(const EqualsToAxiom& /*obj*/) override { result = context.bool_val(true); }
     void visit(const ObligationAxiom& /*obj*/) override { result = context.bool_val(true); }
@@ -260,7 +263,7 @@ struct FootprintEncoder : public BaseLogicVisitor {
     }
     void visit(const InflowContainsRangeAxiom& obj) override {
         auto qv = QuantifiedVariable(obj.valueLow->Sort());
-        auto premise = (Encode(*obj.valueLow) < qv) && (qv <= Encode(*obj.valueHigh));
+        auto premise = (Encode(*obj.valueLow) <= qv) && (qv <= Encode(*obj.valueHigh));
         auto conclusion = EncodeFlow(obj.flow)(qv);
         result = z3::forall(qv, z3::implies(premise, conclusion));
     }
@@ -297,6 +300,9 @@ private:
     std::map<const SymbolicVariableDeclaration*, z3::expr> symbols;
     std::map<const SymbolicFlowDeclaration*, z3::func_decl> flows;
 
+    z3::expr MinData(){ return context.int_val(MIN_VALUE); };
+    z3::expr MaxData(){ return context.int_val(MAX_VALUE); };
+
     template<typename K, typename V, typename F>
     V GetOrCreate(std::map<K, V>& map, K key, F create) {
         auto find = map.find(key);
@@ -316,15 +322,26 @@ private:
 
     z3::expr EncodeSymbol(const SymbolicVariableDeclaration& decl) {
         return GetOrCreate(symbols, &decl, [this,&decl](){
+            // create symbol
             auto name = "_v" + decl.name;
-            return context.constant(name.c_str(), EncodeSort(decl.type.sort));
+            auto expr = context.constant(name.c_str(), EncodeSort(decl.type.sort));
+            // add implicit bounds on data values
+            if (decl.type.sort == Sort::DATA) {
+                solver.add(MinData() <= expr && expr <= MaxData());
+            }
+            return expr;
         });
     }
 
     z3::func_decl EncodeFlow(const SymbolicFlowDeclaration& decl) {
         return GetOrCreate(flows, &decl, [this,&decl](){
+            // create symbol
             auto name = "_V" + decl.name;
-            return context.function(name.c_str(), EncodeSort(decl.type.sort), context.bool_sort());
+            auto expr = context.function(name.c_str(), EncodeSort(decl.type.sort), context.bool_sort());
+            // add implicit bounds on data values
+            auto qv = QuantifiedVariable(decl.type.sort);
+            solver.add(z3::forall(qv, z3::implies(qv < MinData() && qv > MaxData(), !expr(qv))));
+            return expr;
         });
     }
 
@@ -357,8 +374,8 @@ private:
 };
 
 z3::expr EncodeInvariant(const SolverConfig& config, FootprintEncoder& encoder, const FootprintNode& node, Mode mode) {
-    if (!INVARIANT_FOR_LOCAL_RESOURCES && mode == Mode::PRE ? node.preLocal : node.postLocal)
-        return encoder.context.bool_val(true); // TODO: should be done by the invariant itself
+    if (!config.applyInvariantToLocal && mode == Mode::PRE ? node.preLocal : node.postLocal)
+        return encoder.context.bool_val(true);
 
     auto invariant = config.invariant->Instantiate(*ToLogic(node, mode));
     return encoder(*invariant);
@@ -373,7 +390,7 @@ z3::expr EncodePredicate(const Predicate& predicate, FootprintEncoder& encoder, 
     return encoder(*instance).substitute(replace, with);
 }
 
-z3::expr EncodeOutflow(Footprint& footprint, FootprintEncoder& encoder, const FootprintNode& node, const Field& field, Mode mode) {
+z3::expr EncodeOutflow(const Footprint& footprint, FootprintEncoder& encoder, const FootprintNode& node, const Field& field, Mode mode) {
     /* Remark:
      * Laminar flow may suggest that the keyset due to frame flow needs not be considered.
      * However, we need to check that node inflow remains unique after update. Ignoring inflow that is due to frame
@@ -407,7 +424,7 @@ z3::expr EncodeOutflow(Footprint& footprint, FootprintEncoder& encoder, const Fo
     return z3::mk_and(result);
 }
 
-std::vector<const SymbolicFlowDeclaration*> GetRootInflowFromPredecessors(Footprint& footprint, const FootprintNode& node, Mode mode) {
+std::vector<const SymbolicFlowDeclaration*> GetRootInflowFromPredecessors(const Footprint& footprint, const FootprintNode& node, Mode mode) {
     assert(!IsRoot(footprint, node));
     auto incomingEdges = IncomingEdges(footprint, node, mode);
     bool forPre = mode == Mode::PRE;
@@ -419,7 +436,7 @@ std::vector<const SymbolicFlowDeclaration*> GetRootInflowFromPredecessors(Footpr
     return result;
 }
 
-z3::expr EncodeFlowRules(Footprint& footprint, FootprintEncoder& encoder, const FootprintNode& node) {
+z3::expr EncodeFlowRules(const Footprint& footprint, FootprintEncoder& encoder, const FootprintNode& node) {
     auto qv = encoder.QuantifiedVariable(node.frameInflow.get().type.sort);
     z3::expr_vector result(encoder.context);
     auto addRule = [&qv, &result](auto pre, auto imp) { result.push_back(z3::forall(qv, z3::implies(pre, imp))); };
@@ -539,14 +556,14 @@ z3::expr EncodeFlow(Footprint& footprint, FootprintEncoder& encoder) {
     return z3::mk_and(result);
 }
 
-struct FootprintEncoding { // TODO: delete copy constructor to avoid accidental copying?
+struct FootprintEncoding {
     Footprint footprint;
     z3::context context;
     z3::solver solver;
     FootprintEncoder encoder;
 
     FootprintEncoding(const FootprintEncoding& other) = delete;
-    explicit FootprintEncoding(Footprint&& footprint_) : footprint(std::move(footprint_)), solver(context), encoder(context) {
+    explicit FootprintEncoding(Footprint&& footprint_) : footprint(std::move(footprint_)), solver(context), encoder(context, solver) {
         solver.add(EncodeFlow(footprint, encoder));
         assert(solver.check() != z3::unsat);
     }
@@ -556,9 +573,13 @@ struct FootprintEncoding { // TODO: delete copy constructor to avoid accidental 
 // Checks
 //
 
-struct FootprintChecks { // TODO: delete copy constructor to avoid accidental copying?
+struct FootprintChecks {
     std::deque<std::pair<z3::expr, std::function<void(bool)>>> checks;
     std::deque<std::unique_ptr<SpecificationAxiom>> postSpec;
+    std::map<const VariableDeclaration*, SeparatingConjunction> context;
+
+    FootprintChecks() = default;
+    FootprintChecks(const FootprintChecks& other) = delete;
 
     void Add(const z3::expr& expr, std::function<void(bool)> callback) {
         checks.emplace_back(expr, std::move(callback));
@@ -577,18 +598,18 @@ void CheckPublishing(Footprint& footprint) {
     }
 }
 
-bool DebugCheck(FootprintEncoding& encoding, const z3::expr& expr) {
-    encoding.solver.push();
-    std::cout << "checking: " << expr << std::endl;
-    encoding.solver.add(!expr);
-    auto res = encoding.solver.check();
-    encoding.solver.pop();
-    switch (res) {
-        case z3::unsat: std::cout << "  ==> holds" << std::endl; return true;
-        case z3::sat: std::cout << "  ==> does not hold" << std::endl; return false;
-        case z3::unknown: std::cout << "  ==> solving failed" << std::endl; return false;
-    }
-}
+//bool DebugCheck(FootprintEncoding& encoding, const z3::expr& expr) {
+//    encoding.solver.push();
+//    std::cout << "checking: " << expr << std::endl;
+//    encoding.solver.add(!expr);
+//    auto res = encoding.solver.check();
+//    encoding.solver.pop();
+//    switch (res) {
+//        case z3::unsat: std::cout << "  ==> holds" << std::endl; return true;
+//        case z3::sat: std::cout << "  ==> does not hold" << std::endl; return false;
+//        case z3::unknown: std::cout << "  ==> solving failed" << std::endl; return false;
+//    }
+//}
 
 void AddFlowCoverageChecks(FootprintEncoding& encoding, FootprintChecks& checks) {
     auto ensureFootprintContains = [&encoding](const SymbolicVariableDeclaration& address){
@@ -602,7 +623,7 @@ void AddFlowCoverageChecks(FootprintEncoding& encoding, FootprintChecks& checks)
         for (const auto& field : node.pointerFields) {
             auto sameFlow = encoding.encoder(field.preRootOutflow.value())(qv) == encoding.encoder(field.postRootOutflow.value())(qv);
             checks.Add(z3::forall(qv, sameFlow), [ensureFootprintContains,&node,&field](bool unchanged){
-                std::cout << "Checking outflow at " << node.address.name << ": unchanged=" << unchanged << std::endl;
+//                std::cout << "Checking outflow at " << node.address.name << ": unchanged=" << unchanged << std::endl;
                 if (unchanged) return;
                 ensureFootprintContains(node.address);
                 ensureFootprintContains(field.preValue);
@@ -615,14 +636,14 @@ void AddFlowCoverageChecks(FootprintEncoding& encoding, FootprintChecks& checks)
 void AddFlowUniquenessChecks(FootprintEncoding& encoding, FootprintChecks& checks) {
     auto disjointness = EncodeKeysetDisjointness(encoding.footprint, encoding.encoder, Mode::POST);
     checks.Add(disjointness, [](bool holds){
-        std::cout << "Checking keyset disjointness: holds=" << holds << std::endl;
+//        std::cout << "Checking keyset disjointness: holds=" << holds << std::endl;
         if (holds) return;
         throw std::logic_error("Unsafe update: keyset disjointness not guaranteed."); // TODO: better error handling
     });
 
     auto uniqueness = EncodeInflowUniqueness(encoding.footprint, encoding.encoder, Mode::POST);
     checks.Add(uniqueness, [](bool holds){
-        std::cout << "Checking inflow uniqueness: holds=" << holds << std::endl;
+//        std::cout << "Checking inflow uniqueness: holds=" << holds << std::endl;
         if (holds) return;
         throw std::logic_error("Unsafe update: inflow uniqueness not guaranteed."); // TODO: better error handling
     });
@@ -648,7 +669,7 @@ void AddSpecificationChecks(FootprintEncoding& encoding, FootprintChecks& checks
     }
     auto isPure = z3::forall(qv, z3::mk_or(preContains) == z3::mk_or(postContains));
     checks.Add(isPure, [obligation,&checks](bool isPure){
-        std::cout << "Checking purity: isPure=" << isPure << std::endl;
+//        std::cout << "Checking purity: isPure=" << isPure << std::endl;
         if (!isPure && !obligation) throw std::logic_error("Unsafe update: impure update without obligation."); // TODO: better error handling
         if (isPure && obligation) checks.postSpec.push_back(heal::Copy(*obligation));
     });
@@ -677,7 +698,7 @@ void AddSpecificationChecks(FootprintEncoding& encoding, FootprintChecks& checks
     auto isTarget = obligation->kind == SpecificationAxiom::Kind::INSERT ? isInsertion : isDeletion;
     
     checks.Add(isTarget, [&checks,obligation](bool isTarget){
-        std::cout << "Checking impure specification wrt obligation: holds=" << isTarget << std::endl;
+//        std::cout << "Checking impure specification wrt obligation: holds=" << isTarget << std::endl;
         if (isTarget) {
             checks.postSpec.push_back(std::make_unique<FulfillmentAxiom>(obligation->kind, heal::Copy(*obligation->key), true));
         } else if (checks.postSpec.empty()) {
@@ -692,7 +713,7 @@ void AddInvariantChecks(FootprintEncoding& encoding, FootprintChecks& checks) {
     for (const auto& node : encoding.footprint.nodes) {
         auto nodeInvariant = EncodeInvariant(encoding.footprint.config, encoding.encoder, node, Mode::POST);
         checks.Add(nodeInvariant, [&node](bool holds){
-            std::cout << "Checking invariant for " << node.address.name << ": holds=" << holds << std::endl;
+//            std::cout << "Checking invariant for " << node.address.name << ": holds=" << holds << std::endl;
             if (holds) return;
             throw std::logic_error("Unsafe update: invariant is not maintained."); // TODO: better error handling
         });
@@ -700,72 +721,67 @@ void AddInvariantChecks(FootprintEncoding& encoding, FootprintChecks& checks) {
 }
 
 //
-// Post image
+// Perform Checks
 //
-
-//std::vector<bool> ComputeImplied(FootprintEncoding& encoding, const z3::expr_vector& expressions) {
-//    // prepare required vectors
-//    z3::expr_vector variables(encoding.context);
-//    z3::expr_vector assumptions(encoding.context);
-//    z3::expr_vector consequences(encoding.context);
-//
-//    // prepare solver
-//    for (unsigned int index = 0; index < expressions.size(); ++index) {
-//        std::string name = "__chk" + std::to_string(index);
-//        auto var = encoding.context.bool_const(name.c_str());
-//        variables.push_back(var);
-//        encoding.solver.add(var == expressions[(int) index]);
-//    }
-//
-//    // check
-//    auto answer = encoding.solver.consequences(assumptions, variables, consequences);
-//
-//    // create result
-//    std::vector<bool> result(expressions.size(), false);
-//    switch (answer) {
-//        case z3::unknown:
-//            throw std::logic_error("SMT solving failed: Z3 was unable to prove/disprove satisfiability; solving result was 'UNKNOWN'.");
-//
-//        case z3::unsat:
-//            result.flip();
-//            return result;
-//
-//        case z3::sat:
-//            // TODO: implement more robust version (add result to solver and then check given expressions?)
-//            for (unsigned int index = 0; index < expressions.size(); ++index) {
-//                auto searchFor = z3::implies(encoding.context.bool_val(true), variables[(int) index]);
-//                for (auto implication : consequences) {
-//                    bool syntacticallyEqual = z3::eq(implication, searchFor);
-//                    if (!syntacticallyEqual) continue;
-//                    result.at(index) = true;
-//                    break;
-//                }
-//            }
-//            return result;
-//    }
-//}
 
 std::vector<bool> ComputeImplied(FootprintEncoding& encoding, const z3::expr_vector& expressions) {
-    // TODO: solve all expressions in one shot
-    std::vector<bool> result;
+    // prepare required vectors
+    z3::expr_vector variables(encoding.context);
+    z3::expr_vector assumptions(encoding.context);
+    z3::expr_vector consequences(encoding.context);
 
-    for (const auto& expr : expressions) {
-        encoding.solver.push();
-        encoding.solver.add(!expr);
-        auto res = encoding.solver.check();
-        encoding.solver.pop();
-        bool chk;
-        switch (res) {
-            case z3::unsat: chk = true; break;
-            case z3::sat: chk = false; break;
-            case z3::unknown: throw std::logic_error("Solving failed."); // TODO: better error handling
-        }
-        if (chk) encoding.solver.add(expr); // TODO: really do this?
-        result.push_back(chk);
+    // prepare solver
+    for (unsigned int index = 0; index < expressions.size(); ++index) {
+        std::string name = "__chk" + std::to_string(index);
+        auto var = encoding.context.bool_const(name.c_str());
+        variables.push_back(var);
+        encoding.solver.add(var == expressions[(int) index]);
     }
 
-    return result;
+    // check
+    auto answer = encoding.solver.consequences(assumptions, variables, consequences);
+
+    // create result
+    std::vector<bool> result(expressions.size(), false);
+    switch (answer) {
+        case z3::unknown:
+            throw std::logic_error("SMT solving failed: Z3 was unable to prove/disprove satisfiability; solving result was 'UNKNOWN'.");
+
+        case z3::unsat:
+            result.flip();
+            return result;
+
+        case z3::sat:
+            for (unsigned int index = 0; index < expressions.size(); ++index) {
+                auto search = z3::implies(true, variables[(int) index]);
+                auto find = std::find_if(consequences.begin(), consequences.end(), [search](const auto& elem){
+                    return z3::eq(search, elem);
+                });
+                if (find != consequences.end()) result[index] = true;
+            }
+            return result;
+    }
 }
+
+//std::vector<bool> ComputeImplied(FootprintEncoding& encoding, const z3::expr_vector& expressions) {
+//    std::vector<bool> result;
+//
+//    for (const auto& expr : expressions) {
+//        encoding.solver.push();
+//        encoding.solver.add(!expr);
+//        auto res = encoding.solver.check();
+//        encoding.solver.pop();
+//        bool chk;
+//        switch (res) {
+//            case z3::unsat: chk = true; break;
+//            case z3::sat: chk = false; break;
+//            case z3::unknown: throw std::logic_error("Solving failed."); // TODO: better error handling
+//        }
+//        result.push_back(chk);
+//    }
+//
+//    return result;
+//}
 
 void PerformChecks(FootprintEncoding& encoding, const FootprintChecks& checks) {
     z3::expr_vector expressions(encoding.context);
@@ -790,19 +806,138 @@ void MinimizeFootprint(Footprint& footprint) {
     footprint.nodes = std::move(nodes);
 }
 
-std::pair<std::unique_ptr<heal::Annotation>, std::unique_ptr<Effect>> DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assignment& cmd, const Dereference& lhs) const {
+//
+// Post Image
+//
+
+struct PostUpdater : DefaultLogicNonConstListener {
+    Footprint& footprint;
+    explicit PostUpdater(Footprint& footprint) : footprint(footprint) {}
+
+    void enter(PointsToAxiom& resource) override {
+        auto node = GetNodeOrNull(footprint, resource.node->Decl());
+        if (!node) return;
+        auto update = ToLogic(*node, Mode::POST);
+        resource.flow = update->flow;
+        resource.isLocal = update->isLocal;
+        resource.fieldToValue = std::move(update->fieldToValue);
+    }
+};
+
+std::unique_ptr<Annotation> ExtractPost(FootprintEncoding&& encoding) {
+    auto result = std::move(encoding.footprint.pre);
+    PostUpdater updater(encoding.footprint);
+    result->now->accept(updater); // do not touch time predicates
+    return result;
+}
+
+//
+// Extract Effects
+//
+
+std::vector<std::function<std::unique_ptr<Axiom>()>> GetContextGenerators(const VariableDeclaration& decl) {
+    if (auto symbol = dynamic_cast<const SymbolicVariableDeclaration*>(&decl)) {
+        switch (decl.type.sort) {
+            case Sort::VOID: return {};
+            case Sort::BOOL: return { // true or false
+                [symbol]() { return std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(*symbol), SymbolicAxiom::EQ, std::make_unique<SymbolicBool>(true)); },
+                [symbol]() { return std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(*symbol), SymbolicAxiom::EQ, std::make_unique<SymbolicBool>(false)); }
+            };
+            case Sort::DATA: return { // min, max, or between
+                [symbol]() { return std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(*symbol), SymbolicAxiom::EQ, std::make_unique<SymbolicMin>()); },
+                [symbol]() { return std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(*symbol), SymbolicAxiom::GT, std::make_unique<SymbolicMin>()); },
+                [symbol]() { return std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(*symbol), SymbolicAxiom::EQ, std::make_unique<SymbolicMax>()); },
+                [symbol]() { return std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(*symbol), SymbolicAxiom::LT, std::make_unique<SymbolicMax>()); }
+            };
+            case Sort::PTR: return { // NULL or not
+                [symbol]() { return std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(*symbol), SymbolicAxiom::EQ, std::make_unique<SymbolicNull>()); },
+                [symbol]() { return std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(*symbol), SymbolicAxiom::NEQ, std::make_unique<SymbolicNull>()); }
+            };
+        }
+    } else if (auto flow = dynamic_cast<const SymbolicFlowDeclaration*>(&decl)) {
+        return { // empty or not
+            [flow]() { return std::make_unique<InflowEmptinessAxiom>(*flow, true); },
+            [flow]() { return std::make_unique<InflowEmptinessAxiom>(*flow, false); }
+        };
+    }
+    return {};
+}
+
+void GenerateEffectContext(FootprintEncoding& encoding, FootprintChecks& checks) {
+    // collect variables appearing in footprint
+    std::set<const VariableDeclaration*> vars;
+    for (const auto& node : encoding.footprint.nodes) {
+        auto dummy = ToLogic(node, Mode::PRE);
+        vars.insert(&dummy->flow.get());
+        for (const auto& [field, symbol] : dummy->fieldToValue) {
+            vars.insert(&symbol->Decl());
+        }
+    }
+
+    // test flow variables
+    for (const auto* decl : vars) {
+        for (auto&& generator : GetContextGenerators(*decl)) {
+            auto candidate = encoding.encoder(*generator());
+            checks.Add(candidate, [decl,generator,&checks](bool holds){
+//                std::cout << "Testing "; heal::Print(*generator(), std::cout); std::cout << " ==> holds=" << holds << std::endl;
+                if (holds) checks.context[decl].conjuncts.push_back(generator());
+            });
+        }
+    }
+}
+
+std::unique_ptr<Formula> GetNodeUpdateContext(const PointsToAxiom& node, FootprintChecks& checks) {
+    auto result = std::make_unique<SeparatingConjunction>();
+    auto handle = [&result,&checks](const auto& decl) {
+        auto knowledge = std::make_unique<SeparatingConjunction>();
+        knowledge->conjuncts.swap(checks.context[&decl].conjuncts);
+        result->conjuncts.push_back(std::move(knowledge));
+    };
+
+    handle(node.flow.get());
+    for (const auto& [name, symbol] : node.fieldToValue) {
+        handle(symbol->Decl());
+    }
+
+    heal::Simplify(*result);
+    return result;
+}
+
+std::unique_ptr<Effect> ExtractEffect(const FootprintNode& node, FootprintChecks& checks) {
+    // ignore local nodes; after minimization, all remaining footprint nodes contain changes
+    if (node.preLocal) return nullptr;
+    auto pre = ToLogic(node, Mode::PRE);
+    auto post = ToLogic(node, Mode::POST);
+    auto context = GetNodeUpdateContext(*pre, checks);
+    return std::make_unique<Effect>(std::move(pre), std::move(post), std::move(context));
+}
+
+std::deque<std::unique_ptr<Effect>> ExtractEffects(const FootprintEncoding& encoding, FootprintChecks&& checks) {
+    // create a separate effect for every node
+    std::deque<std::unique_ptr<Effect>> result;
+    for (const auto& node : encoding.footprint.nodes) {
+        auto effect = ExtractEffect(node, checks);
+        if (!effect) continue;
+        result.push_back(std::move(effect));
+    }
+    return result;
+}
+
+//
+// Overall Algorithm
+//
+
+PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const Assignment& cmd, const Dereference& lhs) const {
     // TODO: use future
     // TODO: create and use update/effect lookup table
-    // TODO: inline as much as possible?
     // TODO: start with smaller footprint and increase if too small?
 
-    // debug
-    std::cout << std::endl << std::endl << std::endl << "====================" << std::endl;
-    unsigned int major, minor, build, revision;
-    Z3_get_version(&major, &minor, &build, &revision);
-    std::cout << "Using Z3 version: " << major << "." << minor << "." << build << "." << revision << std::endl;
-    std::cout << "Command: "; cola::print(cmd, std::cout);
-    std::cout << "Pre: " << std::endl; heal::Print(*pre, std::cout); std::cout << std::endl << std::flush;
+    // begin debug
+//    std::cout << std::endl << std::endl << std::endl << "====================" << std::endl;
+//    unsigned int major, minor, build, revision;
+//    Z3_get_version(&major, &minor, &build, &revision);
+//    std::cout << "== Command: "; cola::print(cmd, std::cout);
+//    std::cout << "== Pre: " << std::endl; heal::Print(*pre, std::cout); std::cout << std::endl << std::flush;
     // end debug
 
     auto [isVar, lhsVar] = heal::IsOfType<VariableExpression>(*lhs.expr);
@@ -811,15 +946,6 @@ std::pair<std::unique_ptr<heal::Annotation>, std::unique_ptr<Effect>> DefaultSol
     if (!isSimple) throw std::logic_error("Unsupported assignment: right-hand side is not simple"); // TODO:: better error handling
 
     Footprint footprint = MakeFootprint(Config(), std::move(pre), lhsVar->decl, lhs.fieldname, *rhs);
-    std::cout << "Footprint size = " << footprint.nodes.size() << std::endl;
-    for (auto& node : footprint.nodes) {
-        std::cout << "Node pre:  ";
-        heal::Print(*ToLogic(node, Mode::PRE), std::cout);
-        std::cout << std::endl;
-        std::cout << "Node post: ";
-        heal::Print(*ToLogic(node, Mode::POST), std::cout);
-        std::cout << std::endl;
-    }
     FootprintEncoding encoding(std::move(footprint));
 
     FootprintChecks checks;
@@ -829,18 +955,28 @@ std::pair<std::unique_ptr<heal::Annotation>, std::unique_ptr<Effect>> DefaultSol
     AddInvariantChecks(encoding, checks);
 
     CheckPublishing(encoding.footprint);
+    GenerateEffectContext(encoding, checks);
     PerformChecks(encoding, checks);
-    throw std::logic_error("--- breakpoint ---");
 
     MinimizeFootprint(encoding.footprint);
-    // TODO: extract effect
-    throw std::logic_error("not yet implemented");
+    auto effects = ExtractEffects(encoding, std::move(checks));
+    auto post = ExtractPost(std::move(encoding));
+
+    // begin debug
+//    std::cout << "== Post: " << std::endl; heal::Print(*post, std::cout); std::cout << std::endl;
+//    std::cout << "== Effects: " << std::endl;
+//    for (auto& effect : effects) {
+//        std::cout << "   - ";
+//        heal::Print(*effect->pre, std::cout);
+//        std::cout << "  ~~~>  ";
+//        heal::Print(*effect->post, std::cout);
+//        std::cout << "  UNDER  ";
+//        heal::Print(*effect->context, std::cout);
+//        std::cout << std::endl;
+//    }
+    // end debug
+
+    return PostImage(std::move(post), std::move(effects));
 }
 
-
-/////////// WIP
-
-std::deque<Effect> ExtractEffects(FootprintEncoding& encoding) {
-    // TODO: go every node and check if something changed; if so, create an effect for that node
-}
 

@@ -287,8 +287,10 @@ void Flatten(T& container) {
     }
     // remove nullptrs
     container.erase(std::remove_if(container.begin(), container.end(), [](const auto& uptr){
-        return uptr.get() != nullptr;
+        return uptr.get() == nullptr;
     }), container.end());
+    // add pullDown
+    std::move(pullDown.begin(), pullDown.end(), std::back_inserter(container));
 }
 
 struct Simplifier : public DefaultLogicNonConstListener {

@@ -23,15 +23,19 @@ namespace solver {
           */
         const std::unique_ptr<heal::Predicate> logicallyContainsKey;
 
-        /** An invariant 'I(node)' that is implicitly universally quantified over all nodes in the heap.
+        /** An invariant 'I(node)' that is implicitly universally quantified over all (shared) nodes in the heap.
           */
         const std::unique_ptr<heal::Invariant> invariant;
 
+        /** Indicates whether the 'invariant' should be applied to all nodes (local and shared) or just shared nodes.
+         */
+        const bool applyInvariantToLocal;
+
 
         SolverConfig(std::size_t maxFootprintDepth, std::unique_ptr<heal::FlowDomain> flowDomain,
-                     std::unique_ptr<heal::Predicate> containsKey, std::unique_ptr<heal::Invariant> invariant)
+                     std::unique_ptr<heal::Predicate> containsKey, std::unique_ptr<heal::Invariant> invariant, bool local)
                 : maxFootprintDepth(maxFootprintDepth), flowDomain(std::move(flowDomain)),
-                  logicallyContainsKey(std::move(containsKey)), invariant(std::move(invariant)) {
+                  logicallyContainsKey(std::move(containsKey)), invariant(std::move(invariant)), applyInvariantToLocal(local) {
             assert(this->flowDomain);
             assert(this->logicallyContainsKey);
             assert(this->invariant);

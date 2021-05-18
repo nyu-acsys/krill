@@ -1,3 +1,4 @@
+#include <chrono>
 #include "cola/ast.hpp"
 #include "cola/util.hpp"
 #include "heal/logic.hpp"
@@ -11,6 +12,8 @@ using namespace cola;
 using namespace heal;
 using namespace solver;
 
+constexpr std::size_t FOOTPRINT_DEPTH = 1;
+constexpr bool INVARIANT_FOR_LOCAL_RESOURCES = 0;
 
 SymbolicFactory factory;
 
@@ -129,7 +132,7 @@ std::shared_ptr<SolverConfig> MakeConfig() {
     auto domain = std::make_unique<TestFlowDomain>();
     auto contains = MakeContainsPredicate(domain->GetNodeType(), domain->GetFlowValueType());
     auto invariant = MakeInvariant(domain->GetNodeType(), domain->GetFlowValueType());
-    return std::make_shared<SolverConfig>(1, std::move(domain), std::move(contains), std::move(invariant));
+    return std::make_shared<SolverConfig>(FOOTPRINT_DEPTH, std::move(domain), std::move(contains), std::move(invariant), INVARIANT_FOR_LOCAL_RESOURCES);
 }
 
 //
@@ -388,7 +391,13 @@ int main(int argc, char** argv) {
 //    std::cout << "Flow: "; heal::Print(*config->flowDomain->GetOutFlowContains("next").blueprint, std::cout); std::cout << std::endl << std::endl;
 //    std::cout << "Contains: "; heal::Print(*config->logicallyContainsKey->blueprint, std::cout); std::cout << std::endl << std::endl;
 
-    solver->Post(std::move(preDelete), assign.cmdAssignNext);
-//    solver->Post(std::move(preInsert), assign.cmdAssignNext);
-//    solver->Post(std::move(preMark), assign.cmdAssignMark);
+    auto start = std::chrono::steady_clock::now();
+    for (std::size_t count = 0; count < 50; ++count) {
+        solver->Post(heal::Copy(*preDelete), assign.cmdAssignNext);
+        solver->Post(heal::Copy(*preInsert), assign.cmdAssignNext);
+        solver->Post(heal::Copy(*preMark), assign.cmdAssignMark);
+    }
+    auto end = std::chrono::steady_clock::now();
+    std::cout << std::endl << std::endl << "[Time taken: ";
+    std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count() << "ms]" << std::endl;
 }

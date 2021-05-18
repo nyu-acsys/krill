@@ -176,7 +176,7 @@ namespace heal {
 
     struct InflowContainsRangeAxiom : public Axiom {
         std::reference_wrapper<const SymbolicFlowDeclaration> flow;
-        std::unique_ptr<SymbolicVariable> valueLow; // not included in range
+        std::unique_ptr<SymbolicVariable> valueLow; // included in range
         std::unique_ptr<SymbolicVariable> valueHigh; // included in range
 
         explicit InflowContainsRangeAxiom(const SymbolicFlowDeclaration& flow,

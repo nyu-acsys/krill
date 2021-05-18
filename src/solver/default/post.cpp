@@ -74,10 +74,10 @@ std::unique_ptr<Formula> ExpressionToFormula(const Expression& expression, const
     return std::move(translator.result);
 }
 
-std::unique_ptr<heal::Annotation> DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const {
+PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const {
     auto formula = ExpressionToFormula(*cmd.expr, *pre);
     pre->now = heal::Conjoin(std::move(pre->now), std::move(formula));
-    return pre;
+    return PostImage(std::move(pre));
 }
 
 //
@@ -106,24 +106,24 @@ std::pair<const SymbolicVariableDeclaration&, std::unique_ptr<Formula>> Allocate
     return { cell->node->decl_storage.get(), std::move(cell) };
 }
 
-std::unique_ptr<heal::Annotation> DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Malloc& cmd) const {
+PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Malloc& cmd) const {
     auto& flowType = Config().flowDomain->GetFlowValueType();
     auto [cell, formula] = AllocateFreshCell(cmd.lhs.type, flowType, *pre);
     auto success = UpdateVariableValuation(*pre->now, cmd.lhs, cell);
     if (!success) throw std::logic_error("Unsafe update: variable '" + cmd.lhs.name + "' is not accessible."); // TODO: better error class
     pre->now = heal::Conjoin(std::move(pre->now), std::move(formula));
-    return pre;
+    return PostImage(std::move(pre));
 }
 
 //
 // Assignment
 //
 
-std::pair<std::unique_ptr<heal::Annotation>, std::unique_ptr<Effect>> DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assignment& cmd) const {
+PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assignment& cmd) const {
     if (auto variable = dynamic_cast<const VariableExpression*>(cmd.lhs.get())) {
-        return Post(std::move(pre), cmd, *variable);
+        return PostVariableUpdate(std::move(pre), cmd, *variable);
     } else if (auto dereference = dynamic_cast<const Dereference*>(cmd.lhs.get())) {
-        return Post(std::move(pre), cmd, *dereference);
+        return PostMemoryUpdate(std::move(pre), cmd, *dereference);
     } else {
         std::stringstream err;
         err << "Unsupported assignment: expected a variable or a dereference as left-hand side, got '.";
@@ -133,10 +133,9 @@ std::pair<std::unique_ptr<heal::Annotation>, std::unique_ptr<Effect>> DefaultSol
     }
 }
 
-std::pair<std::unique_ptr<heal::Annotation>, std::unique_ptr<Effect>> DefaultSolver::Post(std::unique_ptr<heal::Annotation> pre, const cola::Assignment& cmd, const cola::VariableExpression& lhs) const {
+PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<heal::Annotation> pre, const cola::Assignment& cmd, const cola::VariableExpression& lhs) const {
     if (lhs.decl.is_shared)
         throw std::logic_error("Unsupported assignment: cannot assign to shared variables."); // TODO: better error class
-    auto effect = std::make_unique<Effect>(); // local variable update => no effect
 
     auto resource = solver::FindResource(lhs.decl, *pre);
     auto value = EagerValuationMap(*pre).Evaluate(*cmd.rhs);
@@ -147,5 +146,5 @@ std::pair<std::unique_ptr<heal::Annotation>, std::unique_ptr<Effect>> DefaultSol
 
     // TODO: generate points to for newly traversed/reached memory
     // TODO: generate fulfillments for pure specs
-    return { std::move(pre), std::move(effect) };
+    return PostImage(std::move(pre)); // local variable update => no effect
 }
