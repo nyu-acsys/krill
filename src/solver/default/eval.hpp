@@ -18,6 +18,8 @@ namespace solver {
     heal::PointsToAxiom* FindResource(const cola::Dereference& dereference, heal::LogicObject& object);
     const heal::PointsToAxiom* FindResource(const cola::Dereference& dereference, const heal::LogicObject& object);
 
+    std::deque<const heal::SpecificationAxiom*> FindSpecificationAxioms(const heal::SymbolicVariableDeclaration& key, const heal::LogicObject& object);
+
     template<bool LAZY>
     class ValuationMap final {
         private:
