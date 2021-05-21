@@ -9,9 +9,6 @@
 #include "heal/properties.hpp"
 #include "heal/flow.hpp"
 #include "config.hpp"
-#include "chkimp.hpp"
-#include "encoding.hpp"
-#include "encoder.hpp"
 
 
 namespace solver {

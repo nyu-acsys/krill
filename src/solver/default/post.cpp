@@ -3,6 +3,8 @@
 #include "cola/util.hpp"
 #include "heal/util.hpp"
 #include "eval.hpp"
+#include "encoder.hpp"
+#include "z3++.h"
 
 using namespace cola;
 using namespace heal;
@@ -84,7 +86,7 @@ PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd
 // Malloc
 //
 
-bool UpdateVariableValuation(Formula& formula, const VariableDeclaration& variable, const SymbolicVariableDeclaration& newValue) {
+bool TryUpdateVariableValuation(Formula& formula, const VariableDeclaration& variable, const SymbolicVariableDeclaration& newValue) {
     // updating the variable directly is easier than splitting the formula into the resource and the frame
     EqualsToAxiom* resource = FindResource(variable, formula);
     if (resource == nullptr) return false;
@@ -109,7 +111,7 @@ std::pair<const SymbolicVariableDeclaration&, std::unique_ptr<Formula>> Allocate
 PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Malloc& cmd) const {
     auto& flowType = Config().flowDomain->GetFlowValueType();
     auto [cell, formula] = AllocateFreshCell(cmd.lhs.type, flowType, *pre);
-    auto success = UpdateVariableValuation(*pre->now, cmd.lhs, cell);
+    auto success = TryUpdateVariableValuation(*pre->now, cmd.lhs, cell);
     if (!success) throw std::logic_error("Unsafe update: variable '" + cmd.lhs.name + "' is not accessible."); // TODO: better error class
     pre->now = heal::Conjoin(std::move(pre->now), std::move(formula));
     return PostImage(std::move(pre));
@@ -126,25 +128,9 @@ PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assignment&
         return PostMemoryUpdate(std::move(pre), cmd, *dereference);
     } else {
         std::stringstream err;
-        err << "Unsupported assignment: expected a variable or a dereference as left-hand side, got '.";
+        err << "Unsupported assignment: expected a variable or a dereference as left-hand side, got '";
         cola::print(*cmd.lhs, err);
         err << "'.";
         throw std::logic_error(err.str()); // TODO: better error class
     }
-}
-
-PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<heal::Annotation> pre, const cola::Assignment& cmd, const cola::VariableExpression& lhs) const {
-    if (lhs.decl.is_shared)
-        throw std::logic_error("Unsupported assignment: cannot assign to shared variables."); // TODO: better error class
-
-    auto resource = solver::FindResource(lhs.decl, *pre);
-    auto value = EagerValuationMap(*pre).Evaluate(*cmd.rhs);
-    auto& symbol = SymbolicFactory(*pre).GetUnusedSymbolicVariable(lhs.type());
-    resource->value = std::make_unique<SymbolicVariable>(symbol);
-    pre->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(symbol), SymbolicAxiom::EQ, std::move(value)));
-    heal::Simplify(*pre->now); // TODO: have trivial equalities inlined
-
-    // TODO: generate points to for newly traversed/reached memory
-    // TODO: generate fulfillments for pure specs
-    return PostImage(std::move(pre)); // local variable update => no effect
 }

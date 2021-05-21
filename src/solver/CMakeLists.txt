@@ -15,22 +15,12 @@ include_directories(${Z3_INCLUDE})
 
 set(SOURCES
         solver.cpp
-#        encoder.cpp
-
-        # backend
-#        z3encoder/z3error.cpp
-#        z3encoder/z3expr.cpp
-#        z3encoder/z3interface.cpp
-#        z3encoder/z3encoder.cpp
-#        z3encoder/z3visitor.cpp
-#        z3encoder/z3chkimp.cpp
-
-        # post
         default/eval.cpp
         default/post.cpp
-        default/post_heap.cpp
+        default/post_assign.cpp
         default/join.cpp
         default/interference.cpp
+        default/flowgraph.cpp
 )
 
 add_library(Solver ${SOURCES})

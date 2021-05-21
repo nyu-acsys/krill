@@ -392,12 +392,13 @@ int main(int argc, char** argv) {
 //    std::cout << "Contains: "; heal::Print(*config->logicallyContainsKey->blueprint, std::cout); std::cout << std::endl << std::endl;
 
     auto start = std::chrono::steady_clock::now();
-    for (std::size_t count = 0; count < 50; ++count) {
+    std::size_t numRuns = 1;
+    for (std::size_t count = 0; count < numRuns; ++count) {
         solver->Post(heal::Copy(*preDelete), assign.cmdAssignNext);
         solver->Post(heal::Copy(*preInsert), assign.cmdAssignNext);
         solver->Post(heal::Copy(*preMark), assign.cmdAssignMark);
     }
     auto end = std::chrono::steady_clock::now();
-    std::cout << std::endl << std::endl << "[Time taken: ";
-    std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count() << "ms]" << std::endl;
+    std::cout << std::endl << std::endl << "[Avg. time taken across " << numRuns << " runs: ";
+    std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count()/numRuns << "ms]" << std::endl;
 }

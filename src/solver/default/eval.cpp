@@ -45,7 +45,7 @@ struct BaseResourceFinder : public DefaultLogicListener, DefaultLogicNonConstLis
 
 struct VariableResourceFinder : public BaseResourceFinder {
     const VariableDeclaration& search;
-    EqualsToAxiom* resultNonConst = nullptr;
+    EqualsToAxiom* resultNonConst = nullptr; // TODO: avoid this, instead do const_cast
     const EqualsToAxiom* resultConst = nullptr;
 
     explicit VariableResourceFinder(const VariableDeclaration& search) : search(search) {}
@@ -259,8 +259,8 @@ struct Evaluator : public BaseVisitor {
     void visit(const MaxValue& /*expr*/) override { result = std::make_unique<SymbolicMax>(); }
     void visit(const MinValue& /*expr*/) override { result = std::make_unique<SymbolicMin>(); }
 
-    void visit(const VariableExpression& expr) override { valueMap.Evaluate(expr); }
-    void visit(const Dereference& expr) override { valueMap.Evaluate(expr); }
+    void visit(const VariableExpression& expr) override { result = valueMap.Evaluate(expr); }
+    void visit(const Dereference& expr) override { result = valueMap.Evaluate(expr); }
 
     void visit(const NegatedExpression& expr) override { throw std::logic_error("Cannot evaluate expression: '!' not supported"); } // TODO: better error class // TODO: print offending expression
     void visit(const EmptyValue& expr) override { throw std::logic_error("Cannot evaluate expression: 'EMPTY' not supported"); } // TODO: better error class // TODO: print offending expression

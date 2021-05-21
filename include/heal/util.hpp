@@ -77,7 +77,8 @@ namespace heal {
     void Simplify(LogicObject& object);
     void InlineAndSimplify(LogicObject& object);
 
-    bool RenameSymbolicSymbols(LogicObject& object, const LogicObject& avoidSymbolsFrom);
+    void RenameSymbolicSymbols(LogicObject& object, SymbolicFactory& factory);
+    void RenameSymbolicSymbols(LogicObject& object, const LogicObject& avoidSymbolsFrom);
 
     //
     // Construction

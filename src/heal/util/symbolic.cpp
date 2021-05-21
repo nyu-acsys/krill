@@ -42,43 +42,37 @@ const SymbolicFlowDeclaration& SymbolicFactory::GetUnusedFlowVariable(const cola
 //
 
 struct SymbolRenaming {
-    bool appliedRenaming = false;
-    std::set<const VariableDeclaration*> avoid;
+    SymbolicFactory& factory;
     std::map<const VariableDeclaration*, const SymbolicVariableDeclaration*> renameVar;
     std::map<const VariableDeclaration*, const SymbolicFlowDeclaration*> renameFlow;
 
-    explicit SymbolRenaming(const LogicObject& avoidSymbolsFrom) : avoid(CollectSymbolicSymbols(avoidSymbolsFrom)) {}
+    explicit SymbolRenaming(SymbolicFactory& factory) : factory(factory) {}
 
     template<typename T, typename M, typename N>
     const T& GetRenaming(const T& decl, M& map, N mk) {
         auto find = map.find(&decl);
         if (find != map.end()) return *find->second;
-        const T* newBinding;
-        if (avoid.count(&decl) == 0) newBinding = &decl;
-        else {
-            newBinding = mk();
-            appliedRenaming = true;
-        }
-        avoid.insert(newBinding);
+        const T* newBinding = mk();
+        map[&decl] = newBinding;
         return *newBinding;
     }
 
     const SymbolicVariableDeclaration& operator()(const SymbolicVariableDeclaration& decl) {
         return GetRenaming(decl, renameVar, [&](){
-            return GetUnusedSymbol(decl.type, avoid, SymbolicPool::GetAllVariables());
+            return &factory.GetUnusedSymbolicVariable(decl.type);
         });
     }
     const SymbolicFlowDeclaration& operator()(const SymbolicFlowDeclaration& decl) {
         return GetRenaming(decl, renameFlow, [&](){
-            return GetUnusedSymbol(decl.type, avoid, SymbolicPool::GetAllFlows());
+            return &factory.GetUnusedFlowVariable(decl.type);
         });
     }
 };
 
-struct Renamer : public DefaultLogicNonConstListener {
+struct RenameListener : public DefaultLogicNonConstListener {
     SymbolRenaming renaming;
 
-    explicit Renamer(const LogicObject& avoidSymbolsFrom) : renaming(avoidSymbolsFrom) {}
+    explicit RenameListener(SymbolicFactory& factory) : renaming(factory) {}
 
     void enter(SymbolicVariable& object) override { object.decl_storage = renaming(object.decl_storage); }
     void enter(PointsToAxiom& object) override { object.flow = renaming(object.flow); }
@@ -87,10 +81,14 @@ struct Renamer : public DefaultLogicNonConstListener {
     void enter(InflowEmptinessAxiom& object) override { object.flow = renaming(object.flow); }
 };
 
-bool heal::RenameSymbolicSymbols(LogicObject& object, const LogicObject& avoidSymbolsFrom) {
-    Renamer renamer(avoidSymbolsFrom);
-    object.accept(renamer);
-    return renamer.renaming.appliedRenaming;
+void heal::RenameSymbolicSymbols(LogicObject& object, SymbolicFactory& factory) {
+    RenameListener rename(factory);
+    object.accept(rename);
+}
+
+void heal::RenameSymbolicSymbols(LogicObject& object, const LogicObject& avoidSymbolsFrom) {
+    SymbolicFactory factory(avoidSymbolsFrom);
+    heal::RenameSymbolicSymbols(object, factory);
 }
 
 //
