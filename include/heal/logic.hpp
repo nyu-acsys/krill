@@ -60,7 +60,7 @@ namespace heal {
         [[nodiscard]] cola::Sort Sort() const { return Type().sort; }
     };
 
-    struct SymbolicVariable : SymbolicExpression {
+    struct SymbolicVariable final : SymbolicExpression {
         std::reference_wrapper<const SymbolicVariableDeclaration> decl_storage;
 
         explicit SymbolicVariable(const SymbolicVariableDeclaration& decl);
@@ -69,7 +69,7 @@ namespace heal {
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct SymbolicBool : public SymbolicExpression {
+    struct SymbolicBool final : public SymbolicExpression {
         bool value;
 
         explicit SymbolicBool(bool value) : value(value) {}
@@ -77,19 +77,19 @@ namespace heal {
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct SymbolicNull : public SymbolicExpression {
+    struct SymbolicNull final : public SymbolicExpression {
         explicit SymbolicNull() = default;
         [[nodiscard]] const cola::Type& Type() const override { return cola::Type::null_type(); }
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct SymbolicMin : public SymbolicExpression {
+    struct SymbolicMin final : public SymbolicExpression {
         explicit SymbolicMin() = default;
         [[nodiscard]] const cola::Type& Type() const override { return cola::Type::data_type(); }
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct SymbolicMax : public SymbolicExpression {
+    struct SymbolicMax final : public SymbolicExpression {
         explicit SymbolicMax() = default;
         [[nodiscard]] const cola::Type& Type() const override { return cola::Type::data_type(); }
         ACCEPT_LOGIC_VISITOR
@@ -125,7 +125,7 @@ namespace heal {
 	// Axioms
 	//
 
-    struct PointsToAxiom : public Axiom {
+    struct PointsToAxiom final : public Axiom {
         std::unique_ptr<SymbolicVariable> node;
         bool isLocal;
         std::reference_wrapper<const SymbolicFlowDeclaration> flow;
@@ -137,7 +137,7 @@ namespace heal {
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct EqualsToAxiom : public Axiom {
+    struct EqualsToAxiom final : public Axiom {
         std::unique_ptr<cola::VariableExpression> variable;
         std::unique_ptr<SymbolicVariable> value;
 
@@ -146,7 +146,7 @@ namespace heal {
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct SymbolicAxiom : public Axiom {
+    struct SymbolicAxiom final : public Axiom {
         enum Operator { EQ, NEQ, LEQ, LT, GEQ, GT };
         std::unique_ptr<SymbolicExpression> lhs;
         Operator op;
@@ -157,7 +157,7 @@ namespace heal {
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct StackDisjunction : public Axiom {
+    struct StackDisjunction final : public Axiom {
         std::deque<std::unique_ptr<SymbolicAxiom>> axioms;
 
         explicit StackDisjunction();
@@ -165,7 +165,7 @@ namespace heal {
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct InflowContainsValueAxiom : public Axiom {
+    struct InflowContainsValueAxiom final : public Axiom {
         std::reference_wrapper<const SymbolicFlowDeclaration> flow;
         std::unique_ptr<SymbolicVariable> value;
 
@@ -174,7 +174,7 @@ namespace heal {
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct InflowContainsRangeAxiom : public Axiom {
+    struct InflowContainsRangeAxiom final : public Axiom {
         std::reference_wrapper<const SymbolicFlowDeclaration> flow;
         std::unique_ptr<SymbolicVariable> valueLow; // included in range
         std::unique_ptr<SymbolicVariable> valueHigh; // included in range
@@ -185,7 +185,7 @@ namespace heal {
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct InflowEmptinessAxiom : public Axiom {
+    struct InflowEmptinessAxiom final : public Axiom {
         std::reference_wrapper<const SymbolicFlowDeclaration> flow;
         bool isEmpty;
 
@@ -202,12 +202,12 @@ namespace heal {
         explicit SpecificationAxiom(Kind kind, std::unique_ptr<SymbolicVariable> key);
 	};
 
-	struct ObligationAxiom : public SpecificationAxiom {
+	struct ObligationAxiom final : public SpecificationAxiom {
         explicit ObligationAxiom(Kind kind, std::unique_ptr<SymbolicVariable> key);
 		ACCEPT_LOGIC_VISITOR
 	};
 
-	struct FulfillmentAxiom : public SpecificationAxiom {
+	struct FulfillmentAxiom final : public SpecificationAxiom {
 		bool return_value;
 
         explicit FulfillmentAxiom(Kind kind, std::unique_ptr<SymbolicVariable> key, bool return_value);
@@ -221,14 +221,14 @@ namespace heal {
 	struct TimePredicate : public LogicObject {
 	};
 
-	struct PastPredicate : public TimePredicate {
+	struct PastPredicate final : public TimePredicate {
 		std::unique_ptr<Formula> formula;
 
 		explicit PastPredicate(std::unique_ptr<Formula> formula);
 		ACCEPT_LOGIC_VISITOR
 	};
 
-	struct FuturePredicate : public TimePredicate  {
+	struct FuturePredicate final : public TimePredicate  {
 		std::unique_ptr<Formula> pre;
 		const cola::Assignment& command;
 		std::unique_ptr<Formula> post;
@@ -242,7 +242,8 @@ namespace heal {
 	// Annotation
 	//
 
-	struct Annotation : public LogicObject {
+	struct Annotation final : public LogicObject {
+	    // TODO: should carry an 'acyclicity' flag that a solver can rely on
 		std::unique_ptr<SeparatingConjunction> now;
 		std::deque<std::unique_ptr<TimePredicate>> time;
 

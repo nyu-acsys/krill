@@ -8,6 +8,10 @@ namespace solver {
 
     struct DefaultSolver final : public Solver {
         using Solver::Solver;
+        // TODO: solver relies on decreasing laminar flow!?
+
+        // TODO: const bool applyInflowUniquenessReasoning = true; // current implementation implicitly assumes 'true' here; make configurable
+//        const bool applyAcyclicityReasoning = true; // TODO: make configurable // TODO: allow cycles in flow graphs / footprints
 
         [[nodiscard]] std::unique_ptr<heal::Annotation> Join(std::vector<std::unique_ptr<heal::Annotation>> annotations) const override;
 

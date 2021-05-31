@@ -113,5 +113,5 @@ std::unique_ptr<Annotation> DefaultSolver::Post(const Annotation &pre, const Ass
 }
 
 bool DefaultSolver::PostEntailsUnchecked(const Formula& pre, const Assignment& cmd, const Formula& post) const {
-    throw std::logic_error("not yet implemented");
+    throw std::logic_error("not yet implemented: PostEntailsUnchecked");
 }

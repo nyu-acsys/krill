@@ -2,6 +2,7 @@
 #ifndef SOLVER_ENCODER
 #define SOLVER_ENCODER
 
+#include <set>
 #include "z3++.h"
 #include "cola/ast.hpp"
 #include "heal/logic.hpp"
@@ -151,7 +152,7 @@ namespace solver {
                 auto expr = context.function(name.c_str(), EncodeSort(decl.type.sort), context.bool_sort());
                 // add implicit bounds on data values
                 auto qv = QuantifiedVariable(decl.type.sort);
-                solver.add(z3::forall(qv, z3::implies(qv < MinData() && qv > MaxData(), !expr(qv))));
+                solver.add(z3::forall(qv, z3::implies(qv < MinData() || qv > MaxData(), !expr(qv))));
                 return expr;
             });
         }
@@ -172,64 +173,7 @@ namespace solver {
     };
 
 
-    static std::vector<bool> ComputeImplied(z3::context& context, z3::solver& solver, const z3::expr_vector& expressions) {
-        // prepare required vectors
-        z3::expr_vector variables(context);
-        z3::expr_vector assumptions(context);
-        z3::expr_vector consequences(context);
-
-        // prepare solver
-        for (unsigned int index = 0; index < expressions.size(); ++index) {
-            std::string name = "__chk" + std::to_string(index);
-            auto var = context.bool_const(name.c_str());
-            variables.push_back(var);
-            solver.add(var == expressions[(int) index]);
-        }
-
-        // check
-        auto answer = solver.consequences(assumptions, variables, consequences);
-
-        // create result
-        std::vector<bool> result(expressions.size(), false);
-        switch (answer) {
-            case z3::unknown:
-                throw std::logic_error("SMT solving failed: Z3 was unable to prove/disprove satisfiability; solving result was 'UNKNOWN'.");
-
-            case z3::unsat:
-                result.flip();
-                return result;
-
-            case z3::sat:
-                for (unsigned int index = 0; index < expressions.size(); ++index) {
-                    auto search = z3::implies(true, variables[(int) index]);
-                    auto find = std::find_if(consequences.begin(), consequences.end(), [search](const auto& elem){
-                        return z3::eq(search, elem);
-                    });
-                    if (find != consequences.end()) result[index] = true;
-                }
-                return result;
-        }
-    }
-
-    //std::vector<bool> ComputeImplied(FootprintEncoding& encoding, const z3::expr_vector& expressions) {
-    //    std::vector<bool> result;
-    //
-    //    for (const auto& expr : expressions) {
-    //        encoding.solver.push();
-    //        encoding.solver.add(!expr);
-    //        auto res = encoding.solver.check();
-    //        encoding.solver.pop();
-    //        bool chk;
-    //        switch (res) {
-    //            case z3::unsat: chk = true; break;
-    //            case z3::sat: chk = false; break;
-    //            case z3::unknown: throw std::logic_error("Solving failed."); // TODO: better error handling
-    //        }
-    //        result.push_back(chk);
-    //    }
-    //
-    //    return result;
-    //}
+    std::vector<bool> ComputeImplied(z3::solver& solver, const z3::expr_vector& expressions);
 
     struct ImplicationCheckSet {
         z3::expr_vector expressions;
@@ -242,13 +186,7 @@ namespace solver {
         }
     };
 
-    static void ComputeImpliedCallback(z3::context& context, z3::solver& solver, const ImplicationCheckSet& checks) {
-        auto implied = ComputeImplied(context, solver, checks.expressions);
-        assert(checks.expressions.size() == implied.size());
-        for (std::size_t index = 0; index < implied.size(); ++index) {
-            checks.callbacks.at(index)(implied.at(index));
-        }
-    }
+    void ComputeImpliedCallback(z3::solver& solver, const ImplicationCheckSet& checks);
 
 }
 

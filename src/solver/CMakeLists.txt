@@ -15,6 +15,7 @@ include_directories(${Z3_INCLUDE})
 
 set(SOURCES
         solver.cpp
+        default/encoder.cpp
         default/eval.cpp
         default/post.cpp
         default/post_assign.cpp

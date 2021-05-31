@@ -31,7 +31,7 @@ namespace solver {
          */
         const bool applyInvariantToLocal;
 
-
+        
         SolverConfig(std::size_t maxFootprintDepth, std::unique_ptr<heal::FlowDomain> flowDomain,
                      std::unique_ptr<heal::Predicate> containsKey, std::unique_ptr<heal::Invariant> invariant, bool local)
                 : maxFootprintDepth(maxFootprintDepth), flowDomain(std::move(flowDomain)),

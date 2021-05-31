@@ -143,7 +143,7 @@ struct FormulaPrinter : public LogicVisitor {
         formula.valueLow->accept(*this);
         stream << ", ";
         formula.valueHigh->accept(*this);
-        stream << "⊆" << formula.flow.get().name;
+        stream << "]⊆" << formula.flow.get().name;
     }
 
     void visit(const InflowEmptinessAxiom& formula) override {

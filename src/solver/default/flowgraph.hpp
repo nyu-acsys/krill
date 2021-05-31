@@ -57,6 +57,8 @@ namespace solver {
 
         [[nodiscard]] FlowGraphNode* GetNodeOrNull(const heal::SymbolicVariableDeclaration& address);
         [[nodiscard]] const FlowGraphNode* GetNodeOrNull(const heal::SymbolicVariableDeclaration& address) const;
+        [[nodiscard]] const FlowGraphNode& GetRoot() const { return nodes.at(0); }
+        [[nodiscard]] std::vector<const Field*> GetIncomingEdges(const FlowGraphNode& node, EMode mode) const;
     };
 
     [[nodiscard]] FlowGraph MakeFlowGraph(std::unique_ptr<heal::Annotation> state, const heal::SymbolicVariableDeclaration& rootAddress, const SolverConfig& config, std::size_t depth=1);

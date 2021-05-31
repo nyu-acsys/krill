@@ -1,4 +1,5 @@
 #include <chrono>
+#include <iomanip>
 #include "cola/ast.hpp"
 #include "cola/util.hpp"
 #include "heal/logic.hpp"
@@ -13,7 +14,7 @@ using namespace heal;
 using namespace solver;
 
 constexpr std::size_t FOOTPRINT_DEPTH = 1;
-constexpr bool INVARIANT_FOR_LOCAL_RESOURCES = 0;
+constexpr bool INVARIANT_FOR_LOCAL_RESOURCES = false;
 
 SymbolicFactory factory;
 
@@ -65,6 +66,17 @@ std::unique_ptr<Invariant> MakeInvariant(const Type& nodeType, const Type& flowT
         );
         blueprint->conjuncts.push_back(std::make_unique<SeparatingImplication>(
                 std::move(isUnmarked), std::move(dataInInflow)
+        ));
+        auto isNotTail = std::make_unique<SymbolicAxiom>( // assume node is global
+                std::make_unique<SymbolicVariable>(node.fieldToValue.at("data")->Decl()),
+                SymbolicAxiom::LT, std::make_unique<SymbolicMax>()
+        );
+        auto nextNotNull = std::make_unique<SymbolicAxiom>(
+                std::make_unique<SymbolicVariable>(node.fieldToValue.at("next")->Decl()),
+                SymbolicAxiom::NEQ, std::make_unique<SymbolicNull>()
+        );
+        blueprint->conjuncts.push_back(std::make_unique<SeparatingImplication>(
+                std::move(isNotTail), std::move(nextNotNull)
         ));
 
         return blueprint;
@@ -123,9 +135,9 @@ struct TestFlowDomain : public FlowDomain {
 
     TestFlowDomain() : nodeType(MakeNodeType()), outflow(MakeOutflowPredicate(*nodeType, Type::data_type())) {}
 
-    const cola::Type& GetNodeType() const override { return *nodeType; }
-    const cola::Type& GetFlowValueType() const override { return Type::data_type(); }
-    const Predicate& GetOutFlowContains(std::string fieldName) const override { return *outflow; }
+    [[nodiscard]] const cola::Type& GetNodeType() const override { return *nodeType; }
+    [[nodiscard]] const cola::Type& GetFlowValueType() const override { return Type::data_type(); }
+    [[nodiscard]] const Predicate& GetOutFlowContains(std::string fieldName) const override { return *outflow; }
 };
 
 std::shared_ptr<SolverConfig> MakeConfig() {
@@ -136,36 +148,33 @@ std::shared_ptr<SolverConfig> MakeConfig() {
 }
 
 //
-// PRE
+// TESTS
 //
 
-struct Assign {
+struct VarStore {
     VariableDeclaration key;
     VariableDeclaration lhs;
     VariableDeclaration rhs;
-    Assignment cmdAssignNext;
-    Assignment cmdAssignMark;
 
-    explicit Assign(const Type& nodeType)
-        : key("key", Type::data_type(), false), lhs("left", nodeType, false), rhs("right", nodeType, false),
-          cmdAssignNext(std::make_unique<Dereference>(std::make_unique<VariableExpression>(lhs), "next"), std::make_unique<VariableExpression>(rhs)),
-          cmdAssignMark(std::make_unique<Dereference>(std::make_unique<VariableExpression>(lhs), "mark"), std::make_unique<BooleanValue>(true)) {
-    }
+    explicit VarStore(const Type& nodeType) : key("key", Type::data_type(), false),
+                                              lhs("left", nodeType, false),
+                                              rhs("right", nodeType, false) {}
 };
 
-std::unique_ptr<Annotation> MakePreDelete(const SolverConfig& config, const Assign& assign) {
-    auto result = std::make_unique<Annotation>();
+void TestUnlinkNode(const Solver& solver) {
+    VarStore store(solver.GetConfig()->flowDomain->GetNodeType());
+    auto annotation = std::make_unique<Annotation>();
 
     // heap resources
-    auto root = MakePointsTo(config);
-    auto mid = MakePointsTo(config);
-    auto end = MakePointsTo(config);
-    auto past = MakePointsTo(config);
+    auto root = MakePointsTo(*solver.GetConfig());
+    auto mid = MakePointsTo(*solver.GetConfig());
+    auto end = MakePointsTo(*solver.GetConfig());
+    auto past = MakePointsTo(*solver.GetConfig());
 
     // variable resources
-    auto left = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(assign.lhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(assign.lhs.type)));
-    auto right = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(assign.rhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(assign.rhs.type)));
-    auto key = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(assign.key), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(assign.key.type)));
+    auto left = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.lhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.lhs.type)));
+    auto right = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.rhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.rhs.type)));
+    auto key = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.key), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.key.type)));
 
     // heap layout: root -> mid -> end -> past
     mid->node->decl_storage = root->fieldToValue["next"]->Decl();
@@ -173,73 +182,76 @@ std::unique_ptr<Annotation> MakePreDelete(const SolverConfig& config, const Assi
     past->node->decl_storage = end->fieldToValue["next"]->Decl();
 
     // stack
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(left->value->Decl()), SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(root->node->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(right->value->Decl()), SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(end->node->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(key->value->Decl()), SymbolicAxiom::GT, std::make_unique<SymbolicMin>()
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(key->value->Decl()), SymbolicAxiom::LT, std::make_unique<SymbolicMax>()
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(root->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
             std::make_unique<SymbolicVariable>(mid->fieldToValue.at("data")->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(mid->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
             std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
             std::make_unique<SymbolicVariable>(past->fieldToValue.at("data")->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(root->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
             std::make_unique<SymbolicBool>(false)
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(mid->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
             std::make_unique<SymbolicBool>(true)
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(end->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
             std::make_unique<SymbolicBool>(false)
     ));
 
     // obligation
-    result->now->conjuncts.push_back(std::make_unique<ObligationAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<ObligationAxiom>(
         ObligationAxiom::Kind::INSERT, std::make_unique<SymbolicVariable>(key->value->Decl())
     ));
 
     // pushing resources
-    result->now->conjuncts.push_front(std::move(past));
-    result->now->conjuncts.push_front(std::move(end));
-    result->now->conjuncts.push_front(std::move(mid));
-    result->now->conjuncts.push_front(std::move(root));
-    result->now->conjuncts.push_front(std::move(right));
-    result->now->conjuncts.push_front(std::move(left));
-    result->now->conjuncts.push_front(std::move(key));
+    annotation->now->conjuncts.push_front(std::move(past));
+    annotation->now->conjuncts.push_front(std::move(end));
+    annotation->now->conjuncts.push_front(std::move(mid));
+    annotation->now->conjuncts.push_front(std::move(root));
+    annotation->now->conjuncts.push_front(std::move(right));
+    annotation->now->conjuncts.push_front(std::move(left));
+    annotation->now->conjuncts.push_front(std::move(key));
 
-    return result;
+    // test
+    Assignment command(std::make_unique<Dereference>(std::make_unique<VariableExpression>(store.lhs), "next"), std::make_unique<VariableExpression>(store.rhs));
+    solver.Post(std::move(annotation), command);
 }
 
-std::unique_ptr<Annotation> MakePreInsert(const SolverConfig& config, const Assign& assign) {
-    auto result = std::make_unique<Annotation>();
+void TestInsertNode(const Solver& solver) {
+    VarStore store(solver.GetConfig()->flowDomain->GetNodeType());
+    auto annotation = std::make_unique<Annotation>();
 
     // heap resources
-    auto root = MakePointsTo(config);
-    auto end = MakePointsTo(config);
-    auto past = MakePointsTo(config);
-    auto owned = MakePointsTo(config, true);
+    auto root = MakePointsTo(*solver.GetConfig());
+    auto end = MakePointsTo(*solver.GetConfig());
+    auto past = MakePointsTo(*solver.GetConfig());
+    auto owned = MakePointsTo(*solver.GetConfig(), true);
 
     // variable resources
-    auto left = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(assign.lhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(assign.lhs.type)));
-    auto right = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(assign.rhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(assign.rhs.type)));
-    auto key = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(assign.key), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(assign.key.type)));
+    auto left = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.lhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.lhs.type)));
+    auto right = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.rhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.rhs.type)));
+    auto key = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.key), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.key.type)));
 
     // heap layout: root -> end -> past, owned -> end
     end->node->decl_storage = root->fieldToValue["next"]->Decl();
@@ -247,132 +259,493 @@ std::unique_ptr<Annotation> MakePreInsert(const SolverConfig& config, const Assi
     owned->fieldToValue["next"]->decl_storage = end->node->Decl();
 
     // stack
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(left->value->Decl()), SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(root->node->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(right->value->Decl()), SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(owned->node->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(key->value->Decl()), SymbolicAxiom::GT, std::make_unique<SymbolicMin>()
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(key->value->Decl()), SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(owned->fieldToValue["data"]->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(key->value->Decl()), SymbolicAxiom::LT, std::make_unique<SymbolicMax>()
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(root->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
             std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(root->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
             std::make_unique<SymbolicVariable>(key->value->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl()), SymbolicAxiom::GT,
             std::make_unique<SymbolicVariable>(key->value->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
             std::make_unique<SymbolicVariable>(past->fieldToValue.at("data")->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(root->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
             std::make_unique<SymbolicBool>(false)
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(owned->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
             std::make_unique<SymbolicBool>(false)
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(end->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
             std::make_unique<SymbolicBool>(false)
     ));
-    result->now->conjuncts.push_back(std::make_unique<InflowEmptinessAxiom>(owned->flow, true));
+    annotation->now->conjuncts.push_back(std::make_unique<InflowEmptinessAxiom>(owned->flow, true));
 
     // obligation
-    result->now->conjuncts.push_back(std::make_unique<ObligationAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<ObligationAxiom>(
             ObligationAxiom::Kind::INSERT, std::make_unique<SymbolicVariable>(key->value->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<InflowContainsValueAxiom>(root->flow, std::make_unique<SymbolicVariable>(key->value->Decl())));
+    annotation->now->conjuncts.push_back(std::make_unique<InflowContainsValueAxiom>(root->flow, std::make_unique<SymbolicVariable>(key->value->Decl())));
 
     // pushing resources
-    result->now->conjuncts.push_front(std::move(past));
-    result->now->conjuncts.push_front(std::move(end));
-    result->now->conjuncts.push_front(std::move(root));
-    result->now->conjuncts.push_front(std::move(owned));
-    result->now->conjuncts.push_front(std::move(right));
-    result->now->conjuncts.push_front(std::move(left));
-    result->now->conjuncts.push_front(std::move(key));
+    annotation->now->conjuncts.push_front(std::move(past));
+    annotation->now->conjuncts.push_front(std::move(end));
+    annotation->now->conjuncts.push_front(std::move(root));
+    annotation->now->conjuncts.push_front(std::move(owned));
+    annotation->now->conjuncts.push_front(std::move(right));
+    annotation->now->conjuncts.push_front(std::move(left));
+    annotation->now->conjuncts.push_front(std::move(key));
 
-    return result;
+    // test
+    Assignment command(std::make_unique<Dereference>(std::make_unique<VariableExpression>(store.lhs), "next"), std::make_unique<VariableExpression>(store.rhs));
+    solver.Post(std::move(annotation), command);
 }
 
-std::unique_ptr<Annotation> MakePreMark(const SolverConfig& config, const Assign& assign) {
-    auto result = std::make_unique<Annotation>();
+void TestMarkNode(const Solver& solver) {
+    VarStore store(solver.GetConfig()->flowDomain->GetNodeType());
+    auto annotation = std::make_unique<Annotation>();
 
     // heap resources
-    auto root = MakePointsTo(config);
-    auto end = MakePointsTo(config);
-    auto past = MakePointsTo(config);
+    auto root = MakePointsTo(*solver.GetConfig());
+    auto end = MakePointsTo(*solver.GetConfig());
+    auto past = MakePointsTo(*solver.GetConfig());
 
     // variable resources
-    auto left = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(assign.lhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(assign.lhs.type)));
-    auto right = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(assign.rhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(assign.rhs.type)));
-    auto key = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(assign.key), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(assign.key.type)));
+    auto left = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.lhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.lhs.type)));
+    auto right = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.rhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.rhs.type)));
+    auto key = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.key), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.key.type)));
 
     // heap layout: root -> end -> past
     end->node->decl_storage = root->fieldToValue["next"]->Decl();
     past->node->decl_storage = end->fieldToValue["next"]->Decl();
 
     // stack
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(left->value->Decl()), SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(root->node->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(key->value->Decl()), SymbolicAxiom::GT, std::make_unique<SymbolicMin>()
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(key->value->Decl()), SymbolicAxiom::LT, std::make_unique<SymbolicMax>()
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(root->fieldToValue.at("data")->Decl()), SymbolicAxiom::EQ,
             std::make_unique<SymbolicVariable>(key->value->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(root->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
             std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
             std::make_unique<SymbolicVariable>(past->fieldToValue.at("data")->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(root->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
             std::make_unique<SymbolicBool>(false)
     ));
-    result->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
             std::make_unique<SymbolicVariable>(end->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
             std::make_unique<SymbolicBool>(false)
     ));
 
     // obligation
-    result->now->conjuncts.push_back(std::make_unique<ObligationAxiom>(
+    annotation->now->conjuncts.push_back(std::make_unique<ObligationAxiom>(
             ObligationAxiom::Kind::DELETE, std::make_unique<SymbolicVariable>(key->value->Decl())
     ));
-    result->now->conjuncts.push_back(std::make_unique<InflowContainsValueAxiom>(root->flow, std::make_unique<SymbolicVariable>(key->value->Decl())));
+    annotation->now->conjuncts.push_back(std::make_unique<InflowContainsValueAxiom>(root->flow, std::make_unique<SymbolicVariable>(key->value->Decl())));
 
     // pushing resources
-    result->now->conjuncts.push_front(std::move(past));
-    result->now->conjuncts.push_front(std::move(end));
-    result->now->conjuncts.push_front(std::move(root));
-    result->now->conjuncts.push_front(std::move(right));
-    result->now->conjuncts.push_front(std::move(left));
-    result->now->conjuncts.push_front(std::move(key));
+    annotation->now->conjuncts.push_front(std::move(past));
+    annotation->now->conjuncts.push_front(std::move(end));
+    annotation->now->conjuncts.push_front(std::move(root));
+    annotation->now->conjuncts.push_front(std::move(right));
+    annotation->now->conjuncts.push_front(std::move(left));
+    annotation->now->conjuncts.push_front(std::move(key));
 
-    return result;
+    // test
+    Assignment command(std::make_unique<Dereference>(std::make_unique<VariableExpression>(store.lhs), "mark"), std::make_unique<BooleanValue>(true));
+    solver.Post(std::move(annotation), command);
+}
+
+void TestReadNext(const Solver& solver) {
+    VarStore store(solver.GetConfig()->flowDomain->GetNodeType());
+    auto annotation = std::make_unique<Annotation>();
+
+    // heap resources
+    auto root = MakePointsTo(*solver.GetConfig());
+    auto end = MakePointsTo(*solver.GetConfig());
+    auto past = MakePointsTo(*solver.GetConfig());
+
+    // variable resources
+    auto left = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.lhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.lhs.type)));
+    auto right = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.rhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.rhs.type)));
+    auto key = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.key), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.key.type)));
+
+    // heap layout: root -> end -> past
+    end->node->decl_storage = root->fieldToValue["next"]->Decl();
+    past->node->decl_storage = end->fieldToValue["next"]->Decl();
+
+    // stack
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(left->value->Decl()), SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(root->node->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(key->value->Decl()), SymbolicAxiom::GT, std::make_unique<SymbolicMin>()
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(key->value->Decl()), SymbolicAxiom::LT, std::make_unique<SymbolicMax>()
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(root->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
+            std::make_unique<SymbolicVariable>(key->value->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl()), SymbolicAxiom::GT,
+            std::make_unique<SymbolicVariable>(key->value->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(root->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
+            std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
+            std::make_unique<SymbolicVariable>(past->fieldToValue.at("data")->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(root->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
+            std::make_unique<SymbolicBool>(false)
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(end->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
+            std::make_unique<SymbolicBool>(false)
+    ));
+
+    // obligation
+    annotation->now->conjuncts.push_back(std::make_unique<ObligationAxiom>(
+            ObligationAxiom::Kind::DELETE, std::make_unique<SymbolicVariable>(key->value->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<InflowContainsValueAxiom>(root->flow, std::make_unique<SymbolicVariable>(key->value->Decl())));
+
+    // pushing resources
+    annotation->now->conjuncts.push_front(std::move(past));
+    annotation->now->conjuncts.push_front(std::move(end));
+    annotation->now->conjuncts.push_front(std::move(root));
+    annotation->now->conjuncts.push_front(std::move(right));
+    annotation->now->conjuncts.push_front(std::move(left));
+    annotation->now->conjuncts.push_front(std::move(key));
+
+    // test
+    Assignment command(std::make_unique<VariableExpression>(store.rhs), std::make_unique<Dereference>(std::make_unique<VariableExpression>(store.lhs), "next"));
+    solver.Post(std::move(annotation), command);
+}
+
+void TestReadExpand(const Solver& solver) {
+    VarStore store(solver.GetConfig()->flowDomain->GetNodeType());
+    auto annotation = std::make_unique<Annotation>();
+
+    // heap resources
+    auto root = MakePointsTo(*solver.GetConfig());
+    auto end = MakePointsTo(*solver.GetConfig());
+
+    // variable resources
+    auto left = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.lhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.lhs.type)));
+    auto right = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.rhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.rhs.type)));
+    auto key = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.key), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.key.type)));
+
+    // heap layout: root -> end -> past
+    end->node->decl_storage = root->fieldToValue["next"]->Decl();
+
+    // stack
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(left->value->Decl()), SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(end->node->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(key->value->Decl()), SymbolicAxiom::GT, std::make_unique<SymbolicMin>()
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(key->value->Decl()), SymbolicAxiom::LT, std::make_unique<SymbolicMax>()
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl()), SymbolicAxiom::EQ,
+            std::make_unique<SymbolicVariable>(key->value->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(root->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
+            std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(root->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
+            std::make_unique<SymbolicBool>(false)
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(end->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
+            std::make_unique<SymbolicBool>(false)
+    ));
+
+    // obligation
+    annotation->now->conjuncts.push_back(std::make_unique<ObligationAxiom>(
+            ObligationAxiom::Kind::DELETE, std::make_unique<SymbolicVariable>(key->value->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<InflowContainsValueAxiom>(root->flow, std::make_unique<SymbolicVariable>(key->value->Decl())));
+
+    // pushing resources
+    annotation->now->conjuncts.push_front(std::move(end));
+    annotation->now->conjuncts.push_front(std::move(root));
+    annotation->now->conjuncts.push_front(std::move(right));
+    annotation->now->conjuncts.push_front(std::move(left));
+    annotation->now->conjuncts.push_front(std::move(key));
+
+    // test
+    Assignment command(std::make_unique<VariableExpression>(store.rhs), std::make_unique<Dereference>(std::make_unique<VariableExpression>(store.lhs), "next"));
+    solver.Post(std::move(annotation), command);
+}
+
+void TestReadExpandLocal(const Solver& solver) {
+    VarStore store(solver.GetConfig()->flowDomain->GetNodeType());
+    auto annotation = std::make_unique<Annotation>();
+
+    // heap resources
+    auto root = MakePointsTo(*solver.GetConfig());
+    auto end = MakePointsTo(*solver.GetConfig());
+    auto owned = MakePointsTo(*solver.GetConfig(), true);
+
+    // variable resources
+    auto left = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.lhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.lhs.type)));
+    auto right = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.rhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.rhs.type)));
+    auto key = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.key), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.key.type)));
+
+    // heap layout: root -> end -> past
+    end->node->decl_storage = root->fieldToValue["next"]->Decl();
+
+    // stack
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(left->value->Decl()), SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(end->node->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(key->value->Decl()), SymbolicAxiom::GT, std::make_unique<SymbolicMin>()
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(key->value->Decl()), SymbolicAxiom::LT, std::make_unique<SymbolicMax>()
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl()), SymbolicAxiom::EQ,
+            std::make_unique<SymbolicVariable>(key->value->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(root->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
+            std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(root->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
+            std::make_unique<SymbolicBool>(false)
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(end->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
+            std::make_unique<SymbolicBool>(false)
+    ));
+
+    // obligation
+    annotation->now->conjuncts.push_back(std::make_unique<ObligationAxiom>(
+            ObligationAxiom::Kind::DELETE, std::make_unique<SymbolicVariable>(key->value->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<InflowContainsValueAxiom>(root->flow, std::make_unique<SymbolicVariable>(key->value->Decl())));
+
+    // pushing resources
+    annotation->now->conjuncts.push_front(std::move(owned));
+    annotation->now->conjuncts.push_front(std::move(end));
+    annotation->now->conjuncts.push_front(std::move(root));
+    annotation->now->conjuncts.push_front(std::move(right));
+    annotation->now->conjuncts.push_front(std::move(left));
+    annotation->now->conjuncts.push_front(std::move(key));
+
+    // test
+    Assignment command(std::make_unique<VariableExpression>(store.rhs), std::make_unique<Dereference>(std::make_unique<VariableExpression>(store.lhs), "next"));
+    solver.Post(std::move(annotation), command);
+}
+
+void TestJoin1(const Solver& solver) {
+    VarStore store(solver.GetConfig()->flowDomain->GetNodeType());
+    auto annotation = std::make_unique<Annotation>();
+
+    // heap resources
+    auto root = MakePointsTo(*solver.GetConfig());
+    auto mid = MakePointsTo(*solver.GetConfig());
+    auto end = MakePointsTo(*solver.GetConfig());
+    auto past = MakePointsTo(*solver.GetConfig());
+
+    // variable resources
+    auto left = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.lhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.lhs.type)));
+    auto right = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.rhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.rhs.type)));
+    auto key = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.key), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.key.type)));
+
+    // heap layout: root -> mid -> end -> past
+    mid->node->decl_storage = root->fieldToValue["next"]->Decl();
+    end->node->decl_storage = mid->fieldToValue["next"]->Decl();
+    past->node->decl_storage = end->fieldToValue["next"]->Decl();
+
+    // stack
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(left->value->Decl()), SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(mid->node->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(right->value->Decl()), SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(end->node->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(key->value->Decl()), SymbolicAxiom::GT, std::make_unique<SymbolicMin>()
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(key->value->Decl()), SymbolicAxiom::LT, std::make_unique<SymbolicMax>()
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(root->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
+            std::make_unique<SymbolicVariable>(mid->fieldToValue.at("data")->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(mid->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
+            std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
+            std::make_unique<SymbolicVariable>(past->fieldToValue.at("data")->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(root->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
+            std::make_unique<SymbolicBool>(false)
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(mid->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
+            std::make_unique<SymbolicBool>(true)
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(end->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
+            std::make_unique<SymbolicBool>(false)
+    ));
+
+    // obligation
+    annotation->now->conjuncts.push_back(std::make_unique<ObligationAxiom>(
+            ObligationAxiom::Kind::INSERT, std::make_unique<SymbolicVariable>(key->value->Decl())
+    ));
+
+    // pushing resources
+    annotation->now->conjuncts.push_front(std::move(past));
+    annotation->now->conjuncts.push_front(std::move(end));
+    annotation->now->conjuncts.push_front(std::move(mid));
+    annotation->now->conjuncts.push_front(std::move(root));
+    annotation->now->conjuncts.push_front(std::move(right));
+    annotation->now->conjuncts.push_front(std::move(left));
+    annotation->now->conjuncts.push_front(std::move(key));
+
+    std::vector<std::unique_ptr<Annotation>> toJoin;
+    toJoin.push_back(heal::Copy(*annotation));
+    toJoin.push_back(heal::Copy(*annotation));
+    toJoin.push_back(std::move(annotation));
+
+    solver.Join(std::move(toJoin));
+}
+
+void TestJoin2(const Solver& solver) {
+    VarStore store(solver.GetConfig()->flowDomain->GetNodeType());
+    auto annotation = std::make_unique<Annotation>();
+
+    // heap resources
+    auto root = MakePointsTo(*solver.GetConfig());
+    auto mid = MakePointsTo(*solver.GetConfig());
+    auto end = MakePointsTo(*solver.GetConfig());
+    auto past = MakePointsTo(*solver.GetConfig());
+
+    // variable resources
+    auto left = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.lhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.lhs.type)));
+    auto right = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.rhs), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.rhs.type)));
+    auto key = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(store.key), std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(store.key.type)));
+
+    // heap layout: root -> mid -> end -> past
+    mid->node->decl_storage = root->fieldToValue["next"]->Decl();
+    end->node->decl_storage = mid->fieldToValue["next"]->Decl();
+    past->node->decl_storage = end->fieldToValue["next"]->Decl();
+
+    // stack
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(left->value->Decl()), SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(root->node->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(right->value->Decl()), SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(end->node->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(key->value->Decl()), SymbolicAxiom::GT, std::make_unique<SymbolicMin>()
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(key->value->Decl()), SymbolicAxiom::LT, std::make_unique<SymbolicMax>()
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(root->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
+            std::make_unique<SymbolicVariable>(mid->fieldToValue.at("data")->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(mid->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
+            std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(end->fieldToValue.at("data")->Decl()), SymbolicAxiom::LT,
+            std::make_unique<SymbolicVariable>(past->fieldToValue.at("data")->Decl())
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(root->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
+            std::make_unique<SymbolicBool>(false)
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(mid->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
+            std::make_unique<SymbolicBool>(true)
+    ));
+    annotation->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
+            std::make_unique<SymbolicVariable>(end->fieldToValue.at("mark")->Decl()), SymbolicAxiom::EQ,
+            std::make_unique<SymbolicBool>(false)
+    ));
+
+    // obligation
+    annotation->now->conjuncts.push_back(std::make_unique<ObligationAxiom>(
+            ObligationAxiom::Kind::INSERT, std::make_unique<SymbolicVariable>(key->value->Decl())
+    ));
+
+    // pushing resources
+    annotation->now->conjuncts.push_front(std::move(past));
+    annotation->now->conjuncts.push_front(std::move(end));
+    annotation->now->conjuncts.push_front(std::move(mid));
+    annotation->now->conjuncts.push_front(std::move(root));
+    annotation->now->conjuncts.push_front(std::move(right));
+    annotation->now->conjuncts.push_front(std::move(left));
+    annotation->now->conjuncts.push_front(std::move(key));
+
+    std::vector<std::unique_ptr<Annotation>> toJoin;
+    toJoin.push_back(heal::Copy(*annotation));
+    toJoin.push_back(heal::Copy(*annotation));
+    toJoin.push_back(std::move(annotation));
+
+    solver.Join(std::move(toJoin));
 }
 
 //
@@ -380,25 +753,36 @@ std::unique_ptr<Annotation> MakePreMark(const SolverConfig& config, const Assign
 //
 
 int main(int argc, char** argv) {
+    std::size_t testRuns = 1;
+    std::vector<std::pair<std::function<void(const Solver&)>, std::string>> tests = {
+            { TestUnlinkNode, "Unlink Node" },
+            { TestInsertNode, "Insert Node" },
+            { TestMarkNode, "Mark Node" },
+            { TestReadNext, "Dereference node (fulfilling obligation)" },
+            { TestReadExpand, "Expand Frontier (no local nodes)" },
+            { TestReadExpandLocal, "Expand Frontier (with local nodes)" },
+            { TestJoin1, "Join" },
+            { TestJoin2, "Join" },
+    };
+
     auto config = MakeConfig();
     auto solver = solver::MakeDefaultSolver(config);
-    Assign assign(config->flowDomain->GetNodeType());
-    auto preDelete = MakePreDelete(*config, assign);
-    auto preInsert = MakePreInsert(*config, assign);
-    auto preMark = MakePreMark(*config, assign);
 
-//    std::cout << "Invariant: "; heal::Print(*config->invariant->blueprint, std::cout); std::cout << std::endl << std::endl;
-//    std::cout << "Flow: "; heal::Print(*config->flowDomain->GetOutFlowContains("next").blueprint, std::cout); std::cout << std::endl << std::endl;
-//    std::cout << "Contains: "; heal::Print(*config->logicallyContainsKey->blueprint, std::cout); std::cout << std::endl << std::endl;
-
-    auto start = std::chrono::steady_clock::now();
-    std::size_t numRuns = 1;
-    for (std::size_t count = 0; count < numRuns; ++count) {
-        solver->Post(heal::Copy(*preDelete), assign.cmdAssignNext);
-        solver->Post(heal::Copy(*preInsert), assign.cmdAssignNext);
-        solver->Post(heal::Copy(*preMark), assign.cmdAssignMark);
+    std::vector<std::size_t> times;
+    times.reserve(tests.size());
+    for (const auto& test : tests) {
+        auto start = std::chrono::steady_clock::now();
+        for (std::size_t count = 0; count < testRuns; ++count) {
+            test.first(*solver);
+        }
+        auto end = std::chrono::steady_clock::now();
+        times.push_back(std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count() / testRuns);
     }
-    auto end = std::chrono::steady_clock::now();
-    std::cout << std::endl << std::endl << "[Avg. time taken across " << numRuns << " runs: ";
-    std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count()/numRuns << "ms]" << std::endl;
+
+    std::cout << std::endl << "Finished " << tests.size() << " tests, run " << testRuns << " times each:" << std::endl;
+    auto width = (int) std::max_element(tests.begin(), tests.end(), [](const auto& elem, const auto& other){ return elem.second.length() < other.second.length(); })->second.length();
+    for (std::size_t index = 0; index < tests.size(); ++index) {
+        std::string name = "'" + tests[index].second + "'";
+        std::cout << "  - Test\t" << std::setw(width+2) << name << ":\t avg. " << times[index] << "ms" << std::endl;
+    }
 }

@@ -5,10 +5,19 @@
 #include "encoder.hpp"
 #include "flowgraph.hpp"
 #include "cola/util.hpp" // TODO: delete
+#include "candidates.hpp"
 
 using namespace cola;
 using namespace heal;
 using namespace solver;
+
+static constexpr CandidateGenerator::FlowLevel POST_DERIVE_STACK_FLOW_LEVEL = CandidateGenerator::FlowLevel::FAST; // TODO: make configurable
+
+/* NOTE:
+ * This checks for acyclicity of the flow graph. One would prefer to check for non-empty flow cycles instead.
+ * However, this would require to construct many flow graphs when extending the exploration frontier (detecting new points-to predicates).
+ * Hence, we go with a syntactic check for reachability.
+ */
 
 
 struct ObligationFinder : public DefaultLogicListener {
@@ -22,6 +31,74 @@ std::set<const ObligationAxiom*> CollectObligations(const FlowGraph& footprint) 
     return std::move(finder.result);
 }
 
+struct Reachability {
+    private:
+    std::map<const SymbolicVariableDeclaration*, std::set<const SymbolicVariableDeclaration*>> reachability;
+
+    void Initialize(std::set<const SymbolicVariableDeclaration*>&& worklist, std::function<std::set<const SymbolicVariableDeclaration*>(const SymbolicVariableDeclaration&)>&& getNext) {
+        // populate 1-step successors
+        while (!worklist.empty()) {
+            auto& decl = **worklist.begin();
+            worklist.erase(worklist.begin());
+            if (reachability.count(&decl) != 0) continue;
+            reachability[&decl] = getNext(decl);
+        }
+
+        // populate (n+1)-step successors
+        bool changed;
+        do {
+            changed = false;
+            for (auto& [address, reach] : reachability) {
+                auto& addressReach = reachability[address];
+                auto oldSize = addressReach.size();
+                for (auto* next : reach) {
+                    if (address == next) continue;
+                    auto& nextReach = reachability[next];
+                    addressReach.insert(nextReach.begin(), nextReach.end());
+                }
+                changed |= oldSize != addressReach.size();
+            }
+        } while (changed);
+    }
+
+    public:
+    explicit Reachability(const Formula& state) {
+        LazyValuationMap eval(state);
+        Initialize(ResourceCollector::Collect(state), [&eval](const auto& decl){
+            std::set<const SymbolicVariableDeclaration*> successors;
+            auto resource = eval.GetMemoryResourceOrNull(decl);
+            if (resource) {
+                for (const auto& [name, value] : resource->fieldToValue) {
+                    if (value->Sort() != Sort::PTR) continue;
+                    successors.insert(&value->Decl());
+                }
+            }
+            return successors;
+        });
+    }
+
+    explicit Reachability(const FlowGraph& graph, EMode mode) {
+        Initialize({ &graph.GetRoot().address }, [&graph,&mode](const auto& decl){
+            std::set<const SymbolicVariableDeclaration*> successors;
+            auto node = graph.GetNodeOrNull(decl);
+            if (node) {
+                for (const auto& field : node->pointerFields) {
+                    successors.insert(mode == EMode::PRE ? &field.preValue.get() : &field.postValue.get());
+                }
+            }
+            return successors;
+        });
+    }
+
+    bool IsReachable(const SymbolicVariableDeclaration& src, const SymbolicVariableDeclaration& dst) {
+        return reachability[&src].count(&dst) != 0;
+    }
+
+    const std::set<const SymbolicVariableDeclaration*>& GetReachable(const SymbolicVariableDeclaration& src) {
+        return reachability[&src];
+    }
+};
+
 //
 // Checks
 //
@@ -33,6 +110,7 @@ struct FootprintChecks {
     std::set<const ObligationAxiom*> preSpec;
     std::deque<std::unique_ptr<SpecificationAxiom>> postSpec;
     ContextMap context;
+    std::deque<std::unique_ptr<Axiom>> candidates;
 
     FootprintChecks(const FootprintChecks& other) = delete;
     explicit FootprintChecks(z3::context& context) : checks(context) {}
@@ -51,18 +129,24 @@ void CheckPublishing(FlowGraph& footprint) {
     }
 }
 
-//bool DebugCheck(FootprintEncoding& encoding, const z3::expr& expr) {
-//    encoding.solver.push();
-//    std::cout << "checking: " << expr << std::endl;
-//    encoding.solver.add(!expr);
-//    auto res = encoding.solver.check();
-//    encoding.solver.pop();
-//    switch (res) {
-//        case z3::unsat: std::cout << "  ==> holds" << std::endl; return true;
-//        case z3::sat: std::cout << "  ==> does not hold" << std::endl; return false;
-//        case z3::unknown: std::cout << "  ==> solving failed" << std::endl; return false;
-//    }
-//}
+void CheckReachability(const FlowGraph& footprint) {
+    Reachability preReach(footprint, EMode::PRE);
+    Reachability postReach(footprint, EMode::POST);
+
+    // ensure no cycle inside footprint after update (potential such cycles must involve root)
+    for (const auto& node : footprint.nodes) {
+        if (!postReach.IsReachable(node.address, node.address)) continue;
+        throw std::logic_error("Cycle withing footprint detected. Cautiously aborting..."); // TODO: better error handling
+    }
+
+    // ensure that no nodes outside the footprint are reachable after the update that were unreachable before
+    auto preRootReachable = preReach.GetReachable(footprint.GetRoot().address);
+    for (const auto* address : postReach.GetReachable(footprint.GetRoot().address)) {
+        if (preRootReachable.count(address) != 0) continue;
+        if (footprint.GetNodeOrNull(*address)) continue;
+        throw std::logic_error("Footprint too small to guarantee acyclicity of heap graph."); // TODO: better error handling
+    }
+}
 
 void AddFlowCoverageChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) {
     auto ensureFootprintContains = [&encoding](const SymbolicVariableDeclaration& address){
@@ -85,6 +169,20 @@ void AddFlowCoverageChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) 
         }
     }
 }
+
+//void AddFlowCycleChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) {
+//    // Note: 'AddFlowCoverageChecks' guarantees that the update does not establish a non-empty flow cycle outside the footprint
+//    // ensure absence of non-empty flow cycle inside footprint after update (such cycles must involve root)
+//    for (const auto* field : encoding.graph.GetIncomingEdges(encoding.graph.GetRoot(), EMode::POST)) {
+//        auto& flowField = field->postRootOutflow; // TODO: root or all flow?
+//        assert(flowField.has_value());
+//        InflowEmptinessAxiom tmp(flowField.value(), true);
+//        checks.Add(encoding.encoder(tmp), [](bool noFlow){
+//            if (noFlow) return;
+//            throw std::logic_error("Potential flow cycle in footprint detected."); // TODO: better error handling
+//        });
+//    }
+//}
 
 void AddFlowUniquenessChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) {
     auto disjointness = encoding.EncodeKeysetDisjointness(EMode::POST);
@@ -150,7 +248,7 @@ void AddSpecificationChecks(EncodedFlowGraph& encoding, FootprintChecks& checks)
 
         // check pure
         auto isContained = isPure && z3::mk_or(keyPreContained);
-        auto isNotContained = isPure && z3::mk_or(keyPreContained);
+        auto isNotContained = isPure && !z3::mk_or(keyPreContained);
         checks.Add(isContained, [&checks, obligation](bool holds) {
             if (!holds || obligation->kind == SpecificationAxiom::Kind::DELETE) return;
             bool fulfilled = obligation->kind == SpecificationAxiom::Kind::CONTAINS; // key contained => contains: success, insertion: fail
@@ -184,10 +282,21 @@ void AddSpecificationChecks(EncodedFlowGraph& encoding, FootprintChecks& checks)
 void AddInvariantChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) {
     for (const auto& node : encoding.graph.nodes) {
         auto nodeInvariant = encoding.EncodeNodeInvariant(node, EMode::POST);
-        checks.Add(nodeInvariant, [&node](bool holds){
+        checks.Add(nodeInvariant, [](bool holds){
 //            std::cout << "Checking invariant for " << node.address.name << ": holds=" << holds << std::endl;
             if (holds) return;
             throw std::logic_error("Unsafe update: invariant is not maintained."); // TODO: better error handling
+        });
+    }
+}
+
+void AddDerivedKnowledgeChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) {
+    // TODO: does this work?
+    checks.candidates = CandidateGenerator::Generate(*encoding.graph.pre, POST_DERIVE_STACK_FLOW_LEVEL);
+    for (std::size_t index = 0; index < checks.candidates.size(); ++index) {
+        checks.Add(encoding.encoder(*checks.candidates[index]), [&checks,&encoding,index](bool holds){
+            if (!holds) return;
+            encoding.graph.pre->now->conjuncts.push_back(std::move(checks.candidates[index]));
         });
     }
 }
@@ -197,7 +306,7 @@ void AddInvariantChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) {
 //
 
 void PerformChecks(EncodedFlowGraph& encoding, const FootprintChecks& checks) {
-    ComputeImpliedCallback(encoding.context, encoding.solver, checks.checks);
+    ComputeImpliedCallback(encoding.solver, checks.checks);
 }
 
 void MinimizeFootprint(FlowGraph& footprint) {
@@ -346,7 +455,7 @@ std::deque<std::unique_ptr<Effect>> ExtractEffects(const EncodedFlowGraph& encod
 }
 
 //
-// Overall Algorithm
+// Overall Algorithm (Heap Update)
 //
 
 PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const Assignment& cmd, const Dereference& lhs) const {
@@ -354,13 +463,11 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
     // TODO: create and use update/effect lookup table
     // TODO: start with smaller footprint and increase if too small?
 
-    // begin debug
+//    // begin debug
 //    std::cout << std::endl << std::endl << std::endl << "====================" << std::endl;
-//    unsigned int major, minor, build, revision;
-//    Z3_get_version(&major, &minor, &build, &revision);
 //    std::cout << "== Command: "; cola::print(cmd, std::cout);
 //    std::cout << "== Pre: " << std::endl; heal::Print(*pre, std::cout); std::cout << std::endl << std::flush;
-    // end debug
+//    // end debug
 
     auto [isVar, lhsVar] = heal::IsOfType<VariableExpression>(*lhs.expr);
     if (!isVar) throw std::logic_error("Unsupported assignment: dereference of non-variable"); // TODO: better error handling
@@ -373,10 +480,13 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
     checks.preSpec = CollectObligations(encoding.graph);
 
     CheckPublishing(encoding.graph);
+     CheckReachability(encoding.graph);
     AddFlowCoverageChecks(encoding, checks);
+    // AddFlowCycleChecks(encoding, checks);
     AddFlowUniquenessChecks(encoding, checks);
     AddSpecificationChecks(encoding, checks);
     AddInvariantChecks(encoding, checks);
+    AddDerivedKnowledgeChecks(encoding, checks);
     AddEffectContextGenerators(encoding, checks);
     PerformChecks(encoding, checks);
 
@@ -404,28 +514,58 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
 
 
 //
-// Retrieving implicit resources
+// Overall Algorithm (Variable Update)
 //
 
-std::unique_ptr<SeparatingConjunction> ExpandMemoryFrontier(const SymbolicVariableDeclaration& address, const Formula& state,
-                                                            const Expression& rhs, SymbolicFactory& factory, const SolverConfig& config) {
-    auto result = std::make_unique<SeparatingConjunction>();
+struct PointsToRemover : DefaultLogicNonConstListener {
+    const std::set<const SymbolicVariableDeclaration*>& prune;
+    explicit PointsToRemover(const std::set<const SymbolicVariableDeclaration*>& prune) : prune(prune) {}
+    inline void Handle(decltype(SeparatingConjunction::conjuncts)& conjuncts) {
+        conjuncts.erase(std::remove_if(conjuncts.begin(), conjuncts.end(), [this](const auto& elem){
+            if (auto pointsTo = dynamic_cast<const PointsToAxiom*>(elem.get())) {
+                return prune.count(&pointsTo->node->Decl()) != 0;
+            }
+            return false;
+        }), conjuncts.end());
+    }
+    void enter(SeparatingConjunction& obj) override { Handle(obj.conjuncts); }
+};
+
+inline std::unique_ptr<PointsToAxiom> MakePointsTo(const SymbolicVariableDeclaration& address, SymbolicFactory& factory, const SolverConfig& config) {
+    bool isLocal = false; // TODO: is that correct?
+    auto& flow = factory.GetUnusedFlowVariable(config.flowDomain->GetFlowValueType());
+    std::map<std::string, std::unique_ptr<SymbolicVariable>> fieldToValue;
+    for (const auto& [name, type] : address.type.fields) {
+        fieldToValue.emplace(name, std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(type)));
+    }
+    return std::make_unique<PointsToAxiom>(std::make_unique<SymbolicVariable>(address), isLocal, flow, std::move(fieldToValue));
+}
+
+inline std::unique_ptr<SeparatingConjunction>
+ExpandMemoryFrontier(std::unique_ptr<SeparatingConjunction> state, const SymbolicVariableDeclaration& addressAlias,
+                     const Expression& rhs, SymbolicFactory& factory, const SolverConfig& config) {
+    // only relevant for pointer fields
+    if (rhs.sort() != Sort::PTR) return state;
 
     // do nothing if the memory resource is already present
-    if (FindMemory(address, state)) return result;
+    if (FindMemory(addressAlias, *state)) return state;
 
     // expand only for dereferences the resources of which are available
     auto [isDereference, dereference] = heal::IsOfType<Dereference>(rhs);
-    if (!isDereference) return result;
-    auto memory = FindResource(*dereference, state); // TODO: lazy evaluation
-    if (!memory) return result;
+    if (!isDereference) return state;
+    auto memory = FindResource(*dereference, *state); // TODO: lazy evaluation?
+    if (!memory) return state;
+
+    // use the real address occurring in predicates, not some alias
+    auto& address = memory->fieldToValue.at(dereference->fieldname)->Decl();
 
     // prepare for solving
     z3::context context;
     z3::solver solver(context);
     Z3Encoder encoder(context, solver);
-    solver.add(encoder(state));
+    solver.add(encoder(*state));
     ImplicationCheckSet checks(context);
+    bool resultIsNonNull = false;
 
     // add invariant for 'memory'
     if (config.applyInvariantToLocal || !memory->isLocal) {
@@ -435,38 +575,75 @@ std::unique_ptr<SeparatingConjunction> ExpandMemoryFrontier(const SymbolicVariab
     // check for NULL and non-NULL
     auto isNull = std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(address), SymbolicAxiom::EQ, std::make_unique<SymbolicNull>());
     auto isNonNull = std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(address), SymbolicAxiom::NEQ, std::make_unique<SymbolicNull>());
-    checks.Add(encoder(*isNull), [&isNull,&result](bool holds){
-        if (holds) result->conjuncts.push_back(std::move(isNull));
+    checks.Add(encoder(*isNull), [&isNull,&state](bool holds){
+        if (holds) state->conjuncts.push_back(std::move(isNull));
     });
-    checks.Add(encoder(*isNonNull), [&isNonNull,&result](bool holds){
-        if (holds) result->conjuncts.push_back(std::move(isNonNull));
+    checks.Add(encoder(*isNonNull), [&isNonNull,&state,&resultIsNonNull](bool holds){
+        if (!holds) return;
+        state->conjuncts.push_back(std::move(isNonNull));
+        resultIsNonNull = true;
     });
+    solver::ComputeImpliedCallback(solver, checks);
 
-    // check if a new points to predicate can be introduced (we can decide locality only for dereferences of shared memory)
-    if (!memory->isLocal) {
-        auto resources = ResourceCollector::Collect(state);
-        resources.insert(&address);
-        checks.Add(encoder.MakeResourceGuarantee(resources), [&](bool holds) {
-            if (!holds) return;
-            auto node = std::make_unique<SymbolicVariable>(address);
-            auto &flow = factory.GetUnusedFlowVariable(config.flowDomain->GetFlowValueType());
-            bool isLocal = true; // 'address' is referenced by the shared 'memory'
-            std::map<std::string, std::unique_ptr<SymbolicVariable>> fields;
-            for (const auto&[name, type] : address.type.fields) {
-                fields[name] = std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(type));
-            }
-            result->conjuncts.push_back(std::make_unique<PointsToAxiom>(std::move(node), isLocal, flow, std::move(fields)));
-        });
+    // introduce new points-to predicate
+    if (resultIsNonNull && !memory->isLocal) {
+        // find addresses that are guaranteed to be different from 'address'
+        Reachability reachability(*state);
+        auto potentiallyOverlapping = ResourceCollector::Collect(*state);
+        for (auto it = potentiallyOverlapping.begin(); it != potentiallyOverlapping.end();) {
+            auto resource = FindMemory(**it, *state);
+            assert(resource);
+            bool isDistinct = (!memory->isLocal && resource->isLocal)
+                              || reachability.IsReachable(resource->node->Decl(), address);
+            if (isDistinct) it = potentiallyOverlapping.erase(it);
+            else ++it;
+        }
+
+        // delete resources that may overlap with 'address'
+        if (!potentiallyOverlapping.empty()) {
+            PointsToRemover remover(potentiallyOverlapping);
+            state->accept(remover);
+        }
+
+        state->conjuncts.push_back(MakePointsTo(address, factory, config));
     }
 
-    // execute checks
-    solver::ComputeImpliedCallback(context, solver, checks);
-    return result;
+    return state;
 }
 
-PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<heal::Annotation> pre, const cola::Assignment& cmd, const cola::VariableExpression& lhs) const {
+std::unique_ptr<Annotation> TryAddPureFulfillment(std::unique_ptr<Annotation> annotation, const SymbolicVariableDeclaration& address, const SolverConfig& config) {
+    EncodedFlowGraph encoding(solver::MakeFlowGraph(std::move(annotation), address, config));
+    FootprintChecks checks(encoding.context);
+    checks.preSpec = CollectObligations(encoding.graph);
+    AddSpecificationChecks(encoding, checks);
+    AddDerivedKnowledgeChecks(encoding, checks);
+    PerformChecks(encoding, checks);
+    annotation = std::move(encoding.graph.pre);
+    ObligationRemover remover(std::move(checks.preSpec));
+    annotation->now->accept(remover); // do not touch time predicates
+    std::move(checks.postSpec.begin(), checks.postSpec.end(), std::back_inserter(annotation->now->conjuncts));
+    return annotation;
+}
+
+std::unique_ptr<Annotation> TryAddPureFulfillment(std::unique_ptr<Annotation> annotation, const Expression& expression, const SolverConfig& config) {
+    if (expression.sort() != Sort::PTR) return annotation;
+    if (auto dereference = dynamic_cast<const Dereference *>(&expression)) {
+        auto resource = solver::FindResource(*dereference, *annotation);
+        if (!resource) return annotation;
+        return TryAddPureFulfillment(std::move(annotation), resource->node->Decl(), config);
+    }
+    return annotation;
+}
+
+PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<Annotation> pre, const Assignment& cmd, const VariableExpression& lhs) const {
     if (lhs.decl.is_shared)
         throw std::logic_error("Unsupported assignment: cannot assign to shared variables."); // TODO: better error handling
+
+//    begin debug
+//    std::cout << std::endl << std::endl << std::endl << "====================" << std::endl;
+//    std::cout << "== Command: "; cola::print(cmd, std::cout);
+//    std::cout << "== Pre: " << std::endl; heal::Print(*pre, std::cout); std::cout << std::endl << std::flush;
+//    end debug
 
     // perform update
     SymbolicFactory factory(*pre);
@@ -476,18 +653,14 @@ PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<heal::Annotation> pr
     if (!resource) throw std::logic_error("Unsafe update: variable '" + lhs.decl.name + "' is not accessible."); // TODO: better error handling
     resource->value = std::make_unique<SymbolicVariable>(symbol);
     pre->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(symbol), SymbolicAxiom::EQ, std::move(value)));
-    if (lhs.sort() == Sort::PTR) pre->now->conjuncts.push_back(ExpandMemoryFrontier(symbol, *pre->now, *cmd.rhs, factory, Config()));
 
-    // check spec
-    EncodedFlowGraph encoding(solver::MakeFlowGraph(std::move(pre), resource->value->Decl(), Config()));
-    FootprintChecks checks(encoding.context);
-    checks.preSpec = CollectObligations(encoding.graph);
-    AddSpecificationChecks(encoding, checks);
-    PerformChecks(encoding, checks);
-    pre = std::move(encoding.graph.pre);
-    ObligationRemover remover(std::move(checks.preSpec));
-    pre->now->accept(remover); // do not touch time predicates
-    std::move(checks.postSpec.begin(), checks.postSpec.end(), std::back_inserter(pre->now->conjuncts));
+    // try derive helpful knowledge
+    pre->now =  ExpandMemoryFrontier(std::move(pre->now), symbol, *cmd.rhs, factory, Config());
+    pre = TryAddPureFulfillment(std::move(pre), *cmd.rhs, Config());
+
+//    begin debug
+//    std::cout << "== Post: " << std::endl; heal::Print(*pre, std::cout); std::cout << std::endl;
+//    end debug
 
     heal::InlineAndSimplify(*pre->now);
     return PostImage(std::move(pre)); // local variable update => no effect

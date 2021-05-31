@@ -38,6 +38,8 @@ namespace solver {
 		explicit Solver(std::shared_ptr<SolverConfig> config);
         virtual ~Solver() = default;
 
+        [[nodiscard]] std::shared_ptr<SolverConfig> GetConfig() const { return config; }
+
 //		[[nodiscard]] virtual std::unique_ptr<ImplicationChecker> MakeImplicationChecker() const = 0;
 //      [[nodiscard]] virtual std::unique_ptr<ImplicationChecker> MakeImplicationChecker(const heal::Formula& premise) const;
 

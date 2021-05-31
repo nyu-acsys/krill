@@ -1,112 +1,15 @@
 #include "default_solver.hpp"
 
+#include <numeric>
 #include "z3++.h"
 #include "encoder.hpp"
 #include "eval.hpp"
+#include "candidates.hpp"
 
 using namespace cola;
 using namespace heal;
 using namespace solver;
 
-
-//
-// Candidates
-//
-
-inline auto MkVar(const SymbolicVariableDeclaration& decl) { return std::make_unique<SymbolicVariable>(decl); }
-
-struct CandidateGenerator : public DefaultLogicListener {
-    std::set<const SymbolicVariableDeclaration*> symbols;
-    std::set<const SymbolicFlowDeclaration*> flows;
-    std::deque<std::unique_ptr<Axiom>> result;
-
-    void enter(const SymbolicVariable& obj) override { symbols.insert(&obj.Decl()); }
-    void enter(const PointsToAxiom& obj) override { flows.insert(&obj.flow.get()); }
-    void enter(const InflowContainsValueAxiom& obj) override { flows.insert(&obj.flow.get()); }
-    void enter(const InflowContainsRangeAxiom& obj) override { flows.insert(&obj.flow.get()); }
-    void enter(const InflowEmptinessAxiom& obj) override { flows.insert(&obj.flow.get()); }
-
-    explicit CandidateGenerator(const LogicObject& base) {
-        base.accept(*this);
-
-        for (const auto* flow : flows) {
-            AddUnaryFlowCandidates(*flow);
-        }
-        for (auto symbol = symbols.begin(); symbol != symbols.end(); ++symbol) {
-            AddUnarySymbolCandidates(**symbol);
-            for (const auto* flow : flows) {
-                AddBinaryFlowCandidates(*flow, **symbol);
-            }
-            for (auto other = std::next(symbol); other != symbols.end(); ++other) {
-                AddBinarySymbolCandidates(**symbol, **other);
-                AddBinarySymbolCandidates(**other, **symbol);
-                for (const auto* flow : flows) {
-                    AddTernaryFlowCandidates(*flow, **symbol, **other);
-                    AddTernaryFlowCandidates(*flow, **other, **symbol);
-                }
-            }
-        }
-    }
-
-    inline static const std::vector<SymbolicAxiom::Operator>& GetOps(Sort sort) {
-        static std::vector<SymbolicAxiom::Operator> ptrOps = { SymbolicAxiom::EQ, SymbolicAxiom::NEQ };
-        static std::vector<SymbolicAxiom::Operator> dataOps = { SymbolicAxiom::EQ, SymbolicAxiom::NEQ, SymbolicAxiom::LEQ, SymbolicAxiom::LT, SymbolicAxiom::GEQ, SymbolicAxiom::GT };
-        return sort != Sort::DATA ? ptrOps : dataOps;
-    }
-
-    inline static std::vector<std::unique_ptr<SymbolicExpression>> GetImmis(Sort sort) {
-        std::vector<std::unique_ptr<SymbolicExpression>> result;
-        result.reserve(2);
-        switch (sort) {
-            case Sort::VOID: break;
-            case Sort::BOOL: result.push_back(std::make_unique<SymbolicBool>(true)); result.push_back(std::make_unique<SymbolicBool>(false)); break;
-            case Sort::DATA: result.push_back(std::make_unique<SymbolicMin>()); result.push_back(std::make_unique<SymbolicMax>()); break;
-            case Sort::PTR: result.push_back(std::make_unique<SymbolicNull>()); break;
-        }
-        return result;
-    }
-
-    void AddUnarySymbolCandidates(const SymbolicVariableDeclaration& symbol) {
-        for (auto op : GetOps(symbol.type.sort)) {
-            for (auto&& immi : GetImmis(symbol.type.sort)) {
-                result.push_back(std::make_unique<SymbolicAxiom>(MkVar(symbol), op, std::move(immi)));
-            }
-        }
-    }
-
-    void AddBinarySymbolCandidates(const SymbolicVariableDeclaration& symbol, const SymbolicVariableDeclaration& other) {
-        if (symbol.type.sort != other.type.sort) return;
-        for (auto op : GetOps(symbol.type.sort)) {
-            result.push_back(std::make_unique<SymbolicAxiom>(MkVar(symbol), op, MkVar(other)));
-        }
-    }
-
-    void AddUnaryFlowCandidates(const SymbolicFlowDeclaration& flow) {
-        for (auto value : {true, false}) {
-            result.push_back(std::make_unique<InflowEmptinessAxiom>(flow, false));
-        }
-    }
-
-    void AddBinaryFlowCandidates(const SymbolicFlowDeclaration& flow, const SymbolicVariableDeclaration& symbol) {
-        if (flow.type != symbol.type) return;
-        result.push_back(std::make_unique<InflowContainsValueAxiom>(flow, MkVar(symbol)));
-    }
-
-    void AddTernaryFlowCandidates(const SymbolicFlowDeclaration& flow, const SymbolicVariableDeclaration& symbol, const SymbolicVariableDeclaration& other) {
-        if (flow.type != symbol.type) return;
-        if (flow.type != other.type) return;
-        result.push_back(std::make_unique<InflowContainsRangeAxiom>(flow, MkVar(symbol), MkVar(other)));
-    }
-
-    static decltype(result) Generate(const LogicObject& base) {
-        CandidateGenerator generator(base);
-        return std::move(generator.result);
-    }
-};
-
-//
-// Joining
-//
 
 struct VariableCollector : public DefaultLogicListener {
     std::set<const VariableDeclaration*> result;
@@ -115,6 +18,16 @@ struct VariableCollector : public DefaultLogicListener {
         VariableCollector collector;
         annotation.now->accept(collector);
         return std::move(collector.result);
+    }
+};
+
+struct LocalMemoryCounter : public DefaultLogicListener {
+    std::size_t result = 0;
+    void enter(const PointsToAxiom& obj) override { result += obj.isLocal ? 1 : 0; }
+    static decltype(result) Count(const Annotation& annotation) {
+        LocalMemoryCounter counter;
+        annotation.now->accept(counter);
+        return counter.result;
     }
 };
 
@@ -159,13 +72,11 @@ struct AnnotationInfo {
     }
 };
 
-using AnnotationInfoMap = std::map<const Annotation*, AnnotationInfo>;
-
 class AnnotationJoiner {
     std::unique_ptr<Annotation> result;
     std::vector<std::unique_ptr<Annotation>> annotations;
     SymbolicFactory factory;
-    AnnotationInfoMap lookup; // TODO: does this need to be a map? or is a vector sufficient?
+    std::map<const Annotation*, AnnotationInfo> lookup; // TODO: does this need to be a map? or is a vector sufficient?
     const SolverConfig& config;
     std::map<const VariableDeclaration*, bool> commonMemory;
     std::map<const VariableDeclaration*, std::unique_ptr<EqualsToAxiom>> varToCommonRes;
@@ -174,22 +85,34 @@ class AnnotationJoiner {
     z3::solver solver;
     Z3Encoder encoder;
 
-    explicit AnnotationJoiner(std::vector<std::unique_ptr<Annotation>>&& annotations, const SolverConfig& config)
-            : annotations(std::move(annotations)), config(config), solver(context), encoder(context, solver) {
+    explicit AnnotationJoiner(std::vector<std::unique_ptr<Annotation>>&& annotations_, const SolverConfig& config)
+            : result(std::make_unique<Annotation>()), annotations(std::move(annotations_)), config(config), solver(context), encoder(context, solver) {
         // TODO: what about histories and futures???
+
         assert(annotations.size() > 1);
         MakeSymbolsUnique();
+
+//        debug
+//        std::cout << "Joining: ";
+//        for (const auto& elem : annotations) { heal::Print(*elem, std::cout); }
+//        std::cout << std::endl;
+//        debug end
+
         InitializeLookup();
         CheckCommonVariableResources();
         CreateVariableResources();
         FindCommonMemoryResources();
+        CheckCommonMemoryResources();
         CreateMemoryResources();
         CreateSpecificationResources();
         EncodeAnnotations();
         EncodeAdditionalKnowledge();
         PrepareResult();
         DeriveJoinedStack();
-        HandleSpecification();
+
+//        debug
+//        std::cout << "Result: "; heal::Print(*result, std::cout); std::cout << std::endl;
+//        end debug
     }
 
     void MakeSymbolsUnique() {
@@ -228,8 +151,9 @@ class AnnotationJoiner {
     void FindCommonMemoryResources() {
         // memory resources must be unique => handle two variables pointing to the same memory
         std::set<const SymbolicVariableDeclaration*> blacklist;
-//        for (const auto* var : VariableCollector::Collect(*annotations.front())) {
         for (const auto& [var, _ignored] : varToCommonRes) {
+            if (var->type.sort != Sort::PTR) continue;
+
             bool hasCommonResource = true;
             std::optional<bool> isLocal;
             std::set<const SymbolicVariableDeclaration *> references;
@@ -237,7 +161,8 @@ class AnnotationJoiner {
             auto isCommon = [&](const auto* memory) {
                 if (!memory) return false;
                 if (blacklist.count(&memory->node->Decl()) != 0) return false;
-                if (isLocal.has_value() && isLocal.value() != memory->isLocal) return false;
+                if (!isLocal.has_value()) isLocal = memory->isLocal;
+                if (isLocal.value() != memory->isLocal) return false;
                 return true;
             };
             for (const auto &annotation : annotations) {
@@ -255,6 +180,17 @@ class AnnotationJoiner {
         }
     }
 
+    void CheckCommonMemoryResources() {
+//        if (config.applyInvariantToLocal) return; // TODO: is this correct?
+        std::size_t countCommonLocal = std::transform_reduce(commonMemory.cbegin(), commonMemory.cend(), 0,
+                                                             [](const auto& lhs, const auto& rhs){ return lhs + rhs; },
+                                                             [](const auto& elem){ return elem.second ? 1 : 0; });
+        for (const auto& annotation : annotations) {
+            if (LocalMemoryCounter::Count(*annotation) == countCommonLocal) continue;
+            throw std::logic_error("Unsupported join: looses local resource."); // TODO: better error handling
+        }
+    }
+
     void CreateMemoryResources() {
         for (const auto& [var, local] : commonMemory) {
             auto& address = varToCommonRes.at(var)->value->Decl();
@@ -264,28 +200,32 @@ class AnnotationJoiner {
 
     template<typename T, typename F>
     static inline void EraseIf(T& container, F UnaryPredicate) {
-        container.erase(std::remove_if(container.begin(), container.end(), UnaryPredicate), container.end());
+//        container.erase(std::remove_if(container.begin(), container.end(), UnaryPredicate), container.end());
+        for (auto it = container.begin(); it != container.end();) {
+            if (UnaryPredicate(*it)) it = container.erase(it);
+            else ++it;
+        }
     }
 
     void CreateSpecificationResources() {
-        throw std::logic_error("does this work?");
         for (const auto& pair : varToCommonRes) {
             const auto* var = pair.first;
-            auto obligations = lookup.begin()->second.varToObl[var];
-            auto fulfillments = lookup.begin()->second.varToFul[var];
+            std::set<SpecificationAxiom::Kind> obligations = lookup.begin()->second.varToObl[var];
+            std::set<std::pair<SpecificationAxiom::Kind, bool>> fulfillments = lookup.begin()->second.varToFul[var];
             for (auto it = std::next(lookup.begin()); it != lookup.end(); ++it) {
-                EraseIf(obligations, [&](const auto& elem){ it->second.varToObl[var].count(elem) == 0; });
-                EraseIf(fulfillments, [&](const auto& elem){ it->second.varToFul[var].count(elem) == 0; });
+                EraseIf(obligations, [&](const auto& elem){ return it->second.varToObl[var].count(elem) == 0; });
+                EraseIf(fulfillments, [&](const auto& elem){ return it->second.varToFul[var].count(elem) == 0; });
             }
 
             const auto& key = pair.second->value->Decl();
             for (auto kind : obligations) {
-                result->now->conjuncts.push_back(std::make_unique<ObligationAxiom>(kind, MkVar(key)));
+                result->now->conjuncts.push_back(std::make_unique<ObligationAxiom>(kind, std::make_unique<SymbolicVariable>(key)));
             }
             for (auto [kind, ret] : fulfillments) {
-                result->now->conjuncts.push_back(std::make_unique<FulfillmentAxiom>(kind, MkVar(key), ret));
+                result->now->conjuncts.push_back(std::make_unique<FulfillmentAxiom>(kind, std::make_unique<SymbolicVariable>(key), ret));
             }
         }
+//        throw std::logic_error("does this work?");
     }
 
     void EncodeAnnotations() {
@@ -334,7 +274,7 @@ class AnnotationJoiner {
         for (const auto& candidate : candidates) {
             encoded.push_back(encoder(*candidate));
         }
-        auto implied = solver::ComputeImplied(context, solver, encoded);
+        auto implied = solver::ComputeImplied(solver, encoded);
 
         for (std::size_t index = 0; index < candidates.size(); ++index) {
             if (!implied.at(index)) continue;

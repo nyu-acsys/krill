@@ -52,14 +52,14 @@ inline bool IsRoot(const FlowGraph &graph, const FlowGraphNode &node) {
     return &node == &graph.nodes.front();
 }
 
-inline std::vector<const Field*> IncomingEdges(const FlowGraph& graph, const FlowGraphNode& target, EMode mode) {
-    std::vector<const Field *> result;
-    result.reserve(graph.nodes.size() * target.pointerFields.size());
+std::vector<const Field*> FlowGraph::GetIncomingEdges(const FlowGraphNode& target, EMode mode) const {
+    std::vector<const Field*> result;
+    result.reserve(nodes.size() * target.pointerFields.size());
 
-    for (const auto &node : graph.nodes) {
+    for (const auto &node : nodes) {
         for (const auto &field : node.pointerFields) {
             auto nextAddress = mode == EMode::PRE ? field.preValue : field.postValue;
-            auto next = graph.GetNodeOrNull(nextAddress);
+            auto next = GetNodeOrNull(nextAddress);
             if (!next || next != &target) continue;
             result.push_back(&field);
         }
@@ -93,8 +93,7 @@ inline FlowGraphNode* TryGetOrCreateNode(FlowGraph &graph, LazyValuationMap &eva
     auto &postKeyset = factory.GetUnusedFlowVariable(flowType); // compute later
     auto &frameInflow = factory.GetUnusedFlowVariable(flowType); // compute later
     FlowGraphNode result{nextAlias, false, resource->isLocal, resource->isLocal, resource->flow, preRootInflow,
-                         preKeyset,
-                         postAllInflow, postRootInflow, postKeyset, frameInflow, {}, {}};
+                         preKeyset, postAllInflow, postRootInflow, postKeyset, frameInflow, {}, {}};
     result.dataFields.reserve(resource->fieldToValue.size());
     result.pointerFields.reserve(resource->fieldToValue.size());
     for (const auto&[name, value] : resource->fieldToValue) {
@@ -117,6 +116,7 @@ inline FlowGraphNode* TryGetOrCreateNode(FlowGraph &graph, LazyValuationMap &eva
 }
 
 inline void ExpandGraph(FlowGraph &graph, LazyValuationMap &eval, SymbolicFactory &factory, std::size_t maxDepth) {
+    if (maxDepth == 0) return;
     std::set<std::pair<std::size_t, FlowGraphNode *>, std::greater<>> worklist;
     worklist.emplace(maxDepth, &*graph.nodes.begin());
 
@@ -156,7 +156,11 @@ inline void FinalizeFlowGraph(FlowGraph& graph, const SymbolicVariableDeclaratio
     ExpandGraph(graph, eval, factory, depth);
 
     // cyclic flow graphs are not supported
-    if (!IncomingEdges(graph, *root, EMode::PRE).empty() || !IncomingEdges(graph, *root, EMode::POST).empty()) {
+    if (!graph.GetIncomingEdges(*root, EMode::PRE).empty() || !graph.GetIncomingEdges(*root, EMode::POST).empty()) {
+        // TODO: support cycles
+        //       - require unchanged flow (as if the edge closing a cycle was leading outside the footprint), or
+        //       - require empty flow, or
+        //       - require flow decrease (sufficient?)
         throw std::logic_error("Unsupported update: cyclic flow graphs are not supported");
     }
 }
@@ -263,7 +267,7 @@ z3::expr EncodeOutflow(EncodedFlowGraph& encoding, const FlowGraphNode& node, co
 
 inline std::vector<const SymbolicFlowDeclaration*> GetRootInflowFromPredecessors(const FlowGraph& graph, const FlowGraphNode& node, EMode mode) {
     assert(!IsRoot(graph, node));
-    auto incomingEdges = IncomingEdges(graph, node, mode);
+    auto incomingEdges = graph.GetIncomingEdges(node, mode);
     bool forPre = mode == EMode::PRE;
     std::vector<const SymbolicFlowDeclaration *> result;
     result.reserve(incomingEdges.size());
