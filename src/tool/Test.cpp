@@ -9,6 +9,8 @@
 #include "solver/config.hpp"
 #include "solver/solver.hpp"
 
+#include "prover/verify.hpp"
+
 using namespace cola;
 using namespace heal;
 using namespace solver;

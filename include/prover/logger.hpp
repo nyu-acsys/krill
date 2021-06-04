@@ -42,7 +42,7 @@ namespace prover {
 		}
 
 		Logger& operator<<(const heal::Formula& formula) {
-			heal::print(formula, std::cout);
+			heal::Print(formula, std::cout);
 			return *this;
 		}
 

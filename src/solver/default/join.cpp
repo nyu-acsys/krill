@@ -237,7 +237,7 @@ class AnnotationJoiner {
     }
 
     void EncodeAdditionalKnowledge() {
-        // force variable valuations to agree
+        // force variable valuations to agree // TODO: needed?
         for (const auto& [annotation, info] : lookup) {
             for (const auto& [var, res] : info.varToRes) {
                 solver.add(encoder(*res->value) == encoder(*varToCommonRes.at(var)->value));
@@ -245,17 +245,10 @@ class AnnotationJoiner {
         }
 
         // force common memory to agree
-        auto qv = encoder.QuantifiedVariable(config.flowDomain->GetFlowValueType().sort);
         for (const auto& [annotation, info] : lookup) {
             for (const auto& [var, memory] : varToCommonMem) {
                 auto other = info.varToMem.at(var);
-
-                solver.add(encoder(*memory->node) == encoder(*other->node));
-                solver.add(z3::forall(qv, encoder(memory->flow)(qv) == encoder(other->flow)(qv)));
-                assert(memory->node->Type() == other->node->Type());
-                for (const auto& [field, value] : memory->fieldToValue) {
-                    solver.add(encoder(*value) == encoder(*other->fieldToValue.at(field)));
-                }
+                encoder.MakeMemoryEquality(*memory, *other);
             }
         }
     }

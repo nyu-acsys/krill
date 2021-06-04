@@ -2,7 +2,7 @@
 
 #include <set>
 #include "cola/util.hpp"
-#include "heal/util.hpp" // TODO: delete
+#include "heal/collect.hpp"
 
 using namespace cola;
 using namespace heal;
@@ -21,29 +21,11 @@ SimpleSelector DereferenceToSelector(const Dereference& dereference) {
     throw std::logic_error(err.str()); // TODO: better error class
 }
 
-struct BaseResourceFinder : public DefaultLogicListener, DefaultLogicNonConstListener {
-    using DefaultLogicListener::visit; using DefaultLogicNonConstListener::visit;
-
-    // ignore disjunctions
-    void visit(StackDisjunction& axiom) override { if(axiom.axioms.size() == 1) axiom.axioms.front()->accept(*this); }
-    void visit(const StackDisjunction& axiom) override { if(axiom.axioms.size() == 1) axiom.axioms.front()->accept(*this); }
-
-    // ignore separating implications
-    void visit(SeparatingImplication&) override { /* do nothing */ }
-    void visit(const SeparatingImplication&) override { /* do nothing */ }
-
-    // ignore time predicates
-    void visit(PastPredicate&) override { /* do nothing */ }
-    void visit(const PastPredicate&) override { /* do nothing */ }
-    void visit(FuturePredicate&) override { /* do nothing */ }
-    void visit(const FuturePredicate&) override { /* do nothing */ }
-};
-
 //
 // Variables
 //
 
-struct VariableResourceFinder : public BaseResourceFinder {
+struct VariableResourceFinder : public BaseResourceVisitor, BaseNonConstResourceVisitor {
     const VariableDeclaration& search;
     EqualsToAxiom* resultNonConst = nullptr; // TODO: avoid this, instead do const_cast
     const EqualsToAxiom* resultConst = nullptr;
@@ -81,7 +63,7 @@ const EqualsToAxiom* solver::FindResource(const VariableDeclaration& variable, c
 // Dereferences
 //
 
-struct EqualityFinder : public BaseResourceFinder {
+struct EqualityFinder : public BaseResourceVisitor, BaseNonConstResourceVisitor {
     using DefaultLogicListener::enter; using DefaultLogicNonConstListener::enter;
 
     std::set<const VariableDeclaration*> search;
@@ -114,7 +96,7 @@ struct EqualityFinder : public BaseResourceFinder {
     }
 };
 
-struct MemoryResourceFinder : public BaseResourceFinder {
+struct MemoryResourceFinder : public BaseResourceVisitor, BaseNonConstResourceVisitor {
     std::set<const VariableDeclaration*> search;
     PointsToAxiom* resultNonConst = nullptr;
     const PointsToAxiom* resultConst = nullptr;
@@ -170,7 +152,7 @@ const heal::PointsToAxiom* solver::FindMemory(const heal::SymbolicVariableDeclar
     return MakeMemoryResourceFinder(address, object).resultConst;
 }
 
-struct SpecificationFinder : public BaseResourceFinder {
+struct SpecificationFinder : public BaseResourceVisitor, BaseNonConstResourceVisitor {
     std::deque<const heal::SpecificationAxiom*> result;
     std::set<const VariableDeclaration*> search;
 

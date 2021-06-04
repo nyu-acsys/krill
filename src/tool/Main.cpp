@@ -139,7 +139,7 @@ static void print_program() {
 //
 static void verify() {
 	assert(myconfig.program);
-	prover::check_linearizability(*myconfig.program);
+    prover::CheckLinearizability(*myconfig.program);
 	throw std::logic_error("not yet implement (verify)");
 }
 

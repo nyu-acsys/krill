@@ -9,28 +9,26 @@ using namespace heal;
 using namespace solver;
 
 
-Effect::Effect() : pre(std::make_unique<SeparatingConjunction>()), post(std::make_unique<SeparatingConjunction>()),
-                   context(std::make_unique<SeparatingConjunction>()) {}
-
-Effect::Effect(std::unique_ptr<Formula> pre_, std::unique_ptr<Formula> post_, std::unique_ptr<Formula> context_)
+HeapEffect::HeapEffect(std::unique_ptr<PointsToAxiom> pre_, std::unique_ptr<PointsToAxiom> post_, std::unique_ptr<Formula> context_)
         : pre(std::move(pre_)), post(std::move(post_)), context(std::move(context_)) {
     assert(pre);
     assert(post);
     assert(context);
+    assert(&pre->node->Decl() == &post->node->Decl()); // TODO: throw if this is not the case?
 }
 
-PostImage::PostImage(std::unique_ptr<heal::Annotation> post_) : post(std::move(post_)) {
+PostImage::PostImage(std::unique_ptr<Annotation> post_) : post(std::move(post_)) {
     assert(post);
 }
 
-PostImage::PostImage(std::unique_ptr<heal::Annotation> post_, std::unique_ptr<Effect> effect_)
+PostImage::PostImage(std::unique_ptr<Annotation> post_, std::unique_ptr<HeapEffect> effect_)
 : post(std::move(post_)) {
     assert(post);
     assert(effect_);
     effects.push_back(std::move(effect_));
 }
 
-PostImage::PostImage(std::unique_ptr<heal::Annotation> post_, std::deque<std::unique_ptr<Effect>> effects_)
+PostImage::PostImage(std::unique_ptr<Annotation> post_, std::deque<std::unique_ptr<HeapEffect>> effects_)
 : post(std::move(post_)), effects(std::move(effects_)) {
     assert(post);
     for (const auto& effect : effects) assert(effect);
@@ -47,20 +45,12 @@ std::unique_ptr<Annotation> Solver::Join(std::unique_ptr<Annotation> annotation,
     return Join(std::move(vector));
 }
 
-PostImage Solver::Post(const Annotation& pre, const Assume& cmd) const {
-    return Post(heal::Copy(pre), cmd);
-}
-
-PostImage Solver::Post(const Annotation& pre, const Malloc& cmd) const {
-    return Post(heal::Copy(pre), cmd);
-}
-
-PostImage Solver::Post(const Annotation& pre, const Assignment& cmd) const {
-    return Post(heal::Copy(pre), cmd);
-}
-
-std::unique_ptr<Annotation> Solver::MakeStable(const Annotation& pre, const Effect& interference) const {
-    return MakeStable(heal::Copy(pre), interference);
+std::unique_ptr<Annotation> Solver::Join(std::deque<std::unique_ptr<Annotation>> annotations) const {
+    // TODO: elide this move by deleting either the vector or the deque member function?
+    std::vector<std::unique_ptr<Annotation>> vector;
+    vector.reserve(annotations.size());
+    std::move(annotations.begin(), annotations.end(), std::back_inserter(vector));
+    return Join(std::move(vector));
 }
 
 std::unique_ptr<Solver> solver::MakeDefaultSolver(std::shared_ptr<SolverConfig> config) {

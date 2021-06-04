@@ -6,32 +6,40 @@
 #include "z3++.h"
 #include "cola/ast.hpp"
 #include "heal/logic.hpp"
+#include "heal/collect.hpp"
 
 namespace solver {
 
-    using ResourceList = std::set<const heal::SymbolicVariableDeclaration*>;
-
-    struct ResourceCollector : public heal::DefaultLogicListener {
-        ResourceList resources{};
-        void enter(const heal::PointsToAxiom& obj) override { resources.insert(&obj.node->Decl()); }
-        static ResourceList Collect(const heal::LogicObject& obj) {
-            ResourceCollector collector;
-            obj.accept(collector);
-            return std::move(collector.resources);
-        }
+    struct NoRenaming {
+        static inline const cola::VariableDeclaration* Rename(const cola::VariableDeclaration* decl) { return decl; }
+        static inline const heal::SymbolicVariableDeclaration* Rename(const heal::SymbolicVariableDeclaration* decl) { return decl; }
+        static inline const heal::SymbolicFlowDeclaration* Rename(const heal::SymbolicFlowDeclaration* decl) { return decl; }
     };
 
+    template<class Renaming=NoRenaming>
     struct Z3Encoder : public heal::BaseLogicVisitor {
+        Renaming renaming;
         z3::context& context;
         z3::solver& solver;
         Z3Encoder(z3::context& context, z3::solver& solver) : context(context), solver(solver), result(context) {}
         Z3Encoder(const Z3Encoder& other) = delete;
 
-        z3::expr operator()(const heal::LogicObject& obj) { return Encode(obj); }
-        z3::expr operator()(const cola::VariableDeclaration& decl) { return EncodeProgramVariable(decl); }
-        z3::expr operator()(const heal::SymbolicVariableDeclaration& decl) { return EncodeSymbol(decl); }
-        z3::func_decl operator()(const heal::SymbolicFlowDeclaration& decl) { return EncodeFlow(decl); }
-        z3::expr QuantifiedVariable(cola::Sort sort) { return context.constant("__qv", EncodeSort(sort)); }
+        inline z3::expr operator()(const heal::LogicObject& obj) { return Encode(obj); }
+        inline z3::expr operator()(const cola::VariableDeclaration& decl) { return EncodeProgramVariable(decl); }
+        inline z3::expr operator()(const heal::SymbolicVariableDeclaration& decl) { return EncodeSymbol(decl); }
+        inline z3::func_decl operator()(const heal::SymbolicFlowDeclaration& decl) { return EncodeFlow(decl); }
+        inline z3::expr QuantifiedVariable(cola::Sort sort) { return context.constant("__qv", EncodeSort(sort)); }
+        inline z3::expr MakeMemoryEquality(const heal::PointsToAxiom& memory, const heal::PointsToAxiom& other) {
+            auto qv = QuantifiedVariable(memory.flow.get().type.sort);
+            z3::expr_vector eq(context);
+            eq.push_back(Encode(*memory.node) == Encode(*other.node));
+            eq.push_back(z3::forall(qv, EncodeFlow(memory.flow.get())(qv) == EncodeFlow(other.flow.get())(qv)));
+            assert(memory.node->Type() == other.node->Type());
+            for (const auto& [field, value] : memory.fieldToValue) {
+                eq.push_back(Encode(*value) == Encode(*other.fieldToValue.at(field)));
+            }
+            return z3::mk_and(eq);
+        }
 
         void visit(const heal::SymbolicVariable& obj) override { result = EncodeSymbol(obj.Decl()); }
         void visit(const heal::SymbolicBool& obj) override { result = context.bool_val(obj.value); }
@@ -62,7 +70,7 @@ namespace solver {
 
         void visit(const heal::SeparatingConjunction& obj) override {
             result = z3::mk_and(EncodeAll(obj.conjuncts))
-                     && MakeResourceGuarantee(ResourceCollector::Collect(obj));
+                     && MakeResourceGuarantee(heal::CollectMemoryNodes(obj));
         }
         void visit(const heal::StackDisjunction& obj) override {
             result = z3::mk_or(EncodeAll(obj.axioms));
@@ -83,7 +91,7 @@ namespace solver {
             }
         }
 
-        z3::expr MakeResourceGuarantee(const ResourceList& resourceList) {
+        z3::expr MakeResourceGuarantee(const std::set<const heal::SymbolicVariableDeclaration*>& resourceList) {
             if (resourceList.empty()) return context.bool_val(true);
             z3::expr_vector vec(context);
             vec.push_back(Null());
@@ -108,8 +116,8 @@ namespace solver {
         z3::expr Null(){ return context.int_val(NULL_VALUE); };
 
         template<typename K, typename V, typename F>
-        V GetOrCreate(std::map<K, V>& map, K key, F create) {
-            auto find = map.find(key);
+        inline V GetOrCreate(std::map<K, V>& map, K key, F create) {
+            auto find = map.find(renaming.Rename(key));
             if (find != map.end()) return find->second;
             auto newValue = create();
             map.emplace(key, newValue);
@@ -124,7 +132,7 @@ namespace solver {
             }
         }
 
-        z3::expr EncodeProgramVariable(const cola::VariableDeclaration& decl) {
+        inline z3::expr EncodeProgramVariable(const cola::VariableDeclaration& decl) {
             return GetOrCreate(vars, &decl, [this,&decl](){
                 auto name = "__" + decl.name;
                 auto expr = context.constant(name.c_str(), EncodeSort(decl.type.sort));
@@ -132,7 +140,7 @@ namespace solver {
             });
         }
 
-        z3::expr EncodeSymbol(const heal::SymbolicVariableDeclaration& decl) {
+        inline z3::expr EncodeSymbol(const heal::SymbolicVariableDeclaration& decl) {
             return GetOrCreate(symbols, &decl, [this,&decl](){
                 // create symbol
                 auto name = "_v" + decl.name;
@@ -145,7 +153,7 @@ namespace solver {
             });
         }
 
-        z3::func_decl EncodeFlow(const heal::SymbolicFlowDeclaration& decl) {
+        inline z3::func_decl EncodeFlow(const heal::SymbolicFlowDeclaration& decl) {
             return GetOrCreate(flows, &decl, [this,&decl](){
                 // create symbol
                 auto name = "_V" + decl.name;
@@ -157,13 +165,13 @@ namespace solver {
             });
         }
 
-        z3::expr Encode(const heal::LogicObject& obj) {
+        inline z3::expr Encode(const heal::LogicObject& obj) {
             obj.accept(*this);
             return result;
         }
 
         template<typename T>
-        z3::expr_vector EncodeAll(const T& elements) {
+        inline z3::expr_vector EncodeAll(const T& elements) {
             z3::expr_vector vec(context);
             for (const auto& elem : elements) {
                 vec.push_back(Encode(*elem));

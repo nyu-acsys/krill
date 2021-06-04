@@ -57,7 +57,8 @@ namespace cola {
 		virtual void visit(const NegatedExpression& node) = 0;
 		virtual void visit(const BinaryExpression& node) = 0;
 		virtual void visit(const Dereference& node) = 0;
-		virtual void visit(const Sequence& node) = 0;
+
+        virtual virtual void visit(const Sequence& node) = 0;
 		virtual void visit(const Scope& node) = 0;
 		virtual void visit(const Atomic& node) = 0;
 		virtual void visit(const Choice& node) = 0;
@@ -132,41 +133,41 @@ namespace cola {
 
 
 	struct BaseVisitor : public Visitor {
-		virtual void visit(const VariableDeclaration& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const VariableDeclaration&"); }
-		virtual void visit(const Expression& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Expression&"); }
-		virtual void visit(const BooleanValue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const BooleanValue&"); }
-		virtual void visit(const NullValue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const NullValue&"); }
-		virtual void visit(const EmptyValue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const EmptyValue&"); }
-		virtual void visit(const MaxValue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const MaxValue&"); }
-		virtual void visit(const MinValue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const MinValue&"); }
-		virtual void visit(const NDetValue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const NDetValue&"); }
-		virtual void visit(const VariableExpression& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const VariableExpression&"); }
-		virtual void visit(const NegatedExpression& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const NegatedExpression&"); }
-		virtual void visit(const BinaryExpression& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const BinaryExpression&"); }
-		virtual void visit(const Dereference& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Dereference&"); }
-		virtual void visit(const Sequence& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Sequence&"); }
-		virtual void visit(const Scope& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Scope&"); }
-		virtual void visit(const Atomic& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Atomic&"); }
-		virtual void visit(const Choice& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Choice&"); }
-		virtual void visit(const IfThenElse& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const IfThenElse&"); }
-		virtual void visit(const Loop& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Loop&"); }
-		virtual void visit(const While& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const While&"); }
-		virtual void visit(const DoWhile& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const DoWhile&"); }
-		virtual void visit(const Skip& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Skip&"); }
-		virtual void visit(const Break& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Break&"); }
-		virtual void visit(const Continue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Continue&"); }
-		virtual void visit(const Assume& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Assume&"); }
-		virtual void visit(const Assert& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Assert&"); }
-		virtual void visit(const Return& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Return&"); }
-		virtual void visit(const Malloc& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Malloc&"); }
-		virtual void visit(const Assignment& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Assignment&"); }
-		virtual void visit(const Macro& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Macro&"); }
-		virtual void visit(const CompareAndSwap& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const CompareAndSwap&"); }
-		virtual void visit(const Function& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Function&"); }
-		virtual void visit(const Program& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Program&"); }
+		void visit(const VariableDeclaration& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const VariableDeclaration&"); }
+		void visit(const Expression& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Expression&"); }
+		void visit(const BooleanValue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const BooleanValue&"); }
+		void visit(const NullValue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const NullValue&"); }
+		void visit(const EmptyValue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const EmptyValue&"); }
+		void visit(const MaxValue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const MaxValue&"); }
+		void visit(const MinValue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const MinValue&"); }
+		void visit(const NDetValue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const NDetValue&"); }
+		void visit(const VariableExpression& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const VariableExpression&"); }
+		void visit(const NegatedExpression& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const NegatedExpression&"); }
+		void visit(const BinaryExpression& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const BinaryExpression&"); }
+		void visit(const Dereference& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Dereference&"); }
+		void visit(const Sequence& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Sequence&"); }
+		void visit(const Scope& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Scope&"); }
+		void visit(const Atomic& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Atomic&"); }
+		void visit(const Choice& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Choice&"); }
+		void visit(const IfThenElse& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const IfThenElse&"); }
+		void visit(const Loop& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Loop&"); }
+		void visit(const While& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const While&"); }
+		void visit(const DoWhile& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const DoWhile&"); }
+		void visit(const Skip& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Skip&"); }
+		void visit(const Break& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Break&"); }
+		void visit(const Continue& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Continue&"); }
+		void visit(const Assume& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Assume&"); }
+		void visit(const Assert& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Assert&"); }
+		void visit(const Return& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Return&"); }
+		void visit(const Malloc& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Malloc&"); }
+		void visit(const Assignment& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Assignment&"); }
+		void visit(const Macro& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Macro&"); }
+		void visit(const CompareAndSwap& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const CompareAndSwap&"); }
+		void visit(const Function& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Function&"); }
+		void visit(const Program& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Program&"); }
 
-		virtual ~BaseVisitor() = default;
-		protected: BaseVisitor(){}
+        virtual ~BaseVisitor() = default;
+        protected: BaseVisitor() = default;
 	};
 
 	struct BaseNonConstVisitor : public NonConstVisitor {

@@ -22,6 +22,8 @@ set(SOURCES
         default/join.cpp
         default/interference.cpp
         default/flowgraph.cpp
+        default/scope.cpp
+        default/helpers.cpp
 )
 
 add_library(Solver ${SOURCES})

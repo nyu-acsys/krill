@@ -64,7 +64,7 @@ struct Reachability {
     public:
     explicit Reachability(const Formula& state) {
         LazyValuationMap eval(state);
-        Initialize(ResourceCollector::Collect(state), [&eval](const auto& decl){
+        Initialize(heal::CollectMemoryNodes(state), [&eval](const auto& decl){
             std::set<const SymbolicVariableDeclaration*> successors;
             auto resource = eval.GetMemoryResourceOrNull(decl);
             if (resource) {
@@ -434,18 +434,18 @@ std::unique_ptr<Formula> GetNodeUpdateContext(const PointsToAxiom& node, Footpri
     return result;
 }
 
-std::unique_ptr<Effect> ExtractEffect(const FlowGraphNode& node, FootprintChecks::ContextMap& contextMap) {
+std::unique_ptr<HeapEffect> ExtractEffect(const FlowGraphNode& node, FootprintChecks::ContextMap& contextMap) {
     // ignore local nodes; after minimization, all remaining footprint nodes contain changes
     if (node.preLocal) return nullptr;
     auto pre = node.ToLogic(EMode::PRE);
     auto post = node.ToLogic(EMode::POST);
     auto context = GetNodeUpdateContext(*pre, contextMap);
-    return std::make_unique<Effect>(std::move(pre), std::move(post), std::move(context));
+    return std::make_unique<HeapEffect>(std::move(pre), std::move(post), std::move(context));
 }
 
-std::deque<std::unique_ptr<Effect>> ExtractEffects(const EncodedFlowGraph& encoding, FootprintChecks::ContextMap&& contextMap) {
+std::deque<std::unique_ptr<HeapEffect>> ExtractEffects(const EncodedFlowGraph& encoding, FootprintChecks::ContextMap&& contextMap) {
     // create a separate effect for every node
-    std::deque<std::unique_ptr<Effect>> result;
+    std::deque<std::unique_ptr<HeapEffect>> result;
     for (const auto& node : encoding.graph.nodes) {
         auto effect = ExtractEffect(node, contextMap);
         if (!effect) continue;
@@ -589,7 +589,7 @@ ExpandMemoryFrontier(std::unique_ptr<SeparatingConjunction> state, const Symboli
     if (resultIsNonNull && !memory->isLocal) {
         // find addresses that are guaranteed to be different from 'address'
         Reachability reachability(*state);
-        auto potentiallyOverlapping = ResourceCollector::Collect(*state);
+        auto potentiallyOverlapping = heal::CollectMemoryNodes(*state);
         for (auto it = potentiallyOverlapping.begin(); it != potentiallyOverlapping.end();) {
             auto resource = FindMemory(**it, *state);
             assert(resource);

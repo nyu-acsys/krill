@@ -243,7 +243,9 @@ namespace heal {
 	//
 
 	struct Annotation final : public LogicObject {
-	    // TODO: should carry an 'acyclicity' flag that a solver can rely on
+        // TODO: should carry an 'acyclicity' flag
+        // TODO: should carry an 'uniqueInflow' flag
+
 		std::unique_ptr<SeparatingConjunction> now;
 		std::deque<std::unique_ptr<TimePredicate>> time;
 
