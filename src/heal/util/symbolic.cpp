@@ -23,9 +23,10 @@ const T* GetUnusedSymbol(const Type& type, const std::set<const cola::VariableDe
 SymbolicFactory::SymbolicFactory() = default;
 SymbolicFactory::SymbolicFactory(const LogicObject& avoid) : inUse(CollectSymbolicSymbols(avoid)) {}
 
-//void SymbolicFactory::Blacklist(const LogicObject& avoid) {
-//
-//}
+void SymbolicFactory::Avoid(const LogicObject& avoid) {
+    auto blacklist = CollectSymbolicSymbols(avoid);
+    inUse.insert(blacklist.begin(), blacklist.end());
+}
 
 const SymbolicVariableDeclaration& SymbolicFactory::GetUnusedSymbolicVariable(const cola::Type& type) {
     auto result = GetUnusedSymbol(type, inUse, SymbolicPool::GetAllVariables());

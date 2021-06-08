@@ -19,6 +19,9 @@ target_link_libraries(${TOOL_NAME} CoLa HeaL Prover Tclap)
 add_executable(Test Test.cpp)
 target_link_libraries(Test CoLa HeaL Solver)
 
+add_executable(ToolTest ToolTest.cpp)
+target_link_libraries(ToolTest CoLa HeaL Solver Prover)
+
 
 ################################
 ######### installation #########

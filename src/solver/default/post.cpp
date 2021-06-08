@@ -77,8 +77,10 @@ std::unique_ptr<Formula> ExpressionToFormula(const Expression& expression, const
 }
 
 PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const {
+    std::cout << " -- Post image for "; heal::Print(*pre, std::cout); std::cout << " "; cola::print(cmd, std::cout);
     auto formula = ExpressionToFormula(*cmd.expr, *pre);
     pre->now = heal::Conjoin(std::move(pre->now), std::move(formula));
+    heal::Print(*pre, std::cout); std::cout << std::endl;
     return PostImage(std::move(pre));
 }
 
@@ -105,15 +107,19 @@ std::pair<const SymbolicVariableDeclaration&, std::unique_ptr<Formula>> Allocate
     }
     auto cell = std::make_unique<PointsToAxiom>(std::move(node), true, flow, std::move(fieldToValue));
     // TODO: default initialization?
+    // TODO: add no-flow constraint?
     return { cell->node->decl_storage.get(), std::move(cell) };
 }
 
 PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Malloc& cmd) const {
+    std::cout << " -- Post image for "; heal::Print(*pre, std::cout); std::cout << " "; cola::print(cmd, std::cout);
     auto& flowType = Config().flowDomain->GetFlowValueType();
     auto [cell, formula] = AllocateFreshCell(cmd.lhs.type, flowType, *pre);
     auto success = TryUpdateVariableValuation(*pre->now, cmd.lhs, cell);
     if (!success) throw std::logic_error("Unsafe update: variable '" + cmd.lhs.name + "' is not accessible."); // TODO: better error class
     pre->now = heal::Conjoin(std::move(pre->now), std::move(formula));
+    if (Config().applyInvariantToLocal) throw std::logic_error("local invariant not supported"); // TODO: better error handling // TODO: check invariant if needed
+    heal::Print(*pre, std::cout); std::cout << std::endl;
     return PostImage(std::move(pre));
 }
 
@@ -122,6 +128,7 @@ PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Malloc& cmd
 //
 
 PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assignment& cmd) const {
+    std::cout << " -- Post image for "; heal::Print(*pre, std::cout); std::cout << " "; cola::print(cmd, std::cout);
     if (auto variable = dynamic_cast<const VariableExpression*>(cmd.lhs.get())) {
         return PostVariableUpdate(std::move(pre), cmd, *variable);
     } else if (auto dereference = dynamic_cast<const Dereference*>(cmd.lhs.get())) {

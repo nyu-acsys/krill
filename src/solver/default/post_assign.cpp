@@ -495,6 +495,7 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
     auto post = ExtractPost(std::move(encoding), std::move(checks));
 
     // begin debug
+    heal::Print(*post, std::cout); std::cout << std::endl;
 //    std::cout << "== Post: " << std::endl; heal::Print(*post, std::cout); std::cout << std::endl;
 //    std::cout << "== Effects: " << std::endl;
 //    for (auto& effect : effects) {
@@ -663,6 +664,7 @@ PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<Annotation> pre, con
 //    end debug
 
     heal::InlineAndSimplify(*pre->now);
+    heal::Print(*pre, std::cout); std::cout << std::endl << std::endl;
     return PostImage(std::move(pre)); // local variable update => no effect
 }
 

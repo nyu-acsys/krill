@@ -83,7 +83,7 @@ class AnnotationJoiner {
     std::map<const VariableDeclaration*, std::unique_ptr<PointsToAxiom>> varToCommonMem;
     z3::context context;
     z3::solver solver;
-    Z3Encoder encoder;
+    Z3Encoder<> encoder;
 
     explicit AnnotationJoiner(std::vector<std::unique_ptr<Annotation>>&& annotations_, const SolverConfig& config)
             : result(std::make_unique<Annotation>()), annotations(std::move(annotations_)), config(config), solver(context), encoder(context, solver) {

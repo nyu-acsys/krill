@@ -2,7 +2,7 @@
 
 using namespace cola;
 
-BinaryExpression::Operator negate_binary_opereator(BinaryExpression::Operator op) { // TODO: code copy -> negExpr.cpp
+static inline BinaryExpression::Operator negate_binary_opereator(BinaryExpression::Operator op) { // TODO: code copy -> negExpr.cpp
     switch (op) {
         case BinaryExpression::Operator::EQ: return BinaryExpression::Operator::NEQ;
         case BinaryExpression::Operator::NEQ: return BinaryExpression::Operator::EQ;
@@ -21,9 +21,11 @@ struct ExpressionSimplifier : public BaseNonConstVisitor {
     std::unique_ptr<Expression> result;
 
     void handle(std::unique_ptr<Expression>& expr) {
+        auto old = std::move(result);
         result = std::move(expr);
         result->accept(*this);
         expr = std::move(result);
+        result = std::move(old);
     }
 
     void visit(VariableExpression& expr) override {
@@ -52,7 +54,9 @@ struct ExpressionSimplifier : public BaseNonConstVisitor {
             expr.op = negate_binary_opereator(expr.op);
         }
         standalone = expr.op == BinaryExpression::Operator::AND || expr.op == BinaryExpression::Operator::OR;
+        assert(expr.rhs);
         handle(expr.lhs);
+        assert(expr.rhs);
         handle(expr.rhs);
         negate = oldNegate;
         standalone = oldStandalone;

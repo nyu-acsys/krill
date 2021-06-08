@@ -163,7 +163,8 @@ void Verifier::HandleInterfaceFunction(const Function& function) {
 	auto initial = std::make_unique<Annotation>();
     initial = solver->PostEnterScope(std::move(initial), program);
     initial = solver->PostEnterScope(std::move(initial), function);
-    initial->now = heal::Conjoin(std::move(initial->now), specification.MakeSpecification(*initial, *solver));
+    auto spec = specification.MakeSpecification(*initial, *solver);
+    initial->now = heal::Conjoin(std::move(initial->now), std::move(spec));
     current.push_back(std::move(initial));
 
     // descend into function body
@@ -391,7 +392,8 @@ void Verifier::visit(const Macro& cmd) {
     // pass arguments
     PerformStep([this,&cmd](auto annotation){
         annotation = solver->PostEnterScope(std::move(annotation), cmd.decl);
-        annotation->now = heal::Conjoin(std::move(annotation->now), PassArguments(*annotation, cmd, *solver));
+        auto passedArgs = PassArguments(*annotation, cmd, *solver);
+        annotation->now = heal::Conjoin(std::move(annotation->now), std::move(passedArgs));
         return annotation;
     });
 

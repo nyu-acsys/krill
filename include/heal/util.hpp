@@ -57,6 +57,7 @@ namespace heal {
         explicit SymbolicFactory();
         explicit SymbolicFactory(const LogicObject& avoid);
 
+        void Avoid(const LogicObject& avoid);
         const SymbolicVariableDeclaration& GetUnusedSymbolicVariable(const cola::Type& type);
         const SymbolicFlowDeclaration& GetUnusedFlowVariable(const cola::Type& type);
     };

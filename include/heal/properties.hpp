@@ -52,7 +52,7 @@ namespace heal {
             } visitor;
 
             // populate resource
-            assert(cola::assignable(resource->node->Type(), node.node->Type()));
+            assert(resource->node->Type() == node.node->Type());
             assert(resource->fieldToValue.size() == node.fieldToValue.size());
             visitor.flowMap[&resource->flow.get()] = &node.flow.get();
             for (const auto& [name, var] : resource->fieldToValue) {

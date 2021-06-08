@@ -76,6 +76,7 @@ bool Verifier::ConsolidateNewInterference() {
         if (!premise) return;
         conclusion.reset(nullptr);
     });
+    // TODO: prune effects e which satisfy: e.post*e.context => e.pre*e.context ? They should not do anything
 
     // remove pruned effects
     newInterference.erase(std::remove_if(interference.begin(), interference.end(), [](auto& elem){ return !elem; }), interference.end());

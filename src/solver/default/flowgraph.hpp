@@ -67,7 +67,7 @@ namespace solver {
     struct EncodedFlowGraph {
         z3::context context;
         z3::solver solver;
-        Z3Encoder encoder;
+        Z3Encoder<> encoder;
         FlowGraph graph;
 
         EncodedFlowGraph(const EncodedFlowGraph& other) = delete;

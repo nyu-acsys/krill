@@ -22,7 +22,7 @@ using namespace prover;
 using timepoint_t = std::chrono::steady_clock::time_point;
 using duration_t = std::chrono::milliseconds;
 
-static const duration_t ZERO_DURATION = std::chrono::milliseconds(0);
+constexpr duration_t ZERO_DURATION = std::chrono::milliseconds(0);
 
 timepoint_t get_time() {
 	return std::chrono::steady_clock::now();

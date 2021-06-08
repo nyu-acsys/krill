@@ -22,7 +22,7 @@ inline std::unique_ptr<heal::Annotation> RemoveScope(std::unique_ptr<Annotation>
     heal::Simplify(*pre);
     auto needsRemoval = [&scope](const Formula& formula){
         if (auto variable = dynamic_cast<const EqualsToAxiom*>(&formula)) {
-            auto find = std::find_if(scope.begin(), scope.end(), [&variable](const auto& elem){ elem.get() == &variable->variable->decl; });
+            auto find = std::find_if(scope.begin(), scope.end(), [&variable](const auto& elem){ return elem.get() == &variable->variable->decl; });
             return find != scope.end();
         }
         return false;

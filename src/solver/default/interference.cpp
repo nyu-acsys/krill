@@ -1,30 +1,60 @@
 #include "default_solver.hpp"
 
+#include "heal/collect.hpp"
+#include "encoder.hpp"
+
 using namespace cola;
 using namespace heal;
 using namespace solver;
 
 
+void HandleInterference(ImplicationCheckSet& checks, Z3Encoder<>& encoder, const Annotation& annotation, PointsToAxiom& memory, const HeapEffect& effect) {
+    // TODO: avoid encoding the same annotation/effect multiple times
+    if (memory.node->Type() != effect.pre->node->Type()) return;
+    if (&effect.pre->node->Decl() != &effect.post->node->Decl()) throw std::logic_error("Unsupported effect"); // TODO: better error handling
+
+    auto interference = encoder(annotation) && encoder(*effect.context) && encoder.MakeMemoryEquality(memory, *effect.pre);
+    auto isInterferenceFree = z3::implies(interference, encoder.context.bool_val(false));
+    checks.Add(isInterferenceFree, [&memory,&effect](bool holds){
+        if (holds) return;
+        memory.flow = effect.post->flow;
+        for (auto& [field, value] : memory.fieldToValue) {
+            value = heal::Copy(*effect.post->fieldToValue.at(field));
+        }
+    });
+}
+
 std::deque<std::unique_ptr<heal::Annotation>> DefaultSolver::MakeStable(std::deque<std::unique_ptr<heal::Annotation>> annotations,
                                                                         const std::deque<std::unique_ptr<HeapEffect>>& interferences) const {
-
-    // Sind Effekt-Zyklen problematisch?
-    // Betrachte Effekte e1 und e2. Falls e2 anwendbar in e1.post*e1.context aber nicht in e1.pre*e1.context, dann könnte es
-    // passieren, dass e1 zu präzise ist und e1 und e2 Anwendbarkeit osziliert.
-    // Problem am oszilieren: ist nicht interference-free, da immer noch ein Effekt angewendet werden kann dessen post nicht vom aktuellen implied
-    // man kann den context eh nicht verwenden, da man nicht weiß ob der Effekt überhaupt angewendet wird
-
-    // TODO: prune effects e which satisfy: e.post*e.context => e.pre*e.context ? They should not do anything
-
-
+    // make annotation symbols distinct from interference symbols
     SymbolicFactory factory;
     for (const auto& effect : interferences) {
-        factory.Blacklist(*effect->pre);
-        factory.Blacklist(*effect->post);
-        factory.Blacklist(*effect->context);
+        factory.Avoid(*effect->pre);
+        factory.Avoid(*effect->post);
+        factory.Avoid(*effect->context);
+    }
+    for (auto& annotation : annotations) {
+        heal::RenameSymbolicSymbols(*annotation, factory);
     }
 
+    // prepare solving
+    z3::context context;
+    z3::solver solver(context);
+    Z3Encoder encoder(context, solver);
+    ImplicationCheckSet checks(context);
 
-    // TODO: implement
-    throw std::logic_error("not yet implemented: DefaultSolver::MakeStable");
+    // apply interference
+    for (auto& annotation : annotations) {
+        auto resources = heal::CollectMemory(*annotation->now);
+        for (auto* memory : resources) {
+            if (memory->isLocal) continue;
+            auto nonConstMemory = const_cast<PointsToAxiom*>(memory); // TODO: does this work?
+            for (const auto& effect : interferences) {
+                HandleInterference(checks, encoder, *annotation, *nonConstMemory, *effect);
+            }
+        }
+    }
+
+    solver::ComputeImpliedCallback(solver, checks);
+    return annotations;
 }
