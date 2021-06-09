@@ -40,6 +40,9 @@ namespace solver {
             }
             return z3::mk_and(eq);
         }
+        inline z3::expr MakeNullCheck(const heal::SymbolicVariableDeclaration& decl) {
+            return EncodeSymbol(decl) == Null();
+        }
 
         void visit(const heal::SymbolicVariable& obj) override { result = EncodeSymbol(obj.Decl()); }
         void visit(const heal::SymbolicBool& obj) override { result = context.bool_val(obj.value); }

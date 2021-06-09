@@ -6,6 +6,7 @@
 #include "flowgraph.hpp"
 #include "cola/util.hpp" // TODO: delete
 #include "candidates.hpp"
+#include "expand.hpp"
 
 using namespace cola;
 using namespace heal;
@@ -543,6 +544,13 @@ inline std::unique_ptr<PointsToAxiom> MakePointsTo(const SymbolicVariableDeclara
     return std::make_unique<PointsToAxiom>(std::make_unique<SymbolicVariable>(address), isLocal, flow, std::move(fieldToValue));
 }
 
+inline bool IsGuaranteedNotEqual(const SymbolicVariableDeclaration& address, const SymbolicVariableDeclaration& compare, const Formula& state) {
+    auto memory = FindMemory(address, state);
+    auto other = FindMemory(compare, state);
+    if (!memory || !other) return false;
+    return &memory->node->Decl() != &other->node->Decl();
+}
+
 inline std::unique_ptr<SeparatingConjunction>
 ExpandMemoryFrontier(std::unique_ptr<SeparatingConjunction> state, const SymbolicVariableDeclaration& addressAlias,
                      const Expression& rhs, SymbolicFactory& factory, const SolverConfig& config) {
@@ -570,16 +578,16 @@ ExpandMemoryFrontier(std::unique_ptr<SeparatingConjunction> state, const Symboli
 
     // query info about the expansion
     auto address = std::cref(addressAlias);
-    bool addressIsShared = false;
+    bool addressIsDefinitelyShared = false;
     if (auto dereference = dynamic_cast<const Dereference*>(&rhs)) {
         if (auto memory = FindResource(*dereference, *state)) { // TODO: lazy evaluation?
             address = memory->fieldToValue.at(dereference->fieldname)->Decl();
-            addressIsShared = !memory->isLocal;
+            addressIsDefinitelyShared = !memory->isLocal;
         }
     } else if (auto variable = dynamic_cast<const VariableExpression*>(&rhs)) {
         if (auto resource = FindResource(variable->decl, *state)) { // TODO: lazy evaluation?
             address = resource->value->Decl();
-            addressIsShared = variable->decl.is_shared;
+            addressIsDefinitelyShared = variable->decl.is_shared;
         }
     }
 
@@ -591,19 +599,24 @@ ExpandMemoryFrontier(std::unique_ptr<SeparatingConjunction> state, const Symboli
     checks.Add(encoder(*isNonNull), [&addressIsNonNull](bool holds){ if (holds) addressIsNonNull = true; });
     solver::ComputeImpliedCallback(solver, checks);
     if (addressIsNonNull) state->conjuncts.push_back(addressIsNonNull.value() ? std::move(isNonNull) : std::move(isNull));
-    std::cout << " - expanding memory for address " << address.get().name << " (shared=" << addressIsShared << ")" << std::endl;
+    std::cout << " - expanding memory for address " << address.get().name << " (shared=" << addressIsDefinitelyShared << ")" << std::endl;
     std::cout << "   ==> nonnull = " << (addressIsNonNull ? std::to_string(addressIsNonNull.value()) : "?") << std::endl;
 
     // introduce new points-to predicate
-    if (addressIsNonNull && addressIsNonNull.value() && addressIsShared) {
+    if (addressIsNonNull && addressIsNonNull.value()) {
         // find addresses that are guaranteed to be different from 'address'
         Reachability reachability(*state);
         auto potentiallyOverlapping = heal::CollectMemory(*state);
         for (auto it = potentiallyOverlapping.begin(); it != potentiallyOverlapping.end();) {
-            bool isDistinct = (/*addressIsShared &&*/ (*it)->isLocal)
-                              || reachability.IsReachable((*it)->node->Decl(), address);
+            bool isDistinct = (addressIsDefinitelyShared && (*it)->isLocal)
+                              || reachability.IsReachable((*it)->node->Decl(), address)
+                              || IsGuaranteedNotEqual(address, (*it)->node->Decl(), *state);
+            std::cout << "   ==> address " << (*it)->node->Decl().name << " is distinct" << std::endl;
             if (isDistinct) it = potentiallyOverlapping.erase(it);
-            else ++it;
+            else {
+                if ((*it)->isLocal) throw std::logic_error("Expansion failed due to local memory"); // TODO: better error handling
+                ++it;
+            }
         }
 
         // delete resources that may overlap with 'address'
