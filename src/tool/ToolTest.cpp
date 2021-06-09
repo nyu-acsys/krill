@@ -6,8 +6,6 @@
 #include "cola/transform.hpp"
 #include "heal/logic.hpp"
 #include "heal/util.hpp"
-#include "heal/properties.hpp"
-#include "heal/flow.hpp"
 #include "solver/config.hpp"
 #include "solver/solver.hpp"
 
@@ -19,10 +17,10 @@ using namespace solver;
 
 
 constexpr std::size_t FOOTPRINT_DEPTH = 1;
-constexpr bool INVARIANT_FOR_LOCAL_RESOURCES = false;
 
 const std::string NEXT_FIELD = "next";
 const std::string DATA_FIELD = "val";
+const std::string HEAD_NAME = "Head";
 
 SymbolicFactory factory;
 
@@ -31,119 +29,68 @@ SymbolicFactory factory;
 // SOLVER
 //
 
-std::unique_ptr<PointsToAxiom> MakePointsTo(const Type& nodeType, const Type& flowType, bool isLocal=false) {
-    std::map<std::string, std::unique_ptr<SymbolicVariable>> fields;
-    for (const auto& [name, type] : nodeType.fields) {
-        fields.emplace(name, std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(type)));
-    }
-    auto node = std::make_unique<PointsToAxiom>(
-            std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(nodeType)), isLocal,
-            factory.GetUnusedFlowVariable(flowType), std::move(fields)
-    );
-    return node;
+template<SymbolicAxiom::Operator OP, typename I, typename... Args>
+inline std::unique_ptr<SymbolicAxiom> MakeImmediateAxiom(const SymbolicVariableDeclaration& decl, Args&&... args) {
+    return std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(decl), OP, std::make_unique<I>(std::forward<Args>(args)...));
 }
 
-std::unique_ptr<PointsToAxiom> MakePointsTo(const SolverConfig& config, bool isLocal=false) {
-    return MakePointsTo(config.flowDomain->GetNodeType(), config.flowDomain->GetFlowValueType(), isLocal);
+inline std::unique_ptr<Formula> MakeSharedInvariant(const PointsToAxiom& memory, const VariableDeclaration& head) {
+    auto result = std::make_unique<SeparatingConjunction>();
+//    auto isHead = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicMin>(memory.fieldToValue.at(DATA_FIELD)->Decl());
+    auto isHead = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(head), std::make_unique<SymbolicVariable>(memory.node->Decl()));
+//    auto isTail = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicMax>(memory.fieldToValue.at(DATA_FIELD)->Decl());
+//    auto nextNull = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicNull>(memory.fieldToValue.at(NEXT_FIELD)->Decl());
+    auto nextNotNull = MakeImmediateAxiom<SymbolicAxiom::NEQ, SymbolicNull>(memory.fieldToValue.at(NEXT_FIELD)->Decl());
+    auto dataInInflow = std::make_unique<InflowContainsValueAxiom>(memory.flow, heal::Copy(*memory.fieldToValue.at(DATA_FIELD)));
+    result->conjuncts.push_back(std::make_unique<SeparatingImplication>(std::move(isHead), heal::Copy(*nextNotNull)));
+//    result->conjuncts.push_back(std::make_unique<SeparatingImplication>(std::move(isTail), std::move(nextNull)));
+    result->conjuncts.push_back(std::make_unique<SeparatingImplication>(std::move(nextNotNull), std::move(dataInInflow)));
+    return result;
 }
 
-template<typename F>
-std::unique_ptr<Predicate> MakePredicate(const Type& nodeType, const Type& flowType, std::string name, F makeBlueprint) {
-    // node
-    auto node = MakePointsTo(nodeType, flowType);
-
-    // args
-    auto& arg = factory.GetUnusedSymbolicVariable(flowType);
-    std::array<std::reference_wrapper<const SymbolicVariableDeclaration>, 1> vars = { arg };
-
-    // blueprint
-    auto blueprint = makeBlueprint(*node, vars);
-
-    return std::make_unique<Predicate>(name, std::move(node), vars, std::move(blueprint));
+inline std::unique_ptr<Formula> MakeLocalInvariant(const PointsToAxiom& memory) {
+    return std::make_unique<InflowEmptinessAxiom>(memory.flow, true);
 }
 
-std::unique_ptr<Invariant> MakeInvariant(const Type& nodeType, const Type& flowType) {
-    auto dummy = MakePredicate(nodeType, flowType, "invariant", [](auto& node, auto&){
-        auto blueprint = std::make_unique<SeparatingConjunction>();
-        auto isNotTail = std::make_unique<SymbolicAxiom>( // assume node is global
-                std::make_unique<SymbolicVariable>(node.fieldToValue.at(DATA_FIELD)->Decl()),
-                SymbolicAxiom::LT, std::make_unique<SymbolicMax>()
-        );
-        auto nextNotNull = std::make_unique<SymbolicAxiom>(
-                std::make_unique<SymbolicVariable>(node.fieldToValue.at(NEXT_FIELD)->Decl()),
-                SymbolicAxiom::NEQ, std::make_unique<SymbolicNull>()
-        );
-        auto dataInInflow = std::make_unique<InflowContainsValueAxiom>(
-                node.flow, heal::Copy(*node.fieldToValue.at(DATA_FIELD))
-        );
-        blueprint->conjuncts.push_back(std::make_unique<SeparatingImplication>(
-                heal::Copy(*nextNotNull), std::move(dataInInflow)
-        ));
-        blueprint->conjuncts.push_back(std::make_unique<SeparatingImplication>(
-                std::move(isNotTail), std::move(nextNotNull)
-        ));
-
-        return blueprint;
-    });
-    std::array<std::reference_wrapper<const SymbolicVariableDeclaration>, 0> vars = {};
-    return std::make_unique<Invariant>(dummy->name, std::move(dummy->resource), vars, std::move(dummy->blueprint));
+inline std::unique_ptr<Formula> MakeNodeInvariant(const PointsToAxiom& memory, const VariableDeclaration& head) {
+    if (memory.isLocal) return MakeLocalInvariant(memory);
+    else return MakeSharedInvariant(memory, head);
 }
 
-std::unique_ptr<Predicate> MakeContainsPredicate(const Type& nodeType, const Type& flowType) {
-    return MakePredicate(nodeType, flowType, "contains", [](auto& node, auto& vars){
-//        auto unmarked = std::make_unique<SymbolicAxiom>(
-//                std::make_unique<SymbolicVariable>(node.fieldToValue.at("mark")->Decl()),
-//                SymbolicAxiom::EQ, std::make_unique<SymbolicBool>(false)
-//        );
-        auto data = std::make_unique<SymbolicAxiom>(
-                std::make_unique<SymbolicVariable>(node.fieldToValue.at(DATA_FIELD)->Decl()),
-                SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(vars[0])
-        );
-        auto blueprint = std::make_unique<SeparatingConjunction>();
-//        blueprint->conjuncts.push_back(std::move(unmarked));
-        blueprint->conjuncts.push_back(std::move(data));
-        return blueprint;
-    });
+inline std::unique_ptr<Formula> MakeVariableInvariant(const EqualsToAxiom& variable) {
+    if (!variable.variable->decl.is_shared) return std::make_unique<SeparatingConjunction>();
+    return MakeImmediateAxiom<SymbolicAxiom::NEQ, SymbolicNull>(variable.value->Decl());
 }
 
-std::unique_ptr<Predicate> MakeOutflowPredicate(const Type& nodeType, const Type& flowType) {
-    return MakePredicate(nodeType, flowType, "outflow", [](auto& node, auto& vars){
-//        auto marked = std::make_unique<SymbolicAxiom>(
-//                std::make_unique<SymbolicVariable>(node.fieldToValue.at("mark")->Decl()),
-//                SymbolicAxiom::EQ, std::make_unique<SymbolicBool>(true)
-//        );
-        auto unmarked = std::make_unique<SymbolicAxiom>(
-                std::make_unique<SymbolicVariable>(node.fieldToValue.at(DATA_FIELD)->Decl()),
-                SymbolicAxiom::LT, std::make_unique<SymbolicVariable>(vars[0])
-        );
-//        auto disjunction = std::make_unique<StackDisjunction>();
-//        disjunction->axioms.push_back(std::move(marked));
-//        disjunction->axioms.push_back(std::move(unmarked));
-        auto blueprint = std::make_unique<SeparatingConjunction>();
-//        blueprint->conjuncts.push_back(std::move(disjunction));
-        blueprint->conjuncts.push_back(std::move(unmarked));
-        return blueprint;
-    });
+inline std::unique_ptr<Formula> MakeOutflow(const PointsToAxiom& memory, const std::string& fieldName, const SymbolicVariableDeclaration& value) {
+    assert(fieldName == NEXT_FIELD);
+    return MakeImmediateAxiom<SymbolicAxiom::LT, SymbolicVariable>(memory.fieldToValue.at(DATA_FIELD)->Decl(), value);
 }
 
-struct TestFlowDomain : public FlowDomain {
+inline std::unique_ptr<Formula> MakeContains(const PointsToAxiom& memory, const SymbolicVariableDeclaration& value) {
+    return MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicVariable>(memory.fieldToValue.at(DATA_FIELD)->Decl(), value);
+}
+
+struct TestSolverConfig : public SolverConfig {
     const Type& nodeType;
-    std::unique_ptr<Predicate> outflow;
+    const VariableDeclaration& head;
+    explicit TestSolverConfig(const Type& nodeType, const VariableDeclaration& head) : nodeType(nodeType), head(head) {}
 
-    explicit TestFlowDomain(const Type& nodeType) : nodeType(nodeType), outflow(MakeOutflowPredicate(nodeType, Type::data_type())) {}
-
-    [[nodiscard]] const cola::Type& GetNodeType() const override { return nodeType; }
-    [[nodiscard]] const cola::Type& GetFlowValueType() const override { return Type::data_type(); }
-    [[nodiscard]] const Predicate& GetOutFlowContains(std::string fieldName) const override { return *outflow; }
+    [[nodiscard]] inline const cola::Type& GetFlowValueType() const override { return Type::data_type(); }
+    [[nodiscard]] inline std::size_t GetMaxFootprintDepth(const std::string& /*updatedFieldName*/) const override { return FOOTPRINT_DEPTH; }
+    [[nodiscard]] inline std::unique_ptr<Formula> GetNodeInvariant(const PointsToAxiom& memory) const override { return MakeNodeInvariant(memory, head); }
+    [[nodiscard]] inline std::unique_ptr<Formula> GetSharedVariableInvariant(const EqualsToAxiom& variable) const override { return MakeVariableInvariant(variable); }
+    [[nodiscard]] inline std::unique_ptr<Formula> GetOutflowContains(const PointsToAxiom& memory, const std::string& fieldName, const SymbolicVariableDeclaration& value) const override { return MakeOutflow(memory, fieldName, value); }
+    [[nodiscard]] inline std::unique_ptr<Formula> GetLogicallyContains(const PointsToAxiom& memory, const SymbolicVariableDeclaration& value) const override { return MakeContains(memory, value); }
 };
 
 std::shared_ptr<SolverConfig> MakeConfig(const Program& program) {
     assert(program.types.size() == 1);
     auto& nodeType = *program.types.at(0);
-    auto domain = std::make_unique<TestFlowDomain>(nodeType);
-    auto contains = MakeContainsPredicate(domain->GetNodeType(), domain->GetFlowValueType());
-    auto invariant = MakeInvariant(domain->GetNodeType(), domain->GetFlowValueType());
-    return std::make_shared<SolverConfig>(FOOTPRINT_DEPTH, std::move(domain), std::move(contains), std::move(invariant), INVARIANT_FOR_LOCAL_RESOURCES);
+    assert(program.variables.size() == 2);
+    assert(program.variables.at(0)->name == HEAD_NAME);
+    auto& head = *program.variables.at(0);
+    return std::make_shared<TestSolverConfig>(nodeType, head);
 }
 
 //
@@ -190,7 +137,7 @@ std::shared_ptr<Program> ReadInput(const std::string& filename, bool preprocess=
     return result;
 }
 
-int main(int argc, char** argv) {
+int main(int /*argc*/, char** /*argv*/) {
 //    bool preprocess = false;
 //    std::string file = "/Users/wolff/Desktop/plankton/examples/transformed.cola";
     bool preprocess = true;
@@ -199,6 +146,7 @@ int main(int argc, char** argv) {
     auto program = ReadInput(file, preprocess);
     auto config = MakeConfig(*program);
 //    cola::print(*program, std::cout);
+//    throw std::logic_error("breakpoint");
 
     auto start = std::chrono::steady_clock::now();
     auto isLinearizable = prover::CheckLinearizability(*program, config);

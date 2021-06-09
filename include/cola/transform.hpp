@@ -19,9 +19,13 @@ namespace cola {
 		virtual const char* what() const noexcept { return cause.c_str(); }
 	};
 
-	/** Removes conditions from do-while and while loops.
-	  */
-	void remove_conditional_loops(Program& program);
+    /** Removes conditions from do-while and while loops.
+      */
+    void remove_conditional_branching(Program& program);
+
+    /** Removes conditions from do-while and while loops.
+      */
+    void remove_conditional_loops(Program& program);
 
 	/** Flattens scopes of scopes into scopes.
 	  */
@@ -43,8 +47,9 @@ namespace cola {
 	  */
 	inline void simplify(Program& program) {
 		// TODO: loop peeling?
-		remove_conditional_loops(program);
+        remove_conditional_loops(program);
 		remove_cas(program);
+        remove_conditional_branching(program);
 		remove_useless_scopes(program);
 		rename_variables(program);
         simplify_conditions(program);

@@ -5,6 +5,7 @@
 #include "encoder.hpp"
 #include "eval.hpp"
 #include "candidates.hpp"
+#include "heal/util.hpp"
 
 using namespace cola;
 using namespace heal;
@@ -34,7 +35,7 @@ struct LocalMemoryCounter : public DefaultLogicListener {
 inline std::unique_ptr<PointsToAxiom> MakeCommonMemory(const SymbolicVariableDeclaration& address, bool local, SymbolicFactory& factory,
                                                        const SolverConfig& config) {
     auto node = std::make_unique<SymbolicVariable>(address);
-    auto& flow = factory.GetUnusedFlowVariable(config.flowDomain->GetFlowValueType());
+    auto& flow = factory.GetUnusedFlowVariable(config.GetFlowValueType());
     std::map<std::string, std::unique_ptr<SymbolicVariable>> fields;
     for (const auto& [name, type] : address.type.fields) {
         fields[name] = std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(type));

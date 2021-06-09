@@ -155,7 +155,7 @@ void AddFlowCoverageChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) 
         mustHaveNode->needed = true;
     };
 
-    auto qv = encoding.encoder.QuantifiedVariable(encoding.graph.config.flowDomain->GetFlowValueType().sort);
+    auto qv = encoding.encoder.QuantifiedVariable(encoding.graph.config.GetFlowValueType().sort);
     for (const auto& node : encoding.graph.nodes) {
         for (const auto& field : node.pointerFields) {
             auto sameFlow = encoding.encoder(field.preRootOutflow.value())(qv) == encoding.encoder(field.postRootOutflow.value())(qv);
@@ -205,9 +205,9 @@ void AddSpecificationChecks(EncodedFlowGraph& encoding, FootprintChecks& checks)
 //    checks.obligation = obligation;
 
     bool mustBePure = checks.preSpec.empty();
-    auto qv = encoding.encoder.QuantifiedVariable(encoding.graph.config.flowDomain->GetFlowValueType().sort);
+    auto qv = encoding.encoder.QuantifiedVariable(encoding.graph.config.GetFlowValueType().sort);
     auto contains = [&encoding](auto& node, auto var, auto mode) {
-        return encoding.EncodeNodePredicate(*encoding.graph.config.logicallyContainsKey, node, var, mode);
+        return encoding.EncodeNodeContains(node, var, mode);
     };
 
     // check purity
@@ -519,14 +519,15 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
 //
 
 struct PointsToRemover : DefaultLogicNonConstListener {
-    const std::set<const SymbolicVariableDeclaration*>& prune;
-    explicit PointsToRemover(const std::set<const SymbolicVariableDeclaration*>& prune) : prune(prune) {}
+    const std::set<const PointsToAxiom*>& prune;
+    explicit PointsToRemover(const std::set<const PointsToAxiom*>& prune) : prune(prune) {}
     inline void Handle(decltype(SeparatingConjunction::conjuncts)& conjuncts) {
         conjuncts.erase(std::remove_if(conjuncts.begin(), conjuncts.end(), [this](const auto& elem){
-            if (auto pointsTo = dynamic_cast<const PointsToAxiom*>(elem.get())) {
-                return prune.count(&pointsTo->node->Decl()) != 0;
-            }
-            return false;
+            return prune.count(dynamic_cast<const PointsToAxiom*>(elem.get())) != 0;
+//            if (auto pointsTo = dynamic_cast<const PointsToAxiom*>(elem.get())) {
+//                return prune.count(&pointsTo->node->Decl()) != 0;
+//            }
+//            return false;
         }), conjuncts.end());
     }
     void enter(SeparatingConjunction& obj) override { Handle(obj.conjuncts); }
@@ -534,7 +535,7 @@ struct PointsToRemover : DefaultLogicNonConstListener {
 
 inline std::unique_ptr<PointsToAxiom> MakePointsTo(const SymbolicVariableDeclaration& address, SymbolicFactory& factory, const SolverConfig& config) {
     bool isLocal = false; // TODO: is that correct?
-    auto& flow = factory.GetUnusedFlowVariable(config.flowDomain->GetFlowValueType());
+    auto& flow = factory.GetUnusedFlowVariable(config.GetFlowValueType());
     std::map<std::string, std::unique_ptr<SymbolicVariable>> fieldToValue;
     for (const auto& [name, type] : address.type.fields) {
         fieldToValue.emplace(name, std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(type)));
@@ -551,51 +552,56 @@ ExpandMemoryFrontier(std::unique_ptr<SeparatingConjunction> state, const Symboli
     // do nothing if the memory resource is already present
     if (FindMemory(addressAlias, *state)) return state;
 
-    // expand only for dereferences the resources of which are available
-    auto [isDereference, dereference] = heal::IsOfType<Dereference>(rhs);
-    if (!isDereference) return state;
-    auto memory = FindResource(*dereference, *state); // TODO: lazy evaluation?
-    if (!memory) return state;
-
-    // use the real address occurring in predicates, not some alias
-    auto& address = memory->fieldToValue.at(dereference->fieldname)->Decl();
-
     // prepare for solving
     z3::context context;
     z3::solver solver(context);
     Z3Encoder encoder(context, solver);
-    solver.add(encoder(*state));
     ImplicationCheckSet checks(context);
-    bool resultIsNonNull = false;
 
-    // add invariant for 'memory'
-    if (config.applyInvariantToLocal || !memory->isLocal) {
-        solver.add(encoder(*config.invariant->Instantiate(*memory)));
+    // extend and encode state
+    for (const auto* node : heal::CollectMemory(*state)) {
+        state = heal::Conjoin(std::move(state), config.GetNodeInvariant(*node));
+    }
+    for (const auto* var : heal::CollectVariables(*state)) {
+        if (!var->variable->decl.is_shared) continue;
+        state = heal::Conjoin(std::move(state), config.GetSharedVariableInvariant(*var));
+    }
+    solver.add(encoder(*state));
+
+    // query info about the expansion
+    auto address = std::cref(addressAlias);
+    bool addressIsShared = false;
+    if (auto dereference = dynamic_cast<const Dereference*>(&rhs)) {
+        if (auto memory = FindResource(*dereference, *state)) { // TODO: lazy evaluation?
+            address = memory->fieldToValue.at(dereference->fieldname)->Decl();
+            addressIsShared = !memory->isLocal;
+        }
+    } else if (auto variable = dynamic_cast<const VariableExpression*>(&rhs)) {
+        if (auto resource = FindResource(variable->decl, *state)) { // TODO: lazy evaluation?
+            address = resource->value->Decl();
+            addressIsShared = variable->decl.is_shared;
+        }
     }
 
     // check for NULL and non-NULL
+    std::optional<bool> addressIsNonNull = std::nullopt;
     auto isNull = std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(address), SymbolicAxiom::EQ, std::make_unique<SymbolicNull>());
     auto isNonNull = std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(address), SymbolicAxiom::NEQ, std::make_unique<SymbolicNull>());
-    checks.Add(encoder(*isNull), [&isNull,&state](bool holds){
-        if (holds) state->conjuncts.push_back(std::move(isNull));
-    });
-    checks.Add(encoder(*isNonNull), [&isNonNull,&state,&resultIsNonNull](bool holds){
-        if (!holds) return;
-        state->conjuncts.push_back(std::move(isNonNull));
-        resultIsNonNull = true;
-    });
+    checks.Add(encoder(*isNull), [&addressIsNonNull](bool holds){ if (holds) addressIsNonNull = false; });
+    checks.Add(encoder(*isNonNull), [&addressIsNonNull](bool holds){ if (holds) addressIsNonNull = true; });
     solver::ComputeImpliedCallback(solver, checks);
+    if (addressIsNonNull) state->conjuncts.push_back(addressIsNonNull.value() ? std::move(isNonNull) : std::move(isNull));
+    std::cout << " - expanding memory for address " << address.get().name << " (shared=" << addressIsShared << ")" << std::endl;
+    std::cout << "   ==> nonnull = " << (addressIsNonNull ? std::to_string(addressIsNonNull.value()) : "?") << std::endl;
 
     // introduce new points-to predicate
-    if (resultIsNonNull && !memory->isLocal) {
+    if (addressIsNonNull && addressIsNonNull.value() && addressIsShared) {
         // find addresses that are guaranteed to be different from 'address'
         Reachability reachability(*state);
-        auto potentiallyOverlapping = heal::CollectMemoryNodes(*state);
+        auto potentiallyOverlapping = heal::CollectMemory(*state);
         for (auto it = potentiallyOverlapping.begin(); it != potentiallyOverlapping.end();) {
-            auto resource = FindMemory(**it, *state);
-            assert(resource);
-            bool isDistinct = (!memory->isLocal && resource->isLocal)
-                              || reachability.IsReachable(resource->node->Decl(), address);
+            bool isDistinct = (/*addressIsShared &&*/ (*it)->isLocal)
+                              || reachability.IsReachable((*it)->node->Decl(), address);
             if (isDistinct) it = potentiallyOverlapping.erase(it);
             else ++it;
         }
@@ -606,7 +612,11 @@ ExpandMemoryFrontier(std::unique_ptr<SeparatingConjunction> state, const Symboli
             state->accept(remover);
         }
 
-        state->conjuncts.push_back(MakePointsTo(address, factory, config));
+        std::cout << "   ==> introducing new points to for address " << address.get().name << std::endl;
+        auto newPointsTo = MakePointsTo(address, factory, config);
+        auto invariant = config.GetNodeInvariant(*newPointsTo);
+        state->conjuncts.push_back(std::move(newPointsTo));
+        state = heal::Conjoin(std::move(state), std::move(invariant));
     }
 
     return state;

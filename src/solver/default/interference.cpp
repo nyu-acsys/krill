@@ -1,5 +1,6 @@
 #include "default_solver.hpp"
 
+#include "heal/util.hpp"
 #include "heal/collect.hpp"
 #include "encoder.hpp"
 

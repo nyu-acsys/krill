@@ -89,7 +89,8 @@ struct EqualityFinder : public BaseResourceVisitor, BaseNonConstResourceVisitor 
 
     static std::set<const VariableDeclaration*> FindEqualities(const VariableDeclaration& decl, const LogicObject& obj) {
         EqualityFinder finder(decl);
-        for (std::size_t oldSize = 0; oldSize != finder.search.size(); oldSize = finder.search.size()) {
+        for (std::size_t oldSize = 0; oldSize != finder.search.size();) {
+            oldSize = finder.search.size();
             obj.accept(finder);
         }
         return std::move(finder.search);

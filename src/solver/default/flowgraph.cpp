@@ -201,7 +201,7 @@ FlowGraph solver::MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const
     assert(root);
 
     // construct flow footprint
-    FinalizeFlowGraph(graph, *root, config.maxFootprintDepth, [&lhs,&rhsEval](auto& rootNode){
+    FinalizeFlowGraph(graph, *root, config.GetMaxFootprintDepth(lhs.fieldname), [&lhs,&rhsEval](auto& rootNode){
         GetFieldOrFail(rootNode, lhs.fieldname).postValue = *rhsEval;
     });
     return graph;
@@ -213,21 +213,35 @@ FlowGraph solver::MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const
 //
 
 z3::expr EncodedFlowGraph::EncodeNodeInvariant(const FlowGraphNode& node, EMode mode) {
-    if (!graph.config.applyInvariantToLocal && mode == EMode::PRE ? node.preLocal : node.postLocal)
-        return encoder.context.bool_val(true);
-
-    auto invariant = graph.config.invariant->Instantiate(*node.ToLogic(mode)); // TODO: z3 substitution could do this
+    auto invariant = graph.config.GetNodeInvariant(*node.ToLogic(mode));
     return encoder(*invariant);
 }
 
-z3::expr EncodedFlowGraph::EncodeNodePredicate(const Predicate& predicate, const FlowGraphNode& node, const z3::expr& value, EMode mode) {
-    auto &arg = predicate.vars[0];
-    auto instance = predicate.Instantiate(*node.ToLogic(mode), arg); // TODO: z3 substitution could do this
-    z3::expr_vector replace(encoder.context), with(encoder.context);
-    replace.push_back(encoder(arg));
+template<typename T>
+inline z3::expr Foobar(EncodedFlowGraph& encoding, const FlowGraphNode& node, const z3::expr& value, EMode mode, T getPredicate) {
+    auto memory = node.ToLogic(mode);
+    auto& dummyArg = SymbolicFactory(*memory).GetUnusedSymbolicVariable(encoding.graph.config.GetFlowValueType());
+    auto predicate = getPredicate(*memory, dummyArg);
+
+    z3::expr_vector replace(encoding.encoder.context), with(encoding.encoder.context);
+    replace.push_back(encoding.encoder(dummyArg));
     with.push_back(value);
-    return encoder(*instance).substitute(replace, with);
+    return encoding.encoder(*predicate).substitute(replace, with);
 }
+
+
+z3::expr EncodedFlowGraph::EncodeNodeOutflow(const FlowGraphNode& node, const std::string& fieldName, const z3::expr& value, EMode mode) {
+    return Foobar(*this, node, value, mode, [this,&fieldName](auto& memory, auto& arg){
+        return graph.config.GetOutflowContains(memory, fieldName, arg);
+    });
+}
+
+z3::expr EncodedFlowGraph::EncodeNodeContains(const FlowGraphNode& node, const z3::expr& value, EMode mode) {
+    return Foobar(*this, node, value, mode, [this](auto& memory, auto& arg){
+        return graph.config.GetLogicallyContains(memory, arg);
+    });
+}
+
 
 z3::expr EncodeOutflow(EncodedFlowGraph& encoding, const FlowGraphNode& node, const Field& field, EMode mode) {
     /* Remark:
@@ -240,9 +254,8 @@ z3::expr EncodeOutflow(EncodedFlowGraph& encoding, const FlowGraphNode& node, co
     auto& encoder = encoding.encoder;
 
     bool forPre = mode == EMode::PRE;
-    auto qv = encoder.QuantifiedVariable(graph.config.flowDomain->GetFlowValueType().sort);
-    auto &flowPredicate = graph.config.flowDomain->GetOutFlowContains(field.name);
-    auto mkFlow = [&](auto value) { return encoding.EncodeNodePredicate(flowPredicate, node, value, mode); };
+    auto qv = encoder.QuantifiedVariable(graph.config.GetFlowValueType().sort);
+    auto mkFlow = [&](auto value) { return encoding.EncodeNodeOutflow(node, field.name, value, mode); };
     auto rootIn = encoder(forPre ? node.preRootInflow : node.postRootInflow);
     auto rootOut = encoder(forPre ? field.preRootOutflow.value() : field.postRootOutflow.value());
     auto allIn = encoder(forPre ? node.preAllInflow : node.postAllInflow);
@@ -337,7 +350,7 @@ inline z3::expr EncodeFlowRules(EncodedFlowGraph& encoding, const FlowGraphNode&
 }
 
 z3::expr EncodedFlowGraph::EncodeKeysetDisjointness(EMode mode) {
-    auto qv = encoder.QuantifiedVariable(graph.config.flowDomain->GetFlowValueType().sort);
+    auto qv = encoder.QuantifiedVariable(graph.config.GetFlowValueType().sort);
     z3::expr_vector keyset(encoder.context);
     for (const auto &node : graph.nodes) {
         auto &nodeKeyset = mode == EMode::PRE ? node.preKeyset.get() : node.postKeyset.get();
@@ -348,7 +361,7 @@ z3::expr EncodedFlowGraph::EncodeKeysetDisjointness(EMode mode) {
 
 z3::expr EncodedFlowGraph::EncodeInflowUniqueness(EMode mode) {
     // uniqueness
-    auto qv = encoder.QuantifiedVariable(graph.config.flowDomain->GetFlowValueType().sort);
+    auto qv = encoder.QuantifiedVariable(graph.config.GetFlowValueType().sort);
     z3::expr_vector result(encoder.context);
 
     for (const auto &node : graph.nodes) {
@@ -370,7 +383,7 @@ inline z3::expr EncodeFlow(EncodedFlowGraph& encoding) {
 
     z3::expr_vector result(encoder.context);
     result.push_back(encoder(*graph.pre));
-    auto qv = encoder.QuantifiedVariable(graph.config.flowDomain->GetFlowValueType().sort);
+    auto qv = encoder.QuantifiedVariable(graph.config.GetFlowValueType().sort);
 
     // same inflow in root before and after update
     auto &root = graph.nodes.front();

@@ -14,7 +14,7 @@ HeapEffect::HeapEffect(std::unique_ptr<PointsToAxiom> pre_, std::unique_ptr<Poin
     assert(pre);
     assert(post);
     assert(context);
-    assert(&pre->node->Decl() == &post->node->Decl()); // TODO: throw if this is not the case?
+    if (&pre->node->Decl() != &post->node->Decl()) throw std::logic_error("Unsupported effect."); // TODO: better error handling
 }
 
 PostImage::PostImage(std::unique_ptr<Annotation> post_) : post(std::move(post_)) {

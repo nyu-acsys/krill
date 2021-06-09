@@ -7,6 +7,8 @@
 
 namespace heal {
 
+    // TODO: move this file to util?
+
     struct BaseResourceVisitor : public heal::DefaultLogicListener {
         void visit(const heal::StackDisjunction& axiom) override { if(axiom.axioms.size() == 1) axiom.axioms.front()->accept(*this); }
         void visit(const heal::SeparatingImplication&) override { /* do nothing */ }

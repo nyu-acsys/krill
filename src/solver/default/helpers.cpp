@@ -1,6 +1,7 @@
 #include "default_solver.hpp"
 
 #include "encoder.hpp"
+#include "heal/util.hpp"
 
 using namespace cola;
 using namespace heal;

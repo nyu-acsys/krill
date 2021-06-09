@@ -24,15 +24,19 @@ inline <Node*, Node*, data_t> locate(data_t _key) {
     do {
         _pred = _curr; // 45
         _curr = _pred->next; // 49
-        if (_curr == _pred->next && _curr != NULL) {
+        choose {
+            assume(_curr == _pred->next && _curr != NULL); // 277
             _k = _curr->val; // 61
-        } else {
+        }{
+            assume(_curr != _pred->next || _curr == NULL); // 275
             _curr = Head; // 65
             _k = MIN_VAL; // 68
         }
-        if (_k >= _key) {
+        choose {
+            assume(_k >= _key); // 285
             break;
-        } else {
+        }{
+            assume(_k < _key); // 283
             skip;
         }
     } while (true);
@@ -59,9 +63,11 @@ bool add(data_t key) {
         data_t k;
 
         <pred, curr, k> = locate(key);
-        if (k == key) {
+        choose {
+            assume(k == key); // 293
             return false;
-        } else {
+        }{
+            assume(k != key); // 291
             entry->next = curr; // 129
             choose {
                 atomic {
@@ -84,11 +90,13 @@ bool remove(data_t key) {
         data_t k;
 
         <pred, curr, k> = locate(key);
-        if (k > key) {
+        choose {
+            assume(k > key); // 301
             return false;
-        } else {
+        }{
             Node* next;
 
+            assume(k <= key); // 299
             next = curr->next; // 173
             choose {
                 atomic {

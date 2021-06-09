@@ -6,14 +6,11 @@
 #include <memory>
 #include "cola/ast.hpp"
 #include "heal/logic.hpp"
-#include "heal/properties.hpp"
-#include "heal/flow.hpp"
 #include "config.hpp"
 
 
 namespace solver {
 
-    // TODO: what is an effect? what does it say/mean? add a command?
     struct HeapEffect {
         std::unique_ptr<heal::PointsToAxiom> pre; // resources before update
         std::unique_ptr<heal::PointsToAxiom> post; // resources after update
@@ -39,8 +36,6 @@ namespace solver {
 		explicit Solver(std::shared_ptr<SolverConfig> config);
         virtual ~Solver() = default;
 
-        [[nodiscard]] std::shared_ptr<SolverConfig> GetConfig() const { return config; }
-
         // TODO: should take references, not consume the original?
         [[nodiscard]] virtual std::unique_ptr<heal::Annotation> Join(std::vector<std::unique_ptr<heal::Annotation>> annotations) const = 0;
         [[nodiscard]] virtual std::unique_ptr<heal::Annotation> Join(std::deque<std::unique_ptr<heal::Annotation>> annotations) const;
@@ -57,7 +52,7 @@ namespace solver {
         [[nodiscard]] virtual PostImage Post(std::unique_ptr<heal::Annotation> pre, const cola::Malloc& cmd) const = 0;
         [[nodiscard]] virtual PostImage Post(std::unique_ptr<heal::Annotation> pre, const cola::Assignment& cmd) const = 0;
 
-        // TODO: streamline; are those function at the right place, with the right signature
+        // TODO: streamline; are those function at the right place, with the right signature?
         [[nodiscard]] virtual const heal::EqualsToAxiom* GetVariableResource(const cola::VariableDeclaration& decl, const heal::LogicObject& object) const = 0;
         [[nodiscard]] virtual std::optional<bool> GetBoolValue(const cola::Expression& expr, const heal::LogicObject& object) const = 0;
         [[nodiscard]] virtual Result Implies(const heal::Annotation& premise, const heal::Annotation& conclusion) const = 0;

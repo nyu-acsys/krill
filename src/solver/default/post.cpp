@@ -34,14 +34,14 @@ struct ExpressionTranslator : public BaseVisitor {
     std::unique_ptr<SeparatingConjunction> result = std::make_unique<SeparatingConjunction>();
     std::unique_ptr<StackDisjunction> disjunction = nullptr;
 
-    void HandleConjunction(const BinaryExpression& expr) {
+    inline void HandleConjunction(const BinaryExpression& expr) {
         if (disjunction)
             throw std::logic_error("Cannot translate expression into logic: unsupported nesting of '&&' inside '||'.");
         expr.rhs->accept(*this);
         expr.lhs->accept(*this);
     }
 
-    void HandleDisjunction(const BinaryExpression& expr) {
+    inline void HandleDisjunction(const BinaryExpression& expr) {
         bool needsFlush = disjunction == nullptr;
         if (needsFlush) disjunction = std::make_unique<StackDisjunction>();
         expr.rhs->accept(*this);
@@ -52,7 +52,7 @@ struct ExpressionTranslator : public BaseVisitor {
         }
     }
 
-    void HandleRelation(const BinaryExpression& expr) {
+    inline void HandleRelation(const BinaryExpression& expr) {
         auto axiom = std::make_unique<SymbolicAxiom>(evaluator.Evaluate(*expr.lhs), TranslateOp(expr.op), evaluator.Evaluate(*expr.rhs));
         if (disjunction) disjunction->axioms.push_back(std::move(axiom));
         else result->conjuncts.push_back(std::move(axiom));
@@ -69,7 +69,7 @@ struct ExpressionTranslator : public BaseVisitor {
     // TODO: all other expressions are not supported => override visit to print better error message (or ignore and rely on preprocessing?)
 };
 
-std::unique_ptr<Formula> ExpressionToFormula(const Expression& expression, const Annotation& context) {
+inline std::unique_ptr<Formula> ExpressionToFormula(const Expression& expression, const Annotation& context) {
     ExpressionTranslator translator(context);
     expression.accept(translator);
     heal::Simplify(*translator.result);
@@ -88,7 +88,7 @@ PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd
 // Malloc
 //
 
-bool TryUpdateVariableValuation(Formula& formula, const VariableDeclaration& variable, const SymbolicVariableDeclaration& newValue) {
+inline bool TryUpdateVariableValuation(Formula& formula, const VariableDeclaration& variable, const SymbolicVariableDeclaration& newValue) {
     // updating the variable directly is easier than splitting the formula into the resource and the frame
     EqualsToAxiom* resource = FindResource(variable, formula);
     if (resource == nullptr) return false;
@@ -97,28 +97,42 @@ bool TryUpdateVariableValuation(Formula& formula, const VariableDeclaration& var
     return true;
 }
 
-std::pair<const SymbolicVariableDeclaration&, std::unique_ptr<Formula>> AllocateFreshCell(const Type &allocationType, const Type &flowType, const Annotation &context) {
+inline void CheckCell(const Formula& state, const PointsToAxiom& memory, const SolverConfig& config) {
+    z3::context context;
+    z3::solver solver(context);
+    Z3Encoder encoder(context, solver);
+    auto good = solver::ComputeImplied(solver, encoder(state), encoder(*config.GetNodeInvariant(memory)));
+    if (good) return;
+    throw std::logic_error("Newly allocated node does not satisfy invariant."); // TODO: better error handling
+}
+
+inline std::pair<const SymbolicVariableDeclaration&, std::unique_ptr<Formula>> AllocateFreshCell(const Type &allocationType, const Annotation &context, const SolverConfig& config) {
     SymbolicFactory factory(context);
-    auto node = std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(allocationType));
-    auto& flow = factory.GetUnusedFlowVariable(flowType);
+    auto& address = factory.GetUnusedSymbolicVariable(allocationType);
+    auto node = std::make_unique<SymbolicVariable>(address);
+    auto& flow = factory.GetUnusedFlowVariable(config.GetFlowValueType());
     std::map<std::string, std::unique_ptr<SymbolicVariable>> fieldToValue;
     for (const auto& [field, type] : allocationType.fields) {
         fieldToValue[field] = std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(type));
     }
     auto cell = std::make_unique<PointsToAxiom>(std::move(node), true, flow, std::move(fieldToValue));
+
     // TODO: default initialization?
     // TODO: add no-flow constraint?
+    CheckCell(*cell, *cell, config);
     return { cell->node->decl_storage.get(), std::move(cell) };
 }
 
 PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Malloc& cmd) const {
     std::cout << " -- Post image for "; heal::Print(*pre, std::cout); std::cout << " "; cola::print(cmd, std::cout);
-    auto& flowType = Config().flowDomain->GetFlowValueType();
-    auto [cell, formula] = AllocateFreshCell(cmd.lhs.type, flowType, *pre);
+    if (cmd.lhs.is_shared)
+        throw std::logic_error("Unsupported assignment: cannot assign to shared variables."); // TODO: better error handling
+
+    auto [cell, formula] = AllocateFreshCell(cmd.lhs.type, *pre, Config());
     auto success = TryUpdateVariableValuation(*pre->now, cmd.lhs, cell);
     if (!success) throw std::logic_error("Unsafe update: variable '" + cmd.lhs.name + "' is not accessible."); // TODO: better error class
+
     pre->now = heal::Conjoin(std::move(pre->now), std::move(formula));
-    if (Config().applyInvariantToLocal) throw std::logic_error("local invariant not supported"); // TODO: better error handling // TODO: check invariant if needed
     heal::Print(*pre, std::cout); std::cout << std::endl;
     return PostImage(std::move(pre));
 }

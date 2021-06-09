@@ -1,5 +1,7 @@
 #include "default_solver.hpp"
 
+#include "heal/util.hpp"
+
 using namespace cola;
 using namespace heal;
 using namespace solver;

@@ -65,6 +65,7 @@ set(SOURCES
 	transform/renameVars.cpp
 	transform/rmCAS.cpp
 	transform/rmConditionalLoops.cpp
+	transform/rmConditionalBranches.cpp
 	transform/rmUselessScopes.cpp
 
 	# util

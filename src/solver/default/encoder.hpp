@@ -181,6 +181,8 @@ namespace solver {
     };
 
 
+    bool ComputeImplied(z3::solver& solver, const z3::expr& premise, const z3::expr& conclusion);
+
     std::vector<bool> ComputeImplied(z3::solver& solver, const z3::expr_vector& expressions);
 
     struct ImplicationCheckSet {

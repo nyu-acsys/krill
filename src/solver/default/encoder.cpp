@@ -12,6 +12,30 @@ struct Z3SolvingFailedError : std::exception {
     }
 };
 
+inline bool IsImplied(z3::solver& solver, const z3::expr& expr) {
+    solver.push();
+    solver.add(!expr);
+    auto res = solver.check();
+    solver.pop();
+    switch (res) {
+        case z3::unsat: return true;
+        case z3::sat: return false;
+        case z3::unknown: throw Z3SolvingFailedError();
+    }
+}
+
+bool solver::ComputeImplied(z3::solver& solver, const z3::expr& premise, const z3::expr& conclusion) {
+    return IsImplied(solver, z3::implies(premise, conclusion));
+}
+
+std::vector<bool> ComputeImpliedOneAtATime(z3::solver& solver, const z3::expr_vector& expressions) {
+    std::vector<bool> result;
+    for (const auto& expr : expressions) {
+        result.push_back(IsImplied(solver, expr));
+    }
+    return result;
+}
+
 inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const z3::expr_vector& expressions) {
     // prepare required vectors
     z3::context& context = solver.ctx();
@@ -50,26 +74,6 @@ inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const z3::e
             }
             return result;
     }
-}
-
-std::vector<bool> ComputeImpliedOneAtATime(z3::solver& solver, const z3::expr_vector& expressions) {
-    std::vector<bool> result;
-
-    for (const auto& expr : expressions) {
-        solver.push();
-        solver.add(!expr);
-        auto res = solver.check();
-        solver.pop();
-        bool chk;
-        switch (res) {
-            case z3::unsat: chk = true; break;
-            case z3::sat: chk = false; break;
-            case z3::unknown: throw Z3SolvingFailedError();
-        }
-        result.push_back(chk);
-    }
-
-    return result;
 }
 
 std::vector<bool> solver::ComputeImplied(z3::solver& solver, const z3::expr_vector& expressions) {
