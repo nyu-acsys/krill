@@ -58,8 +58,11 @@ inline std::unique_ptr<Formula> MakeNodeInvariant(const PointsToAxiom& memory, c
 }
 
 inline std::unique_ptr<Formula> MakeVariableInvariant(const EqualsToAxiom& variable) {
-    if (!variable.variable->decl.is_shared) return std::make_unique<SeparatingConjunction>();
-    return MakeImmediateAxiom<SymbolicAxiom::NEQ, SymbolicNull>(variable.value->Decl());
+    auto result = std::make_unique<SeparatingConjunction>();
+    if (!variable.variable->decl.is_shared) return result;
+    result->conjuncts.push_back(MakeImmediateAxiom<SymbolicAxiom::NEQ, SymbolicNull>(variable.value->Decl()));
+//    auto isHead = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(head), std::make_unique<SymbolicVariable>(variable.value->Decl()));
+    return result;
 }
 
 inline std::unique_ptr<Formula> MakeOutflow(const PointsToAxiom& memory, const std::string& fieldName, const SymbolicVariableDeclaration& value) {

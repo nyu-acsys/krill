@@ -281,6 +281,7 @@ public:
         if (annotations.empty()) return std::make_unique<Annotation>();
         if (annotations.size() == 1) return std::move(annotations.front());
         AnnotationJoiner join(std::move(annotations), config);
+        heal::InlineAndSimplify(*join.result);
         return std::move(join.result);
     }
 };

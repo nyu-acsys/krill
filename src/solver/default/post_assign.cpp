@@ -32,74 +32,6 @@ std::set<const ObligationAxiom*> CollectObligations(const FlowGraph& footprint) 
     return std::move(finder.result);
 }
 
-struct Reachability {
-    private:
-    std::map<const SymbolicVariableDeclaration*, std::set<const SymbolicVariableDeclaration*>> reachability;
-
-    void Initialize(std::set<const SymbolicVariableDeclaration*>&& worklist, std::function<std::set<const SymbolicVariableDeclaration*>(const SymbolicVariableDeclaration&)>&& getNext) {
-        // populate 1-step successors
-        while (!worklist.empty()) {
-            auto& decl = **worklist.begin();
-            worklist.erase(worklist.begin());
-            if (reachability.count(&decl) != 0) continue;
-            reachability[&decl] = getNext(decl);
-        }
-
-        // populate (n+1)-step successors
-        bool changed;
-        do {
-            changed = false;
-            for (auto& [address, reach] : reachability) {
-                auto& addressReach = reachability[address];
-                auto oldSize = addressReach.size();
-                for (auto* next : reach) {
-                    if (address == next) continue;
-                    auto& nextReach = reachability[next];
-                    addressReach.insert(nextReach.begin(), nextReach.end());
-                }
-                changed |= oldSize != addressReach.size();
-            }
-        } while (changed);
-    }
-
-    public:
-    explicit Reachability(const Formula& state) {
-        LazyValuationMap eval(state);
-        Initialize(heal::CollectMemoryNodes(state), [&eval](const auto& decl){
-            std::set<const SymbolicVariableDeclaration*> successors;
-            auto resource = eval.GetMemoryResourceOrNull(decl);
-            if (resource) {
-                for (const auto& [name, value] : resource->fieldToValue) {
-                    if (value->Sort() != Sort::PTR) continue;
-                    successors.insert(&value->Decl());
-                }
-            }
-            return successors;
-        });
-    }
-
-    explicit Reachability(const FlowGraph& graph, EMode mode) {
-        Initialize({ &graph.GetRoot().address }, [&graph,&mode](const auto& decl){
-            std::set<const SymbolicVariableDeclaration*> successors;
-            auto node = graph.GetNodeOrNull(decl);
-            if (node) {
-                for (const auto& field : node->pointerFields) {
-                    successors.insert(mode == EMode::PRE ? &field.preValue.get() : &field.postValue.get());
-                }
-            }
-            return successors;
-        });
-    }
-
-    bool IsReachable(const SymbolicVariableDeclaration& src, const SymbolicVariableDeclaration& dst) {
-        return reachability[&src].count(&dst) != 0;
-    }
-
-    const std::set<const SymbolicVariableDeclaration*>& GetReachable(const SymbolicVariableDeclaration& src) {
-        return reachability[&src];
-    }
-};
-
 //
 // Checks
 //
@@ -519,122 +451,6 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
 // Overall Algorithm (Variable Update)
 //
 
-struct PointsToRemover : DefaultLogicNonConstListener {
-    const std::set<const PointsToAxiom*>& prune;
-    explicit PointsToRemover(const std::set<const PointsToAxiom*>& prune) : prune(prune) {}
-    inline void Handle(decltype(SeparatingConjunction::conjuncts)& conjuncts) {
-        conjuncts.erase(std::remove_if(conjuncts.begin(), conjuncts.end(), [this](const auto& elem){
-            return prune.count(dynamic_cast<const PointsToAxiom*>(elem.get())) != 0;
-//            if (auto pointsTo = dynamic_cast<const PointsToAxiom*>(elem.get())) {
-//                return prune.count(&pointsTo->node->Decl()) != 0;
-//            }
-//            return false;
-        }), conjuncts.end());
-    }
-    void enter(SeparatingConjunction& obj) override { Handle(obj.conjuncts); }
-};
-
-inline std::unique_ptr<PointsToAxiom> MakePointsTo(const SymbolicVariableDeclaration& address, SymbolicFactory& factory, const SolverConfig& config) {
-    bool isLocal = false; // TODO: is that correct?
-    auto& flow = factory.GetUnusedFlowVariable(config.GetFlowValueType());
-    std::map<std::string, std::unique_ptr<SymbolicVariable>> fieldToValue;
-    for (const auto& [name, type] : address.type.fields) {
-        fieldToValue.emplace(name, std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(type)));
-    }
-    return std::make_unique<PointsToAxiom>(std::make_unique<SymbolicVariable>(address), isLocal, flow, std::move(fieldToValue));
-}
-
-inline bool IsGuaranteedNotEqual(const SymbolicVariableDeclaration& address, const SymbolicVariableDeclaration& compare, const Formula& state) {
-    auto memory = FindMemory(address, state);
-    auto other = FindMemory(compare, state);
-    if (!memory || !other) return false;
-    return &memory->node->Decl() != &other->node->Decl();
-}
-
-inline std::unique_ptr<SeparatingConjunction>
-ExpandMemoryFrontier(std::unique_ptr<SeparatingConjunction> state, const SymbolicVariableDeclaration& addressAlias,
-                     const Expression& rhs, SymbolicFactory& factory, const SolverConfig& config) {
-    // only relevant for pointer fields
-    if (rhs.sort() != Sort::PTR) return state;
-
-    // do nothing if the memory resource is already present
-    if (FindMemory(addressAlias, *state)) return state;
-
-    // prepare for solving
-    z3::context context;
-    z3::solver solver(context);
-    Z3Encoder encoder(context, solver);
-    ImplicationCheckSet checks(context);
-
-    // extend and encode state
-    for (const auto* node : heal::CollectMemory(*state)) {
-        state = heal::Conjoin(std::move(state), config.GetNodeInvariant(*node));
-    }
-    for (const auto* var : heal::CollectVariables(*state)) {
-        if (!var->variable->decl.is_shared) continue;
-        state = heal::Conjoin(std::move(state), config.GetSharedVariableInvariant(*var));
-    }
-    solver.add(encoder(*state));
-
-    // query info about the expansion
-    auto address = std::cref(addressAlias);
-    bool addressIsDefinitelyShared = false;
-    if (auto dereference = dynamic_cast<const Dereference*>(&rhs)) {
-        if (auto memory = FindResource(*dereference, *state)) { // TODO: lazy evaluation?
-            address = memory->fieldToValue.at(dereference->fieldname)->Decl();
-            addressIsDefinitelyShared = !memory->isLocal;
-        }
-    } else if (auto variable = dynamic_cast<const VariableExpression*>(&rhs)) {
-        if (auto resource = FindResource(variable->decl, *state)) { // TODO: lazy evaluation?
-            address = resource->value->Decl();
-            addressIsDefinitelyShared = variable->decl.is_shared;
-        }
-    }
-
-    // check for NULL and non-NULL
-    std::optional<bool> addressIsNonNull = std::nullopt;
-    auto isNull = std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(address), SymbolicAxiom::EQ, std::make_unique<SymbolicNull>());
-    auto isNonNull = std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(address), SymbolicAxiom::NEQ, std::make_unique<SymbolicNull>());
-    checks.Add(encoder(*isNull), [&addressIsNonNull](bool holds){ if (holds) addressIsNonNull = false; });
-    checks.Add(encoder(*isNonNull), [&addressIsNonNull](bool holds){ if (holds) addressIsNonNull = true; });
-    solver::ComputeImpliedCallback(solver, checks);
-    if (addressIsNonNull) state->conjuncts.push_back(addressIsNonNull.value() ? std::move(isNonNull) : std::move(isNull));
-    std::cout << " - expanding memory for address " << address.get().name << " (shared=" << addressIsDefinitelyShared << ")" << std::endl;
-    std::cout << "   ==> nonnull = " << (addressIsNonNull ? std::to_string(addressIsNonNull.value()) : "?") << std::endl;
-
-    // introduce new points-to predicate
-    if (addressIsNonNull && addressIsNonNull.value()) {
-        // find addresses that are guaranteed to be different from 'address'
-        Reachability reachability(*state);
-        auto potentiallyOverlapping = heal::CollectMemory(*state);
-        for (auto it = potentiallyOverlapping.begin(); it != potentiallyOverlapping.end();) {
-            bool isDistinct = (addressIsDefinitelyShared && (*it)->isLocal)
-                              || reachability.IsReachable((*it)->node->Decl(), address)
-                              || IsGuaranteedNotEqual(address, (*it)->node->Decl(), *state);
-            std::cout << "   ==> address " << (*it)->node->Decl().name << " is distinct" << std::endl;
-            if (isDistinct) it = potentiallyOverlapping.erase(it);
-            else {
-                if ((*it)->isLocal) throw std::logic_error("Expansion failed due to local memory"); // TODO: better error handling
-                ++it;
-            }
-        }
-
-        // delete resources that may overlap with 'address'
-        if (!potentiallyOverlapping.empty()) {
-            PointsToRemover remover(potentiallyOverlapping);
-            state->accept(remover);
-        }
-
-        std::cout << "   ==> introducing new points to for address " << address.get().name << std::endl;
-        auto newPointsTo = MakePointsTo(address, factory, config);
-        auto invariant = config.GetNodeInvariant(*newPointsTo);
-        state->conjuncts.push_back(std::move(newPointsTo));
-        state = heal::Conjoin(std::move(state), std::move(invariant));
-    }
-
-    return state;
-}
-
 std::unique_ptr<Annotation> TryAddPureFulfillment(std::unique_ptr<Annotation> annotation, const SymbolicVariableDeclaration& address, const SolverConfig& config) {
     EncodedFlowGraph encoding(solver::MakeFlowGraph(std::move(annotation), address, config));
     FootprintChecks checks(encoding.context);
@@ -679,7 +495,7 @@ PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<Annotation> pre, con
     pre->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(symbol), SymbolicAxiom::EQ, std::move(value)));
 
     // try derive helpful knowledge
-    pre->now =  ExpandMemoryFrontier(std::move(pre->now), symbol, *cmd.rhs, factory, Config());
+    pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), factory, Config(), *resource->value); // TODO: force extension for symbol (=resource->value->Decl())?
     pre = TryAddPureFulfillment(std::move(pre), *cmd.rhs, Config());
 
 //    begin debug

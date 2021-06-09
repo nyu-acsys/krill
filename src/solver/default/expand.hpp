@@ -80,20 +80,10 @@ namespace solver {
     static inline std::set<const heal::SymbolicVariableDeclaration*, C> CollectAddresses(const heal::LogicObject& object, const C& comparator) {
         struct Collector : public heal::DefaultLogicListener {
             std::set<const heal::SymbolicVariableDeclaration*, C> result;
-
             explicit Collector(const C& comparator) : result(comparator) {}
-
-            void enter(const heal::EqualsToAxiom& obj) override {
-                result.insert(&obj.value->Decl());
-            }
-
-            void enter(const heal::PointsToAxiom& obj) override {
-                result.insert(&obj.node->Decl());
-                if (obj.isLocal) return;
-                for (const auto&[field, value] : obj.fieldToValue) {
-                    if (value->Sort() != cola::Sort::PTR) continue;
-                    result.insert(&value->Decl());
-                }
+            void enter(const heal::SymbolicVariable& obj) override {
+                if (obj.Sort() != cola::Sort::PTR) return;
+                result.insert(&obj.Decl());
             }
         } collector(comparator);
         object.accept(collector);
@@ -103,6 +93,7 @@ namespace solver {
     struct PointsToRemover : heal::DefaultLogicNonConstListener {
         const std::set<const heal::PointsToAxiom*>& prune;
         explicit PointsToRemover(const std::set<const heal::PointsToAxiom*>& prune) : prune(prune) {}
+        void visit(heal::SeparatingImplication& obj) override { obj.conclusion->accept(*this); } // do not weaken premise
         inline void Handle(decltype(heal::SeparatingConjunction::conjuncts)& conjuncts) {
             conjuncts.erase(std::remove_if(conjuncts.begin(), conjuncts.end(), [this](const auto& elem){
                 return prune.count(dynamic_cast<const heal::PointsToAxiom*>(elem.get())) != 0;
@@ -130,26 +121,29 @@ namespace solver {
 
     static std::unique_ptr<heal::SeparatingConjunction>
     ExpandMemoryFrontier(std::unique_ptr<heal::SeparatingConjunction> state, heal::SymbolicFactory& factory, const SolverConfig& config,
-                         const heal::SymbolicVariableDeclaration* forceExpansion = nullptr) {
+                         const heal::LogicObject& addressesFrom, const heal::SymbolicVariableDeclaration* forceExpansion = nullptr) {
 
-        // find all address that are candidates for expansion
-        auto addresses = CollectAddresses(*state, [forceExpansion](auto symbol, auto other){
+        // find all address that need expansion
+        heal::InlineAndSimplify(*state);
+        auto addresses = CollectAddresses(addressesFrom, [forceExpansion](auto symbol, auto other){
             // forceExpansion is the first element in the set
             if (symbol == forceExpansion || other == forceExpansion) return symbol == forceExpansion && other != forceExpansion;
             else return symbol < other;
         });
-        auto invariants = std::make_unique<heal::SeparatingConjunction>();
         for (auto it = addresses.begin(); it != addresses.end();) {
-            if (auto memory = solver::FindMemory(**it, *state)) {
-                invariants->conjuncts.push_back(config.GetNodeInvariant(*memory));
-                it = addresses.erase(it);
-            } else ++it;
+            if (solver::FindMemory(**it, *state)) it = addresses.erase(it);
+            else ++it;
+        }
+        if (addresses.empty()) return state;
+
+        // add invariants
+        for (const auto* memory : heal::CollectMemory(*state)) {
+            state->conjuncts.push_back(config.GetNodeInvariant(*memory));
         }
         for (const auto* var : heal::CollectVariables(*state)) {
             if (!var->variable->decl.is_shared) continue;
-            invariants->conjuncts.push_back(config.GetSharedVariableInvariant(*var));
+            state->conjuncts.push_back(config.GetSharedVariableInvariant(*var));
         }
-        state = heal::Conjoin(std::move(state), std::move(invariants));
 
         // prepare for solving
         z3::context context;
@@ -160,35 +154,43 @@ namespace solver {
 
         // check for NULL and non-NULL
         std::map<const heal::SymbolicVariableDeclaration*, std::optional<bool>> isNonNull;
-        for (const auto* address : addresses) {
-            checks.Add(encoder.MakeNullCheck(*address), [&isNonNull, address](bool holds) { if (holds) isNonNull[address] = false; });
-            checks.Add(encoder.MakeNullCheck(*address), [&isNonNull, address](bool holds) { if (holds) isNonNull[address] = true; });
-        }
-        solver::ComputeImpliedCallback(solver, checks);
-        for (const auto&[address, nonNull] : isNonNull) {
-            if (!nonNull) continue;
-            auto op = nonNull.value() ? heal::SymbolicAxiom::NEQ : heal::SymbolicAxiom::EQ;
+        auto updateNonNull = [&isNonNull,&state](auto* address, bool value){
+            isNonNull[address] = value;
+            auto op = value ? heal::SymbolicAxiom::NEQ : heal::SymbolicAxiom::EQ;
             state->conjuncts.push_back(std::make_unique<heal::SymbolicAxiom>(std::make_unique<heal::SymbolicVariable>(*address), op,
                                                                              std::make_unique<heal::SymbolicNull>()));
+        };
+        for (const auto* address : addresses) {
+            auto addressIsNull = encoder.MakeNullCheck(*address);
+            checks.Add(addressIsNull, [&updateNonNull,address](bool holds) { if (holds) updateNonNull(address, false); });
+            checks.Add(!addressIsNull, [&updateNonNull,address](bool holds) { if (holds) updateNonNull(address, true); });
         }
+        solver::ComputeImpliedCallback(solver, checks);
+        heal::InlineAndSimplify(*state);
 
         // find new points-to predicates
         for (const auto* address : addresses) {
             if (!isNonNull[address].value_or(false)) continue;
 
             // find addresses that are guaranteed to be different from 'address'
-            Reachability reachability(*state);
-            auto potentiallyOverlapping = heal::CollectMemory(*state);
+            Reachability reachability(*state); // TODO: lazily rebuild only when state has changed
+            auto potentiallyOverlapping = heal::CollectMemory(*state); // TODO: lazily rebuild only when state has changed
             bool potentiallyOverlappingWithLocal = false;
             for (auto it = potentiallyOverlapping.begin(); !potentiallyOverlappingWithLocal && it != potentiallyOverlapping.end();) {
                 bool isDistinct = reachability.IsReachable((*it)->node->Decl(), *address)
                                   || IsGuaranteedNotEqual(*address, (*it)->node->Decl(), *state);
                 if (isDistinct) it = potentiallyOverlapping.erase(it);
                 else {
-                    potentiallyOverlappingWithLocal |= ((*it)->isLocal);
+                    potentiallyOverlappingWithLocal |= (*it)->isLocal;
                     ++it;
                 }
             }
+
+            // debug
+            std::cout << "%% expanding " << address->name << ": localOverlap=" << potentiallyOverlappingWithLocal << "; overlapping=";
+            for (auto adr : potentiallyOverlapping) std::cout << adr->node->Decl().name << ", ";
+            std::cout << std::endl;
+            // end debug
 
             // ignore if overlap and not forced
             if (potentiallyOverlappingWithLocal) continue;
@@ -200,9 +202,9 @@ namespace solver {
                 state->accept(remover);
             }
             auto newPointsTo = MakePointsTo(*address, factory, config);
-            auto invariant = config.GetNodeInvariant(*newPointsTo);
+            state->conjuncts.push_back(config.GetNodeInvariant(*newPointsTo));
             state->conjuncts.push_back(std::move(newPointsTo));
-            state = heal::Conjoin(std::move(state), std::move(invariant));
+            heal::InlineAndSimplify(*state);
         }
 
         return state;
