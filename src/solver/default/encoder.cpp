@@ -36,7 +36,7 @@ std::vector<bool> ComputeImpliedOneAtATime(z3::solver& solver, const z3::expr_ve
     return result;
 }
 
-inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const z3::expr_vector& expressions) {
+inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const z3::expr_vector& expressions, bool* isSolverUnsatisfiable) {
     // prepare required vectors
     z3::context& context = solver.ctx();
     z3::expr_vector variables(context);
@@ -61,10 +61,12 @@ inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const z3::e
             throw Z3SolvingFailedError();
 
         case z3::unsat:
+            if (isSolverUnsatisfiable) *isSolverUnsatisfiable = true;
             result.flip();
             return result;
 
         case z3::sat:
+            if (isSolverUnsatisfiable) *isSolverUnsatisfiable = false;
             for (unsigned int index = 0; index < expressions.size(); ++index) {
                 auto search = z3::implies(true, variables[(int) index]);
                 auto find = std::find_if(consequences.begin(), consequences.end(), [search](const auto& elem){
@@ -76,9 +78,9 @@ inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const z3::e
     }
 }
 
-std::vector<bool> solver::ComputeImplied(z3::solver& solver, const z3::expr_vector& expressions) {
+std::vector<bool> solver::ComputeImplied(z3::solver& solver, const z3::expr_vector& expressions, bool* isSolverUnsatisfiable) {
     try {
-        return ComputeImpliedInOneShot(solver, expressions);
+        return ComputeImpliedInOneShot(solver, expressions, isSolverUnsatisfiable);
     } catch (const Z3SolvingFailedError& err) {
         auto result = ComputeImpliedOneAtATime(solver, expressions);
         unsigned int versionMajor, versionMinor, versionBuild, versionRevision;
@@ -90,8 +92,8 @@ std::vector<bool> solver::ComputeImplied(z3::solver& solver, const z3::expr_vect
     }
 }
 
-void solver::ComputeImpliedCallback(z3::solver& solver, const ImplicationCheckSet& checks) {
-    auto implied = ComputeImplied(solver, checks.expressions);
+void solver::ComputeImpliedCallback(z3::solver& solver, const ImplicationCheckSet& checks, bool* isSolverUnsatisfiable) {
+    auto implied = ComputeImplied(solver, checks.expressions, isSolverUnsatisfiable);
     assert(checks.expressions.size() == implied.size());
     for (std::size_t index = 0; index < implied.size(); ++index) {
         checks.callbacks.at(index)(implied.at(index));

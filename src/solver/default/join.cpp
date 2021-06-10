@@ -15,7 +15,7 @@ using namespace solver;
 struct VariableCollector : public DefaultLogicListener {
     std::set<const VariableDeclaration*> result;
     void enter(const EqualsToAxiom& obj) override { result.insert(&obj.variable->decl); }
-    static decltype(result) Collect(const Annotation& annotation) {
+    static inline decltype(result) Collect(const Annotation& annotation) {
         VariableCollector collector;
         annotation.now->accept(collector);
         return std::move(collector.result);
@@ -25,7 +25,7 @@ struct VariableCollector : public DefaultLogicListener {
 struct LocalMemoryCounter : public DefaultLogicListener {
     std::size_t result = 0;
     void enter(const PointsToAxiom& obj) override { result += obj.isLocal ? 1 : 0; }
-    static decltype(result) Count(const Annotation& annotation) {
+    static inline decltype(result) Count(const Annotation& annotation) {
         LocalMemoryCounter counter;
         annotation.now->accept(counter);
         return counter.result;
@@ -89,15 +89,18 @@ class AnnotationJoiner {
     explicit AnnotationJoiner(std::vector<std::unique_ptr<Annotation>>&& annotations_, const SolverConfig& config)
             : result(std::make_unique<Annotation>()), annotations(std::move(annotations_)), config(config), solver(context), encoder(context, solver) {
         // TODO: what about histories and futures???
+        std::cerr << "WARNING: join loses time predicates" << std::endl;
+
+        PruneAnnotations();
+        if (annotations.empty()) return;
+        if (annotations.size() == 1) {
+            result = std::move(annotations.front());
+            return;
+        }
 
         assert(annotations.size() > 1);
         MakeSymbolsUnique();
-
-//        debug
-//        std::cout << "Joining: ";
-//        for (const auto& elem : annotations) { heal::Print(*elem, std::cout); }
-//        std::cout << std::endl;
-//        debug end
+        AddInvariants();
 
         InitializeLookup();
         CheckCommonVariableResources();
@@ -106,19 +109,38 @@ class AnnotationJoiner {
         CheckCommonMemoryResources();
         CreateMemoryResources();
         CreateSpecificationResources();
-        EncodeAnnotations();
-        EncodeAdditionalKnowledge();
+        Encode();
         PrepareResult();
         DeriveJoinedStack();
+    }
 
-//        debug
-//        std::cout << "Result: "; heal::Print(*result, std::cout); std::cout << std::endl;
-//        end debug
+    void PruneAnnotations() {
+        ImplicationCheckSet checks(context);
+        for (auto& annotation : annotations) {
+            auto isFalse = z3::implies(encoder(*annotation), context.bool_val(false));
+            checks.Add(isFalse, [&annotation](bool holds){ if (holds) annotation.reset(nullptr); });
+        }
+        solver::ComputeImpliedCallback(solver, checks);
+        annotations.erase(std::remove_if(annotations.begin(), annotations.end(), [](const auto& elem){ return elem.get() == nullptr; }), annotations.end());
     }
 
     void MakeSymbolsUnique() {
         for (auto& annotation : annotations) {
             heal::RenameSymbolicSymbols(*annotation, factory);
+        }
+    }
+
+    void AddInvariants() {
+        for (auto& annotation : annotations) {
+            auto memories = heal::CollectMemory(*annotation->now);
+            auto variables = heal::CollectVariables(*annotation->now);
+            for (const auto* memory : memories) {
+                annotation->now->conjuncts.push_back(config.GetNodeInvariant(*memory));
+            }
+            for (const auto* variable : variables) {
+                if (!variable->variable->decl.is_shared) continue;
+                annotation->now->conjuncts.push_back(config.GetSharedVariableInvariant(*variable));
+            }
         }
     }
 
@@ -157,7 +179,7 @@ class AnnotationJoiner {
 
             bool hasCommonResource = true;
             std::optional<bool> isLocal;
-            std::set<const SymbolicVariableDeclaration *> references;
+            std::set<const SymbolicVariableDeclaration*> references;
 
             auto isCommon = [&](const auto* memory) {
                 if (!memory) return false;
@@ -188,7 +210,7 @@ class AnnotationJoiner {
                                                              [](const auto& elem){ return elem.second ? 1 : 0; });
         for (const auto& annotation : annotations) {
             if (LocalMemoryCounter::Count(*annotation) == countCommonLocal) continue;
-            throw std::logic_error("Unsupported join: looses local resource."); // TODO: better error handling
+            throw std::logic_error("Unsupported join: loses local resource."); // TODO: better error handling
         }
     }
 
@@ -229,29 +251,35 @@ class AnnotationJoiner {
 //        throw std::logic_error("does this work?");
     }
 
-    void EncodeAnnotations() {
+    void Encode() {
         z3::expr_vector vector(context);
-        for (const auto& annotation : annotations) {
-            vector.push_back(encoder(*annotation->now));
-        }
-        solver.add(z3::mk_or(vector));
-    }
 
-    void EncodeAdditionalKnowledge() {
-        // force variable valuations to agree // TODO: needed?
         for (const auto& [annotation, info] : lookup) {
-            for (const auto& [var, res] : info.varToRes) {
-                solver.add(encoder(*res->value) == encoder(*varToCommonRes.at(var)->value));
+//            std::cout << " ** encoding: "; heal::Print(*annotation, std::cout); std::cout << std::endl;
+            z3::expr_vector encoded(context);
+
+            // encode annotation
+            encoded.push_back(encoder(*annotation->now));
+//            std::cout << "    => encoded annotation: " << encoded.back() << std::endl << std::endl;
+
+            // force common variables to agree
+            for (const auto& [var, resource] : varToCommonRes) {
+                auto other = info.varToRes.at(var);
+                encoded.push_back(encoder(*resource->value) == encoder(*other->value));
+//                std::cout << "    => encoded " << var->name << "==" << other->variable->decl.name << ": " << encoded.back() << std::endl << std::endl;
             }
-        }
 
-        // force common memory to agree
-        for (const auto& [annotation, info] : lookup) {
+            // force common memory to agree
             for (const auto& [var, memory] : varToCommonMem) {
                 auto other = info.varToMem.at(var);
-                encoder.MakeMemoryEquality(*memory, *other);
+                encoded.push_back(encoder.MakeMemoryEquality(*memory, *other));
+//                std::cout << "    => encoded " << memory->node->Decl().name << "==" << other->node->Decl().name << ": " << encoded.back() << std::endl << std::endl;
             }
+
+            vector.push_back(z3::mk_and(encoded));
         }
+
+        solver.add(z3::mk_or(vector));
     }
 
     void PrepareResult() {
@@ -278,10 +306,10 @@ class AnnotationJoiner {
 
 public:
     static std::unique_ptr<Annotation> Join(std::vector<std::unique_ptr<Annotation>>&& annotations, const SolverConfig& config) {
-        if (annotations.empty()) return std::make_unique<Annotation>();
-        if (annotations.size() == 1) return std::move(annotations.front());
+        std::cout << std::endl << std::endl << "========= joining" << std::endl; for (const auto& elem : annotations) heal::Print(*elem, std::cout); std::cout << std::endl;
         AnnotationJoiner join(std::move(annotations), config);
         heal::InlineAndSimplify(*join.result);
+        std::cout << "** join result: "; heal::Print(*join.result, std::cout); std::cout << std::endl << std::endl << std::endl;
         return std::move(join.result);
     }
 };

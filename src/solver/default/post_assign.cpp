@@ -20,6 +20,11 @@ static constexpr CandidateGenerator::FlowLevel POST_DERIVE_STACK_FLOW_LEVEL = Ca
  * Hence, we go with a syntactic check for reachability.
  */
 
+/*
+ * Histories: wenn predecessor mal flow gehabt + $interpolationsargument, dann hat successor/'value' auch mal flow gehabt
+ */
+////
+
 
 struct ObligationFinder : public DefaultLogicListener {
     std::set<const ObligationAxiom*> result;
@@ -506,7 +511,3 @@ PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<Annotation> pre, con
     heal::Print(*pre, std::cout); std::cout << std::endl << std::endl;
     return PostImage(std::move(pre)); // local variable update => no effect
 }
-
-/*
- * Histories: wenn predecessor mal flow gehabt + $interpolationsargument, dann hat successor/'value' auch mal flow gehabt
- */

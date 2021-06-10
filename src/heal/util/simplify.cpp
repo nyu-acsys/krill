@@ -104,8 +104,10 @@ void heal::InlineAndSimplify(LogicObject& object) {
 
     std::set<const SymbolicVariableDeclaration*> removed;
     for (const auto& [decl, other, axiom] : collector.equalities) {
+        if (removed.count(decl) != 0) continue;
         ReplaceSymbol(object, *decl, *other);
-        RemoveEquality(object, *axiom);
+        RemoveEquality(object, *axiom); // TODO: remove axioms that are trivially true after inlining
+        removed.insert(decl);
     }
 
     heal::Simplify(object);

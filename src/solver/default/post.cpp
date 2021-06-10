@@ -78,6 +78,7 @@ inline std::unique_ptr<Formula> ExpressionToFormula(const Expression& expression
 
 PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const {
     std::cout << " -- Post image for "; heal::Print(*pre, std::cout); std::cout << " "; cola::print(cmd, std::cout);
+    // TODO: try derive pure fulfillments; try derive new knowledge; check unsatisfiability ==> cannot return false atm
     auto formula = ExpressionToFormula(*cmd.expr, *pre);
     pre->now = heal::Conjoin(std::move(pre->now), std::move(formula));
     heal::Print(*pre, std::cout); std::cout << std::endl;

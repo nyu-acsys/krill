@@ -4,7 +4,6 @@
 #include "cola/ast.hpp"
 #include "heal/logic.hpp"
 
-
 namespace solver {
 
 class CandidateGenerator : public heal::DefaultLogicListener {
@@ -40,10 +39,8 @@ class CandidateGenerator : public heal::DefaultLogicListener {
                 forAllFlows(FAST, [this,symbol](auto flow){ AddBinaryFlowCandidates(*flow, **symbol); });
                 for (auto other = std::next(symbol); other != symbols.end(); ++other) {
                     AddBinarySymbolCandidates(**symbol, **other);
-                    AddBinarySymbolCandidates(**other, **symbol); // TODO: avoid symmetries
                     forAllFlows(FULL, [this,symbol,other](auto flow){
                         AddTernaryFlowCandidates(*flow, **symbol, **other);
-                        AddTernaryFlowCandidates(*flow, **other, **symbol);
                     });
                 }
             }
@@ -59,6 +56,16 @@ class CandidateGenerator : public heal::DefaultLogicListener {
                                                                          heal::SymbolicAxiom::LEQ, heal::SymbolicAxiom::LT,
                                                                          heal::SymbolicAxiom::GEQ, heal::SymbolicAxiom::GT};
             return sort != cola::Sort::DATA ? ptrOps : dataOps;
+        }
+
+        inline static bool IsSymmetric(heal::SymbolicAxiom::Operator op) {
+            switch (op) {
+                case heal::SymbolicAxiom::EQ:
+                case heal::SymbolicAxiom::NEQ:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         inline static std::vector<std::unique_ptr<heal::SymbolicExpression>> GetImmis(cola::Sort sort) {
@@ -103,6 +110,7 @@ class CandidateGenerator : public heal::DefaultLogicListener {
             if (flow.type != symbol.type) return;
             if (flow.type != other.type) return;
             result.push_back(std::make_unique<heal::InflowContainsRangeAxiom>(flow, MkVar(symbol), MkVar(other)));
+            result.push_back(std::make_unique<heal::InflowContainsRangeAxiom>(flow, MkVar(other), MkVar(symbol)));
         }
     };
 
