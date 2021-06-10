@@ -108,6 +108,7 @@ struct FormulaReplicator : public BaseLogicVisitor {
     void visit(const InflowContainsValueAxiom& axiom) override { result = heal::Copy(axiom); }
     void visit(const InflowContainsRangeAxiom& axiom) override { result = heal::Copy(axiom); }
     void visit(const InflowEmptinessAxiom& axiom) override { result = heal::Copy(axiom); }
+    void visit(const FulfillmentAxiom& axiom) override { result = heal::Copy(axiom); }
     void visit(const ObligationAxiom& axiom) override { result = heal::Copy(axiom); }
 };
 
