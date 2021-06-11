@@ -93,7 +93,7 @@ class AnnotationJoiner {
         // TODO: what about histories and futures???
         std::cerr << "WARNING: join loses time predicates" << std::endl;
 
-        // prune false
+        // prune false // TODO: remove this?
         ImplicationCheckSet checks(context);
         for (auto& annotation : annotations) {
             auto isFalse = z3::implies(encoder(*annotation), context.bool_val(false));
@@ -101,13 +101,6 @@ class AnnotationJoiner {
         }
         solver::ComputeImpliedCallback(solver, checks);
         annotations.erase(std::remove_if(annotations.begin(), annotations.end(), [](const auto& elem){ return elem.get() == nullptr; }), annotations.end());
-
-        // debug // TODO: remove
-        for (const auto& annotation : annotations) {
-            z3::solver debugSolver(context);
-            debugSolver.add(encoder(*result));
-            assert(debugSolver.check() != z3::unsat && "not pruned implies satisfiable");
-        }
     }
 
     std::unique_ptr<Annotation> GetResult() {

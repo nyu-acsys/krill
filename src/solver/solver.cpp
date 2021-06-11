@@ -8,6 +8,11 @@ using namespace cola;
 using namespace heal;
 using namespace solver;
 
+//explicit PostImage();
+//explicit PostImage(std::unique_ptr<heal::Annotation> post);
+//explicit PostImage(std::deque<std::unique_ptr<heal::Annotation>> post);
+//explicit PostImage(std::unique_ptr<heal::Annotation> post, std::deque<std::unique_ptr<HeapEffect>> effects);
+//explicit PostImage(std::deque<std::unique_ptr<heal::Annotation>> post, std::deque<std::unique_ptr<HeapEffect>> effects);
 
 HeapEffect::HeapEffect(std::unique_ptr<PointsToAxiom> pre_, std::unique_ptr<PointsToAxiom> post_, std::unique_ptr<Formula> context_)
         : pre(std::move(pre_)), post(std::move(post_)), context(std::move(context_)) {
@@ -17,20 +22,25 @@ HeapEffect::HeapEffect(std::unique_ptr<PointsToAxiom> pre_, std::unique_ptr<Poin
     if (&pre->node->Decl() != &post->node->Decl()) throw std::logic_error("Unsupported effect."); // TODO: better error handling
 }
 
-PostImage::PostImage(std::unique_ptr<Annotation> post_) : post(std::move(post_)) {
-    assert(post);
+PostImage::PostImage() = default;
+
+PostImage::PostImage(std::unique_ptr<Annotation> post_) {
+    assert(post_);
+    posts.push_back(std::move(post_));
 }
 
-PostImage::PostImage(std::unique_ptr<Annotation> post_, std::unique_ptr<HeapEffect> effect_)
-: post(std::move(post_)) {
-    assert(post);
-    assert(effect_);
-    effects.push_back(std::move(effect_));
+PostImage::PostImage(std::deque<std::unique_ptr<Annotation>> post_) : posts(std::move(post_)) {
+    for (const auto& post : posts) assert(post);
 }
 
-PostImage::PostImage(std::unique_ptr<Annotation> post_, std::deque<std::unique_ptr<HeapEffect>> effects_)
-: post(std::move(post_)), effects(std::move(effects_)) {
-    assert(post);
+PostImage::PostImage(std::unique_ptr<Annotation> post_, std::deque<std::unique_ptr<HeapEffect>> effects_) : effects(std::move(effects_)) {
+    assert(post_);
+    posts.push_back(std::move(post_));
+    for (const auto& effect : effects) assert(effect);
+}
+
+PostImage::PostImage(std::deque<std::unique_ptr<Annotation>> post_, std::deque<std::unique_ptr<HeapEffect>> effects_) : posts(std::move(post_)), effects(std::move(effects_)) {
+    for (const auto& post : posts) assert(post);
     for (const auto& effect : effects) assert(effect);
 }
 

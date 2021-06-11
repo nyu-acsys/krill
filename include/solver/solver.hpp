@@ -20,13 +20,14 @@ namespace solver {
     };
 
     struct PostImage {
-        std::unique_ptr<heal::Annotation> post;
+        std::deque<std::unique_ptr<heal::Annotation>> posts;
         std::deque<std::unique_ptr<HeapEffect>> effects;
 
-//        explicit PostImage();
+        explicit PostImage();
         explicit PostImage(std::unique_ptr<heal::Annotation> post);
-        explicit PostImage(std::unique_ptr<heal::Annotation> post, std::unique_ptr<HeapEffect> effect);
+        explicit PostImage(std::deque<std::unique_ptr<heal::Annotation>> posts);
         explicit PostImage(std::unique_ptr<heal::Annotation> post, std::deque<std::unique_ptr<HeapEffect>> effects);
+        explicit PostImage(std::deque<std::unique_ptr<heal::Annotation>> posts, std::deque<std::unique_ptr<HeapEffect>> effects);
     };
 
 	/** A solver for post images. The solver works relative to an invariant that it implicitly assumes and enforces.
@@ -56,7 +57,7 @@ namespace solver {
         // TODO: streamline; are those function at the right place, with the right signature?
         [[nodiscard]] virtual const heal::EqualsToAxiom* GetVariableResource(const cola::VariableDeclaration& decl, const heal::LogicObject& object) const = 0;
         [[nodiscard]] virtual std::optional<bool> GetBoolValue(const cola::Expression& expr, const heal::LogicObject& object) const = 0;
-        [[nodiscard]] virtual Result Implies(const heal::Annotation& premise, const heal::Annotation& conclusion) const = 0;
+        [[nodiscard]] virtual Result Implies(const heal::Annotation& premise, const heal::Annotation& conclusion) const = 0; // TODO: return bool?
         [[nodiscard]] virtual std::vector<bool> ComputeEffectImplications(const std::deque<std::pair<const HeapEffect*, const HeapEffect*>>& implications) const = 0;
         [[nodiscard]] virtual std::deque<std::unique_ptr<heal::Annotation>> MakeStable(std::deque<std::unique_ptr<heal::Annotation>> annotations, const std::deque<std::unique_ptr<HeapEffect>>& interferences) const = 0;
 

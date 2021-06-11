@@ -71,35 +71,104 @@ struct ExpressionTranslator : public BaseVisitor {
     // TODO: all other expressions are not supported => override visit to print better error message (or ignore and rely on preprocessing?)
 };
 
-inline std::unique_ptr<Formula> ExpressionToFormula(const Expression& expression, const Annotation& context) {
+inline std::unique_ptr<SeparatingConjunction> ExpressionToFormula(const Expression& expression, const Annotation& context) {
     ExpressionTranslator translator(context);
     expression.accept(translator);
     heal::Simplify(*translator.result);
     return std::move(translator.result);
 }
 
-PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const {
-    std::cout << " -- Post image for "; heal::Print(*pre, std::cout); std::cout << " "; cola::print(cmd, std::cout);
-    // TODO: check unsatisfiability (cannot return false at the moment)
-    pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *cmd.expr);
-    auto formula = ExpressionToFormula(*cmd.expr, *pre);
+inline std::unique_ptr<StackDisjunction> ExtractDisjunction(SeparatingConjunction& formula) {
+    struct : public DefaultLogicNonConstListener {
+        StackDisjunction* disjunction = nullptr;
+        void enter(StackDisjunction& obj) override {
+            if (disjunction || obj.axioms.size() <= 1) return;
+            disjunction = &obj;
+        }
+    } search;
+    formula.accept(search);
+    if (!search.disjunction) return nullptr;
+    auto disjunction = std::make_unique<StackDisjunction>(std::move(search.disjunction->axioms));
+    search.disjunction->axioms.clear();
+    return disjunction;
+}
 
+inline std::deque<std::unique_ptr<SeparatingConjunction>> InlineDisjunction(std::unique_ptr<SeparatingConjunction> formula, std::unique_ptr<StackDisjunction> disjunction) {
+    // TODO: consume formula
+    std::deque<std::unique_ptr<SeparatingConjunction>> result;
+    for (auto& axiom : disjunction->axioms) {
+        result.push_back(heal::Copy(*formula));
+        result.back()->conjuncts.push_back(std::move(axiom));
+    }
+    return result;
+}
+
+std::deque<std::unique_ptr<SeparatingConjunction>> SplitDisjunctions(std::unique_ptr<SeparatingConjunction> input) {
+    std::deque<std::unique_ptr<SeparatingConjunction>> result;
+    std::deque<std::unique_ptr<SeparatingConjunction>> worklist;
+    worklist.push_back(std::move(input));
+    while (!worklist.empty()) {
+        auto formula = std::move(worklist.back());
+        worklist.pop_back();
+        auto disjunction = ExtractDisjunction(*formula);
+        if (!disjunction) result.push_back(std::move(formula));
+        else {
+            auto inlined = InlineDisjunction(std::move(formula), std::move(disjunction));
+            std::move(inlined.begin(), inlined.end(), std::back_inserter(worklist));
+        }
+    }
+    for (auto& elem : result) heal::Simplify(*elem);
+    return result;
+}
+
+inline std::deque<std::unique_ptr<SeparatingConjunction>> PrunePaths(const Annotation& annotation, std::deque<std::unique_ptr<SeparatingConjunction>> paths) {
     z3::context context;
     z3::solver solver(context);
     Z3Encoder encoder(context, solver);
-    solver.add(encoder(*pre->now));
-    if (solver.check() == z3::unsat) std::cout << "======> PRE IS UNSAT" << std::endl;
-    solver.add(encoder(*formula));
-    if (solver.check() == z3::unsat) std::cout << "======> POST IS UNSAT" << std::endl;
-
-    pre->now->conjuncts.push_back(heal::Copy(*formula)); // TODO: avoid copy
-//    heal::Print(*pre, std::cout); std::cout << std::endl;
-    pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), Config(), *formula);
-    pre = solver::TryAddPureFulfillment(std::move(pre), *cmd.expr, Config());
-    heal::InlineAndSimplify(*pre->now);
-    heal::Print(*pre, std::cout); std::cout << std::endl;
-    return PostImage(std::move(pre));
+    solver.add(encoder(annotation));
+    ImplicationCheckSet checks(context);
+    for (auto& elem : paths) {
+        checks.Add(!encoder(*elem), [&elem](bool holds){
+            if (holds) elem.reset(nullptr);
+        });
+    }
+    solver::ComputeImpliedCallback(solver, checks);
+    paths.erase(std::remove_if(paths.begin(), paths.end(), [](const auto& elem){ return elem.get() == nullptr; }), paths.end());
+    return paths;
 }
+
+PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const {
+    std::cout << " -- Post image for " << *pre << " " << cmd;
+    pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *cmd.expr);
+    PostImage result;
+    auto paths = SplitDisjunctions(ExpressionToFormula(*cmd.expr, *pre));
+    paths = PrunePaths(*pre, std::move(paths));
+    for (auto& formula : paths) {
+        auto post = heal::Copy(*pre);
+        post->now = heal::Conjoin(std::move(post->now), heal::Copy(*formula)); // TODO: avoid copy
+        post->now = solver::ExpandMemoryFrontier(std::move(post->now), Config(), *formula);
+        post = solver::TryAddPureFulfillment(std::move(post), *cmd.expr, Config());
+        heal::InlineAndSimplify(*post->now);
+        result.posts.push_back(std::move(post));
+    }
+    for (const auto& elem : result.posts) std::cout << "  ~> " << *elem << std::endl;
+    return result;
+}
+
+//PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const {
+//    std::cout << " -- Post image for " << *pre << " " << cmd;
+//    pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *cmd.expr);
+//    auto formula = ExpressionToFormula(*cmd.expr, *pre);
+//    if (IsUnreachable(*pre, *formula)) return PostImage();
+//    // TODO: split disjunctions into multiple post annotations
+//
+//    pre->now->conjuncts.push_back(heal::Copy(*formula)); // TODO: avoid copy
+//    pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), Config(), *formula);
+//    pre = solver::TryAddPureFulfillment(std::move(pre), *cmd.expr, Config());
+//    heal::InlineAndSimplify(*pre->now);
+//    heal::Print(*pre, std::cout); std::cout << std::endl;
+//    return PostImage(std::move(pre));
+//}
 
 //
 // Malloc

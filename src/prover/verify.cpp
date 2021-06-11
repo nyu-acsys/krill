@@ -27,11 +27,13 @@ void Verifier::PerformStep(const std::function<std::unique_ptr<heal::Annotation>
 }
 
 void Verifier::PerformStep(const std::function<solver::PostImage(std::unique_ptr<heal::Annotation>)>& transformer) {
+    decltype(current) newCurrent;
     for (auto& annotation : current) {
         auto postImage = transformer(std::move(annotation));
-        annotation = std::move(postImage.post);
+        std::move(postImage.posts.begin(), postImage.posts.end(), std::back_inserter(newCurrent));
         AddNewInterference(std::move(postImage.effects));
     }
+    current = std::move(newCurrent);
 }
 
 void Verifier::ApplyInterference() {

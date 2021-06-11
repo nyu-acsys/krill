@@ -362,7 +362,8 @@ inline std::unique_ptr<Annotation> PerformMacroAssignment(std::unique_ptr<Annota
     Assignment dummy(std::make_unique<VariableExpression>(lhs), cola::copy(rhs)); // TODO: avoid copies
     auto post = solver.Post(std::move(annotation), dummy);
     if (!post.effects.empty()) throw std::logic_error("Returning from macros must not produce effects."); // TODO: better error handling
-    return std::move(post.post);
+    if (post.posts.size() != 1) throw std::logic_error("Returning from macro must produce exactly one annotation."); // TODO: better error handling
+    return std::move(post.posts.front());
 }
 
 inline std::unique_ptr<Annotation> PassMacroArguments(std::unique_ptr<Annotation> annotation, const Macro& command, const Solver& solver) {
