@@ -4,6 +4,7 @@
 
 #include "cola/ast.hpp"
 #include "heal/logic.hpp"
+#include "flowgraph.hpp"
 
 namespace solver {
 

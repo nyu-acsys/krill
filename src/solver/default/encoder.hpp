@@ -57,7 +57,7 @@ namespace solver {
         void visit(const heal::Annotation& obj) override { result = Encode(*obj.now); }
 
         void visit(const heal::InflowContainsValueAxiom& obj) override {
-            result = EncodeFlow(obj.flow)(Encode(*obj.value)) == context.bool_val(true);
+            result = EncodeFlow(obj.flow)(Encode(*obj.value));
         }
         void visit(const heal::InflowContainsRangeAxiom& obj) override {
             auto qv = QuantifiedVariable(obj.valueLow->Sort());
@@ -67,8 +67,10 @@ namespace solver {
         }
         void visit(const heal::InflowEmptinessAxiom& obj) override {
             auto qv = QuantifiedVariable(obj.flow.get().type.sort);
-            result = z3::exists(qv, EncodeFlow(obj.flow)(qv));
-            if (obj.isEmpty) result = !result;
+            if (obj.isEmpty) result = z3::forall(qv, !EncodeFlow(obj.flow)(qv));
+            else result = z3::exists(qv, EncodeFlow(obj.flow)(qv));
+//            result = z3::exists(qv, EncodeFlow(obj.flow)(qv));
+//            if (obj.isEmpty) result = !result;
         }
 
         void visit(const heal::SeparatingConjunction& obj) override {
@@ -150,7 +152,8 @@ namespace solver {
                 auto expr = context.constant(name.c_str(), EncodeSort(decl.type.sort));
                 // add implicit bounds on data values
                 if (decl.type.sort == cola::Sort::DATA) {
-                    solver.add(MinData() <= expr && expr <= MaxData());
+                    solver.add(MinData() <= expr);
+                    solver.add(expr <= MaxData());
                 }
                 return expr;
             });
@@ -162,8 +165,10 @@ namespace solver {
                 auto name = "_V" + decl.name;
                 auto expr = context.function(name.c_str(), EncodeSort(decl.type.sort), context.bool_sort());
                 // add implicit bounds on data values
+                assert(decl.type.sort == cola::Sort::DATA);
                 auto qv = QuantifiedVariable(decl.type.sort);
-                solver.add(z3::forall(qv, z3::implies(qv < MinData() || qv > MaxData(), !expr(qv))));
+                solver.add(z3::forall(qv, z3::implies(qv < MinData(), !expr(qv))));
+                solver.add(z3::forall(qv, z3::implies(qv > MaxData(), !expr(qv))));
                 return expr;
             });
         }

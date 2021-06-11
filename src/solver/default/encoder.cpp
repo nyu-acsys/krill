@@ -28,7 +28,10 @@ bool solver::ComputeImplied(z3::solver& solver, const z3::expr& premise, const z
     return IsImplied(solver, z3::implies(premise, conclusion));
 }
 
-std::vector<bool> ComputeImpliedOneAtATime(z3::solver& solver, const z3::expr_vector& expressions) {
+std::vector<bool> ComputeImpliedOneAtATime(z3::solver& solver, const z3::expr_vector& expressions, bool* isSolverUnsatisfiable) {
+    if (isSolverUnsatisfiable) {
+        *isSolverUnsatisfiable = IsImplied(solver, solver.ctx().bool_val(false));
+    }
     std::vector<bool> result;
     for (const auto& expr : expressions) {
         result.push_back(IsImplied(solver, expr));
@@ -38,6 +41,7 @@ std::vector<bool> ComputeImpliedOneAtATime(z3::solver& solver, const z3::expr_ve
 
 inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const z3::expr_vector& expressions, bool* isSolverUnsatisfiable) {
     // prepare required vectors
+    solver.push();
     z3::context& context = solver.ctx();
     z3::expr_vector variables(context);
     z3::expr_vector assumptions(context);
@@ -45,14 +49,15 @@ inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const z3::e
 
     // prepare solver
     for (unsigned int index = 0; index < expressions.size(); ++index) {
-        std::string name = "__chk" + std::to_string(index);
+        std::string name = "__chk__" + std::to_string(index);
         auto var = context.bool_const(name.c_str());
         variables.push_back(var);
-        solver.add(var == expressions[(int) index]);
+        solver.add(z3::implies(expressions[(int) index], var)); // TODO: or solver.add(var == expressions[(int) index]) ?
     }
 
     // check
     auto answer = solver.consequences(assumptions, variables, consequences);
+    solver.pop();
 
     // create result
     std::vector<bool> result(expressions.size(), false);
@@ -78,11 +83,34 @@ inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const z3::e
     }
 }
 
+//std::function<std::vector<bool>(z3::solver&, const z3::expr_vector&, bool*)> GetSolvingMethod() {
+//    z3::context context;
+//    z3::solver solver(context);
+//    z3::expr_vector vector(context);
+//    solver.add(context.bool_val(true));
+//    solver.add(context.bool_val(false));
+//    try {
+//        ComputeImpliedInOneShot(solver, vector, nullptr); // TODO: is this test sufficient?
+//        return ComputeImpliedInOneShot;
+//    } catch (const Z3SolvingFailedError& err) {
+//        unsigned int versionMajor, versionMinor, versionBuild, versionRevision;
+//        Z3_get_version(&versionMajor, &versionMinor, &versionBuild, &versionRevision);
+//        std::cerr << "WARNING: solving failure with Z3's solver::consequences! This issue is known to happen for versions >4.8.7, " <<
+//                  "your version is " << versionMajor << "." << versionMinor << "." << versionBuild << ". " <<
+//                  "Using fallback, performance may degrade..." << std::endl;
+//        return ComputeImpliedOneAtATime;
+//    }
+//}
+
 std::vector<bool> solver::ComputeImplied(z3::solver& solver, const z3::expr_vector& expressions, bool* isSolverUnsatisfiable) {
+//    static std::function<std::vector<bool>(z3::solver&, const z3::expr_vector&, bool*)> method = GetSolvingMethod();
+//    return method(solver, expressions, isSolverUnsatisfiable);
+
     try {
         return ComputeImpliedInOneShot(solver, expressions, isSolverUnsatisfiable);
     } catch (const Z3SolvingFailedError& err) {
-        auto result = ComputeImpliedOneAtATime(solver, expressions);
+        // TODO: once the need for fallback is detected, don't try the other method; can we detect this beforehand?
+        auto result = ComputeImpliedOneAtATime(solver, expressions, isSolverUnsatisfiable);
         unsigned int versionMajor, versionMinor, versionBuild, versionRevision;
         Z3_get_version(&versionMajor, &versionMinor, &versionBuild, &versionRevision);
         std::cerr << "WARNING: solving failure with Z3's solver::consequences! This issue is known to happen for versions >4.8.7, " <<

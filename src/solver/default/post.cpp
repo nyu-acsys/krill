@@ -5,6 +5,8 @@
 #include "eval.hpp"
 #include "encoder.hpp"
 #include "z3++.h"
+#include "expand.hpp"
+#include "post_helper.hpp"
 
 using namespace cola;
 using namespace heal;
@@ -78,9 +80,23 @@ inline std::unique_ptr<Formula> ExpressionToFormula(const Expression& expression
 
 PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const {
     std::cout << " -- Post image for "; heal::Print(*pre, std::cout); std::cout << " "; cola::print(cmd, std::cout);
-    // TODO: try derive pure fulfillments; try derive new knowledge; check unsatisfiability ==> cannot return false atm
+    // TODO: check unsatisfiability (cannot return false at the moment)
     auto formula = ExpressionToFormula(*cmd.expr, *pre);
-    pre->now = heal::Conjoin(std::move(pre->now), std::move(formula));
+
+    z3::context context;
+    z3::solver solver(context);
+    Z3Encoder encoder(context, solver);
+    solver.add(encoder(*pre->now));
+    if (solver.check() == z3::unsat) std::cout << "======> PRE IS UNSAT" << std::endl;
+    solver.add(encoder(*formula));
+    if (solver.check() == z3::unsat) std::cout << "======> POST IS UNSAT" << std::endl;
+
+    pre->now->conjuncts.push_back(heal::Copy(*formula)); // TODO: avoid copy
+//    heal::Print(*pre, std::cout); std::cout << std::endl;
+    SymbolicFactory factory(*pre);
+    pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), factory, Config(), *formula);
+    pre = TryAddPureFulfillment(std::move(pre), *cmd.expr, Config());
+    heal::InlineAndSimplify(*pre->now);
     heal::Print(*pre, std::cout); std::cout << std::endl;
     return PostImage(std::move(pre));
 }
@@ -155,4 +171,36 @@ PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assignment&
         err << "'.";
         throw std::logic_error(err.str()); // TODO: better error class
     }
+}
+
+PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<Annotation> pre, const Assignment& cmd, const VariableExpression& lhs) const {
+    if (lhs.decl.is_shared)
+        throw std::logic_error("Unsupported assignment: cannot assign to shared variables."); // TODO: better error handling
+
+//    begin debug
+//    std::cout << std::endl << std::endl << std::endl << "====================" << std::endl;
+//    std::cout << "== Command: "; cola::print(cmd, std::cout);
+//    std::cout << "== Pre: " << std::endl; heal::Print(*pre, std::cout); std::cout << std::endl << std::flush;
+//    end debug
+
+    // perform update
+    SymbolicFactory factory(*pre);
+    auto value = EagerValuationMap(*pre).Evaluate(*cmd.rhs);
+    auto& symbol = factory.GetUnusedSymbolicVariable(lhs.type());
+    auto* resource = FindResource(lhs.decl, *pre->now);
+    if (!resource) throw std::logic_error("Unsafe update: variable '" + lhs.decl.name + "' is not accessible."); // TODO: better error handling
+    resource->value = std::make_unique<SymbolicVariable>(symbol);
+    pre->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(symbol), SymbolicAxiom::EQ, std::move(value)));
+
+    // try derive helpful knowledge
+    pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), factory, Config(), *resource->value); // TODO: force extension for symbol (=resource->value->Decl())?
+    pre = TryAddPureFulfillment(std::move(pre), *cmd.rhs, Config());
+
+//    begin debug
+//    std::cout << "== Post: " << std::endl; heal::Print(*pre, std::cout); std::cout << std::endl;
+//    end debug
+
+    heal::InlineAndSimplify(*pre->now);
+    heal::Print(*pre, std::cout); std::cout << std::endl << std::endl;
+    return PostImage(std::move(pre)); // local variable update => no effect
 }

@@ -105,10 +105,10 @@ struct MemoryResourceFinder : public BaseResourceVisitor, BaseNonConstResourceVi
     explicit MemoryResourceFinder(std::set<const VariableDeclaration*> search) : search(std::move(search)) {}
 
     // extract resource
-    bool Matches(const PointsToAxiom& axiom) {
+    [[nodiscard]] bool Matches(const PointsToAxiom& axiom) const {
         bool matches = search.count(&axiom.node->Decl()) != 0;
-        if (matches && resultConst != nullptr)
-            throw std::logic_error("Cautiously aborting: found multiple resources for address '" + (*search.begin())->name +"'.");
+//        if (matches && resultConst != nullptr)
+//            throw std::logic_error("Cautiously aborting: found multiple resources for address '" + (*search.begin())->name +"'.");
         return matches;
     }
     using DefaultLogicListener::exit; using DefaultLogicNonConstListener::exit;

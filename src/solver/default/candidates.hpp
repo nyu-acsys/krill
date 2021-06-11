@@ -58,16 +58,6 @@ class CandidateGenerator : public heal::DefaultLogicListener {
             return sort != cola::Sort::DATA ? ptrOps : dataOps;
         }
 
-        inline static bool IsSymmetric(heal::SymbolicAxiom::Operator op) {
-            switch (op) {
-                case heal::SymbolicAxiom::EQ:
-                case heal::SymbolicAxiom::NEQ:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
         inline static std::vector<std::unique_ptr<heal::SymbolicExpression>> GetImmis(cola::Sort sort) {
             std::vector<std::unique_ptr<heal::SymbolicExpression>> result;
             result.reserve(2);

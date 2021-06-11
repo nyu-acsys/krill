@@ -18,7 +18,7 @@ set(SOURCES
         default/encoder.cpp
         default/eval.cpp
         default/post.cpp
-        default/post_assign.cpp
+        default/post_mem.cpp
         default/join.cpp
         default/interference.cpp
         default/flowgraph.cpp

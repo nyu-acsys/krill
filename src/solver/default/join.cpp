@@ -88,15 +88,32 @@ class AnnotationJoiner {
 
     explicit AnnotationJoiner(std::vector<std::unique_ptr<Annotation>>&& annotations_, const SolverConfig& config)
             : result(std::make_unique<Annotation>()), annotations(std::move(annotations_)), config(config), solver(context), encoder(context, solver) {
+
         // TODO: what about histories and futures???
         std::cerr << "WARNING: join loses time predicates" << std::endl;
 
-        PruneAnnotations();
-        if (annotations.empty()) return;
-        if (annotations.size() == 1) {
-            result = std::move(annotations.front());
-            return;
+        // prune false
+        ImplicationCheckSet checks(context);
+        for (auto& annotation : annotations) {
+            auto isFalse = z3::implies(encoder(*annotation), context.bool_val(false));
+            checks.Add(isFalse, [&annotation](bool holds){ if (holds) annotation.reset(nullptr); });
         }
+        solver::ComputeImpliedCallback(solver, checks);
+        annotations.erase(std::remove_if(annotations.begin(), annotations.end(), [](const auto& elem){ return elem.get() == nullptr; }), annotations.end());
+
+        // debug // TODO: remove
+        for (const auto& annotation : annotations) {
+            z3::solver debugSolver(context);
+            debugSolver.add(encoder(*result));
+            assert(debugSolver.check() != z3::unsat && "not pruned implies satisfiable");
+        }
+    }
+
+    std::unique_ptr<Annotation> GetResult() {
+        if (annotations.empty()) return std::make_unique<Annotation>(); // TODO: return false?
+        if (annotations.size() == 1) return std::move(annotations.front());
+
+        std::cout << std::endl << "%%% computing join for: " << std::endl; for (const auto& elem : annotations) heal::Print(*elem, std::cout); std::cout << std::endl;
 
         assert(annotations.size() > 1);
         MakeSymbolsUnique();
@@ -112,16 +129,7 @@ class AnnotationJoiner {
         Encode();
         PrepareResult();
         DeriveJoinedStack();
-    }
-
-    void PruneAnnotations() {
-        ImplicationCheckSet checks(context);
-        for (auto& annotation : annotations) {
-            auto isFalse = z3::implies(encoder(*annotation), context.bool_val(false));
-            checks.Add(isFalse, [&annotation](bool holds){ if (holds) annotation.reset(nullptr); });
-        }
-        solver::ComputeImpliedCallback(solver, checks);
-        annotations.erase(std::remove_if(annotations.begin(), annotations.end(), [](const auto& elem){ return elem.get() == nullptr; }), annotations.end());
+        return std::move(result);
     }
 
     void MakeSymbolsUnique() {
@@ -248,32 +256,27 @@ class AnnotationJoiner {
                 result->now->conjuncts.push_back(std::make_unique<FulfillmentAxiom>(kind, std::make_unique<SymbolicVariable>(key), ret));
             }
         }
-//        throw std::logic_error("does this work?");
     }
 
     void Encode() {
         z3::expr_vector vector(context);
 
         for (const auto& [annotation, info] : lookup) {
-//            std::cout << " ** encoding: "; heal::Print(*annotation, std::cout); std::cout << std::endl;
             z3::expr_vector encoded(context);
 
             // encode annotation
             encoded.push_back(encoder(*annotation->now));
-//            std::cout << "    => encoded annotation: " << encoded.back() << std::endl << std::endl;
 
             // force common variables to agree
             for (const auto& [var, resource] : varToCommonRes) {
                 auto other = info.varToRes.at(var);
                 encoded.push_back(encoder(*resource->value) == encoder(*other->value));
-//                std::cout << "    => encoded " << var->name << "==" << other->variable->decl.name << ": " << encoded.back() << std::endl << std::endl;
             }
 
             // force common memory to agree
             for (const auto& [var, memory] : varToCommonMem) {
                 auto other = info.varToMem.at(var);
                 encoded.push_back(encoder.MakeMemoryEquality(*memory, *other));
-//                std::cout << "    => encoded " << memory->node->Decl().name << "==" << other->node->Decl().name << ": " << encoded.back() << std::endl << std::endl;
             }
 
             vector.push_back(z3::mk_and(encoded));
@@ -307,10 +310,18 @@ class AnnotationJoiner {
 public:
     static std::unique_ptr<Annotation> Join(std::vector<std::unique_ptr<Annotation>>&& annotations, const SolverConfig& config) {
         std::cout << std::endl << std::endl << "========= joining" << std::endl; for (const auto& elem : annotations) heal::Print(*elem, std::cout); std::cout << std::endl;
-        AnnotationJoiner join(std::move(annotations), config);
-        heal::InlineAndSimplify(*join.result);
-        std::cout << "** join result: "; heal::Print(*join.result, std::cout); std::cout << std::endl << std::endl << std::endl;
-        return std::move(join.result);
+        auto result = AnnotationJoiner(std::move(annotations), config).GetResult();
+        std::cout << "** join result: "; heal::Print(*result, std::cout); std::cout << std::endl << std::endl << std::endl;
+//        heal::InlineAndSimplify(*result);
+//        std::cout << "** join result: "; heal::Print(*result, std::cout); std::cout << std::endl << std::endl << std::endl;
+
+        z3::context context;
+        z3::solver solver(context);
+        Z3Encoder encoder(context, solver);
+        solver.add(encoder(*result));
+        assert(solver.check() != z3::unsat && "join is unsatisfiable"); // TODO: remove debug
+
+        return result;
     }
 };
 
