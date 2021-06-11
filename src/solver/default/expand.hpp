@@ -5,6 +5,7 @@
 #include "cola/ast.hpp"
 #include "heal/logic.hpp"
 #include "flowgraph.hpp"
+#include "post_helper.hpp"
 
 namespace solver {
 
@@ -137,21 +138,21 @@ namespace solver {
         }
         if (addresses.empty()) return state;
 
-        // add invariants
-        for (const auto* memory : heal::CollectMemory(*state)) {
-            state->conjuncts.push_back(config.GetNodeInvariant(*memory));
-        }
-        for (const auto* var : heal::CollectVariables(*state)) {
-            if (!var->variable->decl.is_shared) continue;
-            state->conjuncts.push_back(config.GetSharedVariableInvariant(*var));
-        }
-
         // prepare for solving
         z3::context context;
         z3::solver solver(context);
         Z3Encoder encoder(context, solver);
         ImplicationCheckSet checks(context);
         solver.add(encoder(*state));
+
+        // add invariants
+        for (const auto* memory : heal::CollectMemory(*state)) {
+            solver.add(encoder(*config.GetNodeInvariant(*memory)));
+        }
+        for (const auto* var : heal::CollectVariables(*state)) {
+            if (!var->variable->decl.is_shared) continue;
+            solver.add(encoder(*config.GetSharedVariableInvariant(*var)));
+        }
 
         // check for NULL and non-NULL
         std::map<const heal::SymbolicVariableDeclaration*, std::optional<bool>> isNonNull;
@@ -165,6 +166,7 @@ namespace solver {
             auto addressIsNull = encoder.MakeNullCheck(*address);
             checks.Add(addressIsNull, [&updateNonNull,address](bool holds) { if (holds) updateNonNull(address, false); });
             checks.Add(!addressIsNull, [&updateNonNull,address](bool holds) { if (holds) updateNonNull(address, true); });
+            // TODO: try find inequalities wrt. addresses that we have points-to predicate for?
         }
         solver::ComputeImpliedCallback(solver, checks);
         heal::InlineAndSimplify(*state);
@@ -203,11 +205,31 @@ namespace solver {
                 state->accept(remover);
             }
             auto newPointsTo = MakePointsTo(*address, factory, config);
-            state->conjuncts.push_back(config.GetNodeInvariant(*newPointsTo));
+            // state->conjuncts.push_back(config.GetNodeInvariant(*newPointsTo));
             state->conjuncts.push_back(std::move(newPointsTo));
-            heal::InlineAndSimplify(*state);
+            // heal::InlineAndSimplify(*state);
         }
 
+        return state;
+    }
+
+    static std::unique_ptr<heal::SeparatingConjunction>
+    ExpandMemoryFrontier(std::unique_ptr<heal::SeparatingConjunction> state, const SolverConfig& config,
+                         const heal::LogicObject& addressesFrom, const heal::SymbolicVariableDeclaration* forceExpansion = nullptr) {
+        heal::SymbolicFactory factory(*state);
+        return ExpandMemoryFrontier(std::move(state), factory, config, addressesFrom, forceExpansion);
+    }
+
+    static std::unique_ptr<heal::SeparatingConjunction>
+    ExpandMemoryFrontierForAccess(std::unique_ptr<heal::SeparatingConjunction> state, const SolverConfig& config,
+                                  const cola::Expression& accessesFrom) {
+        auto dereferences = GetDereferences(accessesFrom);
+        for (const auto* dereference : dereferences) {
+            auto value = EagerValuationMap(*state).Evaluate(*dereference->expr); // TODO: if this fails, the error will be cryptic
+            if (auto var = dynamic_cast<const heal::SymbolicVariable*>(value.get())) {
+                state = ExpandMemoryFrontier(std::move(state), config, *var, &var->Decl());
+            }
+        }
         return state;
     }
 

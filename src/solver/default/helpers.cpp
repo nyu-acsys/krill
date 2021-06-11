@@ -14,18 +14,26 @@ const EqualsToAxiom* DefaultSolver::GetVariableResource(const cola::VariableDecl
 
 std::optional<bool> DefaultSolver::GetBoolValue(const cola::Expression& expr, const LogicObject& object) const {
     if (expr.sort() != Sort::BOOL) return std::nullopt;
+
+    // try solve syntactically
+    auto value = EagerValuationMap(object).Evaluate(expr);
+    if (auto boolean = dynamic_cast<const SymbolicBool*>(value.get())) {
+        return boolean->value;
+    }
+
+    // solve semantically
     z3::context context;
     z3::solver solver(context);
     Z3Encoder encoder(context, solver);
     solver.add(encoder(object));
     ImplicationCheckSet checks(context);
     std::optional<bool> result = std::nullopt;
-    auto value = EagerValuationMap(object).Evaluate(expr);
     for (bool b : { true, false }) {
         checks.Add(encoder(*value) == context.bool_val(b), [&result,b](bool holds) {
             if (holds) result = b;
         });
     }
+    solver::ComputeImpliedCallback(solver, checks);
     return result;
 }
 
@@ -108,8 +116,7 @@ inline bool ImpliesSpecification(const Annotation& premise, const Annotation& co
 }
 
 Solver::Result DefaultSolver::Implies(const Annotation& premise, const Annotation& conclusion) const {
-    auto interpolant = Solver::Join(heal::Copy(premise), heal::Copy(conclusion));
-    heal::RenameSymbolicSymbols(*interpolant, conclusion);
+    std::cout << " IMPLICATION CHECK: " << premise << conclusion << std::endl;
 
     // TODO: handle futures / histories
     if (!premise.time.empty() || !conclusion.time.empty()) {
@@ -119,10 +126,10 @@ Solver::Result DefaultSolver::Implies(const Annotation& premise, const Annotatio
     // prune resource mismatches
     auto memoryConclusion = heal::CollectMemory(conclusion);
     auto variablesConclusion = heal::CollectVariables(conclusion);
-    if (memoryConclusion.size() != heal::CollectMemory(*interpolant).size()) return Solver::NO;
-    if (variablesConclusion.size() != heal::CollectVariables(*interpolant).size()) return Solver::NO;
+    if (memoryConclusion.size() != heal::CollectMemory(premise).size()) return Solver::NO;
+    if (variablesConclusion.size() != heal::CollectVariables(premise).size()) return Solver::NO;
     if (memoryConclusion.size() > variablesConclusion.size()) return Solver::NO;
-    if (!ImpliesSpecification(*interpolant, conclusion)) return Solver::NO;
+    if (!ImpliesSpecification(premise, conclusion)) return Solver::NO;
 
     // create memory map
     std::map<const PointsToAxiom*, const PointsToAxiom*> memoryMap;
@@ -132,11 +139,11 @@ Solver::Result DefaultSolver::Implies(const Annotation& premise, const Annotatio
         if (!conclusionMemory) continue;
 
         // match memory resource against interpolant
-        auto interpolantVariable = solver::FindResource(conclusionVariable->variable->decl, *interpolant);
-        if (!interpolantVariable) return Solver::NO;
-        auto interpolantMemory = solver::FindMemory(interpolantVariable->value->Decl(), *interpolant);
-        if (!interpolantMemory) return Solver::NO;
-        auto insertion = memoryMap.emplace(conclusionMemory, interpolantMemory);
+        auto premiseVariable = solver::FindResource(conclusionVariable->variable->decl, premise);
+        if (!premiseVariable) return Solver::NO;
+        auto premiseMemory = solver::FindMemory(premiseVariable->value->Decl(), premise);
+        if (!premiseMemory) return Solver::NO;
+        auto insertion = memoryMap.emplace(conclusionMemory, premiseMemory);
         assert(insertion.second);
     }
     if (memoryMap.size() != memoryConclusion.size()) return Solver::NO;
@@ -144,17 +151,75 @@ Solver::Result DefaultSolver::Implies(const Annotation& premise, const Annotatio
     // encode
     z3::context context;
     z3::solver solver(context);
-    Z3Encoder encoder(context, solver);
-    solver.add(encoder(conclusion));
-    for (const auto& [memory, other] : memoryMap) {
-        solver.add(encoder.MakeMemoryEquality(*memory, *other));
+    Z3Encoder premiseEncoder(context, solver);
+    Z3EncoderWithRenaming conclusionEncoder(context, solver);
+    conclusionEncoder.renaming.factory = SymbolicFactory(premise); // TODO: this hack should be avoided
+
+    z3::expr_vector checkPremise(context);
+    checkPremise.push_back(premiseEncoder(premise));
+    for (const auto& [memoryPost, memoryPre] : memoryMap) {
+        checkPremise.push_back(premiseEncoder.MakeMemoryEquality(*memoryPre, *memoryPost, conclusionEncoder));
     }
 
-    // check if interpolant is implied
-    auto check = encoder(*interpolant);
-    solver.add(!check);
-    auto result = solver.check();
-    assert(result != z3::unknown);
-
-    return result == z3::unsat ? Solver::YES : Solver::NO;
+    auto result = ComputeImplied(solver, z3::mk_and(checkPremise), conclusionEncoder(conclusion));
+    std::cout << "  ==> implication was solved, holds=" << result << std::endl;
+    return result ? Solver::YES : Solver::NO;
 }
+
+
+//Solver::Result DefaultSolver::Implies(const Annotation& premise, const Annotation& conclusion) const {
+//    std::cout << ">>>>>>> implies" << std::endl;
+//    auto interpolant = Solver::Join(heal::Copy(premise), heal::Copy(conclusion));
+//    heal::RenameSymbolicSymbols(*interpolant, conclusion);
+//    std::cout << "-------" << std::endl;
+//    std::cout << "premise: " << premise << std::endl;
+//    std::cout << "interpolant: " << *interpolant << std::endl;
+//    std::cout << "conclusion: " << conclusion << std::endl;
+//    std::cout << "<<<<<<< implies" << std::endl;
+//
+//    // TODO: handle futures / histories
+//    if (!premise.time.empty() || !conclusion.time.empty()) {
+//        return Solver::Result::NO;
+//    }
+//
+//    // prune resource mismatches
+//    auto memoryConclusion = heal::CollectMemory(conclusion);
+//    auto variablesConclusion = heal::CollectVariables(conclusion);
+//    if (memoryConclusion.size() != heal::CollectMemory(*interpolant).size()) return Solver::NO;
+//    if (variablesConclusion.size() != heal::CollectVariables(*interpolant).size()) return Solver::NO;
+//    if (memoryConclusion.size() > variablesConclusion.size()) return Solver::NO;
+//    if (!ImpliesSpecification(*interpolant, conclusion)) return Solver::NO;
+//    std::cout << "implies will be solved" << std::endl;
+//
+//    // create memory map
+//    std::map<const PointsToAxiom*, const PointsToAxiom*> memoryMap;
+//    for (const auto* conclusionVariable : variablesConclusion) {
+//        // get memory resource in conclusion
+//        auto conclusionMemory = solver::FindMemory(conclusionVariable->value->Decl(), conclusion);
+//        if (!conclusionMemory) continue;
+//
+//        // match memory resource against interpolant
+//        auto interpolantVariable = solver::FindResource(conclusionVariable->variable->decl, *interpolant);
+//        if (!interpolantVariable) return Solver::NO;
+//        auto interpolantMemory = solver::FindMemory(interpolantVariable->value->Decl(), *interpolant);
+//        if (!interpolantMemory) return Solver::NO;
+//        auto insertion = memoryMap.emplace(conclusionMemory, interpolantMemory);
+//        assert(insertion.second);
+//    }
+//    if (memoryMap.size() != memoryConclusion.size()) return Solver::NO;
+//    std::cout << "implies will be solved, definitely" << std::endl;
+//
+//    // encode
+//    z3::context context;
+//    z3::solver solver(context);
+//    Z3Encoder encoder(context, solver);
+//
+//    z3::expr_vector checkPremise(context);
+//    checkPremise.push_back(encoder(*interpolant));
+//    for (const auto& [memory, other] : memoryMap) {
+//        checkPremise.push_back(encoder.MakeMemoryEquality(*memory, *other));
+//    }
+//
+//    auto result = ComputeImplied(solver, z3::mk_and(checkPremise), encoder(conclusion));
+//    return result ? Solver::YES : Solver::NO;
+//}

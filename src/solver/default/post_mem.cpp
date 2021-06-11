@@ -278,6 +278,7 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
     auto [isSimple, rhs] = heal::IsOfType<SimpleExpression>(*cmd.rhs);
     if (!isSimple) throw std::logic_error("Unsupported assignment: right-hand side is not simple"); // TODO:: better error handling
 
+    pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), lhs);
     FlowGraph footprint = solver::MakeFlowFootprint(std::move(pre), lhs, *rhs, Config());
     EncodedFlowGraph encoding(std::move(footprint));
     FootprintChecks checks(encoding.context);

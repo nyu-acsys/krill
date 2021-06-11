@@ -27,7 +27,7 @@ inline bool is_void(const Function& function) {
 inline const SymbolicVariableDeclaration& GetValueOrFail(const VariableDeclaration& decl, const LogicObject& obj, const Solver& solver) {
     auto result = solver.GetVariableResource(decl, obj);
     if (result) return result->value->Decl();
-    throw InternalError("Could not find resource for function parameter."); // TODO: better error handling
+    throw InternalError("Could not find resource for accessed variable " + decl.name + "."); // TODO: better error handling
 }
 
 struct FulfillmentCollector : public BaseResourceVisitor {
@@ -264,6 +264,7 @@ void Verifier::HandleLoop(const ConditionalLoop& stmt) {
     std::size_t counter = 0;
     auto join = solver->Join(std::move(current));
     while (true) {
+        if (counter > 5) throw std::logic_error("loop breakpoint");
         std::cout << std::endl << std::endl << " ------ loop " << ++counter << " ------ " << std::endl;
 
         breaking.clear();
@@ -328,11 +329,22 @@ void Verifier::visit(const Assignment& cmd) {
 
 void Verifier::visit(const Return& cmd) {
     // check that pointers are accessible
-    for (const auto& expr : cmd.expressions) {
+    struct : public BaseVisitor {
+        std::set<const VariableDeclaration*> variables;
+        void visit(const BooleanValue& /*node*/) override { /* do nothing */ }
+        void visit(const NullValue& /*node*/) override { /* do nothing */ }
+        void visit(const EmptyValue& /*node*/) override { /* do nothing */ }
+        void visit(const MaxValue& /*node*/) override { /* do nothing */ }
+        void visit(const MinValue& /*node*/) override { /* do nothing */ }
+        void visit(const NDetValue& /*node*/) override { /* do nothing */ }
+        void visit(const VariableExpression& node) override { variables.insert(&node.decl); }
+        void visit(const NegatedExpression& node) override { node.expr->accept(*this); }
+        void visit(const BinaryExpression& node) override { node.lhs->accept(*this); node.rhs->accept(*this); }
+        void visit(const Dereference& node) override { throw UnsupportedConstructError("Cannot return dereference expressions."); }
+    } visitor;
+    for (const auto* variable : visitor.variables) {
         for (const auto& annotation : current) {
-            auto[isVar, var] = heal::IsOfType<VariableExpression>(*expr);
-            if (!isVar) throw UnsupportedConstructError("Cannot return non-variable expressions.");
-            GetValueOrFail(var->decl, *annotation, *solver);
+            GetValueOrFail(*variable, *annotation, *solver);
         }
     }
 
@@ -346,38 +358,36 @@ void Verifier::visit(const Return& cmd) {
 // Macros
 //
 
-inline const VariableDeclaration& GetDecl(const std::reference_wrapper<const VariableDeclaration>& wrapper) { return wrapper.get(); }
-inline const VariableDeclaration& GetDecl(const std::unique_ptr<VariableDeclaration>& wrapper) { return *wrapper; }
+inline std::unique_ptr<Annotation> PerformMacroAssignment(std::unique_ptr<Annotation> annotation, const VariableDeclaration& lhs, const Expression& rhs, const Solver& solver) {
+    Assignment dummy(std::make_unique<VariableExpression>(lhs), cola::copy(rhs)); // TODO: avoid copies
+    auto post = solver.Post(std::move(annotation), dummy);
+    if (!post.effects.empty()) throw std::logic_error("Returning from macros must not produce effects."); // TODO: better error handling
+    return std::move(post.post);
+}
 
-template<typename T, typename R>
-inline std::unique_ptr<SeparatingConjunction> MakeEqualities(const T& lhs, const R& rhs, const Annotation& annotation, const Solver& solver) {
-    assert(lhs.size() == rhs.size());
-    auto result = std::make_unique<SeparatingConjunction>();
-    for (std::size_t index = 0; index < lhs.size(); ++index) {
-        if (auto arg = dynamic_cast<const VariableExpression*>(lhs.at(index).get())) {
-            auto& passedValue = GetValueOrFail(arg->decl, annotation, solver);
-            auto& receivingValue = GetValueOrFail(GetDecl(rhs.at(index)), annotation, solver);
-            result->conjuncts.push_back(std::make_unique<SymbolicAxiom>(
-                    std::make_unique<SymbolicVariable>(passedValue), SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(receivingValue)
-            ));
-        }
+inline std::unique_ptr<Annotation> PassMacroArguments(std::unique_ptr<Annotation> annotation, const Macro& command, const Solver& solver) {
+    assert(command.args.size() == command.decl.args.size());
+    for (std::size_t index = 0; index < command.args.size(); ++index) {
+        annotation = PerformMacroAssignment(std::move(annotation), *command.decl.args.at(index), *command.args.at(index), solver);
     }
-    return result;
+    return annotation;
 }
 
-inline std::unique_ptr<SeparatingConjunction> PassArguments(const Annotation& annotation, const Macro& command, const Solver& solver) {
-    return MakeEqualities(command.args, command.decl.args, annotation, solver);
+inline std::unique_ptr<Annotation> ReturnFromMacro(std::unique_ptr<Annotation> annotation, const Return* command, const Macro& macro, const Solver& solver) {
+    if (is_void(macro.decl)) return annotation;
+    if (!command) ThrowMissingReturn(macro.decl);
+    assert(macro.lhs.size() == command->expressions.size());
+
+    for (std::size_t index = 0; index < macro.lhs.size(); ++index) {
+        annotation = PerformMacroAssignment(std::move(annotation), macro.lhs.at(index), *command->expressions.at(index), solver);
+    }
+    return annotation;
 }
 
-inline std::deque<std::unique_ptr<Annotation>> ReturnArguments(std::deque<std::pair<std::unique_ptr<Annotation>, const cola::Return*>> returning, const Macro& macro, const Solver& solver) {
+inline std::deque<std::unique_ptr<Annotation>> ReturnFromMacro(std::deque<std::pair<std::unique_ptr<Annotation>, const cola::Return*>>&& returning, const Macro& macro, const Solver& solver) {
     std::deque<std::unique_ptr<Annotation>> result;
     for (auto& [annotation, command] : returning) {
-        if (!is_void(macro.decl)) {
-            if (!command) ThrowMissingReturn(macro.decl);
-            auto info = MakeEqualities(command->expressions, macro.lhs, *annotation, solver);
-            annotation->now = heal::Conjoin(std::move(annotation->now), std::move(info));
-        }
-        result.push_back(std::move(annotation));
+        result.push_back(ReturnFromMacro(std::move(annotation), command, macro, solver));
     }
     return result;
 }
@@ -392,9 +402,7 @@ void Verifier::visit(const Macro& cmd) {
     // pass arguments
     PerformStep([this,&cmd](auto annotation){
         annotation = solver->PostEnterScope(std::move(annotation), cmd.decl);
-        auto passedArgs = PassArguments(*annotation, cmd, *solver);
-        annotation->now = heal::Conjoin(std::move(annotation->now), std::move(passedArgs));
-        return annotation;
+        return PassMacroArguments(std::move(annotation), cmd, *solver);
     });
 
     // descend into function call
@@ -403,12 +411,12 @@ void Verifier::visit(const Macro& cmd) {
     for (auto& annotation : current) {
         returning.emplace_back(std::move(annotation), nullptr);
     }
-    current = ReturnArguments(std::move(returning), cmd, *solver);
 
     // restore caller context
+    current = ReturnFromMacro(std::move(returning), cmd, *solver);
     PerformStep([this,&cmd](auto annotation){ return solver->PostLeaveScope(std::move(annotation), cmd.decl); });
     breaking = std::move(breakingOuter);
     returning = std::move(returningOuter);
 
-	log() << std::endl << "________" << std::endl << "Post annotation for macro '" << cmd.decl.name << "':" << std::endl << "???" /* *currentAnnotation */ << std::endl << std::endl;
+	log() << std::endl << "________" << std::endl << "Post annotation for macro '" << cmd.decl.name << "':" << std::endl << "<deque>" /* *currentAnnotation */ << std::endl << std::endl;
 }

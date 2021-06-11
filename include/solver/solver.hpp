@@ -23,6 +23,7 @@ namespace solver {
         std::unique_ptr<heal::Annotation> post;
         std::deque<std::unique_ptr<HeapEffect>> effects;
 
+//        explicit PostImage();
         explicit PostImage(std::unique_ptr<heal::Annotation> post);
         explicit PostImage(std::unique_ptr<heal::Annotation> post, std::unique_ptr<HeapEffect> effect);
         explicit PostImage(std::unique_ptr<heal::Annotation> post, std::deque<std::unique_ptr<HeapEffect>> effects);

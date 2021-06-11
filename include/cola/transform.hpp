@@ -39,9 +39,13 @@ namespace cola {
 	  */
 	void rename_variables(Program& program);
 
-	/** Simplifies conditions.
-	 */
-	void simplify_conditions(Program& program);
+    /** Simplifies conditions.
+     */
+    void simplify_conditions(Program& program);
+
+    /** Simplifies returns.
+     */
+    void simplify_returns(Program& program);
 
 	/** Rewrites program to CoLa Light.
 	  */
@@ -49,6 +53,7 @@ namespace cola {
 		// TODO: loop peeling?
         remove_conditional_loops(program);
 		remove_cas(program);
+        simplify_returns(program);
         remove_conditional_branching(program);
 		remove_useless_scopes(program);
 		rename_variables(program);

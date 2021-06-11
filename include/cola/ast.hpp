@@ -401,6 +401,11 @@ namespace cola {
 		ACCEPT_COLA_VISITOR
 	};
 
+
+    std::ostream& operator<<(std::ostream& out, const AstNode& node);
+    std::ostream& operator<<(std::ostream& out, const Sort& sort);
+    std::ostream& operator<<(std::ostream& out, const Type& type);
+
 } // namespace cola
 
 #endif

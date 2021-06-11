@@ -7,8 +7,22 @@ using namespace cola;
 using namespace heal;
 
 
-static constexpr std::string_view STAR_STR = "  *  ";
+static constexpr std::string_view STAR_STR = "   *   ";
 static constexpr std::string_view OR_STR = "  ∨  ";
+static constexpr std::string_view EQ_STR = " == ";
+static constexpr std::string_view NEQ_STR = " != "; // ≠
+static constexpr std::string_view LT_STR = " < ";
+static constexpr std::string_view LEQ_STR = " <= "; // ≤
+static constexpr std::string_view GT_STR = " > ";
+static constexpr std::string_view GEQ_STR = " >= "; // ≥
+static constexpr std::string_view PTO_STR = " |-> "; // ↦
+static constexpr std::string_view ETO_STR = " ~~> "; // ↦
+static constexpr std::string_view IMP_STR = " --* ";
+static constexpr std::string_view IN_STR = " ∈ ";
+static constexpr std::string_view SUB_STR = " ⊆ ";
+static constexpr std::string_view NONE_STR = "∅";
+static constexpr std::string_view MIN_STR = "-∞"; // MIN_VAL
+static constexpr std::string_view MAX_STR = "∞"; // MAX_VAL
 static constexpr std::string_view EMPTY_STR = "true";
 
 
@@ -28,12 +42,12 @@ std::string heal::ToString(SpecificationAxiom::Kind kind) {
 
 std::string heal::ToString(SymbolicAxiom::Operator op) {
     switch (op) {
-        case SymbolicAxiom::EQ: return "=";
-        case SymbolicAxiom::NEQ: return "≠";
-        case SymbolicAxiom::GT: return ">";
-        case SymbolicAxiom::GEQ: return "≥";
-        case SymbolicAxiom::LT: return "<";
-        case SymbolicAxiom::LEQ: return "≤";
+        case SymbolicAxiom::EQ: return std::string(EQ_STR);
+        case SymbolicAxiom::NEQ: return std::string(NEQ_STR);
+        case SymbolicAxiom::GT: return std::string(GT_STR);
+        case SymbolicAxiom::GEQ: return std::string(GEQ_STR);
+        case SymbolicAxiom::LT: return std::string(LT_STR);
+        case SymbolicAxiom::LEQ: return std::string(LEQ_STR);
     }
 }
 
@@ -78,11 +92,11 @@ struct FormulaPrinter : public LogicVisitor {
 	}
 
     void visit(const SymbolicMin& /*expression*/) override {
-        stream << "MIN_VAL";
+        stream << MIN_STR;
 	}
 
     void visit(const SymbolicMax& /*expression*/) override {
-        stream << "MAX_VAL";
+        stream << MAX_STR;
 	}
 
     void visit(const SeparatingConjunction& formula) override {
@@ -94,17 +108,14 @@ struct FormulaPrinter : public LogicVisitor {
 	void visit(const SeparatingImplication& formula) override {
 		stream << "[";
 		formula.premise->accept(*this);
-		stream << "]--*";
-		stream << "[";
+		stream << "]" << IMP_STR << "[";
 		formula.conclusion->accept(*this);
 		stream << "]";
 	}
 
     void visit(const PointsToAxiom& formula) override {
         formula.node->accept(*this);
-        stream << "↦";
-        stream << (formula.isLocal ? "L" : "G");
-        stream << "(";
+        stream << PTO_STR << (formula.isLocal ? "L" : "G") << "(";
         stream << formula.flow.get().name;
         for (const auto& [field, value] : formula.fieldToValue) {
             stream << ", " << field << ":";
@@ -115,13 +126,13 @@ struct FormulaPrinter : public LogicVisitor {
 
     void visit(const EqualsToAxiom& formula) override {
 	    cola::print(*formula.variable, stream);
-        stream << "↦";
+        stream << ETO_STR;
         formula.value->accept(*this);
     }
 
     void visit(const SymbolicAxiom& formula) override {
         formula.lhs->accept(*this);
-        stream << " " << heal::ToString(formula.op) << " ";
+        stream << heal::ToString(formula.op);
         formula.rhs->accept(*this);
 	}
 
@@ -135,7 +146,7 @@ struct FormulaPrinter : public LogicVisitor {
 
     void visit(const InflowContainsValueAxiom& formula) override {
         formula.value->accept(*this);
-        stream << "∈" << formula.flow.get().name;
+        stream << IN_STR << formula.flow.get().name;
     }
 
     void visit(const InflowContainsRangeAxiom& formula) override {
@@ -143,12 +154,11 @@ struct FormulaPrinter : public LogicVisitor {
         formula.valueLow->accept(*this);
         stream << ", ";
         formula.valueHigh->accept(*this);
-        stream << "]⊆" << formula.flow.get().name;
+        stream << "]" << SUB_STR << formula.flow.get().name;
     }
 
     void visit(const InflowEmptinessAxiom& formula) override {
-	    stream << formula.flow.get().name;
-	    stream << (formula.isEmpty ? "=" : "≠") << "∅";
+	    stream << formula.flow.get().name << (formula.isEmpty ? EQ_STR : NEQ_STR) << NONE_STR;
     }
 
 	void visit(const ObligationAxiom& formula) override {
@@ -196,3 +206,20 @@ void heal::Print(const LogicObject& object, std::ostream& stream) {
     FormulaPrinter printer(stream);
     object.accept(printer);
 }
+
+
+std::ostream& heal::operator<<(std::ostream& stream, const LogicObject& node) {
+    heal::Print(node, stream);
+    return stream;
+}
+
+std::ostream& heal::operator<<(std::ostream& stream, const SymbolicVariableDeclaration& decl) {
+    stream << decl.name << ":" << decl.type.name;
+    return stream;
+}
+
+std::ostream& heal::operator<<(std::ostream& stream, const SymbolicFlowDeclaration& decl) {
+    stream << decl.name << ":{ " << decl.type.name << " }";
+    return stream;
+}
+

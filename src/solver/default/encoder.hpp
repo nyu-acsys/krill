@@ -29,19 +29,24 @@ namespace solver {
         inline z3::expr operator()(const heal::SymbolicVariableDeclaration& decl) { return EncodeSymbol(decl); }
         inline z3::func_decl operator()(const heal::SymbolicFlowDeclaration& decl) { return EncodeFlow(decl); }
         inline z3::expr QuantifiedVariable(cola::Sort sort) { return context.constant("__qv", EncodeSort(sort)); }
-        inline z3::expr MakeMemoryEquality(const heal::PointsToAxiom& memory, const heal::PointsToAxiom& other) {
+        inline z3::expr MakeNullCheck(const heal::SymbolicVariableDeclaration& decl) {
+            return EncodeSymbol(decl) == Null();
+        }
+        template<typename T>
+        inline z3::expr MakeMemoryEquality(const heal::PointsToAxiom& memory, const heal::PointsToAxiom& other, Z3Encoder<T>& otherEncoder) {
+            assert(&context == &otherEncoder.context);
             auto qv = QuantifiedVariable(memory.flow.get().type.sort);
             z3::expr_vector eq(context);
-            eq.push_back(Encode(*memory.node) == Encode(*other.node));
-            eq.push_back(z3::forall(qv, EncodeFlow(memory.flow.get())(qv) == EncodeFlow(other.flow.get())(qv)));
+            eq.push_back(Encode(*memory.node) == otherEncoder(*other.node));
+            eq.push_back(z3::forall(qv, EncodeFlow(memory.flow.get())(qv) == otherEncoder(other.flow.get())(qv)));
             assert(memory.node->Type() == other.node->Type());
             for (const auto& [field, value] : memory.fieldToValue) {
-                eq.push_back(Encode(*value) == Encode(*other.fieldToValue.at(field)));
+                eq.push_back(Encode(*value) == otherEncoder(*other.fieldToValue.at(field)));
             }
             return z3::mk_and(eq);
         }
-        inline z3::expr MakeNullCheck(const heal::SymbolicVariableDeclaration& decl) {
-            return EncodeSymbol(decl) == Null();
+        inline z3::expr MakeMemoryEquality(const heal::PointsToAxiom& memory, const heal::PointsToAxiom& other) {
+            return MakeMemoryEquality(memory, other, *this);
         }
 
         void visit(const heal::SymbolicVariable& obj) override { result = EncodeSymbol(obj.Decl()); }

@@ -81,6 +81,7 @@ inline std::unique_ptr<Formula> ExpressionToFormula(const Expression& expression
 PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const {
     std::cout << " -- Post image for "; heal::Print(*pre, std::cout); std::cout << " "; cola::print(cmd, std::cout);
     // TODO: check unsatisfiability (cannot return false at the moment)
+    pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *cmd.expr);
     auto formula = ExpressionToFormula(*cmd.expr, *pre);
 
     z3::context context;
@@ -93,9 +94,8 @@ PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd
 
     pre->now->conjuncts.push_back(heal::Copy(*formula)); // TODO: avoid copy
 //    heal::Print(*pre, std::cout); std::cout << std::endl;
-    SymbolicFactory factory(*pre);
-    pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), factory, Config(), *formula);
-    pre = TryAddPureFulfillment(std::move(pre), *cmd.expr, Config());
+    pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), Config(), *formula);
+    pre = solver::TryAddPureFulfillment(std::move(pre), *cmd.expr, Config());
     heal::InlineAndSimplify(*pre->now);
     heal::Print(*pre, std::cout); std::cout << std::endl;
     return PostImage(std::move(pre));
@@ -184,6 +184,9 @@ PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<Annotation> pre, con
 //    end debug
 
     // perform update
+    pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *cmd.rhs);
+    std::cout << "    ==> pre after expansion: " << *pre << std::endl;
+
     SymbolicFactory factory(*pre);
     auto value = EagerValuationMap(*pre).Evaluate(*cmd.rhs);
     auto& symbol = factory.GetUnusedSymbolicVariable(lhs.type());

@@ -256,6 +256,14 @@ namespace heal {
 		ACCEPT_LOGIC_VISITOR
 	};
 
+    //
+    // Output
+    //
+
+    std::ostream& operator<<(std::ostream& out, const LogicObject& node);
+    std::ostream& operator<<(std::ostream& out, const SymbolicVariableDeclaration& decl);
+    std::ostream& operator<<(std::ostream& out, const SymbolicFlowDeclaration& decl);
+
 } // namespace heal
 
 #endif

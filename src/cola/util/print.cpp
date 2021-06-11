@@ -408,3 +408,66 @@ void cola::print(const Statement& statement, std::ostream& stream) {
 	PrintVisitor visitor(stream);
 	statement.accept(visitor);
 }
+
+
+std::ostream& cola::operator<<(std::ostream& stream, const AstNode& object) {
+    struct StreamVisitor : public BaseVisitor {
+        std::ostream& stream;
+        explicit StreamVisitor(std::ostream& stream) : stream(stream) {}
+        void visit(const Expression& node) override { cola::print(node, stream); }
+        void visit(const BooleanValue& node) override { cola::print(node, stream); }
+        void visit(const NullValue& node) override { cola::print(node, stream); }
+        void visit(const EmptyValue& node) override { cola::print(node, stream); }
+        void visit(const MaxValue& node) override { cola::print(node, stream); }
+        void visit(const MinValue& node) override { cola::print(node, stream); }
+        void visit(const NDetValue& node) override { cola::print(node, stream); }
+        void visit(const VariableExpression& node) override { cola::print(node, stream); }
+        void visit(const NegatedExpression& node) override { cola::print(node, stream); }
+        void visit(const BinaryExpression& node) override { cola::print(node, stream); }
+        void visit(const Dereference& node) override { cola::print(node, stream); }
+        void visit(const Sequence& node) override { cola::print(node, stream); }
+        void visit(const Scope& node) override { cola::print(node, stream); }
+        void visit(const Atomic& node) override { cola::print(node, stream); }
+        void visit(const Choice& node) override { cola::print(node, stream); }
+        void visit(const IfThenElse& node) override { cola::print(node, stream); }
+        void visit(const Loop& node) override { cola::print(node, stream); }
+        void visit(const While& node) override { cola::print(node, stream); }
+        void visit(const DoWhile& node) override { cola::print(node, stream); }
+        void visit(const Skip& node) override { cola::print(node, stream); }
+        void visit(const Break& node) override { cola::print(node, stream); }
+        void visit(const Continue& node) override { cola::print(node, stream); }
+        void visit(const Assume& node) override { cola::print(node, stream); }
+        void visit(const Assert& node) override { cola::print(node, stream); }
+        void visit(const Return& node) override { cola::print(node, stream); }
+        void visit(const Malloc& node) override { cola::print(node, stream); }
+        void visit(const Assignment& node) override { cola::print(node, stream); }
+        void visit(const Macro& node) override { cola::print(node, stream); }
+        void visit(const CompareAndSwap& node) override { cola::print((const Command&) node, stream); }
+        void visit(const Function& node) override { PrintVisitor visitor(stream); node.accept(visitor); }
+        void visit(const Program& node) override { cola::print(node, stream); }
+    } visitor(stream);
+    object.accept(visitor);
+    return stream;
+}
+
+std::ostream& cola::operator<<(std::ostream& stream, const Sort& sort) {
+    switch (sort) {
+        case Sort::VOID: stream << "VoidSort"; break;
+        case Sort::BOOL: stream << "BoolSort"; break;
+        case Sort::DATA: stream << "DataSort"; break;
+        case Sort::PTR: stream << "PointerSort"; break;
+    }
+    return stream;
+}
+
+std::ostream& cola::operator<<(std::ostream& stream, const Type& type) {
+    stream << "type " << type.name << " { ";
+    bool first = true;
+    for (const auto& [field, type] : type.fields) {
+        if (first) first = false;
+        else stream << ", ";
+        stream << field << ":" << type.get().name;
+    }
+    stream << " }";
+    return stream;
+}

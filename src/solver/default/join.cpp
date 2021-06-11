@@ -5,6 +5,7 @@
 #include "encoder.hpp"
 #include "eval.hpp"
 #include "candidates.hpp"
+#include "expand.hpp"
 #include "heal/util.hpp"
 
 using namespace cola;
@@ -112,8 +113,6 @@ class AnnotationJoiner {
     std::unique_ptr<Annotation> GetResult() {
         if (annotations.empty()) return std::make_unique<Annotation>(); // TODO: return false?
         if (annotations.size() == 1) return std::move(annotations.front());
-
-        std::cout << std::endl << "%%% computing join for: " << std::endl; for (const auto& elem : annotations) heal::Print(*elem, std::cout); std::cout << std::endl;
 
         assert(annotations.size() > 1);
         MakeSymbolsUnique();
@@ -258,6 +257,12 @@ class AnnotationJoiner {
         }
     }
 
+    z3::expr_vector MakeDebugVector(const z3::expr& expr) {
+        z3::expr_vector vector(context);
+        vector.push_back(expr);
+        return vector;
+    }
+
     void Encode() {
         z3::expr_vector vector(context);
 
@@ -290,6 +295,9 @@ class AnnotationJoiner {
         for (auto& [var, res] : varToCommonMem) result->now->conjuncts.push_back(std::move(res));
         varToCommonRes.clear();
         varToCommonMem.clear();
+
+        // since we filtered out unsatisfiable annotations, we expect the join to be satisfiable (check may be costly)
+        assert(solver.check(MakeDebugVector(encoder(*result))) == z3::sat);
     }
 
     void DeriveJoinedStack() {
@@ -311,16 +319,8 @@ public:
     static std::unique_ptr<Annotation> Join(std::vector<std::unique_ptr<Annotation>>&& annotations, const SolverConfig& config) {
         std::cout << std::endl << std::endl << "========= joining" << std::endl; for (const auto& elem : annotations) heal::Print(*elem, std::cout); std::cout << std::endl;
         auto result = AnnotationJoiner(std::move(annotations), config).GetResult();
+        heal::InlineAndSimplify(*result);
         std::cout << "** join result: "; heal::Print(*result, std::cout); std::cout << std::endl << std::endl << std::endl;
-//        heal::InlineAndSimplify(*result);
-//        std::cout << "** join result: "; heal::Print(*result, std::cout); std::cout << std::endl << std::endl << std::endl;
-
-        z3::context context;
-        z3::solver solver(context);
-        Z3Encoder encoder(context, solver);
-        solver.add(encoder(*result));
-        assert(solver.check() != z3::unsat && "join is unsatisfiable"); // TODO: remove debug
-
         return result;
     }
 };

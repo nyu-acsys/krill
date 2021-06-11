@@ -83,41 +83,31 @@ inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const z3::e
     }
 }
 
-//std::function<std::vector<bool>(z3::solver&, const z3::expr_vector&, bool*)> GetSolvingMethod() {
-//    z3::context context;
-//    z3::solver solver(context);
-//    z3::expr_vector vector(context);
-//    solver.add(context.bool_val(true));
-//    solver.add(context.bool_val(false));
-//    try {
-//        ComputeImpliedInOneShot(solver, vector, nullptr); // TODO: is this test sufficient?
-//        return ComputeImpliedInOneShot;
-//    } catch (const Z3SolvingFailedError& err) {
-//        unsigned int versionMajor, versionMinor, versionBuild, versionRevision;
-//        Z3_get_version(&versionMajor, &versionMinor, &versionBuild, &versionRevision);
-//        std::cerr << "WARNING: solving failure with Z3's solver::consequences! This issue is known to happen for versions >4.8.7, " <<
-//                  "your version is " << versionMajor << "." << versionMinor << "." << versionBuild << ". " <<
-//                  "Using fallback, performance may degrade..." << std::endl;
-//        return ComputeImpliedOneAtATime;
-//    }
-//}
+struct MethodChooser {
+    // TODO: identify working method beforehand (during construction)
+    // static std::function<std::vector<bool>(z3::solver&, const z3::expr_vector&, bool*)> method = GetSolvingMethod();
+    // return method(solver, expressions, isSolverUnsatisfiable);
+
+    bool fallback = false;
+    inline std::vector<bool> operator()(z3::solver& solver, const z3::expr_vector& expressions, bool* isSolverUnsatisfiable) {
+        if (fallback) return ComputeImpliedOneAtATime(solver, expressions, isSolverUnsatisfiable);
+        try {
+            return ComputeImpliedInOneShot(solver, expressions, isSolverUnsatisfiable);
+        } catch (const Z3SolvingFailedError& err) {
+            auto result = ComputeImpliedOneAtATime(solver, expressions, isSolverUnsatisfiable);
+            unsigned int versionMajor, versionMinor, versionBuild, versionRevision;
+            Z3_get_version(&versionMajor, &versionMinor, &versionBuild, &versionRevision);
+            std::cerr << "WARNING: solving failure with Z3's solver::consequences! This issue is known to happen for versions >4.8.7, " <<
+                      "your version is " << versionMajor << "." << versionMinor << "." << versionBuild << ". " <<
+                      "Using fallback, performance may degrade..." << std::endl;
+            fallback = true;
+            return result;
+        }
+    }
+} method;
 
 std::vector<bool> solver::ComputeImplied(z3::solver& solver, const z3::expr_vector& expressions, bool* isSolverUnsatisfiable) {
-//    static std::function<std::vector<bool>(z3::solver&, const z3::expr_vector&, bool*)> method = GetSolvingMethod();
-//    return method(solver, expressions, isSolverUnsatisfiable);
-
-    try {
-        return ComputeImpliedInOneShot(solver, expressions, isSolverUnsatisfiable);
-    } catch (const Z3SolvingFailedError& err) {
-        // TODO: once the need for fallback is detected, don't try the other method; can we detect this beforehand?
-        auto result = ComputeImpliedOneAtATime(solver, expressions, isSolverUnsatisfiable);
-        unsigned int versionMajor, versionMinor, versionBuild, versionRevision;
-        Z3_get_version(&versionMajor, &versionMinor, &versionBuild, &versionRevision);
-        std::cerr << "WARNING: solving failure with Z3's solver::consequences! This issue is known to happen for versions >4.8.7, " <<
-                     "your version is " << versionMajor << "." << versionMinor << "." << versionBuild << ". " <<
-                     "Using fallback, performance may degrade..." << std::endl;
-        return result;
-    }
+    return method(solver, expressions, isSolverUnsatisfiable);
 }
 
 void solver::ComputeImpliedCallback(z3::solver& solver, const ImplicationCheckSet& checks, bool* isSolverUnsatisfiable) {
