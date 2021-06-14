@@ -155,21 +155,6 @@ PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd
     return result;
 }
 
-//PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const {
-//    std::cout << " -- Post image for " << *pre << " " << cmd;
-//    pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *cmd.expr);
-//    auto formula = ExpressionToFormula(*cmd.expr, *pre);
-//    if (IsUnreachable(*pre, *formula)) return PostImage();
-//    // TODO: split disjunctions into multiple post annotations
-//
-//    pre->now->conjuncts.push_back(heal::Copy(*formula)); // TODO: avoid copy
-//    pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), Config(), *formula);
-//    pre = solver::TryAddPureFulfillment(std::move(pre), *cmd.expr, Config());
-//    heal::InlineAndSimplify(*pre->now);
-//    heal::Print(*pre, std::cout); std::cout << std::endl;
-//    return PostImage(std::move(pre));
-//}
-
 //
 // Malloc
 //

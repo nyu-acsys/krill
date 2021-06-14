@@ -93,13 +93,13 @@ namespace solver {
 
             // check pure
             checks.Add(isPure && isPreContainedNew, [&checks, obligation](bool holds) {
-                std::cout << "     >-> isContained=" << holds << std::endl;
+//                std::cout << "     >-> isContained=" << holds << std::endl;
                 if (!holds || obligation->kind == heal::SpecificationAxiom::Kind::DELETE) return;
                 bool fulfilled = obligation->kind == heal::SpecificationAxiom::Kind::CONTAINS; // key contained => contains: success, insertion: fail
                 checks.postSpec.push_back(std::make_unique<heal::FulfillmentAxiom>(obligation->kind, heal::Copy(*obligation->key), fulfilled));
             });
             checks.Add(isPure && isPreNotContainedNew, [&checks, obligation](bool holds) {
-                std::cout << "     >-> isNotContained=" << holds << std::endl;
+//                std::cout << "     >-> isNotContained=" << holds << std::endl;
                 if (!holds || obligation->kind == heal::SpecificationAxiom::Kind::INSERT) return;
                 bool fulfilled = false; // key not contained => contains: fail, deletion: fail
                 checks.postSpec.push_back(std::make_unique<heal::FulfillmentAxiom>(obligation->kind, heal::Copy(*obligation->key), fulfilled));

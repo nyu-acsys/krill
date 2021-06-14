@@ -153,27 +153,26 @@ const heal::PointsToAxiom* solver::FindMemory(const heal::SymbolicVariableDeclar
     return MakeMemoryResourceFinder(address, object).resultConst;
 }
 
-struct SpecificationFinder : public BaseResourceVisitor, BaseNonConstResourceVisitor {
+struct SpecificationFinder : public BaseResourceVisitor {
     std::deque<const heal::SpecificationAxiom*> result;
     std::set<const VariableDeclaration*> search;
 
     explicit SpecificationFinder(std::set<const VariableDeclaration*> search) : search(std::move(search)) {}
 
-    inline bool Matches(const SpecificationAxiom& axiom) {
-        return search.count(&axiom.key->Decl()) != 0;
+    [[nodiscard]] inline bool Matches(const SpecificationAxiom& axiom) const {
+        auto match = search.count(&axiom.key->Decl()) != 0;
+        return match;
     }
 
-    using DefaultLogicListener::exit; using DefaultLogicNonConstListener::exit;
     void exit(const ObligationAxiom& obj) override { if (Matches(obj)) result.push_back(&obj); }
     void exit(const FulfillmentAxiom& obj) override { if (Matches(obj)) result.push_back(&obj); }
-    void exit(ObligationAxiom& obj) override { if (Matches(obj)) result.push_back(&obj); }
-    void exit(FulfillmentAxiom& obj) override { if (Matches(obj)) result.push_back(&obj); }
 };
 
 std::deque<const heal::SpecificationAxiom*> solver::FindSpecificationAxioms(const heal::SymbolicVariableDeclaration& key,
                                                                             const heal::LogicObject& object) {
     if (key.type.sort != Sort::DATA) return {};
     SpecificationFinder finder(EqualityFinder::FindEqualities(key, object));
+    object.accept(finder);
     return std::move(finder.result);
 }
 

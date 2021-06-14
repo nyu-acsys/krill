@@ -30,6 +30,20 @@ std::unique_ptr<ObligationAxiom> heal::Copy(const ObligationAxiom& formula) {
     return std::make_unique<ObligationAxiom>(formula.kind, heal::Copy(*formula.key));
 }
 
+std::unique_ptr<FulfillmentAxiom> heal::Copy(const FulfillmentAxiom& formula) {
+    return std::make_unique<FulfillmentAxiom>(formula.kind, heal::Copy(*formula.key), formula.return_value);
+}
+
+std::unique_ptr<SpecificationAxiom> heal::Copy(const SpecificationAxiom& formula) {
+    struct : public BaseLogicVisitor {
+        std::unique_ptr<SpecificationAxiom> result;
+        void visit(const ObligationAxiom& axiom) override { result = Copy(axiom); }
+        void visit(const FulfillmentAxiom& axiom) override { result = Copy(axiom); }
+    } copier;
+    formula.accept(copier);
+    return std::move(copier.result);
+}
+
 std::unique_ptr<Annotation> heal::Copy(const Annotation& annotation) {
     return std::make_unique<Annotation>(heal::Copy(*annotation.now), CopyAll(annotation.time));
 }

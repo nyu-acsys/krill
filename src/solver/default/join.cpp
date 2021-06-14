@@ -47,8 +47,7 @@ inline std::unique_ptr<PointsToAxiom> MakeCommonMemory(const SymbolicVariableDec
 struct AnnotationInfo {
     std::map<const VariableDeclaration*, const EqualsToAxiom*> varToRes;
     std::map<const VariableDeclaration*, const PointsToAxiom*> varToMem;
-    std::map<const VariableDeclaration*, std::set<SpecificationAxiom::Kind>> varToObl;
-    std::map<const VariableDeclaration*, std::set<std::pair<SpecificationAxiom::Kind, bool>>> varToFul;
+    std::map<const VariableDeclaration*, std::set<const SpecificationAxiom*>> varToSpec;
 
     explicit AnnotationInfo(const Annotation& annotation) {
         auto variables = VariableCollector::Collect(annotation);
@@ -57,14 +56,8 @@ struct AnnotationInfo {
             if (!resource) continue;
             varToRes[variable] = resource;
 
-            auto axioms = FindSpecificationAxioms(resource->value->Decl(), annotation);
-            for (const auto* spec : axioms) {
-                if (auto obl = dynamic_cast<const ObligationAxiom*>(spec)) {
-                    varToObl[variable].emplace(obl->kind);
-                } else if (auto ful = dynamic_cast<const FulfillmentAxiom*>(spec)) {
-                    varToFul[variable].emplace(ful->kind, ful->return_value);
-                }
-            }
+            auto specs = FindSpecificationAxioms(resource->value->Decl(), annotation);
+            varToSpec[variable].insert(specs.begin(), specs.end());
 
             if (variable->type.sort != Sort::PTR) continue;
             auto memory = FindMemory(resource->value->Decl(), annotation);
@@ -221,32 +214,62 @@ class AnnotationJoiner {
         }
     }
 
-    template<typename T, typename F>
-    static inline void EraseIf(T& container, F UnaryPredicate) {
-//        container.erase(std::remove_if(container.begin(), container.end(), UnaryPredicate), container.end());
-        for (auto it = container.begin(); it != container.end();) {
-            if (UnaryPredicate(*it)) it = container.erase(it);
-            else ++it;
-        }
+    static inline bool EqualSpec(const SpecificationAxiom& axiom, const SpecificationAxiom& other) {
+        if (axiom.kind != other.kind) return false;
+
+        struct Comparator : public BaseLogicVisitor {
+            std::optional<bool> returnValue = std::nullopt;
+            void visit(const ObligationAxiom&) override { /* do nothing */ }
+            void visit(const FulfillmentAxiom& axiom) override { returnValue = axiom.return_value; }
+            static inline std::optional<bool> Get(const SpecificationAxiom& axiom) {
+                Comparator cmp;
+                axiom.accept(cmp);
+                return cmp.returnValue;
+            }
+        };
+        return Comparator::Get(axiom) == Comparator::Get(other);
     }
 
     void CreateSpecificationResources() {
-        for (const auto& pair : varToCommonRes) {
-            const auto* var = pair.first;
-            auto it = lookup.begin();
-            std::set<SpecificationAxiom::Kind> obligations = it->second.varToObl[var];
-            std::set<std::pair<SpecificationAxiom::Kind, bool>> fulfillments = it->second.varToFul[var];
-            for (++it; it != lookup.end(); ++it) {
-                EraseIf(obligations, [&](const auto& elem){ return it->second.varToObl[var].count(elem) == 0; });
-                EraseIf(fulfillments, [&](const auto& elem){ return it->second.varToFul[var].count(elem) == 0; });
+//        throw std::logic_error("bug");
+
+        std::set<const SpecificationAxiom*> blacklist;
+        for (const auto& [variable, resource] : varToCommonRes) {
+            auto specifications = lookup.begin()->second.varToSpec[variable];
+
+            // prune specs if they are not mutual
+            for (auto it = specifications.begin(); it != specifications.end();) {
+                // check if all annotations cover it
+                std::set<const SpecificationAxiom*> used;
+                bool covered = true;
+                for (auto& [annotation, info] : lookup) {
+                    // check if one annotation covers it
+                    bool found = false;
+                    for (auto* spec : info.varToSpec[variable]) {
+                        if (blacklist.count(spec) != 0) continue;
+                        if (!EqualSpec(**it, *spec)) continue;
+                        found = true;
+                        used.insert(spec);
+                        break;
+                    }
+                    if (found) continue;
+                    covered = false;
+                    break;
+                }
+
+                // remove if not covered, blacklist otherwise
+                if (!covered) it = specifications.erase(it);
+                else {
+                    blacklist.insert(used.begin(), used.end());
+                    ++it;
+                }
             }
 
-            const auto& key = pair.second->value->Decl();
-            for (auto kind : obligations) {
-                result->now->conjuncts.push_back(std::make_unique<ObligationAxiom>(kind, std::make_unique<SymbolicVariable>(key)));
-            }
-            for (auto [kind, ret] : fulfillments) {
-                result->now->conjuncts.push_back(std::make_unique<FulfillmentAxiom>(kind, std::make_unique<SymbolicVariable>(key), ret));
+            // add remaining specifications
+            for (auto* elem : specifications) {
+                auto spec = heal::Copy(*elem);
+                spec->key = heal::Copy(*resource->value);
+                result->now->conjuncts.push_back(std::move(spec));
             }
         }
     }

@@ -157,6 +157,7 @@ void Verifier::HandleInterfaceFunction(const Function& function) {
 	std::cout << "############################################################" << std::endl;
 	std::cout << "############################################################" << std::endl;
 	std::cout << std::endl;
+    auto start = std::chrono::steady_clock::now();
 
 	// prepare initial annotation
     SpecStore specification(function);
@@ -178,6 +179,8 @@ void Verifier::HandleInterfaceFunction(const Function& function) {
         specification.EstablishSpecificationOrFail(*solver, *annotation, command, function);
     }
 
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start).count();
+    std::cout << "Time taken for " << function.name << ": " << elapsed/1000.0 << "s" << std::endl;
 	throw std::logic_error("pointo breako");
 }
 
