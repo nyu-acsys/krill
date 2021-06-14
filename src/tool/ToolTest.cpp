@@ -21,6 +21,7 @@ constexpr std::size_t FOOTPRINT_DEPTH = 1;
 const std::string NEXT_FIELD = "next";
 const std::string DATA_FIELD = "val";
 const std::string HEAD_NAME = "Head";
+const std::string TAIL_NAME = "Tail";
 
 SymbolicFactory factory;
 
@@ -34,17 +35,31 @@ inline std::unique_ptr<SymbolicAxiom> MakeImmediateAxiom(const SymbolicVariableD
     return std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(decl), OP, std::make_unique<I>(std::forward<Args>(args)...));
 }
 
-inline std::unique_ptr<Formula> MakeSharedInvariant(const PointsToAxiom& memory, const VariableDeclaration& head) {
+inline std::unique_ptr<Formula> MakeSharedInvariant(const PointsToAxiom& memory, const VariableDeclaration& head, const VariableDeclaration& tail) {
     auto result = std::make_unique<SeparatingConjunction>();
-//    auto isHead = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicMin>(memory.fieldToValue.at(DATA_FIELD)->Decl());
+    auto nonNull = MakeImmediateAxiom<SymbolicAxiom::NEQ, SymbolicNull>(memory.fieldToValue.at(NEXT_FIELD)->Decl());
+
+    // memory.node == head ==> memory.next != NULL && memory.data == MIN
     auto isHead = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(head), std::make_unique<SymbolicVariable>(memory.node->Decl()));
-//    auto isTail = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicMax>(memory.fieldToValue.at(DATA_FIELD)->Decl());
-//    auto nextNull = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicNull>(memory.fieldToValue.at(NEXT_FIELD)->Decl());
-    auto nextNotNull = MakeImmediateAxiom<SymbolicAxiom::NEQ, SymbolicNull>(memory.fieldToValue.at(NEXT_FIELD)->Decl());
-    auto dataInInflow = std::make_unique<InflowContainsValueAxiom>(memory.flow, heal::Copy(*memory.fieldToValue.at(DATA_FIELD)));
-    result->conjuncts.push_back(std::make_unique<SeparatingImplication>(std::move(isHead), heal::Copy(*nextNotNull)));
-//    result->conjuncts.push_back(std::make_unique<SeparatingImplication>(std::move(isTail), std::move(nextNull)));
-    result->conjuncts.push_back(std::make_unique<SeparatingImplication>(std::move(nextNotNull), std::move(dataInInflow)));
+    auto minData = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicMin>(memory.fieldToValue.at(DATA_FIELD)->Decl());
+    result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*isHead), heal::Copy(*nonNull)));
+    result->conjuncts.push_back((std::make_unique<SeparatingImplication>(std::move(isHead), std::move(minData))));
+
+    // memory.node == tail ==> memory.next == NULL && memory.data == MAX
+    auto isTail = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(tail), std::make_unique<SymbolicVariable>(memory.node->Decl()));
+    auto isNull = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicNull>(memory.fieldToValue.at(NEXT_FIELD)->Decl());
+    auto maxData = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicMax>(memory.fieldToValue.at(DATA_FIELD)->Decl());
+    result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*isTail), std::move(isNull)));
+    result->conjuncts.push_back((std::make_unique<SeparatingImplication>(std::move(isTail), std::move(maxData))));
+
+    // memory.next != NULL ==> [memory.data, MAX] \subset memory.flow
+    auto flow = std::make_unique<InflowContainsRangeAxiom>(memory.flow, heal::Copy(*memory.fieldToValue.at(DATA_FIELD)), std::make_unique<SymbolicMax>());
+    result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*nonNull), std::move(flow)));
+
+    // memory.flow != \empty ==> memory.next != NULL // TODO: true?
+    auto hasFlow = std::make_unique<InflowEmptinessAxiom>(memory.flow, false);
+    result->conjuncts.push_back(std::make_unique<SeparatingImplication>(std::move(hasFlow), std::move(nonNull)));
+
     return result;
 }
 
@@ -52,9 +67,9 @@ inline std::unique_ptr<Formula> MakeLocalInvariant(const PointsToAxiom& memory) 
     return std::make_unique<InflowEmptinessAxiom>(memory.flow, true);
 }
 
-inline std::unique_ptr<Formula> MakeNodeInvariant(const PointsToAxiom& memory, const VariableDeclaration& head) {
+inline std::unique_ptr<Formula> MakeNodeInvariant(const PointsToAxiom& memory, const VariableDeclaration& head, const VariableDeclaration& tail) {
     if (memory.isLocal) return MakeLocalInvariant(memory);
-    else return MakeSharedInvariant(memory, head);
+    else return MakeSharedInvariant(memory, head, tail);
 }
 
 inline std::unique_ptr<Formula> MakeVariableInvariant(const EqualsToAxiom& variable) {
@@ -77,11 +92,12 @@ inline std::unique_ptr<Formula> MakeContains(const PointsToAxiom& memory, const 
 struct TestSolverConfig : public SolverConfig {
     const Type& nodeType;
     const VariableDeclaration& head;
-    explicit TestSolverConfig(const Type& nodeType, const VariableDeclaration& head) : nodeType(nodeType), head(head) {}
+    const VariableDeclaration& tail;
+    explicit TestSolverConfig(const Type& nodeType, const VariableDeclaration& head, const VariableDeclaration& tail) : nodeType(nodeType), head(head), tail(tail) {}
 
     [[nodiscard]] inline const cola::Type& GetFlowValueType() const override { return Type::data_type(); }
     [[nodiscard]] inline std::size_t GetMaxFootprintDepth(const std::string& /*updatedFieldName*/) const override { return FOOTPRINT_DEPTH; }
-    [[nodiscard]] inline std::unique_ptr<Formula> GetNodeInvariant(const PointsToAxiom& memory) const override { return MakeNodeInvariant(memory, head); }
+    [[nodiscard]] inline std::unique_ptr<Formula> GetNodeInvariant(const PointsToAxiom& memory) const override { return MakeNodeInvariant(memory, head, tail); }
     [[nodiscard]] inline std::unique_ptr<Formula> GetSharedVariableInvariant(const EqualsToAxiom& variable) const override { return MakeVariableInvariant(variable); }
     [[nodiscard]] inline std::unique_ptr<Formula> GetOutflowContains(const PointsToAxiom& memory, const std::string& fieldName, const SymbolicVariableDeclaration& value) const override { return MakeOutflow(memory, fieldName, value); }
     [[nodiscard]] inline std::unique_ptr<Formula> GetLogicallyContains(const PointsToAxiom& memory, const SymbolicVariableDeclaration& value) const override { return MakeContains(memory, value); }
@@ -92,8 +108,10 @@ std::shared_ptr<SolverConfig> MakeConfig(const Program& program) {
     auto& nodeType = *program.types.at(0);
     assert(program.variables.size() == 2);
     assert(program.variables.at(0)->name == HEAD_NAME);
-    auto& head = *program.variables.at(0);
-    return std::make_shared<TestSolverConfig>(nodeType, head);
+    assert(program.variables.at(0)->name == TAIL_NAME);
+    const auto& head = *program.variables.at(0);
+    const auto& tail = *program.variables.at(1);
+    return std::make_shared<TestSolverConfig>(nodeType, head, tail);
 }
 
 //
