@@ -127,8 +127,8 @@ InflowContainsValueAxiom::InflowContainsValueAxiom(const SymbolicFlowDeclaration
 }
 
 InflowContainsRangeAxiom::InflowContainsRangeAxiom(const SymbolicFlowDeclaration& flow_,
-                                                   std::unique_ptr<SymbolicVariable> valueLow_,
-                                                   std::unique_ptr<SymbolicVariable> valueHigh_)
+                                                   std::unique_ptr<SymbolicExpression> valueLow_,
+                                                   std::unique_ptr<SymbolicExpression> valueHigh_)
         : flow(flow_), valueLow(std::move(valueLow_)), valueHigh(std::move(valueHigh_)) {
     assert(valueLow);
     assert(valueHigh);

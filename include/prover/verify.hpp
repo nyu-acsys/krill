@@ -52,7 +52,7 @@ namespace prover {
         void HandleInterfaceFunction(const cola::Function& function);
         void HandleLoop(const cola::ConditionalLoop& loop);
 
-        void ApplyInterference();
+        void ApplyInterference(const cola::Statement& after);
         bool ConsolidateNewInterference();
         void AddNewInterference(std::deque<std::unique_ptr<solver::HeapEffect>> effects);
         void PerformStep(const std::function<std::unique_ptr<heal::Annotation>(std::unique_ptr<heal::Annotation>)>& transformer);

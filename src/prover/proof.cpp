@@ -202,7 +202,7 @@ void Verifier::visit(const Atomic& stmt) {
     insideAtomic = true;
 	stmt.body->accept(*this);
     insideAtomic = old_inside_atomic;
-    ApplyInterference();
+    ApplyInterference(stmt);
 }
 
 inline std::deque<std::unique_ptr<Annotation>> CopyList(const std::deque<std::unique_ptr<Annotation>>& list) {
@@ -314,17 +314,17 @@ void Verifier::visit(const CompareAndSwap& /*cmd*/) {
 
 void Verifier::visit(const Assume& cmd) {
     PerformStep([this,&cmd](auto annotation){ return solver->Post(std::move(annotation), cmd); });
-    ApplyInterference(); // TODO: could be omitted if cmd is purely local?
+    ApplyInterference(cmd);
 }
 
 void Verifier::visit(const Malloc& cmd) {
     PerformStep([this,&cmd](auto annotation){ return solver->Post(std::move(annotation), cmd); });
-    ApplyInterference(); // TODO: could be omitted if cmd is purely local?
+    ApplyInterference(cmd);
 }
 
 void Verifier::visit(const Assignment& cmd) {
     PerformStep([this,&cmd](auto annotation){ return solver->Post(std::move(annotation), cmd); });
-    ApplyInterference(); // TODO: could be omitted if cmd is purely local?
+    ApplyInterference(cmd);
 }
 
 void Verifier::visit(const Return& cmd) {

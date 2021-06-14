@@ -233,9 +233,10 @@ class AnnotationJoiner {
     void CreateSpecificationResources() {
         for (const auto& pair : varToCommonRes) {
             const auto* var = pair.first;
-            std::set<SpecificationAxiom::Kind> obligations = lookup.begin()->second.varToObl[var];
-            std::set<std::pair<SpecificationAxiom::Kind, bool>> fulfillments = lookup.begin()->second.varToFul[var];
-            for (auto it = std::next(lookup.begin()); it != lookup.end(); ++it) {
+            auto it = lookup.begin();
+            std::set<SpecificationAxiom::Kind> obligations = it->second.varToObl[var];
+            std::set<std::pair<SpecificationAxiom::Kind, bool>> fulfillments = it->second.varToFul[var];
+            for (++it; it != lookup.end(); ++it) {
                 EraseIf(obligations, [&](const auto& elem){ return it->second.varToObl[var].count(elem) == 0; });
                 EraseIf(fulfillments, [&](const auto& elem){ return it->second.varToFul[var].count(elem) == 0; });
             }

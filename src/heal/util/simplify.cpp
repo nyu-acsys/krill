@@ -45,9 +45,36 @@ struct Simplifier : public DefaultLogicNonConstListener {
     void exit(SeparatingConjunction& formula) override { Flatten(formula.conjuncts); }
 };
 
+bool AreEqual(const Formula* formula, const Formula* other) {
+    if (!formula || !other) return false;
+    std::stringstream formulaStream, otherStream;
+    formulaStream << *formula;
+    otherStream << *other;
+    return formulaStream.str() == otherStream.str(); // TODO: remove this hack
+}
+
+template<typename T>
+void RemoveDuplicates(T& container) {
+    for (auto it = container.begin(); it != container.end(); ++it) {
+        for (auto other = std::next(it); other != container.end(); ++other) {
+            if (!AreEqual((*it).get(), (*other).get())) continue;
+            (*other).reset();
+        }
+    }
+    container.erase(std::remove_if(container.begin(), container.end(), [](const auto& uptr){
+        return uptr.get() == nullptr;
+    }), container.end());
+}
+
+struct DuplicateRemove : public DefaultLogicNonConstListener {
+    void exit(SeparatingConjunction& formula) override { RemoveDuplicates(formula.conjuncts); }
+};
+
 void heal::Simplify(LogicObject& object) {
     static Simplifier simplifier;
     object.accept(simplifier);
+    static DuplicateRemove remover;
+    object.accept(remover);
 }
 
 

@@ -38,6 +38,7 @@ namespace solver {
         return annotation;
     }
 
+    template<bool checkPureOnly=false>
     static void AddSpecificationChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) {
         bool mustBePure = checks.preSpec.empty();
         auto qv = encoding.encoder.QuantifiedVariable(encoding.graph.config.GetFlowValueType().sort);
@@ -67,46 +68,53 @@ namespace solver {
             auto key = encoding.encoder(*obligation->key);
 
             // prepare
-            z3::expr_vector othersPreContained(encoding.encoder.context);
-            z3::expr_vector othersPostContained(encoding.encoder.context);
-            z3::expr_vector keyPreContained(encoding.encoder.context);
-            z3::expr_vector keyPostContained(encoding.encoder.context);
+            z3::expr_vector othersPreContainedVec(encoding.encoder.context);
+            z3::expr_vector othersPostContainedVec(encoding.encoder.context);
+            z3::expr_vector keyPreContainedVec(encoding.encoder.context);
+            z3::expr_vector keyPostContainedVec(encoding.encoder.context);
+            z3::expr_vector keyPreNotContainedVec(encoding.encoder.context);
+            z3::expr_vector keyPostNotContainedVec(encoding.encoder.context);
             for (const auto &node : encoding.graph.nodes) {
                 auto preKeys = encoding.encoder(node.preKeyset);
                 auto postKeys = encoding.encoder(node.postKeyset);
-                othersPreContained.push_back(preKeys(qv) && contains(node, qv, EMode::PRE));
-                othersPostContained.push_back(postKeys(qv) && contains(node, qv, EMode::POST));
-                keyPreContained.push_back(preKeys(key) && contains(node, key, EMode::PRE));
-                keyPostContained.push_back(postKeys(key) && contains(node, key, EMode::POST));
+                othersPreContainedVec.push_back(preKeys(qv) && contains(node, qv, EMode::PRE));
+                othersPostContainedVec.push_back(postKeys(qv) && contains(node, qv, EMode::POST));
+                keyPreContainedVec.push_back(preKeys(key) && contains(node, key, EMode::PRE));
+                keyPostContainedVec.push_back(postKeys(key) && contains(node, key, EMode::POST));
+                keyPreNotContainedVec.push_back(preKeys(key) && !contains(node, key, EMode::PRE));
+                keyPostNotContainedVec.push_back(postKeys(key) && !contains(node, key, EMode::POST));
             }
+            auto othersUnchanged = z3::forall(qv, z3::implies(qv != key, z3::mk_or(othersPreContainedVec) == z3::mk_or(othersPostContainedVec)));
+            auto isPreContainedNew = z3::mk_or(keyPreContainedVec);
+            auto isPostContainedNew = z3::mk_or(keyPostContainedVec);
+            auto isPreNotContainedNew = z3::mk_or(keyPreNotContainedVec);
+            auto isPostNotContainedNew = z3::mk_or(keyPostNotContainedVec);
+
 
             // check pure
-            auto isContained = isPure && z3::mk_or(keyPreContained);
-            auto isNotContained = isPure && !z3::mk_or(keyPreContained);
-            checks.Add(isContained, [&checks, obligation](bool holds) {
+            checks.Add(isPure && isPreContainedNew, [&checks, obligation](bool holds) {
+                std::cout << "     >-> isContained=" << holds << std::endl;
                 if (!holds || obligation->kind == heal::SpecificationAxiom::Kind::DELETE) return;
                 bool fulfilled = obligation->kind == heal::SpecificationAxiom::Kind::CONTAINS; // key contained => contains: success, insertion: fail
                 checks.postSpec.push_back(std::make_unique<heal::FulfillmentAxiom>(obligation->kind, heal::Copy(*obligation->key), fulfilled));
             });
-            checks.Add(isNotContained, [&checks, obligation](bool holds) {
+            checks.Add(isPure && isPreNotContainedNew, [&checks, obligation](bool holds) {
+                std::cout << "     >-> isNotContained=" << holds << std::endl;
                 if (!holds || obligation->kind == heal::SpecificationAxiom::Kind::INSERT) return;
                 bool fulfilled = false; // key not contained => contains: fail, deletion: fail
                 checks.postSpec.push_back(std::make_unique<heal::FulfillmentAxiom>(obligation->kind, heal::Copy(*obligation->key), fulfilled));
             });
 
             // check impure
+            if (checkPureOnly) continue;
             if (obligation->kind == heal::SpecificationAxiom::Kind::CONTAINS) continue; // always pure
-            auto othersUnchanged = z3::forall(qv, z3::implies(qv != key, z3::mk_or(othersPreContained) == z3::mk_or(othersPostContained)));
-            auto isInsertion = !z3::mk_or(keyPreContained) && z3::mk_or(keyPostContained) && othersUnchanged;
-            auto isDeletion = z3::mk_or(keyPreContained) && !z3::mk_or(keyPostContained) && othersUnchanged;
+            auto isInsertion = isPreNotContainedNew && isPostContainedNew && othersUnchanged;
+            auto isDeletion = isPreContainedNew && isPostNotContainedNew && othersUnchanged;
             auto isUpdate = obligation->kind == heal::SpecificationAxiom::Kind::INSERT ? isInsertion : isDeletion;
             checks.Add(isUpdate, [&checks, obligation](bool isTarget) {
-//        std::cout << "Checking impure specification wrt obligation: holds=" << isTarget << std::endl;
                 if (isTarget) {
                     checks.postSpec.push_back(std::make_unique<heal::FulfillmentAxiom>(obligation->kind, heal::Copy(*obligation->key), true));
                 } else if (checks.postSpec.empty()) {
-                    // if the update was pure, then there was an obligation in checks.postSpec
-                    // hence, the update must be impure and it does not satisfy the spec
                     throw std::logic_error("Unsafe update: impure update that does not satisfy the specification");
                 }
             });
@@ -124,6 +132,7 @@ namespace solver {
     }
 
     static std::unique_ptr<heal::Annotation> TryAddPureFulfillment(std::unique_ptr<heal::Annotation> annotation, const heal::SymbolicVariableDeclaration& address, const SolverConfig& config) {
+        std::cout << " >>> pure fulfillment check for " << address.name << std::endl;
 //        std::cout << std::endl << std::endl << "******* pure fulfillment check" << std::endl;
 //        heal::Print(*annotation, std::cout);
 //        std::cout << "address: " << address.name << std::endl << std::endl;
@@ -131,7 +140,7 @@ namespace solver {
         EncodedFlowGraph encoding(solver::MakeFlowGraph(std::move(annotation), address, config));
         FootprintChecks checks(encoding.context);
         checks.preSpec = heal::CollectObligations(*encoding.graph.pre->now);
-        AddSpecificationChecks(encoding, checks);
+        AddSpecificationChecks<true>(encoding, checks);
         AddDerivedKnowledgeChecks(encoding, checks);
         solver::ComputeImpliedCallback(encoding.solver, checks.checks);
         annotation = std::move(encoding.graph.pre);
@@ -140,7 +149,7 @@ namespace solver {
         return annotation;
     }
 
-    static inline std::set<const cola::Dereference*> GetDereferences(const cola::Expression& expression) {
+    static inline std::set<const cola::Dereference*> GetDereferences(const cola::Expression& expression) { // TODO: remove / move to better location
         struct Collector : public cola::BaseVisitor {
             std::set<const cola::Dereference*> result;
             void visit(const cola::BooleanValue& /*node*/) override { /* do nothing */ }
@@ -158,13 +167,21 @@ namespace solver {
         expression.accept(collector);
         return std::move(collector.result);
     }
+//
+//    static std::unique_ptr<heal::Annotation> TryAddPureFulfillment(std::unique_ptr<heal::Annotation> annotation, const cola::Expression& expression, const SolverConfig& config) {
+//        LazyValuationMap eval(*annotation);
+//        for (const auto* dereference : GetDereferences(expression)) {
+//            auto resource = solver::FindResource(*dereference, *annotation); // TODO: lazy
+//            if (!resource) continue;
+//            annotation = TryAddPureFulfillment(std::move(annotation), resource->node->Decl(), config); // TODO: avoid repeated solver invocations
+//        }
+//        return annotation;
+//    }
 
-    static std::unique_ptr<heal::Annotation> TryAddPureFulfillment(std::unique_ptr<heal::Annotation> annotation, const cola::Expression& expression, const SolverConfig& config) {
-        LazyValuationMap eval(*annotation);
-        for (const auto* dereference : GetDereferences(expression)) {
-            auto resource = solver::FindResource(*dereference, *annotation); // TODO: lazy
-            if (!resource) continue;
-            annotation = TryAddPureFulfillment(std::move(annotation), resource->node->Decl(), config); // TODO: avoid repeated solver invocations
+    static std::unique_ptr<heal::Annotation> TryAddPureFulfillment(std::unique_ptr<heal::Annotation> annotation, const SolverConfig& config) {
+        auto resources = heal::CollectMemory(*annotation);
+        for (const auto* memory : resources) {
+            annotation = TryAddPureFulfillment(std::move(annotation), memory->node->Decl(), config); // TODO: avoid repeated solver invocations
         }
         return annotation;
     }

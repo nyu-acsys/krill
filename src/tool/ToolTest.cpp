@@ -108,7 +108,7 @@ std::shared_ptr<SolverConfig> MakeConfig(const Program& program) {
     auto& nodeType = *program.types.at(0);
     assert(program.variables.size() == 2);
     assert(program.variables.at(0)->name == HEAD_NAME);
-    assert(program.variables.at(0)->name == TAIL_NAME);
+    assert(program.variables.at(1)->name == TAIL_NAME);
     const auto& head = *program.variables.at(0);
     const auto& tail = *program.variables.at(1);
     return std::make_shared<TestSolverConfig>(nodeType, head, tail);

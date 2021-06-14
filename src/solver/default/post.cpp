@@ -138,7 +138,7 @@ inline std::deque<std::unique_ptr<SeparatingConjunction>> PrunePaths(const Annot
 }
 
 PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const {
-    std::cout << " -- Post image for " << *pre << " " << cmd;
+    std::cout << "******** Post image for " << *pre << " " << cmd;
     pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *cmd.expr);
     PostImage result;
     auto paths = SplitDisjunctions(ExpressionToFormula(*cmd.expr, *pre));
@@ -147,7 +147,7 @@ PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd
         auto post = heal::Copy(*pre);
         post->now = heal::Conjoin(std::move(post->now), heal::Copy(*formula)); // TODO: avoid copy
         post->now = solver::ExpandMemoryFrontier(std::move(post->now), Config(), *formula);
-        post = solver::TryAddPureFulfillment(std::move(post), *cmd.expr, Config());
+        post = solver::TryAddPureFulfillment(std::move(post), Config());
         heal::InlineAndSimplify(*post->now);
         result.posts.push_back(std::move(post));
     }
@@ -210,7 +210,7 @@ inline std::pair<const SymbolicVariableDeclaration&, std::unique_ptr<Formula>> A
 }
 
 PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Malloc& cmd) const {
-    std::cout << " -- Post image for "; heal::Print(*pre, std::cout); std::cout << " "; cola::print(cmd, std::cout);
+    std::cout << "******** Post image for "; heal::Print(*pre, std::cout); std::cout << " "; cola::print(cmd, std::cout);
     if (cmd.lhs.is_shared)
         throw std::logic_error("Unsupported assignment: cannot assign to shared variables."); // TODO: better error handling
 
@@ -228,7 +228,7 @@ PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Malloc& cmd
 //
 
 PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assignment& cmd) const {
-    std::cout << " -- Post image for "; heal::Print(*pre, std::cout); std::cout << " "; cola::print(cmd, std::cout);
+    std::cout << "******** Post image for "; heal::Print(*pre, std::cout); std::cout << " "; cola::print(cmd, std::cout);
     if (auto variable = dynamic_cast<const VariableExpression*>(cmd.lhs.get())) {
         return PostVariableUpdate(std::move(pre), cmd, *variable);
     } else if (auto dereference = dynamic_cast<const Dereference*>(cmd.lhs.get())) {
@@ -266,13 +266,13 @@ PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<Annotation> pre, con
 
     // try derive helpful knowledge
     pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), factory, Config(), *resource->value); // TODO: force extension for symbol (=resource->value->Decl())?
-    pre = TryAddPureFulfillment(std::move(pre), *cmd.rhs, Config());
+    pre = TryAddPureFulfillment(std::move(pre), Config());
 
 //    begin debug
 //    std::cout << "== Post: " << std::endl; heal::Print(*pre, std::cout); std::cout << std::endl;
 //    end debug
 
     heal::InlineAndSimplify(*pre->now);
-    heal::Print(*pre, std::cout); std::cout << std::endl << std::endl;
+    std::cout << *pre << std::endl << std::endl;
     return PostImage(std::move(pre)); // local variable update => no effect
 }
