@@ -196,7 +196,6 @@ namespace solver {
 
     bool ComputeImplied(z3::solver& solver, const z3::expr& premise, const z3::expr& conclusion);
 
-    template<bool fallback = false>
     std::vector<bool> ComputeImplied(z3::solver& solver, const z3::expr_vector& expressions, bool* isSolverUnsatisfiable = nullptr);
 
     struct ImplicationCheckSet {
@@ -210,7 +209,6 @@ namespace solver {
         }
     };
 
-    template<bool fallback = false>
     void ComputeImpliedCallback(z3::solver& solver, const ImplicationCheckSet& checks, bool* isSolverUnsatisfiable = nullptr);
 
 }
