@@ -251,6 +251,7 @@ void Verifier::visit(const DoWhile& stmt) {
 }
 
 void Verifier::HandleLoop(const ConditionalLoop& stmt) {
+    if (current.empty()) return;
     if (dynamic_cast<const BooleanValue*>(stmt.expr.get()) == nullptr || !dynamic_cast<const BooleanValue*>(stmt.expr.get())->value) {
         throw UnsupportedConstructError("while/do-while loop with condition other than 'true'");
     }
@@ -262,24 +263,28 @@ void Verifier::HandleLoop(const ConditionalLoop& stmt) {
     stmt.body->accept(*this);
     auto firstBreaking = std::move(breaking);
     auto returningOuter = std::move(returning);
+    breaking.clear();
+    returning.clear();
 
     // looping until fixed point
-    std::size_t counter = 0;
-    auto join = solver->Join(std::move(current));
-    while (true) {
-        if (counter > 5) throw std::logic_error("loop breakpoint");
-        std::cout << std::endl << std::endl << " ------ loop " << ++counter << " ------ " << std::endl;
+    if (!current.empty()) {
+        std::size_t counter = 0;
+        auto join = solver->Join(std::move(current));
+        while (true) {
+            if (counter > 5) throw std::logic_error("loop breakpoint");
+            std::cout << std::endl << std::endl << " ------ loop " << ++counter << " ------ " << std::endl;
 
-        breaking.clear();
-        returning.clear();
-        current.clear();
-        current.push_back(heal::Copy(*join));
+            breaking.clear();
+            returning.clear();
+            current.clear();
+            current.push_back(heal::Copy(*join));
 
-        stmt.body->accept(*this);
-        current.push_back(heal::Copy(*join));
-        auto newJoin = solver->Join(std::move(current));
-        if (solver->Implies(*newJoin, *join) == Solver::YES) break;
-        join = std::move(newJoin);
+            stmt.body->accept(*this);
+            current.push_back(heal::Copy(*join));
+            auto newJoin = solver->Join(std::move(current));
+            if (solver->Implies(*newJoin, *join) == Solver::YES) break;
+            join = std::move(newJoin);
+        }
     }
 
     // post loop

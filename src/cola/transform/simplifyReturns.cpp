@@ -72,7 +72,7 @@ struct ReturnVisitor final : public BaseNonConstVisitor {
         if (node.expressions.empty()) return;
         if (node.expressions.size() != 1) return;
         if (node.expressions.front()->sort() != Sort::BOOL) return;
-        if (dynamic_cast<const VariableExpression*>(node.expressions.front().get())) return;
+        if (dynamic_cast<const SimpleExpression*>(node.expressions.front().get())) return;
         replacementNeeded = true;
         auto mkReturn = [](bool value){
             auto result = std::make_unique<Return>();

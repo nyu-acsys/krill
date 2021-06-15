@@ -25,22 +25,53 @@ inline <Node*, Node*, data_t> locate(data_t _key) {
         _pred = _curr; // 45
         _curr = _pred->next; // 49
         choose {
-            assume(_curr == _pred->next && _curr != NULL); // 312
+            assume(_curr == _pred->next && _curr != NULL); // 284
             _k = _curr->val; // 61
         }{
-            assume(_curr != _pred->next || _curr == NULL); // 310
+            assume(_curr != _pred->next || _curr == NULL); // 282
             _curr = Head; // 65
             _k = MIN_VAL; // 68
         }
         choose {
-            assume(_k >= _key); // 320
+            assume(_k >= _key); // 292
             break;
         }{
-            assume(_k < _key); // 318
+            assume(_k < _key); // 290
             skip;
         }
     } while (true);
     return <_pred, _curr, _k>;
+}
+
+bool add(data_t key) {
+    Node* entry;
+
+    entry = malloc;
+    entry->val = key; // 92
+    while (true) {
+        Node* pred;
+        Node* curr;
+        data_t k;
+
+        <pred, curr, k> = locate(key);
+        choose {
+            assume(k == key); // 300
+            return false;
+        }{
+            assume(k != key); // 298
+            entry->next = curr; // 111
+            choose {
+                atomic {
+                    assume(pred->next == curr); // 221
+                    pred->next = entry; // 215
+                }
+                return true;
+            }{
+                assume(pred->next != curr); // 220
+                skip;
+            }
+        }
+    }
 }
 
 bool contains(data_t key) {
@@ -50,54 +81,11 @@ bool contains(data_t key) {
 
     <pred, curr, k> = locate(key);
     choose {
-        assume(k == key); // 328
+        assume(k == key); // 308
         return true;
     }{
-        assume(k != key); // 326
-        return true;
-    }
-}
-
-bool add(data_t key) {
-    Node* entry;
-
-    entry = malloc;
-    entry->val = key; // 110
-    while (true) {
-        Node* pred;
-        Node* curr;
-        data_t k;
-
-        <pred, curr, k> = locate(key);
-        choose {
-            assume(k == key); // 348
-            choose {
-                assume(false); // 334
-                return true;
-            }{
-                assume(true); // 332
-                return true;
-            }
-        }{
-            assume(k != key); // 346
-            entry->next = curr; // 129
-            choose {
-                atomic {
-                    assume(pred->next == curr); // 221
-                    pred->next = entry; // 215
-                }
-                choose {
-                    assume(true); // 340
-                    return true;
-                }{
-                    assume(false); // 338
-                    return true;
-                }
-            }{
-                assume(pred->next != curr); // 220
-                skip;
-            }
-        }
+        assume(k != key); // 306
+        return false;
     }
 }
 
@@ -109,18 +97,12 @@ bool remove(data_t key) {
 
         <pred, curr, k> = locate(key);
         choose {
-            assume(k > key); // 368
-            choose {
-                assume(false); // 354
-                return true;
-            }{
-                assume(true); // 352
-                return true;
-            }
+            assume(k > key); // 316
+            return false;
         }{
             Node* next;
 
-            assume(k <= key); // 366
+            assume(k <= key); // 314
             next = curr->next; // 173
             choose {
                 atomic {
@@ -128,13 +110,7 @@ bool remove(data_t key) {
                     pred->next = next; // 242
                     curr->next = NULL; // 246
                 }
-                choose {
-                    assume(true); // 360
-                    return true;
-                }{
-                    assume(false); // 358
-                    return true;
-                }
+                return true;
             }{
                 assume(pred->next != curr || curr->next != next); // 257
                 skip;
@@ -142,10 +118,3 @@ bool remove(data_t key) {
         }
     }
 }
-
-//
-// END program "Vechev DCAS Set EBR (preprocessed)"
-//
-libc++abi.dylib: terminating with uncaught exception of type std::logic_error: breakpoint
-
-Process finished with exit code 134 (interrupted by signal 6: SIGABRT)

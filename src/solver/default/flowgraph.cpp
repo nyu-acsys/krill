@@ -207,10 +207,51 @@ FlowGraph solver::MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const
     return graph;
 }
 
+FlowGraph solver::MakeHeapGraph(std::unique_ptr<heal::Annotation> state, const SolverConfig& config) {
+    FlowGraph graph{config, {}, std::move(state)};
+
+    SymbolicFactory factory(*graph.pre);
+    LazyValuationMap eval(*graph.pre);
+
+    // add all nodes
+    auto memory = heal::CollectMemory(*graph.pre);
+    for (const auto* mem : memory) {
+        auto node = TryGetOrCreateNode(graph, eval, factory, mem->node->Decl());
+        node->needed = true;
+    }
+    if (!graph.nodes.empty()) {
+        graph.nodes.front().preRootInflow = graph.nodes.front().preAllInflow;
+        graph.nodes.front().postRootInflow = graph.nodes.front().preAllInflow;
+        graph.nodes.front().postAllInflow = graph.nodes.front().preAllInflow;
+    }
+
+    return graph;
+}
+
 
 //
 // Encode flow graph
 //
+
+inline z3::expr EncodeNodeLocality(const FlowGraphNode& node, EncodedFlowGraph& encoding) {
+    if (!node.preLocal) return encoding.context.bool_val(true);
+    auto& encoder = encoding.encoder;
+    z3::expr_vector result(encoding.context);
+    for (const auto& shared : encoding.graph.nodes) {
+        if (shared.preLocal) continue;
+        assert(&node != &shared);
+        // shared pointers cannot point to node ones
+        result.push_back(encoder(node.address) != encoder(shared.address));
+        for (const auto& field : shared.pointerFields) {
+            result.push_back(encoder(node.address) != encoder(field.preValue));
+        }
+    }
+    for (const auto& shared : heal::CollectVariables(*encoding.graph.pre)) {
+        if (!shared->variable->decl.is_shared) continue;
+        result.push_back(encoder(node.address) != encoder(*shared->value));
+    }
+    return z3::mk_and(result);
+}
 
 z3::expr EncodedFlowGraph::EncodeNodeInvariant(const FlowGraphNode& node, EMode mode) {
     auto invariant = graph.config.GetNodeInvariant(*node.ToLogic(mode));
@@ -218,7 +259,7 @@ z3::expr EncodedFlowGraph::EncodeNodeInvariant(const FlowGraphNode& node, EMode 
 }
 
 template<typename T>
-inline z3::expr Foobar(EncodedFlowGraph& encoding, const FlowGraphNode& node, const z3::expr& value, EMode mode, T getPredicate) {
+inline z3::expr EncodePredicate(EncodedFlowGraph& encoding, const FlowGraphNode& node, const z3::expr& value, EMode mode, T getPredicate) {
     auto memory = node.ToLogic(mode);
     auto& dummyArg = SymbolicFactory(*memory).GetUnusedSymbolicVariable(encoding.graph.config.GetFlowValueType());
     auto predicate = getPredicate(*memory, dummyArg);
@@ -229,19 +270,17 @@ inline z3::expr Foobar(EncodedFlowGraph& encoding, const FlowGraphNode& node, co
     return encoding.encoder(*predicate).substitute(replace, with);
 }
 
-
 z3::expr EncodedFlowGraph::EncodeNodeOutflow(const FlowGraphNode& node, const std::string& fieldName, const z3::expr& value, EMode mode) {
-    return Foobar(*this, node, value, mode, [this,&fieldName](auto& memory, auto& arg){
+    return EncodePredicate(*this, node, value, mode, [this, &fieldName](auto& memory, auto& arg) {
         return graph.config.GetOutflowContains(memory, fieldName, arg);
     });
 }
 
 z3::expr EncodedFlowGraph::EncodeNodeContains(const FlowGraphNode& node, const z3::expr& value, EMode mode) {
-    return Foobar(*this, node, value, mode, [this](auto& memory, auto& arg){
+    return EncodePredicate(*this, node, value, mode, [this](auto& memory, auto& arg) {
         return graph.config.GetLogicallyContains(memory, arg);
     });
 }
-
 
 z3::expr EncodeOutflow(EncodedFlowGraph& encoding, const FlowGraphNode& node, const Field& field, EMode mode) {
     /* Remark:
@@ -396,6 +435,7 @@ inline z3::expr EncodeFlow(EncodedFlowGraph& encoding) {
     for (const auto &node : graph.nodes) {
         // node invariant
         result.push_back(encoding.EncodeNodeInvariant(node, EMode::PRE));
+        result.push_back(EncodeNodeLocality(node, encoding));
 
         // general flow constraints
         result.push_back(EncodeFlowRules(encoding, node));
@@ -407,6 +447,11 @@ inline z3::expr EncodeFlow(EncodedFlowGraph& encoding) {
         }
     }
 
+    for (const auto* resource : heal::CollectVariables(*encoding.graph.pre)) {
+        if (!resource->variable->decl.is_shared) continue;
+        result.push_back(encoder(*encoding.graph.config.GetSharedVariableInvariant(*resource)));
+    }
+
     // add assumptions for pre flow: keyset disjointness, inflow uniqueness
     result.push_back(encoding.EncodeKeysetDisjointness(EMode::PRE));
     result.push_back(encoding.EncodeInflowUniqueness(EMode::PRE));
@@ -415,6 +460,7 @@ inline z3::expr EncodeFlow(EncodedFlowGraph& encoding) {
 }
 
 EncodedFlowGraph::EncodedFlowGraph(FlowGraph&& graph_) : solver(context), encoder(context, solver), graph(std::move(graph_)) {
+//    assert(!graph_.nodes.empty());
     solver.add(EncodeFlow(*this));
 //    assert(solver.check() != z3::unsat);
 }

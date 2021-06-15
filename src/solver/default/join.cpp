@@ -334,14 +334,22 @@ class AnnotationJoiner {
 
 public:
     static std::unique_ptr<Annotation> Join(std::vector<std::unique_ptr<Annotation>>&& annotations, const SolverConfig& config) {
-        std::cout << std::endl << std::endl << "========= joining" << std::endl; for (const auto& elem : annotations) heal::Print(*elem, std::cout); std::cout << std::endl;
+        static size_t timeSpent = 0;
+        auto start = std::chrono::steady_clock::now();
+
+        std::cout << std::endl << std::endl << "========= joining " << annotations.size() << std::endl; for (const auto& elem : annotations) heal::Print(*elem, std::cout); std::cout << std::endl;
         auto result = AnnotationJoiner(std::move(annotations), config).GetResult();
         heal::InlineAndSimplify(*result);
         std::cout << "** join result: "; heal::Print(*result, std::cout); std::cout << std::endl << std::endl << std::endl;
+
+        timeSpent += std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start).count();
+        std::cout << "& All time spent in Join: " << timeSpent << "ms" << std::endl;
+        assert(heal::CollectObligations(*result).size() + heal::CollectFulfillments(*result).size() > 0);
         return result;
     }
 };
 
 std::unique_ptr<Annotation> DefaultSolver::Join(std::vector<std::unique_ptr<Annotation>> annotations) const {
+    if (annotations.empty()) throw std::logic_error("Empty join not supported"); // TODO: better error handling
     return AnnotationJoiner::Join(std::move(annotations), Config());
 }

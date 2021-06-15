@@ -285,7 +285,7 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
     checks.preSpec = heal::CollectObligations(*encoding.graph.pre->now);
 
     CheckPublishing(encoding.graph);
-     CheckReachability(encoding.graph);
+    CheckReachability(encoding.graph);
     AddFlowCoverageChecks(encoding, checks);
     // AddFlowCycleChecks(encoding, checks);
     AddFlowUniquenessChecks(encoding, checks);
@@ -314,5 +314,6 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
 //    }
     // end debug
 
+    assert(heal::CollectObligations(*post).size() + heal::CollectFulfillments(*post).size() > 0);
     return PostImage(std::move(post), std::move(effects));
 }

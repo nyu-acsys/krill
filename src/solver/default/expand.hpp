@@ -114,7 +114,25 @@ namespace solver {
         return std::make_unique<heal::PointsToAxiom>(std::make_unique<heal::SymbolicVariable>(address), isLocal, flow, std::move(fieldToValue));
     }
 
-    static inline bool IsGuaranteedNotEqual(const heal::SymbolicVariableDeclaration& address, const heal::SymbolicVariableDeclaration& compare, const heal::Formula& state) {
+    static inline bool IsSyntacticallyDistinct(const heal::SymbolicVariableDeclaration& address, const heal::SymbolicVariableDeclaration& compare, const heal::Formula& state) {
+        struct DistinctCheck : public heal::BaseResourceVisitor {
+            const heal::SymbolicVariableDeclaration& address;
+            const heal::SymbolicVariableDeclaration& compare;
+            bool distinct = false;
+            explicit DistinctCheck(decltype(address) address, decltype(compare) compare) : address(address), compare(compare) {}
+            void enter(const heal::SymbolicAxiom& axiom) override {
+                if (distinct) return;
+                if (axiom.op != heal::SymbolicAxiom::NEQ) return;
+                if (auto lhs = dynamic_cast<const heal::SymbolicVariable*>(axiom.lhs.get())) {
+                    if (auto rhs = dynamic_cast<const heal::SymbolicVariable*>(axiom.rhs.get())) {
+                        distinct |= (&lhs->Decl() == &address && &rhs->Decl() == &compare)
+                                 || (&lhs->Decl() == &compare && &rhs->Decl() == &address);
+                    }
+                }
+            }
+        } checker(address, compare);
+        state.accept(checker);
+        if (checker.distinct) return true;
         auto memory = FindMemory(address, state); // TODO: lazy eval
         auto other = FindMemory(compare, state); // TODO: lazy eval
         if (!memory || !other) return false;
@@ -146,15 +164,36 @@ namespace solver {
         solver.add(encoder(*state));
 
         // add invariants
-        for (const auto* memory : heal::CollectMemory(*state)) {
+        auto memoryResources = heal::CollectMemory(*state);
+        auto variableResources = heal::CollectVariables(*state);
+        for (const auto* memory : memoryResources) {
             solver.add(encoder(*config.GetNodeInvariant(*memory)));
         }
-        for (const auto* var : heal::CollectVariables(*state)) {
+        for (const auto* var : variableResources) {
             if (!var->variable->decl.is_shared) continue;
             solver.add(encoder(*config.GetSharedVariableInvariant(*var)));
         }
 
-        // check for NULL and non-NULL
+        // add locality constraints
+        for (const auto* local : memoryResources) {
+            if (!local->isLocal) continue;
+            auto localNode = encoder(*local->node);
+
+            for (const auto* shared : memoryResources) {
+                if (shared->isLocal) continue;
+                solver.add(localNode != encoder(*shared->node));
+                for (const auto& [field, value] : shared->fieldToValue) {
+                    if (value->Sort() != cola::Sort::PTR) continue;
+                    solver.add(localNode != encoder(*value));
+                }
+            }
+            for (const auto* shared : variableResources) {
+                if (!shared->variable->decl.is_shared) continue;
+                solver.add(localNode != encoder(*shared->value));
+            }
+        }
+
+        // check for NULL and non-NULL, derive inequalities among pointers
         std::map<const heal::SymbolicVariableDeclaration*, std::optional<bool>> isNonNull;
         auto updateNonNull = [&isNonNull,&state](auto* address, bool value){
             isNonNull[address] = value;
@@ -162,11 +201,23 @@ namespace solver {
             state->conjuncts.push_back(std::make_unique<heal::SymbolicAxiom>(std::make_unique<heal::SymbolicVariable>(*address), op,
                                                                              std::make_unique<heal::SymbolicNull>()));
         };
+        auto addInequality = [&state](const auto& address, const auto& other){
+            state->conjuncts.push_back(std::make_unique<heal::SymbolicAxiom>(std::make_unique<heal::SymbolicVariable>(address), heal::SymbolicAxiom::NEQ,
+                                                                             std::make_unique<heal::SymbolicVariable>(other)));
+        };
         for (const auto* address : addresses) {
+            // null / non-null
             auto addressIsNull = encoder.MakeNullCheck(*address);
             checks.Add(addressIsNull, [&updateNonNull,address](bool holds) { if (holds) updateNonNull(address, false); });
             checks.Add(!addressIsNull, [&updateNonNull,address](bool holds) { if (holds) updateNonNull(address, true); });
-            // TODO: try find inequalities wrt. addresses that we have points-to predicate for?
+
+            // inequalities
+            for (const auto* memory : memoryResources) {
+                auto distinct = encoder(*address) != encoder(*memory->node);
+                checks.Add(distinct, [&addInequality,address,other=&memory->node->Decl()](bool holds){
+                    if (holds) addInequality(*address, *other);
+                });
+            }
         }
         solver::ComputeImpliedCallback(solver, checks);
         heal::InlineAndSimplify(*state);
@@ -175,18 +226,46 @@ namespace solver {
         for (const auto* address : addresses) {
             if (!isNonNull[address].value_or(false)) continue;
 
-            // find addresses that are guaranteed to be different from 'address'
-            Reachability reachability(*state); // TODO: lazily rebuild only when state has changed
             auto potentiallyOverlapping = heal::CollectMemory(*state); // TODO: lazily rebuild only when state has changed
             bool potentiallyOverlappingWithLocal = false;
-            for (auto it = potentiallyOverlapping.begin(); !potentiallyOverlappingWithLocal && it != potentiallyOverlapping.end();) {
-                bool isDistinct = reachability.IsReachable((*it)->node->Decl(), *address)
-                                  || IsGuaranteedNotEqual(*address, (*it)->node->Decl(), *state);
-                if (isDistinct) it = potentiallyOverlapping.erase(it);
-                else {
-                    potentiallyOverlappingWithLocal |= (*it)->isLocal;
-                    ++it;
+
+            // syntactically discharge overlap
+            auto filter = [&potentiallyOverlapping,&potentiallyOverlappingWithLocal,address](auto&& isDistinct){
+                potentiallyOverlappingWithLocal = false;
+                for (auto it = potentiallyOverlapping.begin(); it != potentiallyOverlapping.end();) {
+                    if (isDistinct(*address, (*it)->node->Decl())) it = potentiallyOverlapping.erase(it);
+                    else {
+                        potentiallyOverlappingWithLocal |= (*it)->isLocal;
+                        ++it;
+                    }
                 }
+            };
+            filter([&state](const auto& adr, const auto& other){ return IsSyntacticallyDistinct(adr, other, *state); });
+            if (!potentiallyOverlapping.empty()) {
+                Reachability reachability(*state); // TODO: lazily rebuild only when state has changed
+                filter([&reachability](const auto& adr, const auto& other){ return reachability.IsReachable(other, adr); });
+            }
+
+            // deeper analysis if forced address is potentially overlapping with local address
+            if (potentiallyOverlappingWithLocal && address == forceExpansion) {
+                auto abort = [&address](){ throw std::logic_error("Cannot expand memory frontier on forced address " + address->name + "."); }; // TODO: better error handling
+                std::cout << ">> local overlap on forced address detected, performing deep analysis..." << std::endl;
+                auto graph = solver::MakeHeapGraph(std::make_unique<heal::Annotation>(heal::Copy(*state)), config); // TODO: avoid copy?
+                if (graph.nodes.empty()) abort();
+                EncodedFlowGraph encoding(std::move(graph));
+                ImplicationCheckSet localChecks(encoding.context);
+                for (const auto* memory : potentiallyOverlapping) {
+                    auto distinct = encoding.encoder(*address) != encoding.encoder(*memory->node);
+                    localChecks.Add(distinct, [memory,&potentiallyOverlapping](bool holds){
+                        std::cout << "   --> overlap with " << *memory->node << " pruned=" << holds << std::endl;
+                        if (holds) potentiallyOverlapping.erase(memory);
+                    });
+                }
+                solver::ComputeImpliedCallback(encoding.solver, localChecks);
+                potentiallyOverlappingWithLocal = false;
+                for (const auto* memory : potentiallyOverlapping) potentiallyOverlappingWithLocal |= memory->isLocal;
+                if (potentiallyOverlappingWithLocal) abort();
+                throw std::logic_error("breakpoint");
             }
 
             // debug

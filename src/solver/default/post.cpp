@@ -134,6 +134,7 @@ inline std::deque<std::unique_ptr<SeparatingConjunction>> PrunePaths(const Annot
     }
     solver::ComputeImpliedCallback(solver, checks);
     paths.erase(std::remove_if(paths.begin(), paths.end(), [](const auto& elem){ return elem.get() == nullptr; }), paths.end());
+
     return paths;
 }
 
@@ -142,16 +143,19 @@ PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd
     pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *cmd.expr);
     PostImage result;
     auto paths = SplitDisjunctions(ExpressionToFormula(*cmd.expr, *pre));
-    paths = PrunePaths(*pre, std::move(paths));
+//    paths = PrunePaths(*pre, std::move(paths)); // TODO: do this here?
     for (auto& formula : paths) {
         auto post = heal::Copy(*pre);
         post->now = heal::Conjoin(std::move(post->now), heal::Copy(*formula)); // TODO: avoid copy
-        post->now = solver::ExpandMemoryFrontier(std::move(post->now), Config(), *formula);
-        post = solver::TryAddPureFulfillment(std::move(post), Config());
+//        post->now = solver::ExpandMemoryFrontier(std::move(post->now), Config(), *formula); // TODO: do this here?
+        bool isUnsatisfiable = false;
+        post = solver::TryAddPureFulfillment(std::move(post), Config(), &isUnsatisfiable);
+        if (isUnsatisfiable) continue;
         heal::InlineAndSimplify(*post->now);
+        std::cout << "  ~> " << *post << std::endl;
+        assert(heal::CollectObligations(*post).size() + heal::CollectFulfillments(*post).size() > 0);
         result.posts.push_back(std::move(post));
     }
-    for (const auto& elem : result.posts) std::cout << "  ~> " << *elem << std::endl;
     return result;
 }
 
@@ -168,30 +172,40 @@ inline bool TryUpdateVariableValuation(Formula& formula, const VariableDeclarati
     return true;
 }
 
-inline void CheckCell(const Formula& state, const PointsToAxiom& memory, const SolverConfig& config) {
+inline void CheckCell(const Formula& state, const SymbolicVariableDeclaration& address, const SolverConfig& config) {
     z3::context context;
     z3::solver solver(context);
     Z3Encoder encoder(context, solver);
-    auto good = solver::ComputeImplied(solver, encoder(state), encoder(*config.GetNodeInvariant(memory)));
-    if (good) return;
-    throw std::logic_error("Newly allocated node does not satisfy invariant."); // TODO: better error handling
+    auto memory = solver::FindMemory(address, state); // TODO: avoid search
+    if (!memory) throw std::logic_error("Cannot retrieve newly allocated memory resource."); // TODO: better error handling
+    auto good = solver::ComputeImplied(solver, encoder(state), encoder(*config.GetNodeInvariant(*memory)));
+    if (!good) throw std::logic_error("Newly allocated node does not satisfy invariant."); // TODO: better error handling
 }
 
 inline std::pair<const SymbolicVariableDeclaration&, std::unique_ptr<Formula>> AllocateFreshCell(const Type &allocationType, const Annotation &context, const SolverConfig& config) {
     SymbolicFactory factory(context);
+    auto result = std::make_unique<SeparatingConjunction>();
     auto& address = factory.GetUnusedSymbolicVariable(allocationType);
+    result->conjuncts.push_back(std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(address), SymbolicAxiom::NEQ, std::make_unique<SymbolicNull>()));
     auto node = std::make_unique<SymbolicVariable>(address);
     auto& flow = factory.GetUnusedFlowVariable(config.GetFlowValueType());
+    result->conjuncts.push_back(std::make_unique<InflowEmptinessAxiom>(flow, true));
     std::map<std::string, std::unique_ptr<SymbolicVariable>> fieldToValue;
     for (const auto& [field, type] : allocationType.fields) {
-        fieldToValue[field] = std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(type));
+        auto& value = factory.GetUnusedSymbolicVariable(type);
+        fieldToValue[field] = std::make_unique<SymbolicVariable>(value);
+        if (type.get().sort != Sort::PTR) continue;
+        result->conjuncts.push_back(std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(value), SymbolicAxiom::EQ, std::make_unique<SymbolicNull>()));
     }
-    auto cell = std::make_unique<PointsToAxiom>(std::move(node), true, flow, std::move(fieldToValue));
-
-    // TODO: default initialization?
-    // TODO: add no-flow constraint?
-    CheckCell(*cell, *cell, config);
-    return { cell->node->decl_storage.get(), std::move(cell) };
+    result->conjuncts.push_back(std::make_unique<PointsToAxiom>(std::move(node), true, flow, std::move(fieldToValue)));
+    for (const auto* symbol : heal::CollectSymbolicSymbols(context)) {
+        if (symbol->type != allocationType) continue;
+        if (auto other = dynamic_cast<const SymbolicVariableDeclaration*>(symbol)) {
+            result->conjuncts.push_back(std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(address), SymbolicAxiom::NEQ, std::make_unique<SymbolicVariable>(*other))); // TODO: is this correct?
+        }
+    }
+    CheckCell(*result, address, config);
+    return { address, std::move(result) };
 }
 
 PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Malloc& cmd) const {
@@ -250,8 +264,10 @@ PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<Annotation> pre, con
     pre->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(symbol), SymbolicAxiom::EQ, std::move(value)));
 
     // try derive helpful knowledge
-    pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), factory, Config(), *resource->value); // TODO: force extension for symbol (=resource->value->Decl())?
-    pre = TryAddPureFulfillment(std::move(pre), Config());
+    if (!solver::GetDereferences(*cmd.rhs).empty()) { // TODO: when to do this?
+        pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), factory, Config(), *resource->value);
+        pre = TryAddPureFulfillment(std::move(pre), Config());
+    }
 
 //    begin debug
 //    std::cout << "== Post: " << std::endl; heal::Print(*pre, std::cout); std::cout << std::endl;
@@ -259,5 +275,6 @@ PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<Annotation> pre, con
 
     heal::InlineAndSimplify(*pre->now);
     std::cout << *pre << std::endl << std::endl;
+    assert(heal::CollectObligations(*pre).size() + heal::CollectFulfillments(*pre).size() > 0);
     return PostImage(std::move(pre)); // local variable update => no effect
 }
