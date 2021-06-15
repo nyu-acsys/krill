@@ -159,8 +159,6 @@ std::shared_ptr<Program> ReadInput(const std::string& filename, bool preprocess=
 }
 
 int main(int /*argc*/, char** /*argv*/) {
-//    bool preprocess = false;
-//    std::string file = "/Users/wolff/Desktop/plankton/examples/transformed.cola";
     bool preprocess = true;
     std::string file = "/Users/wolff/Desktop/plankton/examples/VechevDCasSet.cola";
 
@@ -177,3 +175,21 @@ int main(int /*argc*/, char** /*argv*/) {
     std::cout << "Test " << file << ": is " << (isLinearizable ? "" : "NOT") << " linearizable" << std::endl;
     std::cout << "Time taken: " << elapsed << "ms" << std::endl;
 }
+
+//int main(int /*argc*/, char** /*argv*/) {
+//    std::string file = "/Users/wolff/Desktop/plankton/examples/VechevDCasSet.cola";
+//
+//    std::deque<std::string> reports;
+//    for (std::size_t count = 0; count < 25; ++count) {
+//        auto program = ReadInput(file, true);
+//        auto config = MakeConfig(*program);
+//        try {
+//            auto isLinearizable = prover::CheckLinearizability(*program, config);
+//            reports.emplace_back("SUCCESS");
+//        } catch (std::logic_error& err) {
+//            reports.emplace_back(err.what());
+//        }
+//    }
+//    std::cout << std::endl << std::endl << "Reports:" << std::endl;
+//    for (const auto& elem : reports) std::cout << "  -> " << elem << std::endl;
+//}

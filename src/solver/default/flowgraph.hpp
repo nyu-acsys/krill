@@ -18,12 +18,15 @@ namespace solver {
         std::reference_wrapper<const heal::SymbolicVariableDeclaration> preValue;
         std::reference_wrapper<const heal::SymbolicVariableDeclaration> postValue;
         std::optional<std::reference_wrapper<const heal::SymbolicFlowDeclaration>> preAllOutflow;
-        std::optional<std::reference_wrapper<const heal::SymbolicFlowDeclaration>> preRootOutflow;
+        std::optional<std::reference_wrapper<const heal::SymbolicFlowDeclaration>> preGraphOutflow;
         std::optional<std::reference_wrapper<const heal::SymbolicFlowDeclaration>> postAllOutflow;
-        std::optional<std::reference_wrapper<const heal::SymbolicFlowDeclaration>> postRootOutflow;
+        std::optional<std::reference_wrapper<const heal::SymbolicFlowDeclaration>> postGraphOutflow;
 
         Field(Field&& other) = default;
         Field(const Field& other) = delete;
+        Field(std::string name, const cola::Type& type, const heal::SymbolicVariableDeclaration& value)
+                : name(std::move(name)), type(type), preValue(value), postValue(value), preAllOutflow(std::nullopt),
+                  preGraphOutflow(std::nullopt), postAllOutflow(std::nullopt), postGraphOutflow(std::nullopt) {}
     };
 
     struct FlowGraphNode {
@@ -32,10 +35,10 @@ namespace solver {
         bool preLocal;
         bool postLocal;
         std::reference_wrapper<const heal::SymbolicFlowDeclaration> preAllInflow;
-        std::reference_wrapper<const heal::SymbolicFlowDeclaration> preRootInflow;
+        std::reference_wrapper<const heal::SymbolicFlowDeclaration> preGraphInflow;
         std::reference_wrapper<const heal::SymbolicFlowDeclaration> preKeyset;
         std::reference_wrapper<const heal::SymbolicFlowDeclaration> postAllInflow;
-        std::reference_wrapper<const heal::SymbolicFlowDeclaration> postRootInflow;
+        std::reference_wrapper<const heal::SymbolicFlowDeclaration> postGraphInflow;
         std::reference_wrapper<const heal::SymbolicFlowDeclaration> postKeyset;
         std::reference_wrapper<const heal::SymbolicFlowDeclaration> frameInflow;
         std::vector<Field> dataFields;
@@ -43,6 +46,12 @@ namespace solver {
 
         FlowGraphNode(FlowGraphNode&& other) = default;
         FlowGraphNode(const FlowGraphNode& other) = delete;
+        FlowGraphNode(const heal::SymbolicVariableDeclaration& address, bool local, const heal::SymbolicFlowDeclaration& preFlow,
+                      heal::SymbolicFactory& factory, const cola::Type& flowType)
+                : address(address), needed(false), preLocal(local), postLocal(local), preAllInflow(preFlow),
+                  preGraphInflow(factory.GetUnusedFlowVariable(flowType)), preKeyset(factory.GetUnusedFlowVariable(flowType)),
+                  postAllInflow(factory.GetUnusedFlowVariable(flowType)), postGraphInflow(factory.GetUnusedFlowVariable(flowType)),
+                  postKeyset(factory.GetUnusedFlowVariable(flowType)), frameInflow(factory.GetUnusedFlowVariable(flowType)) {}
 
         [[nodiscard]] std::unique_ptr<heal::PointsToAxiom> ToLogic(EMode mode) const;
     };
@@ -54,7 +63,6 @@ namespace solver {
 
         FlowGraph(FlowGraph&& other) = default;
         FlowGraph(const FlowGraph& other) = delete;
-
         [[nodiscard]] FlowGraphNode* GetNodeOrNull(const heal::SymbolicVariableDeclaration& address);
         [[nodiscard]] const FlowGraphNode* GetNodeOrNull(const heal::SymbolicVariableDeclaration& address) const;
         [[nodiscard]] const FlowGraphNode& GetRoot() const { return nodes.at(0); }
@@ -62,8 +70,8 @@ namespace solver {
     };
 
     // TODO: add invariants to flow graph
-    [[nodiscard]] FlowGraph MakeHeapGraph(std::unique_ptr<heal::Annotation> state, const SolverConfig& config);
-    [[nodiscard]] FlowGraph MakeFlowGraph(std::unique_ptr<heal::Annotation> state, const heal::SymbolicVariableDeclaration& rootAddress, const SolverConfig& config, std::size_t depth=1);
+    [[nodiscard]] FlowGraph MakePureHeapGraph(std::unique_ptr<heal::Annotation> state, const SolverConfig& config);
+//    [[nodiscard]] FlowGraph MakeFlowGraph(std::unique_ptr<heal::Annotation> state, const heal::SymbolicVariableDeclaration& rootAddress, const SolverConfig& config, std::size_t depth = 1);
     [[nodiscard]] FlowGraph MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const cola::Dereference& lhs, const cola::SimpleExpression& rhs, const SolverConfig& config);
 
     struct EncodedFlowGraph {
@@ -74,7 +82,6 @@ namespace solver {
 
         EncodedFlowGraph(const EncodedFlowGraph& other) = delete;
         explicit EncodedFlowGraph(FlowGraph&& graph_);
-
         z3::expr EncodeKeysetDisjointness(EMode mode);
         z3::expr EncodeInflowUniqueness(EMode mode);
         z3::expr EncodeNodeInvariant(const FlowGraphNode& node, EMode mode);

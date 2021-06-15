@@ -50,6 +50,28 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 }
 
 
+bool remove(data_t key) {
+	while (true) {
+		Node* pred, curr;
+		data_t k;
+
+		(pred, curr, k) = locate(key);
+
+		if (k > key) {
+			return false;
+
+		} else {
+			Node* next;
+
+			next = curr->next;
+			if (CAS((pred->next, curr->next), (curr, next), (next, NULL))) {
+				return true;
+			}
+		}
+	}
+}
+
+
 bool add(data_t key) {
 	Node* entry;
 
@@ -81,26 +103,4 @@ bool contains(data_t key) {
 
 	(pred, curr, k) = locate(key);
 	return k == key;
-}
-
-
-bool remove(data_t key) {
-	while (true) {
-		Node* pred, curr;
-		data_t k;
-
-		(pred, curr, k) = locate(key);
-
-		if (k > key) {
-			return false;
-
-		} else {
-			Node* next;
-
-			next = curr->next;
-			if (CAS((pred->next, curr->next), (curr, next), (next, NULL))) {
-				return true;
-			}
-		}
-	}
 }

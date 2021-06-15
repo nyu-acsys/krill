@@ -145,7 +145,7 @@ namespace solver {
         static size_t timeSpent = 0;
         auto start = std::chrono::steady_clock::now();
 
-        auto graph = solver::MakeHeapGraph(std::move(annotation), config);
+        auto graph = solver::MakePureHeapGraph(std::move(annotation), config);
         if (graph.nodes.empty()) return std::move(graph.pre);
         EncodedFlowGraph encoding(std::move(graph));
         FootprintChecks checks(encoding.context);

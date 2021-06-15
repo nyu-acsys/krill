@@ -250,7 +250,7 @@ namespace solver {
             if (potentiallyOverlappingWithLocal && address == forceExpansion) {
                 auto abort = [&address](){ throw std::logic_error("Cannot expand memory frontier on forced address " + address->name + "."); }; // TODO: better error handling
                 std::cout << ">> local overlap on forced address detected, performing deep analysis..." << std::endl;
-                auto graph = solver::MakeHeapGraph(std::make_unique<heal::Annotation>(heal::Copy(*state)), config); // TODO: avoid copy?
+                auto graph = solver::MakePureHeapGraph(std::make_unique<heal::Annotation>(heal::Copy(*state)), config); // TODO: avoid copy?
                 if (graph.nodes.empty()) abort();
                 EncodedFlowGraph encoding(std::move(graph));
                 ImplicationCheckSet localChecks(encoding.context);

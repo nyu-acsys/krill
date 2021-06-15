@@ -67,7 +67,7 @@ void AddFlowCoverageChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) 
     auto qv = encoding.encoder.QuantifiedVariable(encoding.graph.config.GetFlowValueType().sort);
     for (const auto& node : encoding.graph.nodes) {
         for (const auto& field : node.pointerFields) {
-            auto sameFlow = encoding.encoder(field.preRootOutflow.value())(qv) == encoding.encoder(field.postRootOutflow.value())(qv);
+            auto sameFlow = encoding.encoder(field.preAllOutflow.value())(qv) == encoding.encoder(field.postAllOutflow.value())(qv); // TODO: all or graph flow?
             checks.Add(z3::forall(qv, sameFlow), [ensureFootprintContains,&node,&field](bool unchanged){
 //                std::cout << "Checking outflow at " << node.address.name << ": unchanged=" << unchanged << std::endl;
                 if (unchanged) return;
@@ -124,8 +124,9 @@ void AddInvariantChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) {
 // Perform Checks
 //
 
+template<bool fallback = false>
 void PerformChecks(EncodedFlowGraph& encoding, const FootprintChecks& checks) {
-    ComputeImpliedCallback(encoding.solver, checks.checks);
+    solver::ComputeImpliedCallback<fallback>(encoding.solver, checks.checks);
 }
 
 void MinimizeFootprint(FlowGraph& footprint) {
@@ -262,7 +263,8 @@ std::deque<std::unique_ptr<HeapEffect>> ExtractEffects(const EncodedFlowGraph& e
 // Overall Algorithm
 //
 
-PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const Assignment& cmd, const Dereference& lhs) const {
+template<bool fallback = false>
+inline PostImage PerformMemoryPostImage(std::unique_ptr<Annotation> pre, const Assignment& cmd, const Dereference& lhs, const SolverConfig& config) {
     // TODO: use future
     // TODO: create and use update/effect lookup table
     // TODO: start with smaller footprint and increase if too small?
@@ -278,8 +280,8 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
     auto [isSimple, rhs] = heal::IsOfType<SimpleExpression>(*cmd.rhs);
     if (!isSimple) throw std::logic_error("Unsupported assignment: right-hand side is not simple"); // TODO:: better error handling
 
-    pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), lhs);
-    FlowGraph footprint = solver::MakeFlowFootprint(std::move(pre), lhs, *rhs, Config());
+    pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), config, lhs);
+    FlowGraph footprint = solver::MakeFlowFootprint(std::move(pre), lhs, *rhs, config);
     EncodedFlowGraph encoding(std::move(footprint));
     FootprintChecks checks(encoding.context);
     checks.preSpec = heal::CollectObligations(*encoding.graph.pre->now);
@@ -293,7 +295,7 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
     AddInvariantChecks(encoding, checks);
     AddDerivedKnowledgeChecks(encoding, checks);
     AddEffectContextGenerators(encoding, checks);
-    PerformChecks(encoding, checks);
+    PerformChecks<fallback>(encoding, checks);
 
     MinimizeFootprint(encoding.graph);
     auto effects = ExtractEffects(encoding, std::move(checks.context));
@@ -316,4 +318,13 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
 
     assert(heal::CollectObligations(*post).size() + heal::CollectFulfillments(*post).size() > 0);
     return PostImage(std::move(post), std::move(effects));
+}
+
+PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const Assignment& cmd, const Dereference& lhs) const {
+    try {
+        return PerformMemoryPostImage<false>(heal::Copy(*pre), cmd, lhs, Config());
+    } catch (...) { // TODO: properly catch verification errors
+        std::cerr << "WARNING: reattempting failed post image with fallback solving method." << std::endl;
+        return PerformMemoryPostImage<true>(std::move(pre), cmd, lhs, Config());
+    }
 }

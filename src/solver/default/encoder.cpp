@@ -83,37 +83,48 @@ inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const z3::e
     }
 }
 
-struct MethodChooser {
-    // TODO: identify working method beforehand (during construction)
-    // static std::function<std::vector<bool>(z3::solver&, const z3::expr_vector&, bool*)> method = GetSolvingMethod();
-    // return method(solver, expressions, isSolverUnsatisfiable);
+//struct MethodChooser {
+//    // TODO: identify working method beforehand (during construction)
+//    // static std::function<std::vector<bool>(z3::solver&, const z3::expr_vector&, bool*)> method = GetSolvingMethod();
+//    // return method(solver, expressions, isSolverUnsatisfiable);
+//
+//    bool fallback = false;
+//    inline std::vector<bool> operator()(z3::solver& solver, const z3::expr_vector& expressions, bool* isSolverUnsatisfiable) {
+//        if (fallback) return ComputeImpliedOneAtATime(solver, expressions, isSolverUnsatisfiable);
+//        try {
+//            return ComputeImpliedInOneShot(solver, expressions, isSolverUnsatisfiable);
+//        } catch (const Z3SolvingFailedError& err) {
+//            auto result = ComputeImpliedOneAtATime(solver, expressions, isSolverUnsatisfiable);
+//            unsigned int versionMajor, versionMinor, versionBuild, versionRevision;
+//            Z3_get_version(&versionMajor, &versionMinor, &versionBuild, &versionRevision);
+//            std::cerr << "WARNING: solving failure with Z3's solver::consequences! This issue is known to happen for versions >4.8.7, " <<
+//                      "your version is " << versionMajor << "." << versionMinor << "." << versionBuild << ". " <<
+//                      "Using fallback, performance may degrade..." << std::endl;
+//            fallback = true;
+//            return result;
+//        }
+//    }
+//} method;
 
-    bool fallback = false;
-    inline std::vector<bool> operator()(z3::solver& solver, const z3::expr_vector& expressions, bool* isSolverUnsatisfiable) {
-        if (fallback) return ComputeImpliedOneAtATime(solver, expressions, isSolverUnsatisfiable);
-        try {
-            return ComputeImpliedInOneShot(solver, expressions, isSolverUnsatisfiable);
-        } catch (const Z3SolvingFailedError& err) {
-            auto result = ComputeImpliedOneAtATime(solver, expressions, isSolverUnsatisfiable);
-            unsigned int versionMajor, versionMinor, versionBuild, versionRevision;
-            Z3_get_version(&versionMajor, &versionMinor, &versionBuild, &versionRevision);
-            std::cerr << "WARNING: solving failure with Z3's solver::consequences! This issue is known to happen for versions >4.8.7, " <<
-                      "your version is " << versionMajor << "." << versionMinor << "." << versionBuild << ". " <<
-                      "Using fallback, performance may degrade..." << std::endl;
-            fallback = true;
-            return result;
-        }
-    }
-} method;
 
-std::vector<bool> solver::ComputeImplied(z3::solver& solver, const z3::expr_vector& expressions, bool* isSolverUnsatisfiable) {
-    return method(solver, expressions, isSolverUnsatisfiable);
+template<>
+std::vector<bool> solver::ComputeImplied<false>(z3::solver& solver, const z3::expr_vector& expressions, bool* isSolverUnsatisfiable) {
+    return ComputeImpliedInOneShot(solver, expressions, isSolverUnsatisfiable);
 }
 
+template<>
+std::vector<bool> solver::ComputeImplied<true>(z3::solver& solver, const z3::expr_vector& expressions, bool* isSolverUnsatisfiable) {
+    return ComputeImpliedOneAtATime(solver, expressions, isSolverUnsatisfiable);
+}
+
+template<bool fallback>
 void solver::ComputeImpliedCallback(z3::solver& solver, const ImplicationCheckSet& checks, bool* isSolverUnsatisfiable) {
-    auto implied = ComputeImplied(solver, checks.expressions, isSolverUnsatisfiable);
+    auto implied = ComputeImplied<fallback>(solver, checks.expressions, isSolverUnsatisfiable);
     assert(checks.expressions.size() == implied.size());
     for (std::size_t index = 0; index < implied.size(); ++index) {
         checks.callbacks.at(index)(implied.at(index));
     }
 }
+
+template void solver::ComputeImpliedCallback<true>(z3::solver& solver, const ImplicationCheckSet& checks, bool* isSolverUnsatisfiable);
+template void solver::ComputeImpliedCallback<false>(z3::solver& solver, const ImplicationCheckSet& checks, bool* isSolverUnsatisfiable);
