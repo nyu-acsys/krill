@@ -13,12 +13,12 @@ namespace solver {
     private:
         std::map<const heal::SymbolicVariableDeclaration*, std::set<const heal::SymbolicVariableDeclaration*>> reachability;
 
-        void Initialize(std::set<const heal::SymbolicVariableDeclaration*>&& worklist,
+        void Initialize(std::set<const heal::SymbolicVariableDeclaration*>&& nodes,
                         std::function<std::set<const heal::SymbolicVariableDeclaration*>(const heal::SymbolicVariableDeclaration&)>&& getNext) {
             // populate 1-step successors
-            while (!worklist.empty()) {
-                auto& decl = **worklist.begin();
-                worklist.erase(worklist.begin());
+            while (!nodes.empty()) {
+                auto& decl = **nodes.begin();
+                nodes.erase(nodes.begin());
                 if (reachability.count(&decl) != 0) continue;
                 reachability[&decl] = getNext(decl);
             }
@@ -57,7 +57,9 @@ namespace solver {
         }
 
         explicit Reachability(const FlowGraph& graph, EMode mode) {
-            Initialize({&graph.GetRoot().address}, [&graph, &mode](const auto& decl) {
+            std::set<const heal::SymbolicVariableDeclaration*> nodes;
+            for (const auto& node : graph.nodes) nodes.insert(&node.address);
+            Initialize(std::move(nodes), [&graph, &mode](const auto& decl) {
                 std::set<const heal::SymbolicVariableDeclaration*> successors;
                 auto node = graph.GetNodeOrNull(decl);
                 if (node) {
@@ -224,6 +226,7 @@ namespace solver {
 
         // find new points-to predicates
         for (const auto* address : addresses) {
+            std::cout << "%% expansion for " << address->name << "  non-null=" << isNonNull[address].value_or(false) << std::endl;
             if (!isNonNull[address].value_or(false)) continue;
 
             auto potentiallyOverlapping = heal::CollectMemory(*state); // TODO: lazily rebuild only when state has changed
@@ -293,20 +296,21 @@ namespace solver {
     }
 
     static std::unique_ptr<heal::SeparatingConjunction>
-    ExpandMemoryFrontier(std::unique_ptr<heal::SeparatingConjunction> state, const SolverConfig& config,
-                         const heal::LogicObject& addressesFrom, const heal::SymbolicVariableDeclaration* forceExpansion = nullptr) {
+    ExpandMemoryFrontier(std::unique_ptr<heal::SeparatingConjunction> state, const SolverConfig& config) {
         heal::SymbolicFactory factory(*state);
-        return ExpandMemoryFrontier(std::move(state), factory, config, addressesFrom, forceExpansion);
+        auto addressesFrom = heal::Copy(*state); // TODO: avoid copy
+        return ExpandMemoryFrontier(std::move(state), factory, config, *addressesFrom);
     }
 
     static std::unique_ptr<heal::SeparatingConjunction>
-    ExpandMemoryFrontierForAccess(std::unique_ptr<heal::SeparatingConjunction> state, const SolverConfig& config,
-                                  const cola::Expression& accessesFrom) {
+    ExpandMemoryFrontierForAccess(std::unique_ptr<heal::SeparatingConjunction> state, const SolverConfig& config, const cola::Expression& accessesFrom) {
         auto dereferences = GetDereferences(accessesFrom);
+        if (dereferences.empty()) return state;
+        heal::SymbolicFactory factory(*state);
         for (const auto* dereference : dereferences) {
             auto value = EagerValuationMap(*state).Evaluate(*dereference->expr); // TODO: if this fails, the error will be cryptic
             if (auto var = dynamic_cast<const heal::SymbolicVariable*>(value.get())) {
-                state = ExpandMemoryFrontier(std::move(state), config, *var, &var->Decl());
+                state = ExpandMemoryFrontier(std::move(state), factory, config, *var, &var->Decl()); // TODO: avoid repeated invocation
             }
         }
         return state;

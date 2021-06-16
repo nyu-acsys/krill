@@ -115,11 +115,13 @@ inline void ExpandGraph(FlowGraph& graph, LazyValuationMap& eval, SymbolicFactor
     while (!worklist.empty()) {
         auto[depth, node] = *worklist.begin();
         worklist.erase(worklist.begin());
+        std::cout << "** FPE: " << node->address.name << " d=" << depth << std::endl;
         if (depth == 0) continue;
 
         for (auto& field : node->pointerFields) {
             for (auto nextAddress : {&field.preValue, &field.postValue}) {
                 auto* nextNode = TryGetOrCreateNode(graph, eval, factory, *nextAddress);
+                std::cout << "     => looking at" << nextAddress->get().name << "  raw_pointer=" << nextNode << std::endl;
                 if (!nextNode) continue;
                 *nextAddress = nextNode->address; // inline alias
                 if (!node->postLocal) nextNode->postLocal = false; // publish node
@@ -144,8 +146,29 @@ inline void FinalizeFromRoot(FlowGraph& graph, const SymbolicVariableDeclaration
     root->postAllInflow = root->preAllInflow;
     if (applyRootUpdate) applyRootUpdate.value()(*root);
 
+    std::cout << ">> Footprint before expansion:" << std::endl;
+    for (const auto& node : graph.nodes) {
+        std::cout << "    - Node: " << node.address << std::endl;
+        std::cout << "        * pre ptr fields: ";
+        for (const auto& field : node.pointerFields) std::cout << field.preValue.get().name << ", ";
+        std::cout << std::endl << "        * pre ptr fields: ";
+        for (const auto& field : node.pointerFields) std::cout << field.postValue.get().name << ", ";
+        std::cout << std::endl;
+    }
+
     // generate flow graph
     ExpandGraph(graph, eval, factory, depth);
+
+    std::cout << ">> Footprint after expansion:" << std::endl;
+    for (const auto& node : graph.nodes) {
+        std::cout << "    - Node: " << node.address << std::endl;
+        std::cout << "        * pre ptr fields: ";
+        for (const auto& field : node.pointerFields) std::cout << field.preValue.get().name << ", ";
+        std::cout << std::endl << "        * pre ptr fields: ";
+        for (const auto& field : node.pointerFields) std::cout << field.postValue.get().name << ", ";
+        std::cout << std::endl;
+    }
+    throw std::logic_error("breakpoint");
 
     // cyclic flow graphs are not supported
     if (!graph.GetIncomingEdges(*root, EMode::PRE).empty() || !graph.GetIncomingEdges(*root, EMode::POST).empty()) {

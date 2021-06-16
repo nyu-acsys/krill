@@ -55,7 +55,6 @@ namespace solver {
         }
         auto isPure = z3::forall(qv, z3::mk_or(preContains) == z3::mk_or(postContains));
         checks.Add(isPure, [mustBePure,&checks](bool isPure){
-            std::cout << "!! footprint pure=" << isPure << std::endl;
             if (!isPure && mustBePure) throw std::logic_error("Unsafe update: impure update without obligation."); // TODO: better error handling
             if (!isPure) return;
             for (const auto* obligation : checks.preSpec) {
@@ -93,13 +92,11 @@ namespace solver {
 
             // check pure
             checks.Add(isPure && isPreContained, [&checks, obligation](bool holds) {
-//                std::cout << "     >-> isContained=" << holds << std::endl;
                 if (!holds || obligation->kind == heal::SpecificationAxiom::Kind::DELETE) return;
                 bool fulfilled = obligation->kind == heal::SpecificationAxiom::Kind::CONTAINS; // key contained => contains: success, insertion: fail
                 checks.postSpec.push_back(std::make_unique<heal::FulfillmentAxiom>(obligation->kind, heal::Copy(*obligation->key), fulfilled));
             });
             checks.Add(isPure && isPreNotContained, [&checks, obligation](bool holds) {
-//                std::cout << "     >-> isNotContained=" << holds << std::endl;
                 if (!holds || obligation->kind == heal::SpecificationAxiom::Kind::INSERT) return;
                 bool fulfilled = false; // key not contained => contains: fail, deletion: fail
                 checks.postSpec.push_back(std::make_unique<heal::FulfillmentAxiom>(obligation->kind, heal::Copy(*obligation->key), fulfilled));
@@ -111,16 +108,6 @@ namespace solver {
             auto isInsertion = isPreNotContained && isPostContained && othersUnchanged;
             auto isDeletion = isPreContained && isPostNotContained && othersUnchanged;
             auto isUpdate = obligation->kind == heal::SpecificationAxiom::Kind::INSERT ? isInsertion : isDeletion;
-
-            checks.Add(othersUnchanged, [](bool holds){ std::cout << " >>* othersUnchanged=" << holds << std::endl; });
-            checks.Add(isPreContained, [](bool holds){ std::cout << " >>* isPreContained=" << holds << std::endl; });
-            checks.Add(isPostContained, [](bool holds){ std::cout << " >>* isPostContained=" << holds << std::endl; });
-            checks.Add(isPreNotContained, [](bool holds){ std::cout << " >>* isPreNotContained=" << holds << std::endl; });
-            checks.Add(isPostNotContained, [](bool holds){ std::cout << " >>* isPostNotContained=" << holds << std::endl; });
-            checks.Add(isInsertion, [](bool holds){ std::cout << " >>* isInsertion=" << holds << std::endl; });
-            checks.Add(isDeletion, [](bool holds){ std::cout << " >>* isDeletion=" << holds << std::endl; });
-            checks.Add(isUpdate, [](bool holds){ std::cout << " >>* isUpdate=" << holds << std::endl; });
-
             checks.Add(isUpdate, [&checks, obligation](bool isTarget) {
                 if (isTarget) {
                     checks.postSpec.push_back(std::make_unique<heal::FulfillmentAxiom>(obligation->kind, heal::Copy(*obligation->key), true));

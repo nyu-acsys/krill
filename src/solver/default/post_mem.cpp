@@ -50,7 +50,8 @@ void CheckReachability(const FlowGraph& footprint) {
 
     // ensure that no nodes outside the footprint are reachable after the update that were unreachable before
     auto preRootReachable = preReach.GetReachable(footprint.GetRoot().address);
-    for (const auto* address : postReach.GetReachable(footprint.GetRoot().address)) {
+    auto postRootReachable = postReach.GetReachable(footprint.GetRoot().address);
+    for (const auto* address : postRootReachable) {
         if (preRootReachable.count(address) != 0) continue;
         if (footprint.GetNodeOrNull(*address)) continue;
         throw std::logic_error("Footprint too small to guarantee acyclicity of heap graph."); // TODO: better error handling
@@ -60,7 +61,7 @@ void CheckReachability(const FlowGraph& footprint) {
 void AddFlowCoverageChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) {
     auto ensureFootprintContains = [&encoding](const SymbolicVariableDeclaration& address){
         auto mustHaveNode = encoding.graph.GetNodeOrNull(address);
-        if (!mustHaveNode) throw std::logic_error("Footprint too small: does not cover all addresses the inflow of which changed"); // TODO: better error handling
+        if (!mustHaveNode) throw std::logic_error("Footprint too small: does not cover all addresses the inflow of which changed."); // TODO: better error handling
         mustHaveNode->needed = true;
     };
 
@@ -69,7 +70,7 @@ void AddFlowCoverageChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) 
         for (const auto& field : node.pointerFields) {
             auto sameFlow = encoding.encoder(field.preAllOutflow.value())(qv) == encoding.encoder(field.postAllOutflow.value())(qv); // TODO: all or graph flow?
             checks.Add(z3::forall(qv, sameFlow), [ensureFootprintContains,&node,&field](bool unchanged){
-//                std::cout << "Checking outflow at " << node.address.name << ": unchanged=" << unchanged << std::endl;
+                std::cout << "Checking outflow at " << node.address.name << ": unchanged=" << unchanged << std::endl;
                 if (unchanged) return;
                 ensureFootprintContains(node.address);
                 ensureFootprintContains(field.preValue);
@@ -278,7 +279,25 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
     auto [isSimple, rhs] = heal::IsOfType<SimpleExpression>(*cmd.rhs);
     if (!isSimple) throw std::logic_error("Unsupported assignment: right-hand side is not simple"); // TODO:: better error handling
 
+    std::cout << "memup pre..." << std::endl;
     pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), lhs);
+    pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), Config());
+
+    std::cout << "memup new pre..." << std::endl;
+    auto heapGraph = solver::MakePureHeapGraph(std::move(pre), Config());
+    auto candidates = CandidateGenerator::Generate(*heapGraph.pre, CandidateGenerator::FlowLevel::FAST);
+    EncodedFlowGraph encodedHeap(std::move(heapGraph));
+    z3::expr_vector vector(encodedHeap.context);
+    for (const auto& candidate : candidates) vector.push_back(encodedHeap.encoder(*candidate));
+    auto implied = solver::ComputeImplied(encodedHeap.solver, vector);
+    pre = std::move(encodedHeap.graph.pre);
+    for (std::size_t index = 0; index < candidates.size(); ++index) {
+        if (!implied.at(index)) continue;
+        pre->now->conjuncts.push_back(std::move(candidates.at(index)));
+    }
+    pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), Config());
+
+    std::cout << "memup..." << std::endl;
     FlowGraph footprint = solver::MakeFlowFootprint(std::move(pre), lhs, *rhs, Config());
     EncodedFlowGraph encoding(std::move(footprint));
     FootprintChecks checks(encoding.context);

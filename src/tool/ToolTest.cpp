@@ -58,7 +58,11 @@ inline std::unique_ptr<Formula> MakeSharedInvariant(const PointsToAxiom& memory,
 
     // memory.flow != \empty ==> memory.next != NULL // TODO: true?
     auto hasFlow = std::make_unique<InflowEmptinessAxiom>(memory.flow, false);
-    result->conjuncts.push_back(std::make_unique<SeparatingImplication>(std::move(hasFlow), std::move(nonNull)));
+    auto notMaxData = MakeImmediateAxiom<SymbolicAxiom::NEQ, SymbolicMax>(memory.fieldToValue.at(DATA_FIELD)->Decl());
+    auto premise = std::make_unique<SeparatingConjunction>();
+    premise->conjuncts.push_back(std::move(hasFlow));
+    premise->conjuncts.push_back(std::move(notMaxData));
+    result->conjuncts.push_back(std::make_unique<SeparatingImplication>(std::move(premise), std::move(nonNull)));
 
     return result;
 }
