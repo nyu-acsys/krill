@@ -12,6 +12,8 @@ using namespace solver;
 using namespace prover;
 
 
+constexpr std::size_t LOOP_ABORT_AFTER = 10;
+
 using UnsupportedConstructError = std::logic_error; // TODO: better error handling
 using VerificationError = std::logic_error; // TODO: better error handling
 using InternalError = std::logic_error; // TODO: better error handling
@@ -271,7 +273,7 @@ void Verifier::HandleLoop(const ConditionalLoop& stmt) {
         std::size_t counter = 0;
         auto join = solver->Join(std::move(current));
         while (true) {
-            if (counter > 5) throw std::logic_error("loop breakpoint");
+            if (counter > LOOP_ABORT_AFTER) throw std::logic_error("Aborting: loop does not seem to stabilize"); // TODO: remove / better error handling
             std::cout << std::endl << std::endl << " ------ loop " << ++counter << " ------ " << std::endl;
 
             breaking.clear();

@@ -48,9 +48,21 @@ void CheckReachability(EncodedFlowGraph& encoding, FootprintChecks& checks) {
         throw std::logic_error("Cycle withing footprint detected. Cautiously aborting..."); // TODO: better error handling
     }
 
+    // local nodes do not add cycles when pointed to shared
+    auto& root = encoding.graph.GetRoot();
+    if (root.preLocal) {
+        bool newSuccessorsAreShared = true;
+        for (const auto& field : root.pointerFields) {
+            if (&field.postValue.get() == &field.preValue.get()) continue;
+            auto successor = encoding.graph.GetNodeOrNull(field.postValue);
+            newSuccessorsAreShared &= successor && !successor->preLocal;
+        }
+        if (newSuccessorsAreShared) return;
+    }
+
     // ensure that no nodes outside the footprint are reachable after the update that were unreachable before
-    auto preRootReachable = preReach.GetReachable(encoding.graph.GetRoot().address);
-    auto postRootReachable = postReach.GetReachable(encoding.graph.GetRoot().address);
+    auto preRootReachable = preReach.GetReachable(root.address);
+    auto postRootReachable = postReach.GetReachable(root.address);
     for (const auto* address : postRootReachable) {
         if (preRootReachable.count(address) != 0) continue;
         if (encoding.graph.GetNodeOrNull(*address)) continue;
@@ -287,6 +299,7 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
 
     pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), lhs);
     FlowGraph footprint = solver::MakeFlowFootprint(std::move(pre), lhs, *rhs, Config());
+    std::cout << "** pre after footprint creation: " << *footprint.pre << std::endl;
     EncodedFlowGraph encoding(std::move(footprint));
     FootprintChecks checks(encoding.context);
     checks.preSpec = heal::CollectObligations(*encoding.graph.pre->now);
