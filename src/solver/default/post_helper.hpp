@@ -118,8 +118,8 @@ namespace solver {
         }
     }
 
-    static void AddDerivedKnowledgeChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) {
-        checks.candidates = CandidateGenerator::Generate(*encoding.graph.pre, CandidateGenerator::FlowLevel::FAST);
+    static void AddDerivedKnowledgeChecks(EncodedFlowGraph& encoding, FootprintChecks& checks, EMode mode) {
+        checks.candidates = CandidateGenerator::Generate(encoding.graph, mode, CandidateGenerator::FlowLevel::FAST);
         for (std::size_t index = 0; index < checks.candidates.size(); ++index) {
             checks.Add(encoding.encoder(*checks.candidates[index]), [&checks,index,target=encoding.graph.pre->now.get()](bool holds){
                 if (!holds) return;
@@ -138,7 +138,7 @@ namespace solver {
         FootprintChecks checks(encoding.context);
         checks.preSpec = heal::CollectObligations(*encoding.graph.pre->now);
         AddSpecificationChecks<true>(encoding, checks);
-//        AddDerivedKnowledgeChecks(encoding, checks); // TODO: do this? it might be more expensive than useful
+        AddDerivedKnowledgeChecks(encoding, checks, EMode::PRE); // TODO: when to do this? what to derive (only flow? only info about symbols involved in points-to?)
         solver::ComputeImpliedCallback(encoding.solver, checks.checks, isAnnotationUnsatisfiable);
         annotation = std::move(encoding.graph.pre);
         annotation = RemoveObligations(std::move(annotation), std::move(checks.preSpec));

@@ -39,25 +39,33 @@ inline std::unique_ptr<Formula> MakeSharedInvariant(const PointsToAxiom& memory,
     auto result = std::make_unique<SeparatingConjunction>();
     auto nonNull = MakeImmediateAxiom<SymbolicAxiom::NEQ, SymbolicNull>(memory.fieldToValue.at(NEXT_FIELD)->Decl());
 
-    // memory.node == head ==> memory.next != NULL && memory.data == MIN
+    // memory.node == head ==> memory.next != NULL && memory.data == MIN && memory.flow != \empty && [MIN, MAX] \subset memory.flow
     auto isHead = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(head), std::make_unique<SymbolicVariable>(memory.node->Decl()));
     auto minData = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicMin>(memory.fieldToValue.at(DATA_FIELD)->Decl());
+    auto allFlow = std::make_unique<InflowContainsRangeAxiom>(memory.flow, std::make_unique<SymbolicMin>(), std::make_unique<SymbolicMax>());
+    auto hasFlow = std::make_unique<InflowEmptinessAxiom>(memory.flow, false);
     result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*isHead), heal::Copy(*nonNull)));
-    result->conjuncts.push_back((std::make_unique<SeparatingImplication>(std::move(isHead), std::move(minData))));
+    result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*isHead), std::move(minData)));
+    result->conjuncts.push_back((std::make_unique<SeparatingImplication>(heal::Copy(*isHead), heal::Copy(*hasFlow))));
+    result->conjuncts.push_back(std::make_unique<SeparatingImplication>(std::move(isHead), std::move(allFlow)));
 
-    // memory.node == tail ==> memory.next == NULL && memory.data == MAX
+    // memory.node == tail ==> memory.next == NULL && memory.data == MAX && memory.flow != \empty
     auto isTail = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(tail), std::make_unique<SymbolicVariable>(memory.node->Decl()));
     auto isNull = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicNull>(memory.fieldToValue.at(NEXT_FIELD)->Decl());
     auto maxData = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicMax>(memory.fieldToValue.at(DATA_FIELD)->Decl());
     result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*isTail), std::move(isNull)));
-    result->conjuncts.push_back((std::make_unique<SeparatingImplication>(std::move(isTail), std::move(maxData))));
+    result->conjuncts.push_back((std::make_unique<SeparatingImplication>(heal::Copy(*isTail), std::move(maxData))));
+    result->conjuncts.push_back((std::make_unique<SeparatingImplication>(std::move(isTail), heal::Copy(*hasFlow))));
 
-    // memory.next != NULL ==> [memory.data, MAX] \subset memory.flow
+    // // memory.next != NULL ==> [memory.data, MAX] \subset memory.flow  // DOES NOT HOLD DURING REMOVAL
+    // auto flow = std::make_unique<InflowContainsRangeAxiom>(memory.flow, heal::Copy(*memory.fieldToValue.at(DATA_FIELD)), std::make_unique<SymbolicMax>());
+    // result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*nonNull), std::move(flow)));
+
+    // memory.flow != \empty ==> [memory.data, MAX] \subset memory.flow
     auto flow = std::make_unique<InflowContainsRangeAxiom>(memory.flow, heal::Copy(*memory.fieldToValue.at(DATA_FIELD)), std::make_unique<SymbolicMax>());
-    result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*nonNull), std::move(flow)));
+    result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*hasFlow), std::move(flow)));
 
-    // memory.flow != \empty ==> memory.next != NULL // TODO: true?
-    auto hasFlow = std::make_unique<InflowEmptinessAxiom>(memory.flow, false);
+    // memory.flow != \empty && memory.data != MAX ==> memory.next != NULL
     auto notMaxData = MakeImmediateAxiom<SymbolicAxiom::NEQ, SymbolicMax>(memory.fieldToValue.at(DATA_FIELD)->Decl());
     auto premise = std::make_unique<SeparatingConjunction>();
     premise->conjuncts.push_back(std::move(hasFlow));

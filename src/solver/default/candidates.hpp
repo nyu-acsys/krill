@@ -3,6 +3,7 @@
 
 #include "cola/ast.hpp"
 #include "heal/logic.hpp"
+#include "flowgraph.hpp"
 
 namespace solver {
 
@@ -12,6 +13,11 @@ class CandidateGenerator : public heal::DefaultLogicListener {
 
         static std::deque<std::unique_ptr<heal::Axiom>> Generate(const heal::LogicObject& base, FlowLevel level=FULL) {
             CandidateGenerator generator(base, level);
+            return std::move(generator.result);
+        }
+
+        static std::deque<std::unique_ptr<heal::Axiom>> Generate(const FlowGraph& graph, EMode mode, FlowLevel level=FULL) {
+            CandidateGenerator generator(graph, mode, level);
             return std::move(generator.result);
         }
 
@@ -26,8 +32,18 @@ class CandidateGenerator : public heal::DefaultLogicListener {
         std::set<const heal::SymbolicFlowDeclaration*> flows;
         std::deque<std::unique_ptr<heal::Axiom>> result;
 
+        explicit CandidateGenerator(const FlowGraph& graph, EMode mode, FlowLevel level) {
+            graph.pre->accept(*this);
+            for (const auto& node : graph.nodes) node.ToLogic(mode)->accept(*this); // TODO: avoid 'ToLogic' formula construction
+            MakeCandidates(level);
+        }
+
         explicit CandidateGenerator(const heal::LogicObject& base, FlowLevel level) {
             base.accept(*this);
+            MakeCandidates(level);
+        }
+
+        inline void MakeCandidates(FlowLevel level) {
             auto forAllFlows = [this,&level](auto minLevel, auto func){
                 if (level < minLevel) return;
                 for (const auto* flow : flows) func(flow);

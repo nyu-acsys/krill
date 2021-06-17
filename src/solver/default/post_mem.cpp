@@ -38,23 +38,27 @@ void CheckPublishing(FlowGraph& footprint) {
     }
 }
 
-void CheckReachability(const FlowGraph& footprint) {
-    Reachability preReach(footprint, EMode::PRE);
-    Reachability postReach(footprint, EMode::POST);
+void CheckReachability(EncodedFlowGraph& encoding, FootprintChecks& checks) {
+    Reachability preReach(encoding.graph, EMode::PRE);
+    Reachability postReach(encoding.graph, EMode::POST);
 
     // ensure no cycle inside footprint after update (potential such cycles must involve root)
-    for (const auto& node : footprint.nodes) {
+    for (const auto& node : encoding.graph.nodes) {
         if (!postReach.IsReachable(node.address, node.address)) continue;
         throw std::logic_error("Cycle withing footprint detected. Cautiously aborting..."); // TODO: better error handling
     }
 
     // ensure that no nodes outside the footprint are reachable after the update that were unreachable before
-    auto preRootReachable = preReach.GetReachable(footprint.GetRoot().address);
-    auto postRootReachable = postReach.GetReachable(footprint.GetRoot().address);
+    auto preRootReachable = preReach.GetReachable(encoding.graph.GetRoot().address);
+    auto postRootReachable = postReach.GetReachable(encoding.graph.GetRoot().address);
     for (const auto* address : postRootReachable) {
         if (preRootReachable.count(address) != 0) continue;
-        if (footprint.GetNodeOrNull(*address)) continue;
-        throw std::logic_error("Footprint too small to guarantee acyclicity of heap graph."); // TODO: better error handling
+        if (encoding.graph.GetNodeOrNull(*address)) continue;
+        auto isNull = encoding.encoder.MakeNullCheck(*address);
+        checks.Add(isNull, [address](bool holds){
+            if (holds) return;
+            throw std::logic_error("Footprint too small to guarantee acyclicity of heap graph: potentially non-null address" + address->name + " may have become reachable."); // TODO: better error handling
+        });
     }
 }
 
@@ -70,7 +74,7 @@ void AddFlowCoverageChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) 
         for (const auto& field : node.pointerFields) {
             auto sameFlow = encoding.encoder(field.preAllOutflow.value())(qv) == encoding.encoder(field.postAllOutflow.value())(qv); // TODO: all or graph flow?
             checks.Add(z3::forall(qv, sameFlow), [ensureFootprintContains,&node,&field](bool unchanged){
-                std::cout << "Checking outflow at " << node.address.name << ": unchanged=" << unchanged << std::endl;
+//                std::cout << "-- outflow of " << node.address.name << " unchanged=" << unchanged << std::endl;
                 if (unchanged) return;
                 ensureFootprintContains(node.address);
                 ensureFootprintContains(field.preValue);
@@ -102,18 +106,20 @@ void AddFlowUniquenessChecks(EncodedFlowGraph& encoding, FootprintChecks& checks
         throw std::logic_error("Unsafe update: keyset disjointness not guaranteed."); // TODO: better error handling
     });
 
-    auto uniqueness = encoding.EncodeInflowUniqueness(EMode::POST);
-    checks.Add(uniqueness, [](bool holds){
-//        std::cout << "Checking inflow uniqueness: holds=" << holds << std::endl;
-        if (holds) return;
-        throw std::logic_error("Unsafe update: inflow uniqueness not guaranteed."); // TODO: better error handling
-    });
+    for (const auto& node : encoding.graph.nodes) {
+        auto uniqueness = encoding.EncodeInflowUniqueness(node, EMode::POST);
+        checks.Add(uniqueness, [&node](bool holds){
+//            std::cout << "Checking inflow uniqueness for " << node.address.name << ": holds=" << holds << std::endl;
+            if (holds) return;
+            throw std::logic_error("Unsafe update: inflow uniqueness not guaranteed."); // TODO: better error handling
+        });
+    }
 }
 
 void AddInvariantChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) {
     for (const auto& node : encoding.graph.nodes) {
         auto nodeInvariant = encoding.EncodeNodeInvariant(node, EMode::POST);
-        checks.Add(nodeInvariant, [](bool holds){
+        checks.Add(nodeInvariant, [&node](bool holds){
 //            std::cout << "Checking invariant for " << node.address.name << ": holds=" << holds << std::endl;
             if (holds) return;
             throw std::logic_error("Unsafe update: invariant is not maintained."); // TODO: better error handling
@@ -279,38 +285,20 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
     auto [isSimple, rhs] = heal::IsOfType<SimpleExpression>(*cmd.rhs);
     if (!isSimple) throw std::logic_error("Unsupported assignment: right-hand side is not simple"); // TODO:: better error handling
 
-    std::cout << "memup pre..." << std::endl;
     pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), lhs);
-    pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), Config());
-
-    std::cout << "memup new pre..." << std::endl;
-    auto heapGraph = solver::MakePureHeapGraph(std::move(pre), Config());
-    auto candidates = CandidateGenerator::Generate(*heapGraph.pre, CandidateGenerator::FlowLevel::FAST);
-    EncodedFlowGraph encodedHeap(std::move(heapGraph));
-    z3::expr_vector vector(encodedHeap.context);
-    for (const auto& candidate : candidates) vector.push_back(encodedHeap.encoder(*candidate));
-    auto implied = solver::ComputeImplied(encodedHeap.solver, vector);
-    pre = std::move(encodedHeap.graph.pre);
-    for (std::size_t index = 0; index < candidates.size(); ++index) {
-        if (!implied.at(index)) continue;
-        pre->now->conjuncts.push_back(std::move(candidates.at(index)));
-    }
-    pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), Config());
-
-    std::cout << "memup..." << std::endl;
     FlowGraph footprint = solver::MakeFlowFootprint(std::move(pre), lhs, *rhs, Config());
     EncodedFlowGraph encoding(std::move(footprint));
     FootprintChecks checks(encoding.context);
     checks.preSpec = heal::CollectObligations(*encoding.graph.pre->now);
 
     CheckPublishing(encoding.graph);
-    CheckReachability(encoding.graph);
+    CheckReachability(encoding, checks);
     AddFlowCoverageChecks(encoding, checks);
     // AddFlowCycleChecks(encoding, checks);
     AddFlowUniquenessChecks(encoding, checks);
     AddSpecificationChecks(encoding, checks);
     AddInvariantChecks(encoding, checks);
-    AddDerivedKnowledgeChecks(encoding, checks);
+    AddDerivedKnowledgeChecks(encoding, checks, EMode::POST);
     AddEffectContextGenerators(encoding, checks);
     PerformChecks(encoding, checks);
 

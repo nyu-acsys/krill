@@ -110,7 +110,7 @@ SymbolicAxiom::SymbolicAxiom(std::unique_ptr<SymbolicExpression> lhs_, Operator 
         : lhs(std::move(lhs_)), op(op), rhs(std::move(rhs_)) {
     assert(lhs);
     assert(lhs);
-    assert(cola::assignable(lhs->Type(), rhs->Type()) || cola::assignable(rhs->Type(), lhs->Type()));
+    assert(lhs->Type() == rhs->Type() || cola::assignable(lhs->Type(), rhs->Type()) || cola::assignable(rhs->Type(), lhs->Type()));
 }
 
 StackDisjunction::StackDisjunction() = default;

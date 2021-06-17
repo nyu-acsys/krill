@@ -71,7 +71,6 @@ namespace solver {
 
     // TODO: add invariants to flow graph
     [[nodiscard]] FlowGraph MakePureHeapGraph(std::unique_ptr<heal::Annotation> state, const SolverConfig& config);
-//    [[nodiscard]] FlowGraph MakeFlowGraph(std::unique_ptr<heal::Annotation> state, const heal::SymbolicVariableDeclaration& rootAddress, const SolverConfig& config, std::size_t depth = 1);
     [[nodiscard]] FlowGraph MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const cola::Dereference& lhs, const cola::SimpleExpression& rhs, const SolverConfig& config);
 
     struct EncodedFlowGraph {
@@ -83,7 +82,7 @@ namespace solver {
         EncodedFlowGraph(const EncodedFlowGraph& other) = delete;
         explicit EncodedFlowGraph(FlowGraph&& graph_);
         z3::expr EncodeKeysetDisjointness(EMode mode);
-        z3::expr EncodeInflowUniqueness(EMode mode);
+        z3::expr EncodeInflowUniqueness(const FlowGraphNode& node, EMode mode);
         z3::expr EncodeNodeInvariant(const FlowGraphNode& node, EMode mode);
         z3::expr EncodeNodeOutflow(const FlowGraphNode& node, const std::string& fieldName, const z3::expr& value, EMode mode);
         z3::expr EncodeNodeContains(const FlowGraphNode& node, const z3::expr& value, EMode mode);

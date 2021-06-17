@@ -264,8 +264,8 @@ PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<Annotation> pre, con
     pre->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(symbol), SymbolicAxiom::EQ, std::move(value)));
 
     // try derive helpful knowledge
-    if (!solver::GetDereferences(*cmd.rhs).empty()) { // TODO: when to do this?
-        pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), factory, Config(), *resource->value);
+    if (cmd.rhs->sort() == Sort::PTR) { //if (!solver::GetDereferences(*cmd.rhs).empty()) { // TODO: when to do this?
+        pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), factory, Config(), { &symbol });
         pre = TryAddPureFulfillment(std::move(pre), Config());
     }
 

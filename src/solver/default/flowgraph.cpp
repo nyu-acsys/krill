@@ -1,10 +1,14 @@
 #include "flowgraph.hpp"
 
 #include "eval.hpp"
+#include "expand.hpp"
 
 using namespace cola;
 using namespace heal;
 using namespace solver;
+
+
+constexpr unsigned int MAX_INFLOW_PREDECESSORS = 1; // TODO: make this configurable via the formula/annotation itself
 
 //
 // Flow graph access
@@ -107,71 +111,59 @@ inline FlowGraphNode* TryGetOrCreateNode(FlowGraph& graph, LazyValuationMap& eva
     return &graph.nodes.back();
 }
 
-inline void ExpandGraph(FlowGraph& graph, LazyValuationMap& eval, SymbolicFactory& factory, std::size_t maxDepth) {
-    if (maxDepth == 0) return;
+inline std::set<const SymbolicVariableDeclaration*> ExpandGraph(FlowGraph& graph, LazyValuationMap& eval, SymbolicFactory& factory, std::size_t maxDepth) {
+    if (maxDepth == 0) return { };
     std::set<std::pair<std::size_t, FlowGraphNode*>, std::greater<>> worklist;
     worklist.emplace(maxDepth, &*graph.nodes.begin());
+    std::set<const SymbolicVariableDeclaration*> missing;
 
     while (!worklist.empty()) {
         auto[depth, node] = *worklist.begin();
         worklist.erase(worklist.begin());
-        std::cout << "** FPE: " << node->address.name << " d=" << depth << std::endl;
         if (depth == 0) continue;
 
         for (auto& field : node->pointerFields) {
-            for (auto nextAddress : {&field.preValue, &field.postValue}) {
+            for (auto* nextAddress : {&field.preValue, &field.postValue}) {
                 auto* nextNode = TryGetOrCreateNode(graph, eval, factory, *nextAddress);
-                std::cout << "     => looking at" << nextAddress->get().name << "  raw_pointer=" << nextNode << std::endl;
-                if (!nextNode) continue;
+                if (!nextNode) {
+                    missing.insert(&nextAddress->get());
+                    continue;
+                }
                 *nextAddress = nextNode->address; // inline alias
                 if (!node->postLocal) nextNode->postLocal = false; // publish node
                 worklist.emplace(depth - 1, nextNode);
             }
         }
     }
+
+    return missing;
 }
 
-inline void FinalizeFromRoot(FlowGraph& graph, const SymbolicVariableDeclaration& rootAddress, std::size_t depth,
-                             std::optional<std::function<void(FlowGraphNode&)>>&& applyRootUpdate = std::nullopt) {
+inline std::unique_ptr<Annotation> ExtendStateForFootprintConstruction(FlowGraph& graph, SymbolicFactory& factory,
+                                                                       const std::set<const SymbolicVariableDeclaration*>& missing) {
+    EncodedFlowGraph encoding(std::move(graph));
 
-    SymbolicFactory factory(*graph.pre);
-    LazyValuationMap eval(*graph.pre);
-
-    // make root node
-    FlowGraphNode* root = TryGetOrCreateNode(graph, eval, factory, rootAddress);
-    if (!root) throw std::logic_error("Cannot initialize flow graph."); // TODO: better error handling
-    root->needed = true;
-    root->preGraphInflow = root->preAllInflow;
-    root->postGraphInflow = root->preAllInflow;
-    root->postAllInflow = root->preAllInflow;
-    if (applyRootUpdate) applyRootUpdate.value()(*root);
-
-    std::cout << ">> Footprint before expansion:" << std::endl;
-    for (const auto& node : graph.nodes) {
-        std::cout << "    - Node: " << node.address << std::endl;
-        std::cout << "        * pre ptr fields: ";
-        for (const auto& field : node.pointerFields) std::cout << field.preValue.get().name << ", ";
-        std::cout << std::endl << "        * pre ptr fields: ";
-        for (const auto& field : node.pointerFields) std::cout << field.postValue.get().name << ", ";
-        std::cout << std::endl;
+    // derive stack knowledge
+    auto candidates = CandidateGenerator::Generate(encoding.graph, EMode::PRE, CandidateGenerator::FlowLevel::FAST);
+    z3::expr_vector expressions(encoding.context);
+    for (const auto& candidate : candidates) expressions.push_back(encoding.encoder(*candidate));
+    auto implied = solver::ComputeImplied(encoding.solver, expressions);
+    for (std::size_t index = 0; index < implied.size(); ++index) {
+        if (implied.at(index)) encoding.graph.pre->now->conjuncts.push_back(std::move(candidates.at(index)));
     }
 
-    // generate flow graph
-    ExpandGraph(graph, eval, factory, depth);
+    // expand memory
+    auto force = missing;
+    for (const auto& node : encoding.graph.nodes) force.insert(&node.address);
+    // TODO: prevent failed expansion from failing to create a flow graph ==> the existing memory may be sufficient
+    encoding.graph.pre->now = solver::ExpandMemoryFrontier(std::move(encoding.graph.pre->now), factory, encoding.graph.config, missing, std::move(force));
 
-    std::cout << ">> Footprint after expansion:" << std::endl;
-    for (const auto& node : graph.nodes) {
-        std::cout << "    - Node: " << node.address << std::endl;
-        std::cout << "        * pre ptr fields: ";
-        for (const auto& field : node.pointerFields) std::cout << field.preValue.get().name << ", ";
-        std::cout << std::endl << "        * pre ptr fields: ";
-        for (const auto& field : node.pointerFields) std::cout << field.postValue.get().name << ", ";
-        std::cout << std::endl;
-    }
-    throw std::logic_error("breakpoint");
+    return std::move(encoding.graph.pre);
+}
 
+inline void CheckGraph(const FlowGraph& graph, const FlowGraphNode& root) {
     // cyclic flow graphs are not supported
-    if (!graph.GetIncomingEdges(*root, EMode::PRE).empty() || !graph.GetIncomingEdges(*root, EMode::POST).empty()) {
+    if (!graph.GetIncomingEdges(root, EMode::PRE).empty() || !graph.GetIncomingEdges(root, EMode::POST).empty()) {
         // TODO: support cycles
         //       - require unchanged flow (as if the edge closing a cycle was leading outside the footprint), or
         //       - require empty flow, or
@@ -180,20 +172,42 @@ inline void FinalizeFromRoot(FlowGraph& graph, const SymbolicVariableDeclaration
     }
 }
 
-//FlowGraph solver::MakeFlowGraph(std::unique_ptr<Annotation> state, const SymbolicVariableDeclaration& rootAddress, const SolverConfig& config, std::size_t depth) {
-//    FlowGraph graph{config, {}, std::move(state)};
-//    FinalizeFromRoot(graph, rootAddress, depth);
-//    return graph;
-//}
+inline FlowGraph MakeFootprintGraph(std::unique_ptr<Annotation> state, const SymbolicVariableDeclaration& rootAddress, const SolverConfig& config,
+                                    std::size_t depth, const std::function<void(FlowGraphNode&)>& applyRootUpdate) {
+    std::set<const SymbolicVariableDeclaration*> missing;
+    while (true) {
+        assert(state);
+        FlowGraph graph{ config, {}, std::move(state) };
+        SymbolicFactory factory(*graph.pre);
+        LazyValuationMap eval(*graph.pre);
+
+        // make root node
+        FlowGraphNode* root = TryGetOrCreateNode(graph, eval, factory, rootAddress);
+        if (!root) throw std::logic_error("Cannot initialize flow graph."); // TODO: better error handling
+        root->needed = true;
+        root->preGraphInflow = root->preAllInflow;
+        root->postGraphInflow = root->preAllInflow;
+        root->postAllInflow = root->preAllInflow;
+        applyRootUpdate(*root);
+
+        // expand graph
+        auto newMissing = ExpandGraph(graph, eval, factory, depth);
+        if (missing == newMissing) {
+            CheckGraph(graph, *root);
+            return graph;
+        }
+
+        missing = std::move(newMissing);
+        state = ExtendStateForFootprintConstruction(graph, factory, missing);
+    }
+}
 
 FlowGraph solver::MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const cola::Dereference& lhs,
                                     const cola::SimpleExpression& rhs, const SolverConfig& config) {
 
-    FlowGraph graph{config, {}, std::move(pre)};
-
     // evaluate rhs
-    EagerValuationMap eval(*graph.pre); // TODO: avoid duplication wrt. FinalizeFromRoot
-    SymbolicFactory factory(*graph.pre); // TODO: avoid duplication wrt. FinalizeFromRoot
+    EagerValuationMap eval(*pre); // TODO: avoid duplication wrt. FinalizeFromRoot
+    SymbolicFactory factory(*pre); // TODO: avoid duplication wrt. FinalizeFromRoot
     const SymbolicVariableDeclaration* rhsEval = nullptr;
     if (auto var = dynamic_cast<const VariableExpression*>(&rhs)) {
         rhsEval = &eval.GetValueOrFail(var->decl);
@@ -201,7 +215,7 @@ FlowGraph solver::MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const
         auto rhsValue = eval.Evaluate(rhs);
         rhsEval = &factory.GetUnusedSymbolicVariable(rhs.type());
         auto axiom = std::make_unique<SymbolicAxiom>(std::move(rhsValue), SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(*rhsEval));
-        graph.pre->now->conjuncts.push_back(std::move(axiom));
+        pre->now->conjuncts.push_back(std::move(axiom));
     }
     assert(rhsEval);
 
@@ -216,10 +230,9 @@ FlowGraph solver::MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const
     assert(root);
 
     // construct flow footprint
-    FinalizeFromRoot(graph, *root, config.GetMaxFootprintDepth(lhs.fieldname), [&lhs, &rhsEval](auto& rootNode) {
+    return MakeFootprintGraph(std::move(pre), *root, config, config.GetMaxFootprintDepth(lhs.fieldname), [&lhs, &rhsEval](auto& rootNode) {
         GetFieldOrFail(rootNode, lhs.fieldname).postValue = *rhsEval;
     });
-    return graph;
 }
 
 FlowGraph solver::MakePureHeapGraph(std::unique_ptr<heal::Annotation> state, const SolverConfig& config) {
@@ -237,13 +250,13 @@ FlowGraph solver::MakePureHeapGraph(std::unique_ptr<heal::Annotation> state, con
     // make pre/post state equal
     for (auto& node : graph.nodes) {
         node.needed = true;
-        node.preAllInflow = node.postAllInflow;
-        node.preKeyset = node.postKeyset;
-        node.preGraphInflow = node.postGraphInflow;
+        node.postAllInflow = node.preAllInflow;
+        node.postKeyset = node.preKeyset;
+        node.postGraphInflow = node.preGraphInflow;
 
         for (auto& field : node.pointerFields) {
-            field.preAllOutflow = field.postAllOutflow;
-            field.preGraphOutflow = field.postGraphOutflow;
+            field.postAllOutflow = field.preAllOutflow;
+            field.postGraphOutflow = field.preGraphOutflow;
         }
     }
 
@@ -420,21 +433,19 @@ z3::expr EncodedFlowGraph::EncodeKeysetDisjointness(EMode mode) {
     return z3::forall(qv, z3::atmost(keyset, 1));
 }
 
-z3::expr EncodedFlowGraph::EncodeInflowUniqueness(EMode mode) {
-    // uniqueness
-    auto qv = encoder.QuantifiedVariable(graph.config.GetFlowValueType().sort);
-    z3::expr_vector result(encoder.context);
+z3::expr EncodedFlowGraph::EncodeInflowUniqueness(const FlowGraphNode& node, EMode mode) {
+    auto isNonEmpty = [&](const SymbolicFlowDeclaration& flow){
+        InflowEmptinessAxiom empty(flow, false);
+        return encoder(empty);
+    };
 
-    for (const auto& node : graph.nodes) {
-        z3::expr_vector inflow(encoder.context);
-        inflow.push_back(encoder(node.frameInflow)(qv));
-        for (auto* edge : GetGraphInflow(graph, node, mode)) {
-            inflow.push_back(encoder(*edge)(qv));
-        }
-        result.push_back(z3::forall(qv, z3::atmost(inflow, 1)));
+    z3::expr_vector inflow(encoder.context);
+    inflow.push_back(isNonEmpty(node.frameInflow));
+    for (const auto* edge : GetGraphInflow(graph, node, mode)) {
+        inflow.push_back(isNonEmpty(*edge));
     }
 
-    return z3::mk_and(result);
+    return z3::atmost(inflow, MAX_INFLOW_PREDECESSORS);
 }
 
 inline z3::expr EncodeFlow(EncodedFlowGraph& encoding) {
@@ -446,15 +457,16 @@ inline z3::expr EncodeFlow(EncodedFlowGraph& encoding) {
     auto qv = encoder.QuantifiedVariable(graph.config.GetFlowValueType().sort);
 
     // same inflow in root before and after update
-    auto& root = graph.nodes.front();
-    assert(&root.preAllInflow.get() == &root.postAllInflow.get());
-    // TODO: if preGraph == preAll, do we need to explicitly tell the solver that the frame flow is empty?
+//    auto& root = graph.nodes.front();
+//    assert(&root.preAllInflow.get() == &root.postAllInflow.get());
+//     TODO: if preGraph == preAll, do we need to explicitly tell the solver that the frame flow is empty?
 //    result.push_back(z3::forall(qv, !encoder(root.frameInflow)(qv)));
 
     // go over graph and encode flow
     for (const auto& node : graph.nodes) {
         // node invariant
         result.push_back(encoding.EncodeNodeInvariant(node, EMode::PRE));
+        result.push_back(encoding.EncodeInflowUniqueness(node, EMode::PRE));
         result.push_back(EncodeNodeLocality(node, encoding));
 
         // general flow constraints
@@ -474,7 +486,6 @@ inline z3::expr EncodeFlow(EncodedFlowGraph& encoding) {
 
     // add assumptions for pre flow: keyset disjointness, inflow uniqueness
     result.push_back(encoding.EncodeKeysetDisjointness(EMode::PRE));
-    result.push_back(encoding.EncodeInflowUniqueness(EMode::PRE));
 
     return z3::mk_and(result);
 }

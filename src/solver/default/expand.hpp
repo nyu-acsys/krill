@@ -81,17 +81,10 @@ namespace solver {
     };
 
     template<typename C>
-    static inline std::set<const heal::SymbolicVariableDeclaration*, C> CollectAddresses(const heal::LogicObject& object, const C& comparator) {
-        struct Collector : public heal::DefaultLogicListener {
-            std::set<const heal::SymbolicVariableDeclaration*, C> result;
-            explicit Collector(const C& comparator) : result(comparator) {}
-            void enter(const heal::SymbolicVariable& obj) override {
-                if (obj.Sort() != cola::Sort::PTR) return;
-                result.insert(&obj.Decl());
-            }
-        } collector(comparator);
-        object.accept(collector);
-        return std::move(collector.result);
+    static inline std::set<const heal::SymbolicVariableDeclaration*, C> SortSet(const std::set<const heal::SymbolicVariableDeclaration*>& set, const C& comparator) {
+        std::set<const heal::SymbolicVariableDeclaration*, C> result(comparator);
+        result.insert(set.begin(), set.end());
+        return result;
     }
 
     struct PointsToRemover : heal::DefaultLogicNonConstListener {
@@ -143,14 +136,26 @@ namespace solver {
 
     static std::unique_ptr<heal::SeparatingConjunction>
     ExpandMemoryFrontier(std::unique_ptr<heal::SeparatingConjunction> state, heal::SymbolicFactory& factory, const SolverConfig& config,
-                         const heal::LogicObject& addressesFrom, const heal::SymbolicVariableDeclaration* forceExpansion = nullptr) {
+                         const std::set<const heal::SymbolicVariableDeclaration*>& expansionAddresses,
+                         std::set<const heal::SymbolicVariableDeclaration*>&& forceExpansion = {}) {
+        if (expansionAddresses.empty()) return state;
+//        heal::InlineAndSimplify(*state);
 
-        // find all address that need expansion
-        heal::InlineAndSimplify(*state);
-        auto addresses = CollectAddresses(addressesFrom, [forceExpansion](auto symbol, auto other){
+        // add force aliases
+        for (const auto* force : forceExpansion) {
+            if (auto memory = solver::FindMemory(*force, *state)) {
+                forceExpansion.insert(&memory->node->Decl());
+            }
+        }
+
+        // sort expansion
+        auto addresses = SortSet(expansionAddresses, [forceExpansion](auto symbol, auto other){
             // forceExpansion is the first element in the set
-            if (symbol == forceExpansion || other == forceExpansion) return symbol == forceExpansion && other != forceExpansion;
-            else return symbol < other;
+            auto symbolForced = forceExpansion.count(symbol) != 0;
+            auto otherForced = forceExpansion.count(other) != 0;
+            if (symbolForced && otherForced) return symbol < other;
+            if (!symbolForced && !otherForced) return symbol < other;
+            return symbolForced;
         });
         for (auto it = addresses.begin(); it != addresses.end();) {
             if (solver::FindMemory(**it, *state)) it = addresses.erase(it);
@@ -229,18 +234,19 @@ namespace solver {
             std::cout << "%% expansion for " << address->name << "  non-null=" << isNonNull[address].value_or(false) << std::endl;
             if (!isNonNull[address].value_or(false)) continue;
 
+            bool forceAddress = forceExpansion.count(address) != 0;
             auto potentiallyOverlapping = heal::CollectMemory(*state); // TODO: lazily rebuild only when state has changed
-            bool potentiallyOverlappingWithLocal = false;
+            bool potentiallyOverlappingWithLocalOrForced = false;
+            auto updateOverlapFlag = [&potentiallyOverlappingWithLocalOrForced, forceExpansion](const heal::PointsToAxiom& overlap){
+                potentiallyOverlappingWithLocalOrForced |= overlap.isLocal || forceExpansion.count(&overlap.node->Decl()) != 0;
+            };
 
             // syntactically discharge overlap
-            auto filter = [&potentiallyOverlapping,&potentiallyOverlappingWithLocal,address](auto&& isDistinct){
-                potentiallyOverlappingWithLocal = false;
+            auto filter = [&](auto&& isDistinct){
+                potentiallyOverlappingWithLocalOrForced = false;
                 for (auto it = potentiallyOverlapping.begin(); it != potentiallyOverlapping.end();) {
                     if (isDistinct(*address, (*it)->node->Decl())) it = potentiallyOverlapping.erase(it);
-                    else {
-                        potentiallyOverlappingWithLocal |= (*it)->isLocal;
-                        ++it;
-                    }
+                    else updateOverlapFlag(**(it++));
                 }
             };
             filter([&state](const auto& adr, const auto& other){ return IsSyntacticallyDistinct(adr, other, *state); });
@@ -250,36 +256,38 @@ namespace solver {
             }
 
             // deeper analysis if forced address is potentially overlapping with local address
-            if (potentiallyOverlappingWithLocal && address == forceExpansion) {
-                auto abort = [&address](){ throw std::logic_error("Cannot expand memory frontier on forced address " + address->name + "."); }; // TODO: better error handling
+            if (potentiallyOverlappingWithLocalOrForced && forceAddress) {
                 std::cout << ">> local overlap on forced address detected, performing deep analysis..." << std::endl;
                 auto graph = solver::MakePureHeapGraph(std::make_unique<heal::Annotation>(heal::Copy(*state)), config); // TODO: avoid copy?
-                if (graph.nodes.empty()) abort();
-                EncodedFlowGraph encoding(std::move(graph));
-                ImplicationCheckSet localChecks(encoding.context);
-                for (const auto* memory : potentiallyOverlapping) {
-                    auto distinct = encoding.encoder(*address) != encoding.encoder(*memory->node);
-                    localChecks.Add(distinct, [memory,&potentiallyOverlapping](bool holds){
-                        std::cout << "   --> overlap with " << *memory->node << " pruned=" << holds << std::endl;
-                        if (holds) potentiallyOverlapping.erase(memory);
-                    });
+                if (!graph.nodes.empty()) {
+                    EncodedFlowGraph encoding(std::move(graph));
+                    ImplicationCheckSet localChecks(encoding.context);
+                    for (const auto* memory : potentiallyOverlapping) {
+                        auto distinct = encoding.encoder(*address) != encoding.encoder(*memory->node);
+                        localChecks.Add(distinct, [memory, &potentiallyOverlapping](bool holds) {
+                            std::cout << "   --> overlap with " << *memory->node << " pruned=" << holds << std::endl;
+                            if (holds) potentiallyOverlapping.erase(memory);
+                        });
+                    }
+                    solver::ComputeImpliedCallback(encoding.solver, localChecks);
+                    potentiallyOverlappingWithLocalOrForced = false;
+                    for (const auto* memory : potentiallyOverlapping) updateOverlapFlag(*memory);
                 }
-                solver::ComputeImpliedCallback(encoding.solver, localChecks);
-                potentiallyOverlappingWithLocal = false;
-                for (const auto* memory : potentiallyOverlapping) potentiallyOverlappingWithLocal |= memory->isLocal;
-                if (potentiallyOverlappingWithLocal) abort();
-                throw std::logic_error("breakpoint");
+                if (potentiallyOverlappingWithLocalOrForced) {
+                    // TODO: do not fail in this case
+                    throw std::logic_error("Cannot expand memory frontier on forced address " + address->name + "."); // TODO: better error handling
+                }
             }
 
             // debug
-            std::cout << "%% expanding " << address->name << ": localOverlap=" << potentiallyOverlappingWithLocal << "; overlapping=";
+            std::cout << "%% expanding " << address->name << ": forceAddress" << forceAddress << "; localOrForceOverlap=" << potentiallyOverlappingWithLocalOrForced << "; overlapping=";
             for (auto adr : potentiallyOverlapping) std::cout << adr->node->Decl().name << ", ";
             std::cout << std::endl;
             // end debug
 
             // ignore if overlap and not forced
-            if (potentiallyOverlappingWithLocal) continue;
-            if (!potentiallyOverlapping.empty() && address != forceExpansion) continue;
+            if (potentiallyOverlappingWithLocalOrForced) continue;
+            if (!potentiallyOverlapping.empty() && !forceAddress) continue;
 
             // expand
             if (!potentiallyOverlapping.empty()) {
@@ -292,14 +300,23 @@ namespace solver {
             // heal::InlineAndSimplify(*state);
         }
 
+        // TODO: derive stack info about new memory?
         return state;
     }
 
     static std::unique_ptr<heal::SeparatingConjunction>
     ExpandMemoryFrontier(std::unique_ptr<heal::SeparatingConjunction> state, const SolverConfig& config) {
+        heal::InlineAndSimplify(*state);
+        struct Collector : public heal::DefaultLogicListener {
+            std::set<const heal::SymbolicVariableDeclaration*> result;
+            void enter(const heal::SymbolicVariable& obj) override {
+                if (obj.Sort() != cola::Sort::PTR) return;
+                result.insert(&obj.Decl());
+            }
+        } collector;
+        state->accept(collector);
         heal::SymbolicFactory factory(*state);
-        auto addressesFrom = heal::Copy(*state); // TODO: avoid copy
-        return ExpandMemoryFrontier(std::move(state), factory, config, *addressesFrom);
+        return ExpandMemoryFrontier(std::move(state), factory, config, collector.result);
     }
 
     static std::unique_ptr<heal::SeparatingConjunction>
@@ -310,7 +327,8 @@ namespace solver {
         for (const auto* dereference : dereferences) {
             auto value = EagerValuationMap(*state).Evaluate(*dereference->expr); // TODO: if this fails, the error will be cryptic
             if (auto var = dynamic_cast<const heal::SymbolicVariable*>(value.get())) {
-                state = ExpandMemoryFrontier(std::move(state), factory, config, *var, &var->Decl()); // TODO: avoid repeated invocation
+                auto* decl = &var->Decl();
+                state = ExpandMemoryFrontier(std::move(state), factory, config, { decl }, { decl }); // TODO: avoid repeated invocation
             }
         }
         return state;
