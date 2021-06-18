@@ -55,6 +55,7 @@ namespace solver {
         }
         auto isPure = z3::forall(qv, z3::mk_or(preContains) == z3::mk_or(postContains));
         checks.Add(isPure, [mustBePure,&checks](bool isPure){
+            std::cout << " ** is pure=" << isPure << std::endl;
             if (!isPure && mustBePure) throw std::logic_error("Unsafe update: impure update without obligation."); // TODO: better error handling
             if (!isPure) return;
             for (const auto* obligation : checks.preSpec) {
@@ -92,11 +93,13 @@ namespace solver {
 
             // check pure
             checks.Add(isPure && isPreContained, [&checks, obligation](bool holds) {
+                std::cout << " ** is isPure && isPreContained=" << holds << std::endl;
                 if (!holds || obligation->kind == heal::SpecificationAxiom::Kind::DELETE) return;
                 bool fulfilled = obligation->kind == heal::SpecificationAxiom::Kind::CONTAINS; // key contained => contains: success, insertion: fail
                 checks.postSpec.push_back(std::make_unique<heal::FulfillmentAxiom>(obligation->kind, heal::Copy(*obligation->key), fulfilled));
             });
             checks.Add(isPure && isPreNotContained, [&checks, obligation](bool holds) {
+                std::cout << " ** isPure && isPreNotContained=" << holds << std::endl;
                 if (!holds || obligation->kind == heal::SpecificationAxiom::Kind::INSERT) return;
                 bool fulfilled = false; // key not contained => contains: fail, deletion: fail
                 checks.postSpec.push_back(std::make_unique<heal::FulfillmentAxiom>(obligation->kind, heal::Copy(*obligation->key), fulfilled));
@@ -146,6 +149,52 @@ namespace solver {
 
         timeSpent += std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start).count();
         std::cout << "& All time spent in TryAddPureFulfillment: " << timeSpent << "ms" << std::endl;
+        return annotation;
+    }
+
+    static inline std::unique_ptr<heal::SeparatingConjunction> RemoveResourcesAndFulfillments(std::unique_ptr<heal::SeparatingConjunction> formula) {
+        heal::InlineAndSimplify(*formula);
+        auto variables = heal::CollectVariables(*formula);
+        auto memory = heal::CollectMemory(*formula);
+        auto fulfillments = heal::CollectFulfillments(*formula);
+
+        std::set<const heal::Formula*> axioms;
+        axioms.insert(variables.begin(), variables.end());
+        axioms.insert(memory.begin(), memory.end());
+        axioms.insert(fulfillments.begin(), fulfillments.end());
+
+        formula->conjuncts.erase(std::remove_if(formula->conjuncts.begin(), formula->conjuncts.end(), [&axioms](const auto& elem){
+            auto find = axioms.find(elem.get());
+            if (find == axioms.end()) return false;
+            axioms.erase(find);
+            return true;
+        }), formula->conjuncts.end());
+
+        assert(axioms.empty());
+        return formula;
+    }
+
+    static std::unique_ptr<heal::Annotation> TryAddPureFulfillmentForHistories(std::unique_ptr<heal::Annotation> annotation, const SolverConfig& config) {
+        std::cout << "TryAddPureFulfillmentForHistories pre: " << *annotation << std::endl;
+        auto base = RemoveResourcesAndFulfillments(heal::Copy(*annotation->now));
+        for (const auto& time : annotation->time) {
+            auto past = dynamic_cast<const heal::PastPredicate*>(time.get());
+            if (!past) continue;
+
+            auto tmp = std::make_unique<heal::Annotation>();
+            tmp->now->conjuncts.push_back(heal::Copy(*base));
+            tmp->now->conjuncts.push_back(heal::Copy(*past->formula));
+            std::cout << " ** tmp " << *past << ": " << *tmp << std::endl;
+            bool foobar = false;
+            tmp = TryAddPureFulfillment(std::move(tmp), config, &foobar);
+            assert(!foobar);
+
+            for (const auto* fulfillment : heal::CollectFulfillments(*tmp)) {
+                annotation->now->conjuncts.push_back(heal::Copy(*fulfillment)); // TODO: avoid copy
+            }
+        }
+
+        std::cout << "TryAddPureFulfillmentForHistories post: " << *annotation << std::endl;
         return annotation;
     }
 

@@ -318,7 +318,7 @@ class AnnotationJoiner {
     }
 
     void DeriveJoinedStack() {
-        auto candidates = CandidateGenerator::Generate(*result);
+        auto candidates = CandidateGenerator::Generate(*result, CandidateGenerator::FAST);
 
         z3::expr_vector encoded(context);
         for (const auto& candidate : candidates) {

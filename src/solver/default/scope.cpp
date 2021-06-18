@@ -1,6 +1,7 @@
 #include "default_solver.hpp"
 
 #include "heal/util.hpp"
+#include "post_helper.hpp"
 
 using namespace cola;
 using namespace heal;
@@ -16,7 +17,7 @@ inline std::unique_ptr<heal::Annotation> AddScope(std::unique_ptr<Annotation> pr
                 std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(variable->type))
         ));
     }
-    return std::move(pre);
+    return pre;
 }
 
 inline std::unique_ptr<heal::Annotation> RemoveScope(std::unique_ptr<Annotation> pre, const std::vector<std::unique_ptr<VariableDeclaration>>& scope) {
@@ -45,7 +46,7 @@ inline std::unique_ptr<heal::Annotation> RemoveScope(std::unique_ptr<Annotation>
     } checker(needsRemoval);
     pre->accept(checker);
 
-    return std::move(pre);
+    return pre;
 }
 
 std::unique_ptr<heal::Annotation> DefaultSolver::PostEnterScope(std::unique_ptr<Annotation> pre, const Program& scope) const {
@@ -65,6 +66,8 @@ std::unique_ptr<heal::Annotation> DefaultSolver::PostLeaveScope(std::unique_ptr<
 }
 
 std::unique_ptr<heal::Annotation> DefaultSolver::PostLeaveScope(std::unique_ptr<Annotation> pre, const Function& scope) const {
+    pre = solver::TryAddPureFulfillmentForHistories(std::move(pre), Config());
+    if (scope.kind == Function::INTERFACE) return pre; // TODO: this is a temporary hack for proof.cpp to work
     return RemoveScope(std::move(pre), scope.args);
 }
 

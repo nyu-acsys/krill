@@ -78,17 +78,29 @@ inline bool IsRightMover(const Statement& stmt) {
 void Verifier::ApplyInterference(const Statement& after) {
     if (insideAtomic) return;
     if (current.empty()) return;
+    if (interference.empty()) return;
     if (IsRightMover(after)) return;
-    std::cerr << "WARNING: interference ignored" << std::endl;
-    return; // TODO important: re-enable <<<<<<<<<<<=====================================================================================||||||||||||
-    current = solver->MakeStable(std::move(current), interference); // TODO: solve stability for all annotations in one shot?
+    current = solver->MakeStable(std::move(current), interference);
 }
 
 void Verifier::AddNewInterference(std::deque<std::unique_ptr<solver::HeapEffect>> effects) {
     std::move(effects.begin(), effects.end(), std::back_inserter(newInterference));
 }
 
+inline bool IsEffectEmpty(const std::unique_ptr<HeapEffect>& effect) {
+    assert(effect->pre->node->Type() == effect->post->node->Type());
+    if (&effect->pre->flow.get() != &effect->post->flow.get()) return false;
+    for (const auto& [field, value] : effect->pre->fieldToValue) {
+        if (&value->Decl() != &effect->post->fieldToValue.at(field)->Decl()) return false;
+    }
+    return true;
+}
+
 bool Verifier::ConsolidateNewInterference() {
+    // prune trivial noop interference
+    newInterference.erase(std::remove_if(newInterference.begin(), newInterference.end(), IsEffectEmpty), newInterference.end());
+    if (newInterference.empty()) return false;
+
     // TODO: which pairs should be generated?
     auto Iterate = [this](std::function<void(std::unique_ptr<HeapEffect>&, std::unique_ptr<HeapEffect>&, std::size_t)>&& callback){
         std::size_t index = 0;
@@ -114,8 +126,6 @@ bool Verifier::ConsolidateNewInterference() {
 
     // prune effects that are covered by other effects
     Iterate([&](auto& premise, auto& conclusion, auto index){
-        assert(implications[index].first == premise.get());
-        assert(implications[index].second == conclusion.get());
         if (!implied[index]) return;
         if (!premise) return;
         conclusion.reset(nullptr);
@@ -123,12 +133,18 @@ bool Verifier::ConsolidateNewInterference() {
     // TODO: prune effects e which satisfy: e.post*e.context => e.pre*e.context ? They should not do anything
 
     // remove pruned effects
-    newInterference.erase(std::remove_if(interference.begin(), interference.end(), [](auto& elem){ return !elem; }), interference.end());
-    if (newInterference.empty()) return false;
+    auto newEffects = std::move(newInterference);
+    newInterference.clear();
+    newEffects.erase(std::remove_if(newEffects.begin(), newEffects.end(), [](auto& elem){ return !elem; }), newEffects.end());
+    if (newEffects.empty()) return false;
+
+    std::cout << std::endl << "New effects: " << std::endl;
+    for (const auto& effect : newEffects) {
+        std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
+    }
 
     // add new effects
     // TODO: rename to avoid name clashes? but how?
-    throw std::logic_error("not yet implemented: ConsolidateNewInterference");
-    std::move(newInterference.begin(), newInterference.end(), std::back_inserter(interference));
+    std::move(newEffects.begin(), newEffects.end(), std::back_inserter(interference));
     return true;
 }

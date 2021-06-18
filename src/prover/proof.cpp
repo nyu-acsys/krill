@@ -50,14 +50,49 @@ void Verifier::visit(const Program&) {
     throw std::logic_error("not supported"); // TODO: better error handling
 }
 
+std::unique_ptr<HeapEffect> MakeDummyEffect(const Type& nodeType, SymbolicAxiom::Operator op) {
+//    ** effect: @a0 |-> G(@D8, next:@a24, val:@d22) ~~> @a0 |-> G(@D8, next:@a4, val:@d22) under @D8 != ∅   *   @a24 != NULL   *   @d22 == -∞   *   @d22 < ∞
+//    ** effect: @a1 |-> G(@D5, next:@a3, val:@d7) ~~> @a1 |-> G(@D32, next:@a3, val:@d7) under @D5 != ∅   *   @a3 != NULL   *   @d7 > -∞   *   @d7 < ∞
+
+    SymbolicFactory factory;
+    auto& address = factory.GetUnusedSymbolicVariable(nodeType);
+    auto& flow = factory.GetUnusedFlowVariable(Type::data_type());
+    std::map<std::string, std::unique_ptr<SymbolicVariable>> fieldToValue;
+    for (const auto& [field, type] : nodeType.fields) {
+        fieldToValue[field] = std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(type));
+    }
+    auto pre = std::make_unique<PointsToAxiom>(std::make_unique<SymbolicVariable>(address), false, flow, std::move(fieldToValue));
+
+    std::unique_ptr<PointsToAxiom> post(dynamic_cast<PointsToAxiom*>(heal::Copy(*pre).release()));
+    assert(post);
+    post->flow = factory.GetUnusedFlowVariable(Type::data_type());
+    post->fieldToValue.at("next") = std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(nodeType));
+
+    auto context = std::make_unique<SeparatingConjunction>();
+    context->conjuncts.push_back(std::make_unique<SymbolicAxiom>(heal::Copy(*pre->fieldToValue.at("next")), SymbolicAxiom::NEQ, std::make_unique<SymbolicNull>()));
+    context->conjuncts.push_back(std::make_unique<InflowEmptinessAxiom>(pre->flow, false));
+
+    return std::make_unique<HeapEffect>(std::move(pre), std::move(post), std::move(context));
+}
+
+std::deque<std::unique_ptr<HeapEffect>> MakeDummyInterference(const Type& nodeType) {
+    std::deque<std::unique_ptr<HeapEffect>> result;
+    result.push_back(MakeDummyEffect(nodeType, SymbolicAxiom::EQ));
+//    result.push_back(MakeDummyEffect(SymbolicAxiom::GT));
+    return result;
+}
+
 void Verifier::VerifyProgramOrFail() {
     // TODO: check initializer
+
+    interference = MakeDummyInterference(*program.types.front()); // TODO: remove <<<<<<<<<<<<<<<<==========================================|||||||||||||
 
     // compute fixed point
     do {
         for (const auto& function : program.functions) {
             if (function->kind != Function::Kind::INTERFACE) continue;
             HandleInterfaceFunction(*function);
+            ConsolidateNewInterference(); // TODO: remove <<<<<<<<<<<<<<<<==========================================|||||||||||||
         }
         throw std::logic_error("point du break");
     } while (ConsolidateNewInterference());
@@ -126,7 +161,7 @@ public:
 
     inline void EstablishSpecificationOrFail(const Solver& solver, const Annotation& annotation, const Return* command, const Function& function) {
         // throw std::logic_error("not yet implemented: Verifier::establish_linearizability_or_fail");
-        log() << std::endl << "________" << std::endl << "Post annotation for function '" << function.name << "':" << std::endl << *annotation.now << std::endl << std::endl;
+        log() << std::endl << "________" << std::endl << "Post annotation for function '" << function.name << "':" << std::endl << annotation << std::endl << std::endl;
 
         // check for missing return
         assert(!is_void(function));
@@ -174,16 +209,17 @@ void Verifier::HandleInterfaceFunction(const Function& function) {
     function.body->accept(*this);
 
     // check post annotations
+    std::cout << std::endl << std::endl << " CHECKING POST ANNOTATION OF " << function.name << std::endl << std::endl;
     for (auto& annotation : current) {
         returning.emplace_back(std::move(annotation), nullptr);
     }
-    for (const auto& [annotation, command] : returning) {
+    for (auto& [annotation, command] : returning) {
+        annotation = solver->PostLeaveScope(std::move(annotation), function); // TODO: this is a crude way of asking the solver to turn histories into fulfillments
         specification.EstablishSpecificationOrFail(*solver, *annotation, command, function);
     }
 
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start).count();
     std::cout << "Time taken for " << function.name << ": " << elapsed/1000.0 << "s" << std::endl;
-	throw std::logic_error("pointo breako");
 }
 
 
@@ -390,7 +426,9 @@ inline std::unique_ptr<Annotation> ReturnFromMacro(std::unique_ptr<Annotation> a
     assert(macro.lhs.size() == command->expressions.size());
 
     for (std::size_t index = 0; index < macro.lhs.size(); ++index) {
+        std::cout << "<PRE> returning value " << index << ": " << macro.lhs.at(index).get().name << " := " << *command->expressions.at(index) << " " << *annotation << std::endl;
         annotation = PerformMacroAssignment(std::move(annotation), macro.lhs.at(index), *command->expressions.at(index), solver);
+        std::cout << "<POST> returning value " << index << ": " << macro.lhs.at(index).get().name << " := " << *command->expressions.at(index) << " " << *annotation << std::endl;
     }
     return annotation;
 }
@@ -399,6 +437,7 @@ inline std::deque<std::unique_ptr<Annotation>> ReturnFromMacro(std::deque<std::p
     std::deque<std::unique_ptr<Annotation>> result;
     for (auto& [annotation, command] : returning) {
         result.push_back(ReturnFromMacro(std::move(annotation), command, macro, solver));
+        std::cout << " returning from macro: " << *result.back() << std::endl;
     }
     return result;
 }
@@ -422,6 +461,7 @@ void Verifier::visit(const Macro& cmd) {
     for (auto& annotation : current) {
         returning.emplace_back(std::move(annotation), nullptr);
     }
+    std::cout << " done macro descend" << std::endl;
 
     // restore caller context
     current = ReturnFromMacro(std::move(returning), cmd, *solver);

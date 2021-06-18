@@ -9,7 +9,7 @@ namespace solver {
 
 class CandidateGenerator : public heal::DefaultLogicListener {
     public:
-        enum FlowLevel { NONE=0, FAST=1, FULL=2 };
+        enum FlowLevel { NONE=0, ONLY=1, FAST=2, FULL=3 };
 
         static std::deque<std::unique_ptr<heal::Axiom>> Generate(const heal::LogicObject& base, FlowLevel level=FULL) {
             CandidateGenerator generator(base, level);
@@ -49,12 +49,12 @@ class CandidateGenerator : public heal::DefaultLogicListener {
                 for (const auto* flow : flows) func(flow);
             };
 
-            forAllFlows(FAST, [this](auto flow){ AddUnaryFlowCandidates(*flow); });
+            forAllFlows(ONLY, [this](auto flow){ AddUnaryFlowCandidates(*flow); });
             for (auto symbol = symbols.begin(); symbol != symbols.end(); ++symbol) {
-                AddUnarySymbolCandidates(**symbol);
-                forAllFlows(FAST, [this,symbol](auto flow){ AddBinaryFlowCandidates(*flow, **symbol); });
+                if (level != ONLY) AddUnarySymbolCandidates(**symbol);
+                forAllFlows(ONLY, [this,symbol](auto flow){ AddBinaryFlowCandidates(*flow, **symbol); });
                 for (auto other = std::next(symbol); other != symbols.end(); ++other) {
-                    AddBinarySymbolCandidates(**symbol, **other);
+                    if (level != ONLY)AddBinarySymbolCandidates(**symbol, **other);
                     forAllFlows(FULL, [this,symbol,other](auto flow){
                         AddTernaryFlowCandidates(*flow, **symbol, **other);
                     });

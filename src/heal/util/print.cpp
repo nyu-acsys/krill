@@ -194,6 +194,7 @@ struct FormulaPrinter : public LogicVisitor {
         if (!annotation.time.empty()) {
             stream << STAR_STR;
             print_elems(stream, annotation.time, [this](const auto &e) {
+                stream << std::endl << "    " ;
                 e->accept(*this);
             });
         }
