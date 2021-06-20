@@ -34,6 +34,7 @@ namespace solver {
         [[nodiscard]] std::optional<bool> GetBoolValue(const cola::Expression& expr, const heal::LogicObject& object) const override;
         [[nodiscard]] std::vector<bool> ComputeEffectImplications(const std::deque<std::pair<const HeapEffect*, const HeapEffect*>>& implications) const override;
         [[nodiscard]] std::deque<std::unique_ptr<heal::Annotation>> MakeStable(std::deque<std::unique_ptr<heal::Annotation>> annotations, const std::deque<std::unique_ptr<HeapEffect>>& interferences) const override;
+        [[nodiscard]] std::unique_ptr<heal::Annotation> Interpolate(std::unique_ptr<heal::Annotation> annotation, const std::deque<std::unique_ptr<HeapEffect>>& interferences) const override;
     };
 
 }

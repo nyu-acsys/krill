@@ -289,6 +289,14 @@ inline z3::expr EncodeNodeLocality(const FlowGraphNode& node, EncodedFlowGraph& 
     return z3::mk_and(result);
 }
 
+inline z3::expr EncodeAcyclicity(const FlowGraphNode& node, EncodedFlowGraph& encoding) {
+    z3::expr_vector result(encoding.context);
+    for (const auto& field : node.pointerFields) {
+        result.push_back(encoding.encoder(node.address) != encoding.encoder(field.preValue));
+    }
+    return z3::mk_and(result);
+}
+
 z3::expr EncodedFlowGraph::EncodeNodeInvariant(const FlowGraphNode& node, EMode mode) {
     auto invariant = graph.config.GetNodeInvariant(*node.ToLogic(mode));
     return encoder(*invariant);
@@ -468,6 +476,7 @@ inline z3::expr EncodeFlow(EncodedFlowGraph& encoding) {
         result.push_back(encoding.EncodeNodeInvariant(node, EMode::PRE));
         result.push_back(encoding.EncodeInflowUniqueness(node, EMode::PRE));
         result.push_back(EncodeNodeLocality(node, encoding));
+        result.push_back(EncodeAcyclicity(node, encoding));
 
         // general flow constraints
         result.push_back(EncodeFlowRules(encoding, node));

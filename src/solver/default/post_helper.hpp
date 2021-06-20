@@ -154,9 +154,13 @@ namespace solver {
 
     static inline std::unique_ptr<heal::SeparatingConjunction> RemoveResourcesAndFulfillments(std::unique_ptr<heal::SeparatingConjunction> formula) {
         heal::InlineAndSimplify(*formula);
+        auto fulfillments = heal::CollectFulfillments(*formula);
         auto variables = heal::CollectVariables(*formula);
         auto memory = heal::CollectMemory(*formula);
-        auto fulfillments = heal::CollectFulfillments(*formula);
+        for (auto it = memory.begin(); it != memory.end();) {
+            if ((**it).isLocal) it = memory.erase(it); // do not delete local resources
+            else ++it;
+        }
 
         std::set<const heal::Formula*> axioms;
         axioms.insert(variables.begin(), variables.end());
@@ -174,7 +178,8 @@ namespace solver {
         return formula;
     }
 
-    static std::unique_ptr<heal::Annotation> TryAddPureFulfillmentForHistories(std::unique_ptr<heal::Annotation> annotation, const SolverConfig& config) {
+    static std::unique_ptr<heal::Annotation>
+    TryAddPureFulfillmentForHistories(std::unique_ptr<heal::Annotation> annotation, const SolverConfig &config) {
         std::cout << "TryAddPureFulfillmentForHistories pre: " << *annotation << std::endl;
         auto base = RemoveResourcesAndFulfillments(heal::Copy(*annotation->now));
         for (const auto& time : annotation->time) {
@@ -183,11 +188,9 @@ namespace solver {
 
             auto tmp = std::make_unique<heal::Annotation>();
             tmp->now->conjuncts.push_back(heal::Copy(*base));
+            // base contains only local memory, so we can simply add the shared resources from past
             tmp->now->conjuncts.push_back(heal::Copy(*past->formula));
-            std::cout << " ** tmp " << *past << ": " << *tmp << std::endl;
-            bool foobar = false;
-            tmp = TryAddPureFulfillment(std::move(tmp), config, &foobar);
-            assert(!foobar);
+            tmp = TryAddPureFulfillment(std::move(tmp), config);
 
             for (const auto* fulfillment : heal::CollectFulfillments(*tmp)) {
                 annotation->now->conjuncts.push_back(heal::Copy(*fulfillment)); // TODO: avoid copy

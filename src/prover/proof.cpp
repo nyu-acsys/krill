@@ -92,7 +92,6 @@ void Verifier::VerifyProgramOrFail() {
         for (const auto& function : program.functions) {
             if (function->kind != Function::Kind::INTERFACE) continue;
             HandleInterfaceFunction(*function);
-            ConsolidateNewInterference(); // TODO: remove <<<<<<<<<<<<<<<<==========================================|||||||||||||
         }
         throw std::logic_error("point du break");
     } while (ConsolidateNewInterference());
@@ -214,7 +213,7 @@ void Verifier::HandleInterfaceFunction(const Function& function) {
         returning.emplace_back(std::move(annotation), nullptr);
     }
     for (auto& [annotation, command] : returning) {
-        annotation = solver->PostLeaveScope(std::move(annotation), function); // TODO: this is a crude way of asking the solver to turn histories into fulfillments
+        annotation = solver->Interpolate(std::move(annotation), interference);
         specification.EstablishSpecificationOrFail(*solver, *annotation, command, function);
     }
 
@@ -395,7 +394,10 @@ void Verifier::visit(const Return& cmd) {
     }
 
     // post image
-    for (auto& annotation : current) { returning.emplace_back(std::move(annotation), &cmd); }
+    for (auto& annotation : current) {
+        std::cout << " returning with " << *annotation << std::endl;
+        returning.emplace_back(std::move(annotation), &cmd);
+    }
     current.clear();
 }
 
