@@ -372,6 +372,13 @@ namespace cola {
 		ACCEPT_COLA_VISITOR
 	};
 
+    struct ParallelAssignment : public Command {
+        std::vector<std::unique_ptr<Expression>> lhs;
+        std::vector<std::unique_ptr<Expression>> rhs;
+        ParallelAssignment() = default;
+        ACCEPT_COLA_VISITOR
+    };
+
 	struct Macro : public Command {
 		std::vector<std::reference_wrapper<const VariableDeclaration>> lhs;
 		const Function& decl;

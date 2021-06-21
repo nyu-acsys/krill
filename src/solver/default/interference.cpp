@@ -125,7 +125,11 @@ std::deque<std::unique_ptr<heal::Annotation>> DefaultSolver::MakeStable(std::deq
                                                                         const std::deque<std::unique_ptr<HeapEffect>>& interferences) const {
     if (annotations.empty() || interferences.empty()) return annotations;
     InterferenceInfo info(std::move(annotations), interferences);
-    return info.GetResult();
+    auto result = info.GetResult();
+    for (auto& annotation : result) {
+        annotation = Interpolate(std::move(annotation), interferences);
+    }
+    return result;
 }
 
 
@@ -133,12 +137,11 @@ std::deque<std::unique_ptr<heal::Annotation>> DefaultSolver::MakeStable(std::deq
 // Interpolation
 //
 
-
-
 struct ImmutabilityInfo {
     std::set<std::pair<const Type*, std::string>> mutableFields;
 
     explicit ImmutabilityInfo(const std::deque<std::unique_ptr<HeapEffect>>& interferences) {
+        // TODO: compute immutability semantically => check if a field is immutable in a given state rather than across the entire computation
         for (const auto& effect : interferences) {
             auto& type = effect->pre->node->Type();
             for (const auto& [field, value] : effect->pre->fieldToValue) {
@@ -154,7 +157,9 @@ struct ImmutabilityInfo {
 
 std::unique_ptr<Annotation> DefaultSolver::Interpolate(std::unique_ptr<Annotation> annotation,
                                                        const std::deque<std::unique_ptr<HeapEffect>>& interferences) const {
-    ImmutabilityInfo info(interferences);
+    std::cout << "<<INTERPOLATION>>" << std::endl;
+    std::cout << " ** pre: " << *annotation << std::endl;
+    ImmutabilityInfo info(interferences); // TODO: avoid repeated construction => take deque of annotations
 
     // collect all points-to predicates from all times
     auto memories = heal::CollectMemory(*annotation->now);
@@ -166,84 +171,25 @@ std::unique_ptr<Annotation> DefaultSolver::Interpolate(std::unique_ptr<Annotatio
     }
 
     // equalize immutable fields (ignore flow => surely not immutable)
-    for (auto it = memories.begin(); it != memories.end(); ++it) {
-        for (const auto& [field, value] : (**it).fieldToValue) {
-            if (!info.IsImmutable((**it).node->Type(), field)) continue;
-            for (auto other = std::next(it); other != memories.end(); ++other) {
-                if ((**it).node->Type() != (**other).node->Type()) continue;
-                auto interpolant = std::make_unique<heal::SymbolicAxiom>(
-                        heal::Copy(*value), heal::SymbolicAxiom::EQ, heal::Copy(*(**other).fieldToValue.at(field))
-                );
-                annotation->now->conjuncts.push_back(std::move(interpolant));
-            }
+    auto equalize = [&info,&annotation](const PointsToAxiom& memory, const PointsToAxiom& other){
+        if (memory.node->Type() != other.node->Type()) return;
+        if (&memory.node->Decl() != &other.node->Decl()) return;
+        for (const auto& [field, value] : memory.fieldToValue) {
+            if (!info.IsImmutable(memory.node->Type(), field)) continue;
+            auto interpolant = std::make_unique<heal::SymbolicAxiom>(heal::Copy(*value), heal::SymbolicAxiom::EQ,
+                                                                     heal::Copy(*other.fieldToValue.at(field)));
+            annotation->now->conjuncts.push_back(std::move(interpolant));
+        }
+    };
+    for (auto it1 = memories.cbegin(); it1 != memories.cend(); ++it1) {
+        for (auto it2 = std::next(it1); it2 != memories.cend(); ++it2) {
+            equalize(**it1, **it2);
         }
     }
 
-    annotation = solver::TryAddPureFulfillmentForHistories(std::move(annotation), Config());
-    heal::InlineAndSimplify(*annotation);
+//    annotation = solver::TryAddPureFulfillmentForHistories(std::move(annotation), Config());
+    heal::Simplify(*annotation);
+//    heal::InlineAndSimplify(*annotation);
+    std::cout << " ** post: " << *annotation << std::endl;
     return annotation;
 }
-
-//void HandleInterference(ImplicationCheckSet& checks, Z3Encoder<>& encoder, const Annotation& annotation, PointsToAxiom& memory, const HeapEffect& effect, SymbolicFactory& factory) {
-//    // TODO: avoid encoding the same annotation/effect multiple times
-//    if (memory.node->Type() != effect.pre->node->Type()) return;
-//    if (&effect.pre->node->Decl() != &effect.post->node->Decl()) throw std::logic_error("Unsupported effect"); // TODO: better error handling
-//
-//    auto interference = encoder(annotation) && encoder(*effect.context) && encoder.MakeMemoryEquality(memory, *effect.pre);
-//    auto isInterferenceFree = z3::implies(interference, encoder.context.bool_val(false));
-//    auto applyEffect = [&memory,&effect,&factory](){
-//        if (UpdatesFlow(effect)) memory.flow = factory.GetUnusedFlowVariable(memory.flow.get().type);
-//        for (auto& [field, value] : memory.fieldToValue) {
-//            if (UpdatesField(effect, field)) value->decl_storage = factory.GetUnusedSymbolicVariable(value->Type());
-//        }
-//    };
-//    checks.Add(isInterferenceFree, [applyEffect=std::move(applyEffect)](bool isStable){
-//        if (!isStable) applyEffect();
-//    });
-//}
-//
-//std::deque<std::unique_ptr<heal::Annotation>> DefaultSolver::MakeStable(std::deque<std::unique_ptr<heal::Annotation>> annotations,
-//                                                                        const std::deque<std::unique_ptr<HeapEffect>>& interferences) const {
-//
-//    // make annotation symbols distinct from interference symbols
-//    SymbolicFactory factory;
-//    for (const auto& effect : interferences) {
-//        factory.Avoid(*effect->pre);
-//        factory.Avoid(*effect->post);
-//        factory.Avoid(*effect->context);
-//    }
-//    std::cout << "<<INTERFERENCE>>" << std::endl;
-//    for (auto& effect : interferences) std::cout << "  -- effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
-//    for (auto& annotation : annotations) {
-//        heal::RenameSymbolicSymbols(*annotation, factory);
-//        factory.Avoid(*annotation);
-//    }
-//    for (auto& annotation : annotations) std::cout << " -- pre: " << *annotation << std::endl;
-//
-//    // prepare solving
-//    z3::context context;
-//    z3::solver solver(context);
-//    Z3Encoder encoder(context, solver);
-//    ImplicationCheckSet checks(context);
-//
-//    // apply interference
-//    for (auto& annotation : annotations) {
-//        auto resources = heal::CollectMemory(*annotation->now);
-//        for (auto* memory : resources) {
-//            if (memory->isLocal) continue;
-//            auto nonConstMemory = const_cast<PointsToAxiom*>(memory); // TODO: does this work?
-//            for (const auto& effect : interferences) {
-//                HandleInterference(checks, encoder, *annotation, *nonConstMemory, *effect, factory);
-//            }
-//        }
-//    }
-//    solver::ComputeImpliedCallback(solver, checks);
-//    for (auto& annotation : annotations) std::cout << " -- post: " << *annotation << std::endl;
-//
-//    // rename
-//    for (auto& annotation : annotations) {
-//        SymbolicFactory emptyFactory;
-//        heal::RenameSymbolicSymbols(*annotation, emptyFactory);
-//    }
-//    return annotations;
-//}

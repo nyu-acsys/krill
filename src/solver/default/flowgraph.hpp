@@ -6,6 +6,7 @@
 #include "heal/logic.hpp"
 #include "heal/util.hpp"
 #include "solver/solver.hpp"
+#include "default_solver.hpp"
 #include "encoder.hpp"
 
 namespace solver {
@@ -71,7 +72,7 @@ namespace solver {
 
     // TODO: add invariants to flow graph
     [[nodiscard]] FlowGraph MakePureHeapGraph(std::unique_ptr<heal::Annotation> state, const SolverConfig& config);
-    [[nodiscard]] FlowGraph MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const cola::Dereference& lhs, const cola::SimpleExpression& rhs, const SolverConfig& config);
+    [[nodiscard]] FlowGraph MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const MultiUpdate& update, const SolverConfig& config);
 
     struct EncodedFlowGraph {
         z3::context context;

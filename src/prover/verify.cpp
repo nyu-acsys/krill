@@ -81,6 +81,9 @@ void Verifier::ApplyInterference(const Statement& after) {
     if (interference.empty()) return;
     if (IsRightMover(after)) return;
     current = solver->MakeStable(std::move(current), interference);
+//    PerformStep([this](auto annotation){
+//        return solver->Interpolate(std::move(annotation), interference);
+//    });
 }
 
 void Verifier::AddNewInterference(std::deque<std::unique_ptr<solver::HeapEffect>> effects) {

@@ -46,7 +46,8 @@ struct VarExtractor : public Visitor {
 	void visit(const Assert& /*node*/) override { /* do nothing */ }
 	void visit(const Return& /*node*/) override { /* do nothing */ }
 	void visit(const Malloc& /*node*/) override { /* do nothing */ }
-	void visit(const Assignment& /*node*/) override { /* do nothing */ }
+    void visit(const Assignment& /*node*/) override { /* do nothing */ }
+    void visit(const ParallelAssignment& /*node*/) override { /* do nothing */ }
 	void visit(const Macro& /*node*/) override { /* do nothing */ }
 	void visit(const CompareAndSwap& /*node*/) override { /* do nothing */ }
 	void visit(const Function& /*node*/) override { /* do nothing */ }
@@ -59,7 +60,7 @@ static const VariableDeclaration& expression2Variable(const Expression& expr) {
 	if (extractor.result) {
 		return *extractor.result;
 	} else {
-		throw new ParseError("Expected a variable, got an expression.");
+		throw ParseError("Expected a variable, got an expression.");
 	}
 }
 
@@ -94,7 +95,8 @@ struct AssignableVisitor : public Visitor {
 	void visit(const Assert& /*node*/) override { throw std::logic_error("Unexpected invocation (AssignableVisitor::visit(const Assert&)"); }
 	void visit(const Return& /*node*/) override { throw std::logic_error("Unexpected invocation (AssignableVisitor::visit(const Return&)"); }
 	void visit(const Malloc& /*node*/) override { throw std::logic_error("Unexpected invocation (AssignableVisitor::visit(const Malloc&)"); }
-	void visit(const Assignment& /*node*/) override { throw std::logic_error("Unexpected invocation (AssignableVisitor::visit(const Assignment&)"); }
+    void visit(const Assignment& /*node*/) override { throw std::logic_error("Unexpected invocation (AssignableVisitor::visit(const Assignment&)"); }
+    void visit(const ParallelAssignment& /*node*/) override { throw std::logic_error("Unexpected invocation (AssignableVisitor::visit(const ParallelAssignment&)"); }
 	void visit(const Macro& /*node*/) override { throw std::logic_error("Unexpected invocation (AssignableVisitor::visit(const Macro&)"); }
 	void visit(const CompareAndSwap& /*node*/) override { throw std::logic_error("Unexpected invocation (AssignableVisitor::visit(const CompareAndSwap&)"); }
 	void visit(const Function& /*node*/) override { throw std::logic_error("Unexpected invocation (AssignableVisitor::visit(const Function&)"); }
@@ -118,7 +120,7 @@ static bool isExprAssignable(const Expression& expr) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void AstBuilder::pushScope() {
-	_scope.push_back(VariableMap());
+	_scope.emplace_back();
 }
 
 std::vector<std::unique_ptr<VariableDeclaration>> AstBuilder::popScope() {

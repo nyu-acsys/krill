@@ -92,6 +92,7 @@ void Verifier::VerifyProgramOrFail() {
         for (const auto& function : program.functions) {
             if (function->kind != Function::Kind::INTERFACE) continue;
             HandleInterfaceFunction(*function);
+            throw std::logic_error("point du break");
         }
         throw std::logic_error("point du break");
     } while (ConsolidateNewInterference());
@@ -213,7 +214,8 @@ void Verifier::HandleInterfaceFunction(const Function& function) {
         returning.emplace_back(std::move(annotation), nullptr);
     }
     for (auto& [annotation, command] : returning) {
-        annotation = solver->Interpolate(std::move(annotation), interference);
+//        annotation = solver->Interpolate(std::move(annotation), interference);
+        annotation = solver->PostLeaveScope(std::move(annotation), function);
         specification.EstablishSpecificationOrFail(*solver, *annotation, command, function);
     }
 
@@ -368,6 +370,11 @@ void Verifier::visit(const Malloc& cmd) {
 }
 
 void Verifier::visit(const Assignment& cmd) {
+    PerformStep([this,&cmd](auto annotation){ return solver->Post(std::move(annotation), cmd); });
+    ApplyInterference(cmd);
+}
+
+void Verifier::visit(const ParallelAssignment& cmd) {
     PerformStep([this,&cmd](auto annotation){ return solver->Post(std::move(annotation), cmd); });
     ApplyInterference(cmd);
 }

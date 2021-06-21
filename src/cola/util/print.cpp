@@ -362,15 +362,25 @@ struct PrintVisitor final : public BaseVisitor {
 		stream << indent << com.lhs.name << " = malloc;" << std::endl;
 	}
 
-	void visit(const Assignment& com) {
-		stream << indent;
-		com.lhs->accept(exprinter);
-		stream << " = ";
-		com.rhs->accept(exprinter);
-		stream << ";";
-		stream << " // " << com.id;
-		stream << std::endl;
-	}
+    void visit(const Assignment& com) {
+        stream << indent;
+        com.lhs->accept(exprinter);
+        stream << " = ";
+        com.rhs->accept(exprinter);
+        stream << ";";
+        stream << " // " << com.id;
+        stream << std::endl;
+    }
+
+    void visit(const ParallelAssignment& com) {
+        stream << indent;
+        print_elem_or_tuple(com.lhs, [this](auto& expr){ expr->accept(exprinter); return ""; });
+        stream << " = ";
+        print_elem_or_tuple(com.rhs, [this](auto& expr){ expr->accept(exprinter); return ""; });
+        stream << ";";
+        stream << " // " << com.id;
+        stream << std::endl;
+    }
 
 	void visit(const Macro& com) {
 		stream << indent;
@@ -441,6 +451,7 @@ std::ostream& cola::operator<<(std::ostream& stream, const AstNode& object) {
         void visit(const Return& node) override { cola::print(node, stream); }
         void visit(const Malloc& node) override { cola::print(node, stream); }
         void visit(const Assignment& node) override { cola::print(node, stream); }
+        void visit(const ParallelAssignment& node) override { cola::print(node, stream); }
         void visit(const Macro& node) override { cola::print(node, stream); }
         void visit(const CompareAndSwap& node) override { cola::print((const Command&) node, stream); }
         void visit(const Function& node) override { PrintVisitor visitor(stream); node.accept(visitor); }

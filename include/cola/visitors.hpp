@@ -37,7 +37,8 @@ namespace cola {
 	struct Assert;
 	struct Return;
 	struct Malloc;
-	struct Assignment;
+    struct Assignment;
+    struct ParallelAssignment;
 	struct Macro;
 	struct CompareAndSwap;
 	struct Function;
@@ -73,7 +74,8 @@ namespace cola {
 		virtual void visit(const Assert& node) = 0;
 		virtual void visit(const Return& node) = 0;
 		virtual void visit(const Malloc& node) = 0;
-		virtual void visit(const Assignment& node) = 0;
+        virtual void visit(const Assignment& node) = 0;
+        virtual void visit(const ParallelAssignment& node) = 0;
 		virtual void visit(const Macro& node) = 0;
 		virtual void visit(const CompareAndSwap& node) = 0;
 		virtual void visit(const Function& node) = 0;
@@ -109,6 +111,7 @@ namespace cola {
 		virtual void visit(Return& node) = 0;
 		virtual void visit(Malloc& node) = 0;
 		virtual void visit(Assignment& node) = 0;
+        virtual void visit(ParallelAssignment& node) = 0;
 		virtual void visit(Macro& node) = 0;
 		virtual void visit(CompareAndSwap& node) = 0;
 		virtual void visit(Function& node) = 0;
@@ -160,7 +163,8 @@ namespace cola {
 		void visit(const Assert& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Assert&"); }
 		void visit(const Return& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Return&"); }
 		void visit(const Malloc& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Malloc&"); }
-		void visit(const Assignment& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Assignment&"); }
+        void visit(const Assignment& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Assignment&"); }
+        void visit(const ParallelAssignment& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const ParallelAssignment&"); }
 		void visit(const Macro& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Macro&"); }
 		void visit(const CompareAndSwap& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const CompareAndSwap&"); }
 		void visit(const Function& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseVisitor", "const Function&"); }
@@ -198,7 +202,8 @@ namespace cola {
 		void visit(Assert& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseNonConstVisitor", "Assert&"); }
 		void visit(Return& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseNonConstVisitor", "Return&"); }
 		void visit(Malloc& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseNonConstVisitor", "Malloc&"); }
-		void visit(Assignment& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseNonConstVisitor", "Assignment&"); }
+        void visit(Assignment& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseNonConstVisitor", "Assignment&"); }
+        void visit(ParallelAssignment& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseNonConstVisitor", "ParallelAssignment&"); }
 		void visit(Macro& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseNonConstVisitor", "Macro&"); }
 		void visit(CompareAndSwap& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseNonConstVisitor", "CompareAndSwap&"); }
 		void visit(Function& /*node*/) override { throw VisitorNotImplementedError(*this, "BaseNonConstVisitor", "Function&"); }

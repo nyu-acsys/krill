@@ -62,15 +62,14 @@ std::unique_ptr<Expression> make_cas_condition(const CompareAndSwap& cas) {
 }
 
 std::unique_ptr<Statement> make_cas_updates(const CompareAndSwap& cas) {
-	std::unique_ptr<Statement> result;
-	for (const auto& elem : cas.elems) {
-		if (are_syntactically_equal(*elem.cmp, *elem.src)) continue;
-		auto assign = std::make_unique<Assignment>(cola::copy(*elem.dst), cola::copy(*elem.src));
-		if (result) result = std::make_unique<Sequence>(std::move(result), std::move(assign));
-		else result = std::move(assign);
-	}
-	if (!result) result = std::make_unique<Skip>();
-	return result;
+    auto result = std::make_unique<ParallelAssignment>();
+    for (const auto& elem : cas.elems) {
+        if (are_syntactically_equal(*elem.cmp, *elem.src)) continue;
+        result->lhs.push_back(cola::copy(*elem.dst));
+        result->rhs.push_back(cola::copy(*elem.src));
+    }
+    if (result->lhs.empty()) return std::make_unique<Skip>();
+    return result;
 }
 
 std::tuple<bool, std::unique_ptr<Statement>, std::unique_ptr<Statement>> desugar_cas_expr(const Expression& expr, bool inside_atomic) {

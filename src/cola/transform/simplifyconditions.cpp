@@ -97,6 +97,7 @@ struct ExpressionVisitor : public BaseNonConstVisitor {
     void visit(Return& /*node*/) override { /* do nothing */ }
     void visit(Malloc& /*node*/) override { /* do nothing */ }
     void visit(Assignment& /*node*/) override { /* do nothing */ }
+    void visit(ParallelAssignment& /*node*/) override { /* do nothing */ }
     void visit(Macro& /*node*/) override { /* do nothing */ }
     void visit(CompareAndSwap& /*node*/) override { /* do nothing */ }
 };

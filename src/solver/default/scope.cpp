@@ -66,6 +66,9 @@ std::unique_ptr<heal::Annotation> DefaultSolver::PostLeaveScope(std::unique_ptr<
 }
 
 std::unique_ptr<heal::Annotation> DefaultSolver::PostLeaveScope(std::unique_ptr<Annotation> pre, const Function& scope) const {
+//    return RemoveScope(std::move(pre), scope.args);
+    pre = solver::TryAddPureFulfillmentForHistories(std::move(pre), Config());
+    if (scope.kind == Function::INTERFACE) return pre; // TODO: this is a temporary hack for proof.cpp to work
     return RemoveScope(std::move(pre), scope.args);
 }
 

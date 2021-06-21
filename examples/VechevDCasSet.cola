@@ -50,38 +50,6 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 }
 
 
-bool contains(data_t key) {
-	Node* pred, curr;
-	data_t k;
-
-	(pred, curr, k) = locate(key);
-	return k == key;
-}
-
-// bool contains(data_t key) {
-// 	Node* pred, curr;
-// 	data_t k;
-// 
-// 	curr = Head;
-// 	do {
-// 		pred = curr;
-// 		curr = pred->next;
-// 
-// 		if (curr == pred->next && curr != NULL) {
-// 			k = curr->val;
-// 			if (k >= key) {
-// 				return k == key;
-// 			} else {
-// 				skip;
-// 			}
-// 		} else {
-// 			curr = Head;
-// 			k = MIN_VAL;
-// 		}
-// 	} while (true);
-// }
-
-
 bool add(data_t key) {
 	Node* entry;
 
@@ -104,6 +72,15 @@ bool add(data_t key) {
 			}
 		}
 	}
+}
+
+
+bool contains(data_t key) {
+	Node* pred, curr;
+	data_t k;
+
+	(pred, curr, k) = locate(key);
+	return k == key;
 }
 
 

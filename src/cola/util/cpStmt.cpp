@@ -31,9 +31,15 @@ struct CopyCommandVisitor final : public BaseVisitor {
 	void visit(const Malloc& node) override {
 		this->result = std::make_unique<Malloc>(node.lhs);
 	}
-	void visit(const Assignment& node) override {
-		this->result = std::make_unique<Assignment>(cola::copy(*node.lhs), cola::copy(*node.rhs));
-	}
+    void visit(const Assignment& node) override {
+        this->result = std::make_unique<Assignment>(cola::copy(*node.lhs), cola::copy(*node.rhs));
+    }
+    void visit(const ParallelAssignment& node) override {
+	    auto result = std::make_unique<ParallelAssignment>();
+        for (const auto& lhs : node.lhs) result->lhs.push_back(cola::copy(*lhs));
+        for (const auto& rhs : node.rhs) result->rhs.push_back(cola::copy(*rhs));
+        this->result = std::move(result);
+    }
 	void visit(const Macro& node) override {
 		auto result = std::make_unique<Macro>(node.decl);
 		for (const auto& expr : node.lhs) {

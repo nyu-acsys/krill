@@ -226,12 +226,33 @@ PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Malloc& cmd
 // Assignment
 //
 
+inline std::pair<const Dereference*, const SimpleExpression*> ExtractUpdate(const Expression& inputLhs, const Expression& inputRhs) {
+    auto [isDeref, lhs] = heal::IsOfType<Dereference>(inputLhs);
+    if (!isDeref) throw std::logic_error("Unsupported heap update: left-hand side must be a dereference"); // TODO:: better error handling
+    auto [isVar, lhsVar] = heal::IsOfType<VariableExpression>(*lhs->expr);
+    if (!isVar) throw std::logic_error("Unsupported heap update: dereference of non-variable"); // TODO: better error handling
+    auto [isSimple, rhs] = heal::IsOfType<SimpleExpression>(inputRhs);
+    if (!isSimple) throw std::logic_error("Unsupported heap update: right-hand side is not simple"); // TODO:: better error handling
+    return { lhs, rhs };
+}
+
+MultiUpdate::MultiUpdate(const cola::Assignment& assignment) {
+    updates.push_back(ExtractUpdate(*assignment.lhs, *assignment.rhs));
+}
+
+MultiUpdate::MultiUpdate(const cola::ParallelAssignment& assignment) {
+    updates.reserve(assignment.lhs.size());
+    for (std::size_t index = 0; index < assignment.lhs.size(); ++index) {
+        updates.push_back(ExtractUpdate(*assignment.lhs.at(index), *assignment.rhs.at(index)));
+    }
+}
+
 PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assignment& cmd) const {
     std::cout << "******** Post image for "; heal::Print(*pre, std::cout); std::cout << " "; cola::print(cmd, std::cout);
     if (auto variable = dynamic_cast<const VariableExpression*>(cmd.lhs.get())) {
         return PostVariableUpdate(std::move(pre), cmd, *variable);
     } else if (auto dereference = dynamic_cast<const Dereference*>(cmd.lhs.get())) {
-        return PostMemoryUpdate(std::move(pre), cmd, *dereference);
+        return PostMemoryUpdate(std::move(pre), MultiUpdate(cmd));
     } else {
         std::stringstream err;
         err << "Unsupported assignment: expected a variable or a dereference as left-hand side, got '";
@@ -239,6 +260,11 @@ PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assignment&
         err << "'.";
         throw std::logic_error(err.str()); // TODO: better error class
     }
+}
+
+PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const ParallelAssignment& cmd) const {
+    std::cout << "******** Post image for "; heal::Print(*pre, std::cout); std::cout << " "; cola::print(cmd, std::cout);
+    return PostMemoryUpdate(std::move(pre), MultiUpdate(cmd));
 }
 
 PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<Annotation> pre, const Assignment& cmd, const VariableExpression& lhs) const {

@@ -146,6 +146,7 @@ namespace solver {
         annotation = std::move(encoding.graph.pre);
         annotation = RemoveObligations(std::move(annotation), std::move(checks.preSpec));
         std::move(checks.postSpec.begin(), checks.postSpec.end(), std::back_inserter(annotation->now->conjuncts));
+        heal::Simplify(*annotation);
 
         timeSpent += std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start).count();
         std::cout << "& All time spent in TryAddPureFulfillment: " << timeSpent << "ms" << std::endl;

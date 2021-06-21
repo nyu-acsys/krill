@@ -53,6 +53,7 @@ namespace solver {
         [[nodiscard]] virtual PostImage Post(std::unique_ptr<heal::Annotation> pre, const cola::Assume& cmd) const = 0;
         [[nodiscard]] virtual PostImage Post(std::unique_ptr<heal::Annotation> pre, const cola::Malloc& cmd) const = 0;
         [[nodiscard]] virtual PostImage Post(std::unique_ptr<heal::Annotation> pre, const cola::Assignment& cmd) const = 0;
+        [[nodiscard]] virtual PostImage Post(std::unique_ptr<heal::Annotation> pre, const cola::ParallelAssignment& cmd) const = 0;
 
         // TODO: streamline; are those function at the right place, with the right signature?
         [[nodiscard]] virtual const heal::EqualsToAxiom* GetVariableResource(const cola::VariableDeclaration& decl, const heal::LogicObject& object) const = 0;
@@ -60,7 +61,7 @@ namespace solver {
         [[nodiscard]] virtual Result Implies(const heal::Annotation& premise, const heal::Annotation& conclusion) const = 0; // TODO: return bool?
         [[nodiscard]] virtual std::vector<bool> ComputeEffectImplications(const std::deque<std::pair<const HeapEffect*, const HeapEffect*>>& implications) const = 0;
         [[nodiscard]] virtual std::deque<std::unique_ptr<heal::Annotation>> MakeStable(std::deque<std::unique_ptr<heal::Annotation>> annotations, const std::deque<std::unique_ptr<HeapEffect>>& interferences) const = 0;
-        [[nodiscard]] virtual std::unique_ptr<heal::Annotation> Interpolate(std::unique_ptr<heal::Annotation> annotation, const std::deque<std::unique_ptr<HeapEffect>>& interferences) const = 0;
+//        [[nodiscard]] virtual std::unique_ptr<heal::Annotation> Interpolate(std::unique_ptr<heal::Annotation> annotation, const std::deque<std::unique_ptr<HeapEffect>>& interferences) const = 0;
 
 	    protected:
             [[nodiscard]] const SolverConfig& Config() const { return *config; }

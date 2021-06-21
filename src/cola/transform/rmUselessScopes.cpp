@@ -86,7 +86,8 @@ struct RemoveUselessScopeVisitor final : BaseNonConstVisitor {
 	void visit(Assert& /*node*/) { /* do nothing */ }
 	void visit(Return& /*node*/) { /* do nothing */ }
 	void visit(Malloc& /*node*/) { /* do nothing */ }
-	void visit(Assignment& /*node*/) { /* do nothing */ }
+    void visit(Assignment& /*node*/) { /* do nothing */ }
+    void visit(ParallelAssignment& /*node*/) { /* do nothing */ }
 	void visit(Macro& /*node*/) { /* do nothing */ }
 	void visit(CompareAndSwap& /*node*/) { /* do nothing */ }
 };

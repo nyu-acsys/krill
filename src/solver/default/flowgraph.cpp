@@ -173,7 +173,7 @@ inline void CheckGraph(const FlowGraph& graph, const FlowGraphNode& root) {
 }
 
 inline FlowGraph MakeFootprintGraph(std::unique_ptr<Annotation> state, const SymbolicVariableDeclaration& rootAddress, const SolverConfig& config,
-                                    std::size_t depth, const std::function<void(FlowGraphNode&)>& applyRootUpdate) {
+                                    std::size_t depth, const std::function<void(FlowGraphNode&)>& applyRootUpdates) {
     std::set<const SymbolicVariableDeclaration*> missing;
     while (true) {
         assert(state);
@@ -188,7 +188,7 @@ inline FlowGraph MakeFootprintGraph(std::unique_ptr<Annotation> state, const Sym
         root->preGraphInflow = root->preAllInflow;
         root->postGraphInflow = root->preAllInflow;
         root->postAllInflow = root->preAllInflow;
-        applyRootUpdate(*root);
+        applyRootUpdates(*root);
 
         // expand graph
         auto newMissing = ExpandGraph(graph, eval, factory, depth);
@@ -202,37 +202,68 @@ inline FlowGraph MakeFootprintGraph(std::unique_ptr<Annotation> state, const Sym
     }
 }
 
-FlowGraph solver::MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const cola::Dereference& lhs,
-                                    const cola::SimpleExpression& rhs, const SolverConfig& config) {
-
-    // evaluate rhs
-    EagerValuationMap eval(*pre); // TODO: avoid duplication wrt. FinalizeFromRoot
+FlowGraph solver::MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const MultiUpdate& update, const SolverConfig& config) {
+    assert(!update.updates.empty());
+    LazyValuationMap eval(*pre); // TODO: avoid duplication wrt. FinalizeFromRoot
     SymbolicFactory factory(*pre); // TODO: avoid duplication wrt. FinalizeFromRoot
-    const SymbolicVariableDeclaration* rhsEval = nullptr;
-    if (auto var = dynamic_cast<const VariableExpression*>(&rhs)) {
-        rhsEval = &eval.GetValueOrFail(var->decl);
-    } else {
-        auto rhsValue = eval.Evaluate(rhs);
-        rhsEval = &factory.GetUnusedSymbolicVariable(rhs.type());
-        auto axiom = std::make_unique<SymbolicAxiom>(std::move(rhsValue), SymbolicAxiom::EQ, std::make_unique<SymbolicVariable>(*rhsEval));
-        pre->now->conjuncts.push_back(std::move(axiom));
-    }
-    assert(rhsEval);
 
-    // evaluate updated node
-    auto lhsNodeEval = eval.Evaluate(*lhs.expr);
-    const SymbolicVariableDeclaration* root = nullptr;
-    if (auto var = dynamic_cast<const SymbolicVariable*>(lhsNodeEval.get())) {
-        root = &var->Decl();
-    } else {
-        throw std::logic_error("Cannot create footprint for malformed dereference."); // TODO: better error handling
+    std::vector<std::pair<const SymbolicVariableDeclaration*, std::string>> lhsDereferences;
+    std::vector<const SymbolicVariableDeclaration*> rhsValues;
+    lhsDereferences.reserve(update.updates.size());
+    rhsValues.reserve(update.updates.size());
+
+    for (const auto& [lhs, rhs] : update) {
+        // evaluate rhs
+        if (auto var = dynamic_cast<const VariableExpression*>(rhs)) {
+            rhsValues.push_back(&eval.GetValueOrFail(var->decl));
+        } else {
+            auto rhsValue = eval.Evaluate(*rhs);
+            auto symbol = &factory.GetUnusedSymbolicVariable(rhs->type());
+            auto axiom = std::make_unique<SymbolicAxiom>(std::move(rhsValue), SymbolicAxiom::EQ,
+                                                         std::make_unique<SymbolicVariable>(*symbol));
+            pre->now->conjuncts.push_back(std::move(axiom));
+            rhsValues.push_back(symbol);
+        }
+
+        // evaluate updated node
+        auto lhsNodeEval = eval.Evaluate(*lhs->expr);
+        if (auto var = dynamic_cast<const SymbolicVariable*>(lhsNodeEval.get())) {
+            lhsDereferences.emplace_back(&var->Decl(), lhs->fieldname);
+        } else {
+            throw std::logic_error("Cannot create footprint for malformed dereference."); // TODO: better error handling
+        }
     }
-    assert(root);
+
+    // get root
+    assert(lhsDereferences.size() == rhsValues.size());
+    assert(lhsDereferences.size() == update.updates.size());
+    assert(!lhsDereferences.empty());
+    auto root = lhsDereferences.front().first;
+    auto depth = config.GetMaxFootprintDepth(lhsDereferences.front().second);
 
     // construct flow footprint
-    return MakeFootprintGraph(std::move(pre), *root, config, config.GetMaxFootprintDepth(lhs.fieldname), [&lhs, &rhsEval](auto& rootNode) {
-        GetFieldOrFail(rootNode, lhs.fieldname).postValue = *rhsEval;
+    auto result = MakeFootprintGraph(std::move(pre), *root, config, depth, [&lhsDereferences,&rhsValues,root](auto& rootNode) {
+        for (std::size_t index = 0; index < lhsDereferences.size(); ++index) {
+            auto [address, field] = lhsDereferences.at(index);
+            if (address != root) continue;
+            auto value = rhsValues.at(index);
+            GetFieldOrFail(rootNode, field).postValue = *value;
+        }
     });
+
+    // postprocess: try apply non-root updates
+    for (std::size_t index = 0; index < lhsDereferences.size(); ++index) {
+        auto [address, field] = lhsDereferences.at(index);
+        if (address == root) continue;
+        auto value = rhsValues.at(index);
+        auto node = result.GetNodeOrNull(*address);
+        if (!node) throw std::logic_error("Cannot create footprint for parallel update");
+        GetFieldOrFail(*node, field).postValue = *value;
+        node->needed = true;
+        throw std::logic_error("breakus");
+    }
+
+    return result;
 }
 
 FlowGraph solver::MakePureHeapGraph(std::unique_ptr<heal::Annotation> state, const SolverConfig& config) {

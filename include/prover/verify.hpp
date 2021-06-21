@@ -35,6 +35,7 @@ namespace prover {
         void visit(const cola::Return& node) override;
         void visit(const cola::Malloc& node) override;
         void visit(const cola::Assignment& node) override;
+        void visit(const cola::ParallelAssignment& node) override;
         void visit(const cola::Macro& node) override;
         void visit(const cola::CompareAndSwap& node) override;
         void visit(const cola::Program& prog) override;

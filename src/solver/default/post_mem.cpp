@@ -281,7 +281,7 @@ std::deque<std::unique_ptr<HeapEffect>> ExtractEffects(const EncodedFlowGraph& e
 // Overall Algorithm
 //
 
-PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const Assignment& cmd, const Dereference& lhs) const {
+PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const MultiUpdate& update) const {
     // TODO: use future
     // TODO: create and use update/effect lookup table
     // TODO: start with smaller footprint and increase if too small?
@@ -292,13 +292,8 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
 //    std::cout << "== Pre: " << std::endl; heal::Print(*pre, std::cout); std::cout << std::endl << std::flush;
 //    // end debug
 
-    auto [isVar, lhsVar] = heal::IsOfType<VariableExpression>(*lhs.expr);
-    if (!isVar) throw std::logic_error("Unsupported assignment: dereference of non-variable"); // TODO: better error handling
-    auto [isSimple, rhs] = heal::IsOfType<SimpleExpression>(*cmd.rhs);
-    if (!isSimple) throw std::logic_error("Unsupported assignment: right-hand side is not simple"); // TODO:: better error handling
-
-    pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), lhs);
-    FlowGraph footprint = solver::MakeFlowFootprint(std::move(pre), lhs, *rhs, Config());
+    for (const auto& [lhs, rhs] : update) pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *lhs);
+    FlowGraph footprint = solver::MakeFlowFootprint(std::move(pre), update, Config());
     std::cout << "** pre after footprint creation: " << *footprint.pre << std::endl;
     EncodedFlowGraph encoding(std::move(footprint));
     FootprintChecks checks(encoding.context);
