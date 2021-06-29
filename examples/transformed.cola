@@ -25,53 +25,22 @@ inline <Node*, Node*, data_t> locate(data_t _key) {
         _pred = _curr; // 45
         _curr = _pred->next; // 49
         choose {
-            assume(_curr == _pred->next && _curr != NULL); // 282
+            assume(_curr == _pred->next && _curr != NULL); // 283
             _k = _curr->val; // 61
         }{
-            assume(_curr != _pred->next || _curr == NULL); // 280
+            assume(_curr != _pred->next || _curr == NULL); // 281
             _curr = Head; // 65
             _k = MIN_VAL; // 68
         }
         choose {
-            assume(_k >= _key); // 290
+            assume(_k >= _key); // 291
             break;
         }{
-            assume(_k < _key); // 288
+            assume(_k < _key); // 289
             skip;
         }
     } while (true);
     return <_pred, _curr, _k>;
-}
-
-bool add(data_t key) {
-    Node* entry;
-
-    entry = malloc;
-    entry->val = key; // 92
-    while (true) {
-        Node* pred;
-        Node* curr;
-        data_t k;
-
-        <pred, curr, k> = locate(key);
-        choose {
-            assume(k == key); // 298
-            return false;
-        }{
-            assume(k != key); // 296
-            entry->next = curr; // 111
-            choose {
-                atomic {
-                    assume(pred->next == curr); // 221
-                    pred->next = entry; // 212
-                }
-                return true;
-            }{
-                assume(pred->next != curr); // 220
-                skip;
-            }
-        }
-    }
 }
 
 bool contains(data_t key) {
@@ -81,11 +50,42 @@ bool contains(data_t key) {
 
     <pred, curr, k> = locate(key);
     choose {
-        assume(k == key); // 306
+        assume(k == key); // 299
         return true;
     }{
-        assume(k != key); // 304
+        assume(k != key); // 297
         return false;
+    }
+}
+
+bool add(data_t key) {
+    Node* entry;
+
+    entry = malloc;
+    entry->val = key; // 110
+    while (true) {
+        Node* pred;
+        Node* curr;
+        data_t k;
+
+        <pred, curr, k> = locate(key);
+        choose {
+            assume(k == key); // 307
+            return false;
+        }{
+            assume(k != key); // 305
+            entry->next = curr; // 129
+            choose {
+                atomic {
+                    assume(pred->next == curr); // 222
+                    pred->next = entry; // 216
+                }
+                return true;
+            }{
+                assume(pred->next != curr); // 221
+                skip;
+            }
+        }
     }
 }
 
@@ -97,21 +97,21 @@ bool remove(data_t key) {
 
         <pred, curr, k> = locate(key);
         choose {
-            assume(k > key); // 314
+            assume(k > key); // 315
             return false;
         }{
             Node* next;
 
-            assume(k <= key); // 312
+            assume(k <= key); // 313
             next = curr->next; // 173
             choose {
                 atomic {
-                    assume(pred->next == curr && curr->next == next); // 256
-                    <pred->next, curr->next> = <next, NULL>; // 239
+                    assume(pred->next == curr && curr->next == next); // 257
+                    <pred->next, curr->next> = <next, NULL>; // 240
                 }
                 return true;
             }{
-                assume(pred->next != curr || curr->next != next); // 255
+                assume(pred->next != curr || curr->next != next); // 256
                 skip;
             }
         }

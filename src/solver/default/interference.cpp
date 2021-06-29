@@ -4,6 +4,7 @@
 #include "heal/collect.hpp"
 #include "encoder.hpp"
 #include "post_helper.hpp"
+#include "expand.hpp"
 
 using namespace cola;
 using namespace heal;
@@ -16,6 +17,160 @@ inline bool UpdatesFlow(const HeapEffect& effect) {
 
 inline bool UpdatesField(const HeapEffect& effect, const std::string& field) {
     return &effect.pre->fieldToValue.at(field)->Decl() != &effect.post->fieldToValue.at(field)->Decl();
+}
+
+
+//
+// Interpolation
+//
+
+struct ImmutabilityInfo {
+    std::set<std::pair<const Type*, std::string>> mutableFields;
+
+    explicit ImmutabilityInfo(const std::deque<std::unique_ptr<HeapEffect>>& interferences) {
+        // TODO: compute immutability semantically => check if a field is immutable in a given state rather than across the entire computation
+        for (const auto& effect : interferences) {
+            auto& type = effect->pre->node->Type();
+            for (const auto& [field, value] : effect->pre->fieldToValue) {
+                if (UpdatesField(*effect, field)) mutableFields.emplace(&type, field);
+            }
+        }
+    }
+
+    [[nodiscard]] bool IsImmutable(const cola::Type& nodeType, const std::string& field) const {
+        return mutableFields.count({ &nodeType, field }) == 0;
+    }
+};
+
+std::unique_ptr<SeparatingConjunction> ComputeInterpolant(const Annotation& annotation, const std::deque<std::unique_ptr<HeapEffect>>& interferences) {
+    std::cout << "<<INTERPOLATION>>" << std::endl;
+    std::cout << " ** for: " << annotation << std::endl;
+    ImmutabilityInfo info(interferences); // TODO: avoid repeated construction => take deque of annotations
+
+    // collect all points-to predicates from all times
+    auto memories = heal::CollectMemory(*annotation.now);
+    for (const auto& time : annotation.time) {
+        if (auto past = dynamic_cast<const PastPredicate*>(time.get())) {
+            auto more = heal::CollectMemory(*past->formula);
+            memories.insert(more.begin(), more.end());
+        }
+    }
+
+    // equalize immutable fields (ignore flow => surely not immutable)
+    auto result = std::make_unique<SeparatingConjunction>();
+    auto equalize = [&info,&result](const PointsToAxiom& memory, const PointsToAxiom& other){
+        if (memory.node->Type() != other.node->Type()) return;
+        if (&memory.node->Decl() != &other.node->Decl()) return;
+        for (const auto& [field, value] : memory.fieldToValue) {
+            if (!info.IsImmutable(memory.node->Type(), field)) continue;
+            auto interpolant = std::make_unique<heal::SymbolicAxiom>(heal::Copy(*value), heal::SymbolicAxiom::EQ,
+                                                                     heal::Copy(*other.fieldToValue.at(field)));
+            result->conjuncts.push_back(std::move(interpolant));
+        }
+    };
+    for (auto it1 = memories.cbegin(); it1 != memories.cend(); ++it1) {
+        for (auto it2 = std::next(it1); it2 != memories.cend(); ++it2) {
+            equalize(**it1, **it2);
+        }
+    }
+
+    std::cout << " ** result: " << *result << std::endl;
+    return result;
+}
+
+std::unique_ptr<Annotation> PerformInterpolation(std::unique_ptr<Annotation> annotation, const std::deque<std::unique_ptr<HeapEffect>>& interferences) {
+    annotation->now->conjuncts.push_back(ComputeInterpolant(*annotation, interferences));
+    heal::Simplify(*annotation);
+    return annotation;
+}
+
+
+inline std::unique_ptr<heal::SeparatingConjunction> RemoveResourcesAndFulfillments(std::unique_ptr<heal::SeparatingConjunction> formula) {
+    heal::InlineAndSimplify(*formula);
+    auto fulfillments = heal::CollectFulfillments(*formula);
+    auto variables = heal::CollectVariables(*formula);
+    auto memory = heal::CollectMemory(*formula);
+    for (auto it = memory.begin(); it != memory.end();) {
+        if ((**it).isLocal) it = memory.erase(it); // do not delete local resources
+        else ++it;
+    }
+
+    std::set<const heal::Formula*> axioms;
+    axioms.insert(variables.begin(), variables.end());
+    axioms.insert(memory.begin(), memory.end());
+    axioms.insert(fulfillments.begin(), fulfillments.end());
+
+    formula->conjuncts.erase(std::remove_if(formula->conjuncts.begin(), formula->conjuncts.end(), [&axioms](const auto& elem){
+        auto find = axioms.find(elem.get());
+        if (find == axioms.end()) return false;
+        axioms.erase(find);
+        return true;
+    }), formula->conjuncts.end());
+
+    assert(axioms.empty());
+    return formula;
+}
+
+inline std::deque<PastPredicate*> CollectPast(Annotation& annotation) {
+    std::deque<PastPredicate*> result;
+    for (auto& time : annotation.time) {
+        auto past = dynamic_cast<heal::PastPredicate*>(time.get());
+        if (!past) continue;
+        result.push_back(past);
+    }
+    return result;
+}
+
+inline std::unique_ptr<heal::Annotation>
+TryAddPureFulfillmentForHistories(std::unique_ptr<heal::Annotation> annotation, const SolverConfig& config,
+                                  const std::deque<std::unique_ptr<HeapEffect>>& interferences) {
+    std::cout << "********* TryAddPureFulfillmentForHistories *********" << *annotation << std::endl;
+    auto base = std::make_unique<Annotation>(RemoveResourcesAndFulfillments(heal::Copy(*annotation->now)));
+
+    // prepare
+    std::deque<std::unique_ptr<SeparatingConjunction>> states;
+    for (const auto& time : annotation->time) {
+        auto past = dynamic_cast<heal::PastPredicate*>(time.get());
+        if (!past) continue;
+
+        auto tmp = heal::Copy(*base);
+        // base contains only local memory, so we can simply add the shared resources from past
+        tmp->now->conjuncts.push_back(heal::Copy(*past->formula));
+        tmp->now = solver::ExpandMemoryFrontier(std::move(tmp->now), config, past->formula.get());
+
+        states.push_back(std::move(tmp->now));
+    }
+
+    // interpolate
+    for (auto& state : states) {
+        auto tmp = std::make_unique<Annotation>(heal::Copy(*annotation->now));
+        tmp->time.push_back(std::make_unique<PastPredicate>(heal::Copy(*state)));
+        state->conjuncts.push_back(ComputeInterpolant(*tmp, interferences));
+        heal::Simplify(*state);
+    }
+
+    // try add fulfillment
+    for (auto& state : states) {
+        auto tmp = std::make_unique<Annotation>(std::move(state));
+//        heal::InlineAndSimplify(*tmp);
+        std::cout << "TryAddPureFulfillmentForHistories invokes TryAddPureFulfillment with " << *tmp << std::endl;
+        tmp = TryAddPureFulfillment(std::move(tmp), config);
+
+        for (const auto* fulfillment : heal::CollectFulfillments(*tmp)) {
+            annotation->now->conjuncts.push_back(heal::Copy(*fulfillment)); // TODO: avoid copy
+        }
+    }
+
+    std::cout << "TryAddPureFulfillmentForHistories post: " << *annotation << std::endl;
+    return annotation;
+}
+
+std::unique_ptr<Annotation> DefaultSolver::Interpolate(std::unique_ptr<Annotation> annotation,
+                                                       const std::deque<std::unique_ptr<HeapEffect>>& interferences) const {
+    annotation = PerformInterpolation(std::move(annotation), interferences);
+    annotation = TryAddPureFulfillment(std::move(annotation), Config());
+    annotation = TryAddPureFulfillmentForHistories(std::move(annotation), Config(), interferences);
+    return annotation;
 }
 
 
@@ -126,70 +281,8 @@ std::deque<std::unique_ptr<heal::Annotation>> DefaultSolver::MakeStable(std::deq
     if (annotations.empty() || interferences.empty()) return annotations;
     InterferenceInfo info(std::move(annotations), interferences);
     auto result = info.GetResult();
-    for (auto& annotation : result) {
-        annotation = Interpolate(std::move(annotation), interferences);
-    }
+//    for (auto& annotation : result) {
+//        annotation = PerformInterpolation(std::move(annotation), interferences);
+//    }
     return result;
-}
-
-
-//
-// Interpolation
-//
-
-struct ImmutabilityInfo {
-    std::set<std::pair<const Type*, std::string>> mutableFields;
-
-    explicit ImmutabilityInfo(const std::deque<std::unique_ptr<HeapEffect>>& interferences) {
-        // TODO: compute immutability semantically => check if a field is immutable in a given state rather than across the entire computation
-        for (const auto& effect : interferences) {
-            auto& type = effect->pre->node->Type();
-            for (const auto& [field, value] : effect->pre->fieldToValue) {
-                if (UpdatesField(*effect, field)) mutableFields.emplace(&type, field);
-            }
-        }
-    }
-
-    [[nodiscard]] bool IsImmutable(const cola::Type& nodeType, const std::string& field) const {
-        return mutableFields.count({ &nodeType, field }) == 0;
-    }
-};
-
-std::unique_ptr<Annotation> DefaultSolver::Interpolate(std::unique_ptr<Annotation> annotation,
-                                                       const std::deque<std::unique_ptr<HeapEffect>>& interferences) const {
-    std::cout << "<<INTERPOLATION>>" << std::endl;
-    std::cout << " ** pre: " << *annotation << std::endl;
-    ImmutabilityInfo info(interferences); // TODO: avoid repeated construction => take deque of annotations
-
-    // collect all points-to predicates from all times
-    auto memories = heal::CollectMemory(*annotation->now);
-    for (const auto& time : annotation->time) {
-        if (auto past = dynamic_cast<const PastPredicate*>(time.get())) {
-            auto more = heal::CollectMemory(*past->formula);
-            memories.insert(more.begin(), more.end());
-        }
-    }
-
-    // equalize immutable fields (ignore flow => surely not immutable)
-    auto equalize = [&info,&annotation](const PointsToAxiom& memory, const PointsToAxiom& other){
-        if (memory.node->Type() != other.node->Type()) return;
-        if (&memory.node->Decl() != &other.node->Decl()) return;
-        for (const auto& [field, value] : memory.fieldToValue) {
-            if (!info.IsImmutable(memory.node->Type(), field)) continue;
-            auto interpolant = std::make_unique<heal::SymbolicAxiom>(heal::Copy(*value), heal::SymbolicAxiom::EQ,
-                                                                     heal::Copy(*other.fieldToValue.at(field)));
-            annotation->now->conjuncts.push_back(std::move(interpolant));
-        }
-    };
-    for (auto it1 = memories.cbegin(); it1 != memories.cend(); ++it1) {
-        for (auto it2 = std::next(it1); it2 != memories.cend(); ++it2) {
-            equalize(**it1, **it2);
-        }
-    }
-
-//    annotation = solver::TryAddPureFulfillmentForHistories(std::move(annotation), Config());
-    heal::Simplify(*annotation);
-//    heal::InlineAndSimplify(*annotation);
-    std::cout << " ** post: " << *annotation << std::endl;
-    return annotation;
 }

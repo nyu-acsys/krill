@@ -76,22 +76,33 @@ void CheckReachability(EncodedFlowGraph& encoding, FootprintChecks& checks) {
 
 void AddFlowCoverageChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) {
     auto ensureFootprintContains = [&encoding](const SymbolicVariableDeclaration& address){
+        // TODO: if address == NULL, then ignore
         auto mustHaveNode = encoding.graph.GetNodeOrNull(address);
-        if (!mustHaveNode) throw std::logic_error("Footprint too small: does not cover all addresses the inflow of which changed."); // TODO: better error handling
+        if (!mustHaveNode) throw std::logic_error("Footprint too small: does not cover addresses " + address.name + " the inflow of which changed."); // TODO: better error handling
         mustHaveNode->needed = true;
     };
 
     auto qv = encoding.encoder.QuantifiedVariable(encoding.graph.config.GetFlowValueType().sort);
     for (const auto& node : encoding.graph.nodes) {
         for (const auto& field : node.pointerFields) {
-            auto sameFlow = encoding.encoder(field.preAllOutflow.value())(qv) == encoding.encoder(field.postAllOutflow.value())(qv); // TODO: all or graph flow?
-            checks.Add(z3::forall(qv, sameFlow), [ensureFootprintContains,&node,&field](bool unchanged){
-//                std::cout << "-- outflow of " << node.address.name << " unchanged=" << unchanged << std::endl;
-                if (unchanged) return;
-                ensureFootprintContains(node.address);
-                ensureFootprintContains(field.preValue);
-                ensureFootprintContains(field.postValue);
+            auto sameFlowInner = encoding.encoder(field.preAllOutflow.value())(qv) == encoding.encoder(field.postAllOutflow.value())(qv); // TODO: all or graph flow?
+            auto sameFlow = z3::forall(qv, sameFlowInner);
+            auto isPreNull = encoding.encoder.MakeNullCheck(field.preValue);
+            auto isPostNull = encoding.encoder.MakeNullCheck(field.postValue);
+            checks.Add(sameFlow || isPreNull, [ensureFootprintContains,&node,&field](bool unchanged){
+                std::cout << "outflow of " << node.address.name << " at " << field.name << " is preUnchangedOrNull=" << unchanged << std::endl;
+                if (!unchanged) ensureFootprintContains(field.preValue);
             });
+            checks.Add(sameFlow || isPostNull, [ensureFootprintContains,&node,&field](bool unchanged){
+                std::cout << "outflow of " << node.address.name << " at " << field.name << " is postUnchangedOrNull=" << unchanged << std::endl;
+                if (!unchanged) ensureFootprintContains(field.postValue);
+            });
+//            checks.Add(sameFlow, [ensureFootprintContains,&node,&field](bool unchanged){
+//                std::cout << "outflow of " << node.address.name << " at " << field.name << " is unchanged=" << unchanged << std::endl;
+//                if (unchanged) return;
+//                ensureFootprintContains(field.preValue);
+//                ensureFootprintContains(field.postValue);
+//            });
         }
     }
 }
@@ -292,6 +303,7 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
 //    std::cout << "== Pre: " << std::endl; heal::Print(*pre, std::cout); std::cout << std::endl << std::flush;
 //    // end debug
 
+    heal::InlineAndSimplify(*pre);
     for (const auto& [lhs, rhs] : update) pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *lhs);
     FlowGraph footprint = solver::MakeFlowFootprint(std::move(pre), update, Config());
     std::cout << "** pre after footprint creation: " << *footprint.pre << std::endl;

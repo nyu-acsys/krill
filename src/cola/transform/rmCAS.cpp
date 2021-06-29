@@ -69,6 +69,7 @@ std::unique_ptr<Statement> make_cas_updates(const CompareAndSwap& cas) {
         result->rhs.push_back(cola::copy(*elem.src));
     }
     if (result->lhs.empty()) return std::make_unique<Skip>();
+    if (result->lhs.size() == 1) return std::make_unique<Assignment>(std::move(result->lhs.front()), std::move(result->rhs.front()));
     return result;
 }
 

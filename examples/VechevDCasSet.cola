@@ -1,4 +1,4 @@
-#name "Vechev DCAS Set EBR"
+#name "Vechev DCAS Set"
 #spec "set"
 
 
@@ -50,6 +50,15 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 }
 
 
+bool contains(data_t key) {
+	Node* pred, curr;
+	data_t k;
+
+	(pred, curr, k) = locate(key);
+	return k == key;
+}
+
+
 bool add(data_t key) {
 	Node* entry;
 
@@ -72,15 +81,6 @@ bool add(data_t key) {
 			}
 		}
 	}
-}
-
-
-bool contains(data_t key) {
-	Node* pred, curr;
-	data_t k;
-
-	(pred, curr, k) = locate(key);
-	return k == key;
 }
 
 

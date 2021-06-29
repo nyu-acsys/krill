@@ -54,7 +54,7 @@ class CandidateGenerator : public heal::DefaultLogicListener {
                 if (level != ONLY) AddUnarySymbolCandidates(**symbol);
                 forAllFlows(ONLY, [this,symbol](auto flow){ AddBinaryFlowCandidates(*flow, **symbol); });
                 for (auto other = std::next(symbol); other != symbols.end(); ++other) {
-                    if (level != ONLY)AddBinarySymbolCandidates(**symbol, **other);
+                    if (level != ONLY) AddBinarySymbolCandidates(**symbol, **other);
                     forAllFlows(FULL, [this,symbol,other](auto flow){
                         AddTernaryFlowCandidates(*flow, **symbol, **other);
                     });

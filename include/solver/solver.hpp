@@ -61,7 +61,7 @@ namespace solver {
         [[nodiscard]] virtual Result Implies(const heal::Annotation& premise, const heal::Annotation& conclusion) const = 0; // TODO: return bool?
         [[nodiscard]] virtual std::vector<bool> ComputeEffectImplications(const std::deque<std::pair<const HeapEffect*, const HeapEffect*>>& implications) const = 0;
         [[nodiscard]] virtual std::deque<std::unique_ptr<heal::Annotation>> MakeStable(std::deque<std::unique_ptr<heal::Annotation>> annotations, const std::deque<std::unique_ptr<HeapEffect>>& interferences) const = 0;
-//        [[nodiscard]] virtual std::unique_ptr<heal::Annotation> Interpolate(std::unique_ptr<heal::Annotation> annotation, const std::deque<std::unique_ptr<HeapEffect>>& interferences) const = 0;
+        [[nodiscard]] virtual std::unique_ptr<heal::Annotation> Interpolate(std::unique_ptr<heal::Annotation> annotation, const std::deque<std::unique_ptr<HeapEffect>>& interferences) const = 0;
 
 	    protected:
             [[nodiscard]] const SolverConfig& Config() const { return *config; }

@@ -117,21 +117,34 @@ inline std::set<const SymbolicVariableDeclaration*> ExpandGraph(FlowGraph& graph
     worklist.emplace(maxDepth, &*graph.nodes.begin());
     std::set<const SymbolicVariableDeclaration*> missing;
 
+    auto handleAliases = [&](FlowGraphNode& node){
+        auto getPointerValue = [&](const SymbolicVariableDeclaration& address) -> const SymbolicVariableDeclaration& {
+            if (auto node = graph.GetNodeOrNull(address)) return node->address;
+            if (auto memory = eval.GetMemoryResourceOrNull(address)) return memory->node->Decl();
+            return address;
+        };
+        for (auto& field : node.pointerFields) {
+            field.preValue = getPointerValue(field.preValue);
+            field.postValue = getPointerValue(field.postValue);
+        }
+    };
+
+    // expand until maxDepth is reached
     while (!worklist.empty()) {
         auto[depth, node] = *worklist.begin();
         worklist.erase(worklist.begin());
+        handleAliases(*node);
         if (depth == 0) continue;
 
+        bool publish = !node->postLocal;
         for (auto& field : node->pointerFields) {
-            for (auto* nextAddress : {&field.preValue, &field.postValue}) {
-                auto* nextNode = TryGetOrCreateNode(graph, eval, factory, *nextAddress);
-                if (!nextNode) {
-                    missing.insert(&nextAddress->get());
-                    continue;
+            for (const auto& nextAddress : { field.preValue, field.postValue }) {
+                if (auto nextNode = TryGetOrCreateNode(graph, eval, factory, nextAddress)) {
+                    if (publish) nextNode->postLocal = false;
+                    worklist.emplace(depth - 1, nextNode);
+                } else {
+                    missing.insert(&nextAddress.get());
                 }
-                *nextAddress = nextNode->address; // inline alias
-                if (!node->postLocal) nextNode->postLocal = false; // publish node
-                worklist.emplace(depth - 1, nextNode);
             }
         }
     }
@@ -155,8 +168,7 @@ inline std::unique_ptr<Annotation> ExtendStateForFootprintConstruction(FlowGraph
     // expand memory
     auto force = missing;
     for (const auto& node : encoding.graph.nodes) force.insert(&node.address);
-    // TODO: prevent failed expansion from failing to create a flow graph ==> the existing memory may be sufficient
-    encoding.graph.pre->now = solver::ExpandMemoryFrontier(std::move(encoding.graph.pre->now), factory, encoding.graph.config, missing, std::move(force));
+    encoding.graph.pre->now = solver::ExpandMemoryFrontier(std::move(encoding.graph.pre->now), factory, encoding.graph.config, missing, std::move(force), false);
 
     return std::move(encoding.graph.pre);
 }
@@ -260,8 +272,18 @@ FlowGraph solver::MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const
         if (!node) throw std::logic_error("Cannot create footprint for parallel update");
         GetFieldOrFail(*node, field).postValue = *value;
         node->needed = true;
-        throw std::logic_error("breakus");
     }
+
+    // begin debug
+    std::cout << "Footprint:" << std::endl;
+    for (const auto& node : result.nodes) {
+        std::cout << "   - Node " << node.address.name << std::endl;
+        for (const auto& next : node.pointerFields) {
+            std::cout << "      - " << node.address.name << "->" << next.name << " == " << next.preValue.get().name << " / " << next.postValue.get().name << std::endl;
+        }
+    }
+
+    // end debug
 
     return result;
 }

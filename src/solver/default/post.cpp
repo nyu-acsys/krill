@@ -143,15 +143,19 @@ PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd
     pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *cmd.expr);
     PostImage result;
     auto paths = SplitDisjunctions(ExpressionToFormula(*cmd.expr, *pre));
-//    paths = PrunePaths(*pre, std::move(paths)); // TODO: do this here?
-    for (auto& formula : paths) {
+    paths = PrunePaths(*pre, std::move(paths)); // TODO: do this here?
+    for (const auto& formula : paths) {
         auto post = heal::Copy(*pre);
         post->now = heal::Conjoin(std::move(post->now), heal::Copy(*formula)); // TODO: avoid copy
 //        post->now = solver::ExpandMemoryFrontier(std::move(post->now), Config(), *formula); // TODO: do this here?
-        bool isUnsatisfiable = false;
-        post = solver::TryAddPureFulfillment(std::move(post), Config(), &isUnsatisfiable);
-        if (isUnsatisfiable) continue;
-        heal::InlineAndSimplify(*post->now);
+//        bool isUnsatisfiable = false;
+//        post = solver::TryAddPureFulfillment(std::move(post), Config(), &isUnsatisfiable);
+//        if (isUnsatisfiable) continue;
+        post->now = ExpandMemoryFrontier(std::move(post->now), Config(), formula.get());
+        post = ExtendStack(std::move(post), Config());
+//        post = solver::TryAddPureFulfillment(std::move(post), Config());
+
+        heal::InlineAndSimplify(*post);
         std::cout << "  ~> " << *post << std::endl;
         assert(heal::CollectObligations(*post).size() + heal::CollectFulfillments(*post).size() > 0);
         result.posts.push_back(std::move(post));
@@ -292,14 +296,15 @@ PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<Annotation> pre, con
     // try derive helpful knowledge
     if (cmd.rhs->sort() == Sort::PTR) { //if (!solver::GetDereferences(*cmd.rhs).empty()) { // TODO: when to do this?
         pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), factory, Config(), { &symbol });
-        pre = TryAddPureFulfillment(std::move(pre), Config());
+        pre = ExtendStack(std::move(pre), Config());
+//        pre = TryAddPureFulfillment(std::move(pre), Config());
     }
 
 //    begin debug
 //    std::cout << "== Post: " << std::endl; heal::Print(*pre, std::cout); std::cout << std::endl;
 //    end debug
 
-    heal::InlineAndSimplify(*pre->now);
+    heal::InlineAndSimplify(*pre);
     std::cout << *pre << std::endl << std::endl;
     assert(heal::CollectObligations(*pre).size() + heal::CollectFulfillments(*pre).size() > 0);
     return PostImage(std::move(pre)); // local variable update => no effect

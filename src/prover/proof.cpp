@@ -85,16 +85,15 @@ std::deque<std::unique_ptr<HeapEffect>> MakeDummyInterference(const Type& nodeTy
 void Verifier::VerifyProgramOrFail() {
     // TODO: check initializer
 
-    interference = MakeDummyInterference(*program.types.front()); // TODO: remove <<<<<<<<<<<<<<<<==========================================|||||||||||||
+//    interference = MakeDummyInterference(*program.types.front()); // TODO: remove <<<<<<<<<<<<<<<<==========================================|||||||||||||
 
     // compute fixed point
     do {
         for (const auto& function : program.functions) {
             if (function->kind != Function::Kind::INTERFACE) continue;
             HandleInterfaceFunction(*function);
-            throw std::logic_error("point du break");
         }
-        throw std::logic_error("point du break");
+//        throw std::logic_error("point du break");
     } while (ConsolidateNewInterference());
 }
 
@@ -209,13 +208,12 @@ void Verifier::HandleInterfaceFunction(const Function& function) {
     function.body->accept(*this);
 
     // check post annotations
-    std::cout << std::endl << std::endl << " CHECKING POST ANNOTATION OF " << function.name << std::endl << std::endl;
     for (auto& annotation : current) {
         returning.emplace_back(std::move(annotation), nullptr);
     }
+    std::cout << std::endl << std::endl << " CHECKING POST ANNOTATION OF " << function.name << "  " << returning.size() << std::endl << std::endl;
     for (auto& [annotation, command] : returning) {
-//        annotation = solver->Interpolate(std::move(annotation), interference);
-        annotation = solver->PostLeaveScope(std::move(annotation), function);
+        annotation = solver->Interpolate(std::move(annotation), interference);
         specification.EstablishSpecificationOrFail(*solver, *annotation, command, function);
     }
 
@@ -310,7 +308,7 @@ void Verifier::HandleLoop(const ConditionalLoop& stmt) {
         std::size_t counter = 0;
         auto join = solver->Join(std::move(current));
         while (true) {
-            if (counter > LOOP_ABORT_AFTER) throw std::logic_error("Aborting: loop does not seem to stabilize"); // TODO: remove / better error handling
+            if (counter > LOOP_ABORT_AFTER) throw std::logic_error("Aborting: loop does not seem to stabilize."); // TODO: remove / better error handling
             std::cout << std::endl << std::endl << " ------ loop " << ++counter << " ------ " << std::endl;
 
             breaking.clear();
@@ -402,7 +400,6 @@ void Verifier::visit(const Return& cmd) {
 
     // post image
     for (auto& annotation : current) {
-        std::cout << " returning with " << *annotation << std::endl;
         returning.emplace_back(std::move(annotation), &cmd);
     }
     current.clear();
@@ -435,9 +432,7 @@ inline std::unique_ptr<Annotation> ReturnFromMacro(std::unique_ptr<Annotation> a
     assert(macro.lhs.size() == command->expressions.size());
 
     for (std::size_t index = 0; index < macro.lhs.size(); ++index) {
-        std::cout << "<PRE> returning value " << index << ": " << macro.lhs.at(index).get().name << " := " << *command->expressions.at(index) << " " << *annotation << std::endl;
         annotation = PerformMacroAssignment(std::move(annotation), macro.lhs.at(index), *command->expressions.at(index), solver);
-        std::cout << "<POST> returning value " << index << ": " << macro.lhs.at(index).get().name << " := " << *command->expressions.at(index) << " " << *annotation << std::endl;
     }
     return annotation;
 }
@@ -446,7 +441,6 @@ inline std::deque<std::unique_ptr<Annotation>> ReturnFromMacro(std::deque<std::p
     std::deque<std::unique_ptr<Annotation>> result;
     for (auto& [annotation, command] : returning) {
         result.push_back(ReturnFromMacro(std::move(annotation), command, macro, solver));
-        std::cout << " returning from macro: " << *result.back() << std::endl;
     }
     return result;
 }
@@ -470,7 +464,6 @@ void Verifier::visit(const Macro& cmd) {
     for (auto& annotation : current) {
         returning.emplace_back(std::move(annotation), nullptr);
     }
-    std::cout << " done macro descend" << std::endl;
 
     // restore caller context
     current = ReturnFromMacro(std::move(returning), cmd, *solver);
@@ -478,5 +471,6 @@ void Verifier::visit(const Macro& cmd) {
     breaking = std::move(breakingOuter);
     returning = std::move(returningOuter);
 
-	log() << std::endl << "________" << std::endl << "Post annotation for macro '" << cmd.decl.name << "':" << std::endl << "<deque>" /* *currentAnnotation */ << std::endl << std::endl;
+	log() << std::endl << "________" << std::endl << "Post annotation for macro '" << cmd.decl.name << "':" << std::endl;
+	for (const auto& elem : current) std::cout << "  ~~> " << *elem << std::endl; std::cout << std::endl << std::endl << std::endl;
 }

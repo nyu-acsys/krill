@@ -53,7 +53,7 @@ namespace solver {
             preContains.push_back(encoding.encoder(node.preKeyset)(qv) && contains(node, qv, EMode::PRE));
             postContains.push_back(encoding.encoder(node.postKeyset)(qv) && contains(node, qv, EMode::POST));
         }
-        auto isPure = z3::forall(qv, z3::mk_or(preContains) == z3::mk_or(postContains));
+        auto isPure = z3::forall(qv, z3::mk_or(preContains) == z3::mk_or(postContains)); // TODO: also check non-containedness?
         checks.Add(isPure, [mustBePure,&checks](bool isPure){
             std::cout << " ** is pure=" << isPure << std::endl;
             if (!isPure && mustBePure) throw std::logic_error("Unsafe update: impure update without obligation."); // TODO: better error handling
@@ -93,7 +93,7 @@ namespace solver {
 
             // check pure
             checks.Add(isPure && isPreContained, [&checks, obligation](bool holds) {
-                std::cout << " ** is isPure && isPreContained=" << holds << std::endl;
+                std::cout << " ** isPure && isPreContained=" << holds << std::endl;
                 if (!holds || obligation->kind == heal::SpecificationAxiom::Kind::DELETE) return;
                 bool fulfilled = obligation->kind == heal::SpecificationAxiom::Kind::CONTAINS; // key contained => contains: success, insertion: fail
                 checks.postSpec.push_back(std::make_unique<heal::FulfillmentAxiom>(obligation->kind, heal::Copy(*obligation->key), fulfilled));
@@ -103,6 +103,20 @@ namespace solver {
                 if (!holds || obligation->kind == heal::SpecificationAxiom::Kind::INSERT) return;
                 bool fulfilled = false; // key not contained => contains: fail, deletion: fail
                 checks.postSpec.push_back(std::make_unique<heal::FulfillmentAxiom>(obligation->kind, heal::Copy(*obligation->key), fulfilled));
+            });
+
+            // debug
+            checks.Add(isPreContained, [](bool holds) {
+                std::cout << " ** isPreContained=" << holds << std::endl;
+            });
+            checks.Add(isPostContained, [](bool holds) {
+                std::cout << " ** isPostContained=" << holds << std::endl;
+            });
+            checks.Add(isPreNotContained, [](bool holds) {
+                std::cout << " ** isPreNotContained=" << holds << std::endl;
+            });
+            checks.Add(isPostNotContained, [](bool holds) {
+                std::cout << " ** isPostNotContained=" << holds << std::endl;
             });
 
             // check impure
@@ -125,10 +139,47 @@ namespace solver {
         checks.candidates = CandidateGenerator::Generate(encoding.graph, mode, CandidateGenerator::FlowLevel::FAST);
         for (std::size_t index = 0; index < checks.candidates.size(); ++index) {
             checks.Add(encoding.encoder(*checks.candidates[index]), [&checks,index,target=encoding.graph.pre->now.get()](bool holds){
+                std::cout << "  |implies=" << holds << "|  " << *checks.candidates[index] << std::endl;
                 if (!holds) return;
                 target->conjuncts.push_back(std::move(checks.candidates[index]));
             });
         }
+    }
+
+    static std::unique_ptr<heal::Annotation> ExtendStack(std::unique_ptr<heal::Annotation> annotation, const SolverConfig& config) {
+//        return annotation;
+
+        static size_t timeSpent = 0;
+        auto start = std::chrono::steady_clock::now();
+
+//        auto graph = solver::MakePureHeapGraph(std::move(annotation), config);
+//        if (graph.nodes.empty()) return std::move(graph.pre);
+//        EncodedFlowGraph encoding(std::move(graph));
+//        FootprintChecks checks(encoding.context);
+//        AddDerivedKnowledgeChecks(encoding, checks, EMode::PRE); // TODO: when to do this? what to derive (only flow? only info about symbols involved in points-to?)
+//        solver::ComputeImpliedCallback(encoding.solver, checks.checks);
+//        annotation = std::move(encoding.graph.pre);
+//        heal::InlineAndSimplify(*annotation);
+
+        auto candidates = CandidateGenerator::Generate(*annotation, CandidateGenerator::FlowLevel::NONE);
+        z3::context context;
+        z3::solver solver(context);
+        Z3Encoder encoder(context, solver);
+        solver.add(encoder(*annotation->now));
+        for (auto* memory : heal::CollectMemory(*annotation)) solver.add(encoder(*config.GetNodeInvariant(*memory)));
+        for (auto* resource : heal::CollectVariables(*annotation)) if (resource->variable->decl.is_shared) solver.add(encoder(*config.GetSharedVariableInvariant(*resource)));
+        z3::expr_vector vector(context);
+        for (const auto& candidate : candidates) vector.push_back(encoder(*candidate));
+        auto implied = ComputeImplied(solver, vector);
+        for (std::size_t index = 0; index < candidates.size(); ++index) {
+            if (!implied.at(index)) continue;
+            annotation->now->conjuncts.push_back(std::move(candidates.at(index)));
+        }
+        heal::Simplify(*annotation);
+
+        timeSpent += std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start).count();
+        std::cout << "& All time spent in ExtendStack: " << timeSpent << "ms" << std::endl;
+        return annotation;
     }
 
     static std::unique_ptr<heal::Annotation> TryAddPureFulfillment(std::unique_ptr<heal::Annotation> annotation, const SolverConfig& config, bool* isAnnotationUnsatisfiable= nullptr) {
@@ -138,11 +189,13 @@ namespace solver {
         auto graph = solver::MakePureHeapGraph(std::move(annotation), config);
         if (graph.nodes.empty()) return std::move(graph.pre);
         EncodedFlowGraph encoding(std::move(graph));
+        std::cout << "TryAddPureFulfillment solving graph (#nodes=" << encoding.graph.nodes.size() << ") pre: " << *encoding.graph.pre << std::endl;
         FootprintChecks checks(encoding.context);
         checks.preSpec = heal::CollectObligations(*encoding.graph.pre->now);
         AddSpecificationChecks<true>(encoding, checks);
         AddDerivedKnowledgeChecks(encoding, checks, EMode::PRE); // TODO: when to do this? what to derive (only flow? only info about symbols involved in points-to?)
         solver::ComputeImpliedCallback(encoding.solver, checks.checks, isAnnotationUnsatisfiable);
+        std::cout << "TryAddPureFulfillment solving graph (#nodes=" << encoding.graph.nodes.size() << ") post: " << *encoding.graph.pre << std::endl;
         annotation = std::move(encoding.graph.pre);
         annotation = RemoveObligations(std::move(annotation), std::move(checks.preSpec));
         std::move(checks.postSpec.begin(), checks.postSpec.end(), std::back_inserter(annotation->now->conjuncts));
@@ -150,55 +203,6 @@ namespace solver {
 
         timeSpent += std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start).count();
         std::cout << "& All time spent in TryAddPureFulfillment: " << timeSpent << "ms" << std::endl;
-        return annotation;
-    }
-
-    static inline std::unique_ptr<heal::SeparatingConjunction> RemoveResourcesAndFulfillments(std::unique_ptr<heal::SeparatingConjunction> formula) {
-        heal::InlineAndSimplify(*formula);
-        auto fulfillments = heal::CollectFulfillments(*formula);
-        auto variables = heal::CollectVariables(*formula);
-        auto memory = heal::CollectMemory(*formula);
-        for (auto it = memory.begin(); it != memory.end();) {
-            if ((**it).isLocal) it = memory.erase(it); // do not delete local resources
-            else ++it;
-        }
-
-        std::set<const heal::Formula*> axioms;
-        axioms.insert(variables.begin(), variables.end());
-        axioms.insert(memory.begin(), memory.end());
-        axioms.insert(fulfillments.begin(), fulfillments.end());
-
-        formula->conjuncts.erase(std::remove_if(formula->conjuncts.begin(), formula->conjuncts.end(), [&axioms](const auto& elem){
-            auto find = axioms.find(elem.get());
-            if (find == axioms.end()) return false;
-            axioms.erase(find);
-            return true;
-        }), formula->conjuncts.end());
-
-        assert(axioms.empty());
-        return formula;
-    }
-
-    static std::unique_ptr<heal::Annotation>
-    TryAddPureFulfillmentForHistories(std::unique_ptr<heal::Annotation> annotation, const SolverConfig &config) {
-        std::cout << "TryAddPureFulfillmentForHistories pre: " << *annotation << std::endl;
-        auto base = RemoveResourcesAndFulfillments(heal::Copy(*annotation->now));
-        for (const auto& time : annotation->time) {
-            auto past = dynamic_cast<const heal::PastPredicate*>(time.get());
-            if (!past) continue;
-
-            auto tmp = std::make_unique<heal::Annotation>();
-            tmp->now->conjuncts.push_back(heal::Copy(*base));
-            // base contains only local memory, so we can simply add the shared resources from past
-            tmp->now->conjuncts.push_back(heal::Copy(*past->formula));
-            tmp = TryAddPureFulfillment(std::move(tmp), config);
-
-            for (const auto* fulfillment : heal::CollectFulfillments(*tmp)) {
-                annotation->now->conjuncts.push_back(heal::Copy(*fulfillment)); // TODO: avoid copy
-            }
-        }
-
-        std::cout << "TryAddPureFulfillmentForHistories post: " << *annotation << std::endl;
         return annotation;
     }
 

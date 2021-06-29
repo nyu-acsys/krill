@@ -67,6 +67,7 @@ inline bool IsRightMover(const Statement& stmt) {
         void visit(const Return& node) override { for (const auto& expr : node.expressions) expr->accept(*this); }
         void visit(const Malloc& node) override { isRightMover &= !node.lhs.is_shared; }
         void visit(const Assignment& node) override { node.lhs->accept(*this); node.rhs->accept(*this); }
+        void visit(const ParallelAssignment& node) override { for (const auto& lhs : node.lhs) lhs->accept(*this); for (const auto& rhs : node.rhs) rhs->accept(*this); }
         void visit(const Macro& /*node*/) override { isRightMover = false; }
         void visit(const CompareAndSwap& /*node*/) override { isRightMover = false; }
     } checker;

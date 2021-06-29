@@ -130,16 +130,15 @@ namespace solver {
         if (checker.distinct) return true;
         auto memory = FindMemory(address, state); // TODO: lazy eval
         auto other = FindMemory(compare, state); // TODO: lazy eval
-        if (!memory || !other) return false;
-        return &memory->node->Decl() != &other->node->Decl();
+        if (memory && other) return &memory->node->Decl() != &other->node->Decl();
+        return false;
     }
 
     static std::unique_ptr<heal::SeparatingConjunction>
     ExpandMemoryFrontier(std::unique_ptr<heal::SeparatingConjunction> state, heal::SymbolicFactory& factory, const SolverConfig& config,
                          const std::set<const heal::SymbolicVariableDeclaration*>& expansionAddresses,
-                         std::set<const heal::SymbolicVariableDeclaration*>&& forceExpansion = {}) {
+                         std::set<const heal::SymbolicVariableDeclaration*>&& forceExpansion = {}, bool forceFail = true) {
         if (expansionAddresses.empty()) return state;
-//        heal::InlineAndSimplify(*state);
 
         // add force aliases
         for (const auto* force : forceExpansion) {
@@ -150,7 +149,7 @@ namespace solver {
 
         // sort expansion
         auto addresses = SortSet(expansionAddresses, [forceExpansion](auto symbol, auto other){
-            // forceExpansion is the first element in the set
+            // forceExpansion is sorted to the front
             auto symbolForced = forceExpansion.count(symbol) != 0;
             auto otherForced = forceExpansion.count(other) != 0;
             if (symbolForced && otherForced) return symbol < other;
@@ -227,7 +226,7 @@ namespace solver {
             }
         }
         solver::ComputeImpliedCallback(solver, checks);
-        heal::InlineAndSimplify(*state);
+        heal::Simplify(*state);
 
         // find new points-to predicates
         for (const auto* address : addresses) {
@@ -273,8 +272,7 @@ namespace solver {
                     potentiallyOverlappingWithLocalOrForced = false;
                     for (const auto* memory : potentiallyOverlapping) updateOverlapFlag(*memory);
                 }
-                if (potentiallyOverlappingWithLocalOrForced) {
-                    // TODO: do not fail in this case
+                if (potentiallyOverlappingWithLocalOrForced && forceFail) {
                     throw std::logic_error("Cannot expand memory frontier on forced address " + address->name + "."); // TODO: better error handling
                 }
             }
@@ -295,9 +293,8 @@ namespace solver {
                 state->accept(remover);
             }
             auto newPointsTo = MakePointsTo(*address, factory, config);
-            // state->conjuncts.push_back(config.GetNodeInvariant(*newPointsTo));
             state->conjuncts.push_back(std::move(newPointsTo));
-            // heal::InlineAndSimplify(*state);
+            heal::Simplify(*state);
         }
 
         // TODO: derive stack info about new memory?
@@ -305,8 +302,8 @@ namespace solver {
     }
 
     static std::unique_ptr<heal::SeparatingConjunction>
-    ExpandMemoryFrontier(std::unique_ptr<heal::SeparatingConjunction> state, const SolverConfig& config) {
-        heal::InlineAndSimplify(*state);
+    ExpandMemoryFrontier(std::unique_ptr<heal::SeparatingConjunction> state, const SolverConfig& config, const heal::Formula* collectFrom= nullptr) {
+//        heal::InlineAndSimplify(*state);
         struct Collector : public heal::DefaultLogicListener {
             std::set<const heal::SymbolicVariableDeclaration*> result;
             void enter(const heal::SymbolicVariable& obj) override {
@@ -314,7 +311,9 @@ namespace solver {
                 result.insert(&obj.Decl());
             }
         } collector;
-        state->accept(collector);
+        if (collectFrom) collectFrom->accept(collector);
+        else state->accept(collector);
+
         heal::SymbolicFactory factory(*state);
         return ExpandMemoryFrontier(std::move(state), factory, config, collector.result);
     }
@@ -323,15 +322,14 @@ namespace solver {
     ExpandMemoryFrontierForAccess(std::unique_ptr<heal::SeparatingConjunction> state, const SolverConfig& config, const cola::Expression& accessesFrom) {
         auto dereferences = GetDereferences(accessesFrom);
         if (dereferences.empty()) return state;
-        heal::SymbolicFactory factory(*state);
+        std::set<const heal::SymbolicVariableDeclaration*> addresses;
         for (const auto* dereference : dereferences) {
             auto value = EagerValuationMap(*state).Evaluate(*dereference->expr); // TODO: if this fails, the error will be cryptic
-            if (auto var = dynamic_cast<const heal::SymbolicVariable*>(value.get())) {
-                auto* decl = &var->Decl();
-                state = ExpandMemoryFrontier(std::move(state), factory, config, { decl }, { decl }); // TODO: avoid repeated invocation
-            }
+            if (auto var = dynamic_cast<const heal::SymbolicVariable*>(value.get())) addresses.insert(&var->Decl());
         }
-        return state;
+
+        heal::SymbolicFactory factory(*state);
+        return ExpandMemoryFrontier(std::move(state), factory, config, addresses, std::move(addresses)); // TODO: avoid repeated invocation
     }
 
 }
