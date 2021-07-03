@@ -127,6 +127,19 @@ Solver::Result DefaultSolver::Implies(const Annotation& premise, const Annotatio
 
     // TODO: handle futures / histories
     if (!premise.time.empty() || !conclusion.time.empty()) {
+
+        // for all past P in conclusion
+        //    exists past Q in premise
+        //       encodedPremise && memEq(P, Q) => encodedConclusion
+        //       ~~> use z3::mk_and(checkPremise) from below as encodedPremise
+        //       ~~> use conclusionEncoder(conclusion) from below as encodedConclusion
+        //
+        // eureka approach:
+        //   - for each P have a boolean flag
+        //   - for each P,Q pair add an implication check
+        //      => P-flag |= implication holds
+        //   - only if all flags are ture, the implication holds
+
         throw std::logic_error("implication among annotations with time predicates not implemented");
         return Solver::Result::NO;
     }
