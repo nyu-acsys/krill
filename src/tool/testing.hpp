@@ -50,8 +50,11 @@ struct Benchmark {
         auto end = std::chrono::steady_clock::now();
 
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count();
-        std::cout << "Test " << program->name << ": is " << (isLinearizable ? "" : "NOT") << " linearizable" << std::endl;
-        std::cout << "Time taken: " << elapsed << "ms" << std::endl;
+        std::cout << std::endl << std::endl;
+        std::cout << "##########" << std::endl;
+        std::cout << "## Test " << program->name << ": is " << (isLinearizable ? "" : "NOT") << " linearizable" << std::endl;
+        std::cout << "## Time taken: " << elapsed << "ms" << std::endl;
+        std::cout << "##########" << std::endl << std::endl;
 
         return isLinearizable ? 0 : -1;
     }
@@ -68,10 +71,13 @@ struct Benchmark {
             }
         }
         auto end = std::chrono::steady_clock::now();
-        std::cout << std::endl << std::endl << "Reports:" << std::endl;
-        for (const auto& elem : reports) std::cout << "  -> " << elem << std::endl;
+        std::cout << std::endl << std::endl;
+        std::cout << "##########" << std::endl;
+        std::cout << std::endl << std::endl << "## Reports:" << std::endl;
+        for (const auto& elem : reports) std::cout << "##   -> " << elem << std::endl;
         auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(end-start).count();
-        std::cout << "Time taken: " << elapsed << "s  (avg " << elapsed/repetitions << "s)" << std::endl;
+        std::cout << "## Time taken: " << elapsed << "s  (avg " << elapsed/repetitions << "s)" << std::endl;
+        std::cout << "##########" << std::endl << std::endl;
     }
 
     [[nodiscard]] virtual std::unique_ptr<heal::Formula> MakeSharedNodeInvariant(const heal::PointsToAxiom& memory, const cola::VariableDeclaration* head, const cola::VariableDeclaration* tail) const = 0;

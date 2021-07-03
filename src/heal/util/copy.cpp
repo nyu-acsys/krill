@@ -26,6 +26,14 @@ std::unique_ptr<SymbolicAxiom> heal::Copy(const SymbolicAxiom& formula) {
     return std::make_unique<SymbolicAxiom>(heal::Copy(*formula.lhs), formula.op, heal::Copy(*formula.rhs));
 }
 
+std::unique_ptr<PointsToAxiom> heal::Copy(const PointsToAxiom& formula) {
+    decltype(PointsToAxiom::fieldToValue) fieldToValue;
+    for (const auto& [field, value] : formula.fieldToValue) {
+        fieldToValue[field] = heal::Copy(*value);
+    }
+    return std::make_unique<PointsToAxiom>(heal::Copy(*formula.node), formula.isLocal, formula.flow, std::move(fieldToValue));
+}
+
 std::unique_ptr<ObligationAxiom> heal::Copy(const ObligationAxiom& formula) {
     return std::make_unique<ObligationAxiom>(formula.kind, heal::Copy(*formula.key));
 }
@@ -72,11 +80,7 @@ struct AxiomReplicator : public BaseLogicVisitor {
         result = heal::Copy(formula);
     }
     void visit(const PointsToAxiom& formula) override {
-        decltype(PointsToAxiom::fieldToValue) fieldToValue;
-        for (const auto& [field, value] : formula.fieldToValue) {
-            fieldToValue[field] = heal::Copy(*value);
-        }
-        result = std::make_unique<PointsToAxiom>(heal::Copy(*formula.node), formula.isLocal, formula.flow, std::move(fieldToValue));
+        result = heal::Copy(formula);
     }
     void visit(const EqualsToAxiom& formula) override {
         result = std::make_unique<EqualsToAxiom>(std::make_unique<VariableExpression>(formula.variable->decl), heal::Copy(*formula.value));

@@ -7,6 +7,7 @@
 #include "cola/util.hpp" // TODO: delete
 #include "expand.hpp"
 #include "post_helper.hpp"
+#include "timer.hpp"
 
 using namespace cola;
 using namespace heal;
@@ -283,6 +284,10 @@ std::deque<std::unique_ptr<HeapEffect>> ExtractEffects(const EncodedFlowGraph& e
     for (const auto& node : encoding.graph.nodes) {
         auto effect = ExtractEffect(node, contextMap);
         if (!effect) continue;
+        assert(effect);
+        assert(effect->pre);
+        assert(effect->post);
+        assert(effect->context);
         result.push_back(std::move(effect));
     }
     return result;
@@ -293,6 +298,9 @@ std::deque<std::unique_ptr<HeapEffect>> ExtractEffects(const EncodedFlowGraph& e
 //
 
 PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const MultiUpdate& update) const {
+    static Timer timer("DefaultSolver::PostMemoryUpdate");
+    auto measurement = timer.Measure();
+
     // TODO: use future
     // TODO: create and use update/effect lookup table
     // TODO: start with smaller footprint and increase if too small?
@@ -313,12 +321,13 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
 
     CheckPublishing(encoding.graph);
     CheckReachability(encoding, checks);
+//    AddDerivedKnowledgeChecks(encoding, checks, EMode::PRE);
     AddFlowCoverageChecks(encoding, checks);
     // AddFlowCycleChecks(encoding, checks);
     AddFlowUniquenessChecks(encoding, checks);
     AddSpecificationChecks(encoding, checks);
     AddInvariantChecks(encoding, checks);
-    AddDerivedKnowledgeChecks(encoding, checks, EMode::POST);
+//    AddDerivedKnowledgeChecks(encoding, checks, EMode::POST); // TODO: is this correct?
     AddEffectContextGenerators(encoding, checks);
     PerformChecks(encoding, checks);
 

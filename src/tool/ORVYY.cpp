@@ -40,12 +40,14 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 		pred = curr;
 		curr = pred->next;
 
-		if (pred->marked == false && curr == pred->next) {
-			k = curr->val;
-		} else {
-			curr = Head;
-			k = MIN_VAL;
-		}
+		// if (pred->marked == false && curr == pred->next) { //////////// NEIN, die IMPL prüft Markiertheit gar nicht
+		// 	k = curr->val;
+		// } else {
+		// 	curr = Head;
+		// 	k = MIN_VAL;
+		// }
+        k = curr->val;
+
 	} while (k < key);
     return <pred, curr, k>;
 }
@@ -103,7 +105,7 @@ bool remove(data_t key) {
 
 		} else {
             next = curr->next;
-			if (CAS((pred->marked, pred->next, curr->marked, curr->next), (false, curr, true, next), (false, next, true, next))) {
+			if (CAS((pred->marked, pred->next, curr->marked, curr->next), (false, curr, false, next), (false, next, true, next))) {
 				return true;
 			}
 		}
@@ -164,35 +166,14 @@ struct MyBenchmark : public Benchmark {
         auto flow = std::make_unique<InflowContainsRangeAxiom>(memory.flow, heal::Copy(*memory.fieldToValue.at(DATA)), std::make_unique<SymbolicMax>());
         result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*isUnmarked), heal::Copy(*flow)));
 
+        // memory.flow != \empty ==> memory.marked == false
+        result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*hasFlow), heal::Copy(*isUnmarked)));
+
         // memory.flow != \empty ==> [memory.data, MAX] \subset memory.flow
         result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*hasFlow), heal::Copy(*flow)));
 
-
-
-//        // memory.flow != \empty ==> memory.marked == false // TODO: needed <<<<<==============||||
-//        result->conjuncts.push_back(std::make_unique<SeparatingImplication>(std::move(hasFlow), heal::Copy(*isUnmarked)));
-
-//        // memory.marked == true ==> memory.flow == \empty
-//        auto isMarked = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicBool>(memory.fieldToValue.at(MARK)->Decl(), true);
-//        auto noFlow = std::make_unique<InflowEmptinessAxiom>(memory.flow, true);
-//        result->conjuncts.push_back(std::make_unique<SeparatingImplication>(std::move(isMarked), heal::Copy(*noFlow)));
-
         // memory.next == NULL ==> memory.node == tail
-        result->conjuncts.push_back(std::make_unique<SeparatingImplication>(std::move(isNull), heal::Copy(*isTail)));
-
-
-//        // memory.flow != \empty && memory.next != NULL ==> memory.data != MAX
-//        auto notMaxData = MakeImmediateAxiom<SymbolicAxiom::NEQ, SymbolicMax>(memory.fieldToValue.at(DATA)->Decl());
-//        auto premise = std::make_unique<SeparatingConjunction>();
-//        premise->conjuncts.push_back(heal::Copy(*hasFlow));
-//        premise->conjuncts.push_back(heal::Copy(*nonNull));
-//        result->conjuncts.push_back(std::make_unique<SeparatingImplication>(std::move(premise), heal::Copy(*notMaxData)));
-//
-//        // memory.flow != \empty && memory.data != MAX ==> memory.next != NULL
-//        premise = std::make_unique<SeparatingConjunction>();
-//        premise->conjuncts.push_back(heal::Copy(*hasFlow));
-//        premise->conjuncts.push_back(heal::Copy(*notMaxData));
-//        result->conjuncts.push_back(std::make_unique<SeparatingImplication>(std::move(premise), heal::Copy(*nonNull)));
+        result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*isNull), heal::Copy(*isTail)));
 
         return result;
     }
@@ -232,4 +213,6 @@ struct MyBenchmark : public Benchmark {
 int main(int /*argc*/, char** /*argv*/) {
     MyBenchmark benchmark;
     return benchmark();
+//    benchmark(5);
+//    return 0;
 }

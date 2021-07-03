@@ -1,5 +1,6 @@
 #include "default_solver.hpp"
 
+#include "timer.hpp"
 #include "heal/util.hpp"
 #include "heal/collect.hpp"
 #include "encoder.hpp"
@@ -91,7 +92,7 @@ inline std::unique_ptr<heal::SeparatingConjunction> RemoveResourcesAndFulfillmen
     auto variables = heal::CollectVariables(*formula);
     auto memory = heal::CollectMemory(*formula);
     for (auto it = memory.begin(); it != memory.end();) {
-        if ((**it).isLocal) it = memory.erase(it); // do not delete local resources
+        if ((**it).isLocal) it = memory.erase(it); // do not delete local resources (below)
         else ++it;
     }
 
@@ -167,9 +168,66 @@ TryAddPureFulfillmentForHistories(std::unique_ptr<heal::Annotation> annotation, 
 
 std::unique_ptr<Annotation> DefaultSolver::Interpolate(std::unique_ptr<Annotation> annotation,
                                                        const std::deque<std::unique_ptr<HeapEffect>>& interferences) const {
+    static Timer timer("DefaultSolver::Interpolate");
+    auto measurement = timer.Measure();
+
     annotation = PerformInterpolation(std::move(annotation), interferences);
     annotation = TryAddPureFulfillment(std::move(annotation), Config());
     annotation = TryAddPureFulfillmentForHistories(std::move(annotation), Config(), interferences);
+    return annotation;
+}
+
+std::unique_ptr<heal::Annotation> DefaultSolver::TryFindBetterHistories(std::unique_ptr<heal::Annotation> annotation) const {
+    static Timer timer("DefaultSolver::TryFindBetterHistories");
+    auto measurement = timer.Measure();
+
+    // TODO: ---- this is a hack to get better histories from joins ---
+    // TODO: this is tailored towards what the join needs
+    // TODO: this code is copied/adapted from above
+    // TODO: this code is copied from ExtendStack
+    // TODO: does this work as intended? check soundness carefully again!
+
+    auto base = std::make_unique<Annotation>(RemoveResourcesAndFulfillments(heal::Copy(*annotation->now)));
+    std::deque<std::unique_ptr<PastPredicate>> newHistory;
+    auto newStack = std::make_unique<SeparatingConjunction>();
+
+    for (const auto& time : annotation->time) {
+        auto past = dynamic_cast<heal::PastPredicate*>(time.get());
+        if (!past) continue;
+
+        auto tmp = heal::Copy(*base);
+        // base contains only local memory, so we can simply add the shared resources from past
+        tmp->now->conjuncts.push_back(heal::Copy(*past->formula));
+
+        // find new memories
+        auto existingMemories = heal::CollectMemory(*tmp->now);
+        tmp->now = solver::ExpandMemoryFrontier(std::move(tmp->now), Config(), past->formula.get());
+        auto newMemories = heal::CollectMemory(*tmp->now);
+        for (const auto* memory : newMemories) {
+            if (existingMemories.count(memory) != 0) continue;
+            newHistory.push_back(std::make_unique<PastPredicate>(heal::Copy(*memory)));
+        }
+
+        // extend stack
+        auto graph = solver::MakePureHeapGraph(std::move(tmp), Config());
+        assert(!graph.nodes.empty());
+        EncodedFlowGraph encoding(std::move(graph));
+        FootprintChecks checks(encoding.context);
+        auto candidates = CandidateGenerator::Generate(encoding.graph, EMode::PRE, CandidateGenerator::FlowLevel::FAST);
+        for (std::size_t index = 0; index < candidates.size(); ++index) {
+            checks.Add(encoding.encoder(*candidates[index]), [&candidates,index,target=newStack.get()](bool holds){
+//                std::cout << "  |implies=" << holds << "|  " << *checks.candidates[index] << std::endl;
+                if (!holds) return;
+                target->conjuncts.push_back(std::move(candidates[index]));
+            });
+        }
+        solver::ComputeImpliedCallback(encoding.solver, checks.checks);
+    }
+
+    annotation->now->conjuncts.push_back(std::move(newStack));
+    std::move(newHistory.begin(), newHistory.end(), std::back_inserter(annotation->time));
+    heal::Simplify(*annotation);
+
     return annotation;
 }
 
@@ -250,15 +308,51 @@ struct InterferenceInfo {
         solver::ComputeImpliedCallback(solver, checks);
     }
 
+    static inline std::deque<std::unique_ptr<PastPredicate>> MakeHistory(const Annotation& annotation, std::deque<std::unique_ptr<PointsToAxiom>>&& oldMemory) {
+        // collect addresses that already have history information
+        std::set<const SymbolicVariableDeclaration*> covered;
+        for (const auto& time : annotation.time) {
+            if (auto past = dynamic_cast<const PastPredicate*>(time.get())) {
+                auto nodes = heal::CollectMemoryNodes(*past->formula);
+                covered.insert(nodes.begin(), nodes.end());
+            }
+        }
+
+        // add history information for nodes that have no history information already
+        std::deque<std::unique_ptr<PastPredicate>> result;
+        for (auto&& memory : oldMemory) {
+
+        }
+        return result;
+    }
+
+    static inline std::set<const SymbolicVariableDeclaration*> GetHistoricNodes(const Annotation& annotation) {
+        std::set<const SymbolicVariableDeclaration*> result;
+        for (const auto& time : annotation.time) {
+            if (auto past = dynamic_cast<const PastPredicate*>(time.get())) {
+                auto nodes = heal::CollectMemoryNodes(*past->formula);
+                result.insert(nodes.begin(), nodes.end());
+            }
+        }
+        return result;
+    }
+
     inline void Apply() {
         for (auto& annotation : annotations) {
-            auto oldMemory = std::make_unique<SeparatingConjunction>();
+            auto historicNodes = GetHistoricNodes(*annotation);
+            auto addToPast = [&historicNodes,&annotation](const PointsToAxiom& memory){
+                if (memory.isLocal) return;
+                if (historicNodes.count(&memory.node->Decl()) != 0) return; // TODO: is this a good idea?
+                annotation->time.push_back(std::make_unique<PastPredicate>(heal::Copy(memory)));
+            };
+
+            // update memory, move old memory to history if not yet covered
+            std::deque<std::unique_ptr<PointsToAxiom>> oldMemory;
             for (const auto& [axiom, updates] : stabilityUpdates[annotation.get()]) {
                 if (updates.empty()) continue;
-                oldMemory->conjuncts.push_back(heal::Copy(*axiom));
+                addToPast(*axiom);
                 for (const auto& update : updates) update();
             }
-            annotation->time.push_back(std::make_unique<PastPredicate>(std::move(oldMemory)));
         }
 
         DebugPrint("post");
@@ -278,6 +372,9 @@ struct InterferenceInfo {
 
 std::deque<std::unique_ptr<heal::Annotation>> DefaultSolver::MakeStable(std::deque<std::unique_ptr<heal::Annotation>> annotations,
                                                                         const std::deque<std::unique_ptr<HeapEffect>>& interferences) const {
+    static Timer timer("DefaultSolver::MakeStable");
+    auto measurement = timer.Measure();
+
     if (annotations.empty() || interferences.empty()) return annotations;
     InterferenceInfo info(std::move(annotations), interferences);
     auto result = info.GetResult();

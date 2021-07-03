@@ -13,6 +13,9 @@ using namespace heal;
 using namespace solver;
 
 
+// TODO: where to interpolate historic flow info? how not to duplicate history? Or: how to handle duplicate history during joining?
+
+
 struct VariableCollector : public DefaultLogicListener {
     std::set<const VariableDeclaration*> result;
     void enter(const EqualsToAxiom& obj) override { result.insert(&obj.variable->decl); }
@@ -47,6 +50,7 @@ inline std::unique_ptr<PointsToAxiom> MakeCommonMemory(const SymbolicVariableDec
 struct AnnotationInfo {
     std::map<const VariableDeclaration*, const EqualsToAxiom*> varToRes;
     std::map<const VariableDeclaration*, const PointsToAxiom*> varToMem;
+    std::map<const VariableDeclaration*, std::set<const PointsToAxiom*>> varToHistMem;
     std::map<const VariableDeclaration*, std::set<const SpecificationAxiom*>> varToSpec;
 
     explicit AnnotationInfo(const Annotation& annotation) {
@@ -64,10 +68,23 @@ struct AnnotationInfo {
             if (!memory) continue;
             varToMem[variable] = memory;
         }
+
+        for (const auto& time : annotation.time) {
+            if (auto past = dynamic_cast<const PastPredicate*>(time.get())) {
+                if (auto pastMem = dynamic_cast<const PointsToAxiom*>(past->formula.get())) {
+                    if (pastMem->isLocal) continue;
+                    for (const auto&[var, mem] : varToMem) {
+                        if (&mem->node->Decl() != &pastMem->node->Decl()) continue;
+                        varToHistMem[var].insert(pastMem);
+                    }
+                }
+            }
+        }
     }
 };
 
 class AnnotationJoiner {
+    const DefaultSolver& logicSolver;
     std::unique_ptr<Annotation> result;
     std::vector<std::unique_ptr<Annotation>> annotations;
     SymbolicFactory factory;
@@ -80,11 +97,9 @@ class AnnotationJoiner {
     z3::solver solver;
     Z3Encoder<> encoder;
 
-    explicit AnnotationJoiner(std::vector<std::unique_ptr<Annotation>>&& annotations_, const SolverConfig& config)
-            : result(std::make_unique<Annotation>()), annotations(std::move(annotations_)), config(config), solver(context), encoder(context, solver) {
-
+    explicit AnnotationJoiner(const DefaultSolver& logicSolver, std::vector<std::unique_ptr<Annotation>>&& annotations_, const SolverConfig& config)
+            : logicSolver(logicSolver), result(std::make_unique<Annotation>()), annotations(std::move(annotations_)), config(config), solver(context), encoder(context, solver) {
         // TODO: what about histories and futures???
-        std::cerr << "WARNING: join loses time predicates" << std::endl;
 
         // prune false // TODO: remove this?
         ImplicationCheckSet checks(context);
@@ -100,7 +115,12 @@ class AnnotationJoiner {
         if (annotations.empty()) return std::make_unique<Annotation>(); // TODO: return false?
         if (annotations.size() == 1) return std::move(annotations.front());
 
+        // issue warning if time predicates are lost
+        bool timeLost = std::find_if(annotations.begin(), annotations.end(), [](const auto& elem){ return !elem->time.empty(); }) != annotations.end();
+        if (timeLost) std::cerr << "WARNING: join loses time predicates" << std::endl;
+
         assert(annotations.size() > 1);
+        ExtendHistories();
         MakeSymbolsUnique();
         AddInvariants();
 
@@ -112,9 +132,17 @@ class AnnotationJoiner {
         CreateMemoryResources();
         CreateSpecificationResources();
         Encode();
+        HandleHistories();
         PrepareResult();
         DeriveJoinedStack();
+
         return std::move(result);
+    }
+
+    void ExtendHistories() {
+        for (auto& annotation : annotations) {
+            annotation = logicSolver.TryFindBetterHistories(std::move(annotation));
+        }
     }
 
     void MakeSymbolsUnique() {
@@ -307,6 +335,54 @@ class AnnotationJoiner {
         solver.add(z3::mk_or(vector));
     }
 
+    void HandleHistories() {
+        for (const auto& [variable, resource] : varToCommonRes) {
+            // get cur to historic memory sets
+            std::deque<const Annotation*> annotationPointers;
+            std::deque<std::set<const PointsToAxiom*>::iterator> begin;
+            std::deque<std::set<const PointsToAxiom*>::iterator> end;
+            bool containsEmpty = false;
+            for (auto& [annotation, info] : lookup) {
+                auto& set = info.varToHistMem[variable];
+                begin.push_back(set.begin());
+                end.push_back(set.end());
+                containsEmpty |= set.empty();
+                annotationPointers.push_back(annotation);
+            }
+            if (containsEmpty) continue;
+
+            // iterator progression for powerset
+            auto cur = begin;
+            auto next = [&cur,&begin,&end]() -> bool {
+                bool isEnd = true;
+                for (std::size_t index = 0; index < cur.size(); ++index) {
+                    auto& it = cur[index];
+                    it.operator++();
+                    if (it == end[index]) it = begin[index];
+                    else isEnd = false;
+
+                }
+                return !isEnd;
+            };
+
+            // iterate over all historic memory combinations, add and encode
+            do {
+                auto& address = resource->value->Decl();
+                auto historicMem = MakeCommonMemory(address, false, factory, config); // TODO: assert that all iterators refer to local memory
+
+                // force common historic memory to agree
+                z3::expr_vector encoded(context);
+                for (std::size_t index = 0; index < cur.size(); ++index) {
+                    encoded.push_back(encoder.MakeMemoryEquality(*historicMem, **cur[index]) && encoder(*annotationPointers[index]->now));
+                }
+                solver.add(z3::mk_or(encoded));
+
+                // add past predicate
+                result->time.push_back(std::make_unique<PastPredicate>(std::move(historicMem)));
+            } while (next());
+        }
+    }
+
     void PrepareResult() {
         for (auto& [var, res] : varToCommonRes) result->now->conjuncts.push_back(std::move(res));
         for (auto& [var, res] : varToCommonMem) result->now->conjuncts.push_back(std::move(res));
@@ -333,23 +409,20 @@ class AnnotationJoiner {
     }
 
 public:
-    static std::unique_ptr<Annotation> Join(std::vector<std::unique_ptr<Annotation>>&& annotations, const SolverConfig& config) {
-        static size_t timeSpent = 0;
-        auto start = std::chrono::steady_clock::now();
-
+    static std::unique_ptr<Annotation> Join(std::vector<std::unique_ptr<Annotation>>&& annotations, const DefaultSolver& logicSolver, const SolverConfig& config) {
         std::cout << std::endl << std::endl << "========= joining " << annotations.size() << std::endl; for (const auto& elem : annotations) heal::Print(*elem, std::cout); std::cout << std::endl;
-        auto result = AnnotationJoiner(std::move(annotations), config).GetResult();
+        auto result = AnnotationJoiner(logicSolver, std::move(annotations), config).GetResult();
         heal::InlineAndSimplify(*result);
         std::cout << "** join result: "; heal::Print(*result, std::cout); std::cout << std::endl << std::endl << std::endl;
-
-        timeSpent += std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start).count();
-        std::cout << "& All time spent in Join: " << timeSpent << "ms" << std::endl;
         assert(heal::CollectObligations(*result).size() + heal::CollectFulfillments(*result).size() > 0);
         return result;
     }
 };
 
 std::unique_ptr<Annotation> DefaultSolver::Join(std::vector<std::unique_ptr<Annotation>> annotations) const {
+    static Timer timer("DefaultSolver::Join");
+    auto measurement = timer.Measure();
+
     if (annotations.empty()) throw std::logic_error("Empty join not supported"); // TODO: better error handling
-    return AnnotationJoiner::Join(std::move(annotations), Config());
+    return AnnotationJoiner::Join(std::move(annotations), *this, Config());
 }

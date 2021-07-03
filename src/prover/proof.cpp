@@ -2,6 +2,7 @@
 
 #include <set>
 #include <sstream>
+#include "timer.hpp"
 #include "cola/util.hpp"
 #include "prover/logger.hpp" // TODO:remove
 #include "heal/collect.hpp"
@@ -159,6 +160,9 @@ public:
     }
 
     inline void EstablishSpecificationOrFail(const Solver& solver, const Annotation& annotation, const Return* command, const Function& function) {
+        static Timer timer("SpecStore::EstablishSpecificationOrFail");
+        auto measurement = timer.Measure();
+
         // throw std::logic_error("not yet implemented: Verifier::establish_linearizability_or_fail");
         log() << std::endl << "________" << std::endl << "Post annotation for function '" << function.name << "':" << std::endl << annotation << std::endl << std::endl;
 

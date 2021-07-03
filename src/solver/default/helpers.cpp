@@ -1,5 +1,6 @@
 #include "default_solver.hpp"
 
+#include "timer.hpp"
 #include "encoder.hpp"
 #include "heal/util.hpp"
 
@@ -84,6 +85,9 @@ void AddEffectImplicationCheck(const HeapEffect& premise, const HeapEffect& conc
 
 
 std::vector<bool> DefaultSolver::ComputeEffectImplications(const std::deque<std::pair<const HeapEffect*, const HeapEffect*>>& implications) const {
+    static Timer timer("DefaultSolver::ComputeEffectImplications");
+    auto measurement = timer.Measure();
+
     std::vector<bool> result(implications.size(), false);
     z3::context context;
     z3::solver solver(context);
@@ -116,10 +120,14 @@ inline bool ImpliesSpecification(const Annotation& premise, const Annotation& co
 }
 
 Solver::Result DefaultSolver::Implies(const Annotation& premise, const Annotation& conclusion) const {
+    static Timer timer("DefaultSolver::Implies");
+    auto measurement = timer.Measure();
+
     std::cout << " IMPLICATION CHECK: " << premise << conclusion << std::endl;
 
     // TODO: handle futures / histories
     if (!premise.time.empty() || !conclusion.time.empty()) {
+        throw std::logic_error("implication among annotations with time predicates not implemented");
         return Solver::Result::NO;
     }
 
@@ -138,7 +146,7 @@ Solver::Result DefaultSolver::Implies(const Annotation& premise, const Annotatio
         auto conclusionMemory = solver::FindMemory(conclusionVariable->value->Decl(), conclusion);
         if (!conclusionMemory) continue;
 
-        // match memory resource against interpolant
+        // match memory resource against premise
         auto premiseVariable = solver::FindResource(conclusionVariable->variable->decl, premise);
         if (!premiseVariable) return Solver::NO;
         auto premiseMemory = solver::FindMemory(premiseVariable->value->Decl(), premise);
@@ -155,14 +163,15 @@ Solver::Result DefaultSolver::Implies(const Annotation& premise, const Annotatio
     Z3EncoderWithRenaming conclusionEncoder(context, solver);
     conclusionEncoder.renaming.factory = SymbolicFactory(premise); // TODO: this hack should be avoided
 
+    // check now
     z3::expr_vector checkPremise(context);
     checkPremise.push_back(premiseEncoder(premise));
     for (const auto& [memoryPost, memoryPre] : memoryMap) {
         checkPremise.push_back(premiseEncoder.MakeMemoryEquality(*memoryPre, *memoryPost, conclusionEncoder));
     }
-
     auto result = ComputeImplied(solver, z3::mk_and(checkPremise), conclusionEncoder(conclusion));
-    std::cout << "  ==> implication was solved, holds=" << result << std::endl;
+    std::cout << "  ==> now-implication was solved, holds=" << result << std::endl;
+
     return result ? Solver::YES : Solver::NO;
 }
 

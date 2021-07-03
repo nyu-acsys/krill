@@ -138,6 +138,9 @@ namespace solver {
     ExpandMemoryFrontier(std::unique_ptr<heal::SeparatingConjunction> state, heal::SymbolicFactory& factory, const SolverConfig& config,
                          const std::set<const heal::SymbolicVariableDeclaration*>& expansionAddresses,
                          std::set<const heal::SymbolicVariableDeclaration*>&& forceExpansion = {}, bool forceFail = true) {
+        static Timer timer("solver::ExpandMemoryFrontier");
+        auto measurement = timer.Measure();
+
         if (expansionAddresses.empty()) return state;
 
         // add force aliases
@@ -320,6 +323,9 @@ namespace solver {
 
     static std::unique_ptr<heal::SeparatingConjunction>
     ExpandMemoryFrontierForAccess(std::unique_ptr<heal::SeparatingConjunction> state, const SolverConfig& config, const cola::Expression& accessesFrom) {
+        static Timer timer("solver::ExpandMemoryFrontierForAccess");
+        auto measurement = timer.Measure();
+
         auto dereferences = GetDereferences(accessesFrom);
         if (dereferences.empty()) return state;
         std::set<const heal::SymbolicVariableDeclaration*> addresses;

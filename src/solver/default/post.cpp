@@ -7,6 +7,7 @@
 #include "z3++.h"
 #include "expand.hpp"
 #include "post_helper.hpp"
+#include "timer.hpp"
 
 using namespace cola;
 using namespace heal;
@@ -139,6 +140,9 @@ inline std::deque<std::unique_ptr<SeparatingConjunction>> PrunePaths(const Annot
 }
 
 PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const {
+    static Timer timer("DefaultSolver::Post(Assume)");
+    auto measurement = timer.Measure();
+
     std::cout << "******** Post image for " << *pre << " " << cmd;
     pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *cmd.expr);
     PostImage result;
@@ -213,6 +217,9 @@ inline std::pair<const SymbolicVariableDeclaration&, std::unique_ptr<Formula>> A
 }
 
 PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Malloc& cmd) const {
+    static Timer timer("DefaultSolver::Post(Malloc)");
+    auto measurement = timer.Measure();
+
     std::cout << "******** Post image for "; heal::Print(*pre, std::cout); std::cout << " "; cola::print(cmd, std::cout);
     if (cmd.lhs.is_shared)
         throw std::logic_error("Unsupported assignment: cannot assign to shared variables."); // TODO: better error handling
@@ -252,6 +259,9 @@ MultiUpdate::MultiUpdate(const cola::ParallelAssignment& assignment) {
 }
 
 PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assignment& cmd) const {
+    static Timer timer("DefaultSolver::Post(Assignment)");
+    auto measurement = timer.Measure();
+
     std::cout << "******** Post image for "; heal::Print(*pre, std::cout); std::cout << " "; cola::print(cmd, std::cout);
     if (auto variable = dynamic_cast<const VariableExpression*>(cmd.lhs.get())) {
         return PostVariableUpdate(std::move(pre), cmd, *variable);
@@ -272,6 +282,9 @@ PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const ParallelAss
 }
 
 PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<Annotation> pre, const Assignment& cmd, const VariableExpression& lhs) const {
+    static Timer timer("DefaultSolver::PostVariableUpdate");
+    auto measurement = timer.Measure();
+
     if (lhs.decl.is_shared)
         throw std::logic_error("Unsupported assignment: cannot assign to shared variables."); // TODO: better error handling
 

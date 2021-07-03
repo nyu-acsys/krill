@@ -1,5 +1,6 @@
 #include "flowgraph.hpp"
 
+#include "timer.hpp"
 #include "eval.hpp"
 #include "expand.hpp"
 
@@ -215,6 +216,10 @@ inline FlowGraph MakeFootprintGraph(std::unique_ptr<Annotation> state, const Sym
 }
 
 FlowGraph solver::MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const MultiUpdate& update, const SolverConfig& config) {
+    static Timer timer("solver::MakeFlowFootprint");
+    auto measurement = timer.Measure();
+
+    heal::InlineAndSimplify(*pre);
     assert(!update.updates.empty());
     LazyValuationMap eval(*pre); // TODO: avoid duplication wrt. FinalizeFromRoot
     SymbolicFactory factory(*pre); // TODO: avoid duplication wrt. FinalizeFromRoot
@@ -282,13 +287,17 @@ FlowGraph solver::MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const
             std::cout << "      - " << node.address.name << "->" << next.name << " == " << next.preValue.get().name << " / " << next.postValue.get().name << std::endl;
         }
     }
-
     // end debug
 
     return result;
 }
 
 FlowGraph solver::MakePureHeapGraph(std::unique_ptr<heal::Annotation> state, const SolverConfig& config) {
+    static Timer timer("solver::MakePureHeapGraph");
+    auto measurement = timer.Measure();
+
+    heal::InlineAndSimplify(*state);
+//    std::cout << "Making pure heap graph for: " << *state << std::endl;
     FlowGraph graph{config, {}, std::move(state)};
 
     SymbolicFactory factory(*graph.pre);
@@ -312,6 +321,17 @@ FlowGraph solver::MakePureHeapGraph(std::unique_ptr<heal::Annotation> state, con
             field.postGraphOutflow = field.preGraphOutflow;
         }
     }
+
+    // begin debug
+//    std::cout << "Pure heap graph:" << std::endl;
+//    for (const auto& node : graph.nodes) {
+//        std::cout << "   - Node " << node.address.name << std::endl;
+//        for (const auto& next : node.pointerFields) {
+//            std::cout << "      - " << node.address.name << "->" << next.name << " == " << next.preValue.get().name << " / " << next.postValue.get().name << std::endl;
+//        }
+//    }
+//    std::cout << "graph.pre: " << *graph.pre << std::endl;
+    // end debug
 
     // TODO: find a root (some node that is not reachable from any other node)?
     return graph;
@@ -553,6 +573,9 @@ inline z3::expr EncodeFlow(EncodedFlowGraph& encoding) {
 }
 
 EncodedFlowGraph::EncodedFlowGraph(FlowGraph&& graph_) : solver(context), encoder(context, solver), graph(std::move(graph_)) {
+    static Timer timer("EncodedFlowGraph::EncodedFlowGraph");
+    auto measurement = timer.Measure();
+
 //    assert(!graph_.nodes.empty());
     solver.add(EncodeFlow(*this));
 //    assert(solver.check() != z3::unsat);

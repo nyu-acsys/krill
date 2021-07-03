@@ -1,5 +1,6 @@
 #include "prover/verify.hpp"
 
+#include "timer.hpp"
 #include "solver/solver.hpp"
 
 using namespace cola;
@@ -101,6 +102,9 @@ inline bool IsEffectEmpty(const std::unique_ptr<HeapEffect>& effect) {
 }
 
 bool Verifier::ConsolidateNewInterference() {
+    static Timer timer("Verifier::ConsolidateNewInterference");
+    auto measurement = timer.Measure();
+
     // prune trivial noop interference
     newInterference.erase(std::remove_if(newInterference.begin(), newInterference.end(), IsEffectEmpty), newInterference.end());
     if (newInterference.empty()) return false;
@@ -137,18 +141,21 @@ bool Verifier::ConsolidateNewInterference() {
     // TODO: prune effects e which satisfy: e.post*e.context => e.pre*e.context ? They should not do anything
 
     // remove pruned effects
-    auto newEffects = std::move(newInterference);
-    newInterference.clear();
-    newEffects.erase(std::remove_if(newEffects.begin(), newEffects.end(), [](auto& elem){ return !elem; }), newEffects.end());
-    if (newEffects.empty()) return false;
+    auto isNull = [](auto& elem){ return !elem; };
+    interference.erase(std::remove_if(interference.begin(), interference.end(), isNull), interference.end());
+    newInterference.erase(std::remove_if(newInterference.begin(), newInterference.end(), isNull), newInterference.end());
+
+    // check if new effects exist
+    if (newInterference.empty()) return false;
 
     std::cout << std::endl << "New effects: " << std::endl;
-    for (const auto& effect : newEffects) {
+    for (const auto& effect : newInterference) {
         std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
     }
 
     // add new effects
     // TODO: rename to avoid name clashes? but how?
-    std::move(newEffects.begin(), newEffects.end(), std::back_inserter(interference));
+    std::move(newInterference.begin(), newInterference.end(), std::back_inserter(interference));
+    newInterference.clear();
     return true;
 }

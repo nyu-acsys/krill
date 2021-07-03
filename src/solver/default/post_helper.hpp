@@ -3,6 +3,7 @@
 #define SOLVER_POST_HELPER
 
 #include <set>
+#include "timer.hpp"
 #include "encoder.hpp"
 #include "flowgraph.hpp"
 #include "candidates.hpp"
@@ -139,7 +140,7 @@ namespace solver {
         checks.candidates = CandidateGenerator::Generate(encoding.graph, mode, CandidateGenerator::FlowLevel::FAST);
         for (std::size_t index = 0; index < checks.candidates.size(); ++index) {
             checks.Add(encoding.encoder(*checks.candidates[index]), [&checks,index,target=encoding.graph.pre->now.get()](bool holds){
-                std::cout << "  |implies=" << holds << "|  " << *checks.candidates[index] << std::endl;
+//                std::cout << "  |implies=" << holds << "|  " << *checks.candidates[index] << std::endl;
                 if (!holds) return;
                 target->conjuncts.push_back(std::move(checks.candidates[index]));
             });
@@ -147,62 +148,56 @@ namespace solver {
     }
 
     static std::unique_ptr<heal::Annotation> ExtendStack(std::unique_ptr<heal::Annotation> annotation, const SolverConfig& config) {
-//        return annotation;
-
-        static size_t timeSpent = 0;
-        auto start = std::chrono::steady_clock::now();
-
-//        auto graph = solver::MakePureHeapGraph(std::move(annotation), config);
-//        if (graph.nodes.empty()) return std::move(graph.pre);
-//        EncodedFlowGraph encoding(std::move(graph));
-//        FootprintChecks checks(encoding.context);
-//        AddDerivedKnowledgeChecks(encoding, checks, EMode::PRE); // TODO: when to do this? what to derive (only flow? only info about symbols involved in points-to?)
-//        solver::ComputeImpliedCallback(encoding.solver, checks.checks);
-//        annotation = std::move(encoding.graph.pre);
-//        heal::InlineAndSimplify(*annotation);
-
-        auto candidates = CandidateGenerator::Generate(*annotation, CandidateGenerator::FlowLevel::NONE);
-        z3::context context;
-        z3::solver solver(context);
-        Z3Encoder encoder(context, solver);
-        solver.add(encoder(*annotation->now));
-        for (auto* memory : heal::CollectMemory(*annotation)) solver.add(encoder(*config.GetNodeInvariant(*memory)));
-        for (auto* resource : heal::CollectVariables(*annotation)) if (resource->variable->decl.is_shared) solver.add(encoder(*config.GetSharedVariableInvariant(*resource)));
-        z3::expr_vector vector(context);
-        for (const auto& candidate : candidates) vector.push_back(encoder(*candidate));
-        auto implied = ComputeImplied(solver, vector);
-        for (std::size_t index = 0; index < candidates.size(); ++index) {
-            if (!implied.at(index)) continue;
-            annotation->now->conjuncts.push_back(std::move(candidates.at(index)));
-        }
-        heal::Simplify(*annotation);
-
-        timeSpent += std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start).count();
-        std::cout << "& All time spent in ExtendStack: " << timeSpent << "ms" << std::endl;
-        return annotation;
-    }
-
-    static std::unique_ptr<heal::Annotation> TryAddPureFulfillment(std::unique_ptr<heal::Annotation> annotation, const SolverConfig& config, bool* isAnnotationUnsatisfiable= nullptr) {
-        static size_t timeSpent = 0;
-        auto start = std::chrono::steady_clock::now();
+        // TODO: use this method less! rather invoke it before interference
+        std::cout << "%% extending stack" << std::endl;
+        static Timer timer("solver::ExtendStack");
+        auto measurement = timer.Measure();
 
         auto graph = solver::MakePureHeapGraph(std::move(annotation), config);
         if (graph.nodes.empty()) return std::move(graph.pre);
         EncodedFlowGraph encoding(std::move(graph));
-        std::cout << "TryAddPureFulfillment solving graph (#nodes=" << encoding.graph.nodes.size() << ") pre: " << *encoding.graph.pre << std::endl;
+        FootprintChecks checks(encoding.context);
+        AddDerivedKnowledgeChecks(encoding, checks, EMode::PRE); // TODO: when to do this? what to derive (only flow? only info about symbols involved in points-to?)
+        solver::ComputeImpliedCallback(encoding.solver, checks.checks);
+        annotation = std::move(encoding.graph.pre);
+        heal::InlineAndSimplify(*annotation);
+
+//        auto candidates = CandidateGenerator::Generate(*annotation, CandidateGenerator::FlowLevel::NONE);
+//        z3::context context;
+//        z3::solver solver(context);
+//        Z3Encoder encoder(context, solver);
+//        solver.add(encoder(*annotation->now));
+//        for (auto* memory : heal::CollectMemory(*annotation)) solver.add(encoder(*config.GetNodeInvariant(*memory)));
+//        for (auto* resource : heal::CollectVariables(*annotation)) if (resource->variable->decl.is_shared) solver.add(encoder(*config.GetSharedVariableInvariant(*resource)));
+//        z3::expr_vector vector(context);
+//        for (const auto& candidate : candidates) vector.push_back(encoder(*candidate));
+//        auto implied = ComputeImplied(solver, vector);
+//        for (std::size_t index = 0; index < candidates.size(); ++index) {
+//            if (!implied.at(index)) continue;
+//            annotation->now->conjuncts.push_back(std::move(candidates.at(index)));
+//        }
+//        heal::Simplify(*annotation);
+
+        return annotation;
+    }
+
+    static std::unique_ptr<heal::Annotation> TryAddPureFulfillment(std::unique_ptr<heal::Annotation> annotation, const SolverConfig& config, bool* isAnnotationUnsatisfiable= nullptr) {
+        static Timer timer("solver::TryAddPureFulfillment");
+        auto measurement = timer.Measure();
+
+        auto graph = solver::MakePureHeapGraph(std::move(annotation), config);
+        if (graph.nodes.empty()) return std::move(graph.pre);
+        EncodedFlowGraph encoding(std::move(graph));
         FootprintChecks checks(encoding.context);
         checks.preSpec = heal::CollectObligations(*encoding.graph.pre->now);
         AddSpecificationChecks<true>(encoding, checks);
-        AddDerivedKnowledgeChecks(encoding, checks, EMode::PRE); // TODO: when to do this? what to derive (only flow? only info about symbols involved in points-to?)
+//        AddDerivedKnowledgeChecks(encoding, checks, EMode::PRE); // TODO: when to do this? what to derive (only flow? only info about symbols involved in points-to?)
         solver::ComputeImpliedCallback(encoding.solver, checks.checks, isAnnotationUnsatisfiable);
-        std::cout << "TryAddPureFulfillment solving graph (#nodes=" << encoding.graph.nodes.size() << ") post: " << *encoding.graph.pre << std::endl;
         annotation = std::move(encoding.graph.pre);
         annotation = RemoveObligations(std::move(annotation), std::move(checks.preSpec));
         std::move(checks.postSpec.begin(), checks.postSpec.end(), std::back_inserter(annotation->now->conjuncts));
-        heal::Simplify(*annotation);
+        heal::InlineAndSimplify(*annotation);
 
-        timeSpent += std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start).count();
-        std::cout << "& All time spent in TryAddPureFulfillment: " << timeSpent << "ms" << std::endl;
         return annotation;
     }
 
