@@ -138,6 +138,8 @@ namespace solver {
     ExpandMemoryFrontier(std::unique_ptr<heal::SeparatingConjunction> state, heal::SymbolicFactory& factory, const SolverConfig& config,
                          const std::set<const heal::SymbolicVariableDeclaration*>& expansionAddresses,
                          std::set<const heal::SymbolicVariableDeclaration*>&& forceExpansion = {}, bool forceFail = true) {
+        // TODO: move removed overlap into a past predicate
+
         static Timer timer("solver::ExpandMemoryFrontier");
         auto measurement = timer.Measure();
 

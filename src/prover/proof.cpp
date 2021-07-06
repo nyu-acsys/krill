@@ -13,6 +13,7 @@ using namespace solver;
 using namespace prover;
 
 
+constexpr std::size_t PROOF_ABORT_AFTER = 5; // TODO: 10
 constexpr std::size_t LOOP_ABORT_AFTER = 5; // TODO: 10
 
 using UnsupportedConstructError = std::logic_error; // TODO: better error handling
@@ -89,11 +90,13 @@ void Verifier::VerifyProgramOrFail() {
 //    interference = MakeDummyInterference(*program.types.front()); // TODO: remove <<<<<<<<<<<<<<<<==========================================|||||||||||||
 
     // compute fixed point
+    std::size_t counter = 0;
     do {
         for (const auto& function : program.functions) {
             if (function->kind != Function::Kind::INTERFACE) continue;
             HandleInterfaceFunction(*function);
         }
+        if (counter++ > PROOF_ABORT_AFTER) throw std::logic_error("Aborting: proof does not seem to stabilize."); // TODO: remove / better error handling
     } while (ConsolidateNewInterference());
 }
 

@@ -109,10 +109,10 @@ bool Verifier::ConsolidateNewInterference() {
     newInterference.erase(std::remove_if(newInterference.begin(), newInterference.end(), IsEffectEmpty), newInterference.end());
     if (newInterference.empty()) return false;
 
-    std::cout << std::endl << "Consolidating found effects: " << std::endl;
-    for (const auto& effect : newInterference) {
-        std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
-    }
+//    std::cout << std::endl << "Consolidating found effects: " << std::endl;
+//    for (const auto& effect : newInterference) {
+//        std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
+//    }
 
     // TODO: which pairs should be generated?
     auto Iterate = [this](std::function<void(std::unique_ptr<HeapEffect>&, std::unique_ptr<HeapEffect>&, std::size_t)>&& callback){
@@ -153,6 +153,10 @@ bool Verifier::ConsolidateNewInterference() {
     // check if new effects exist
     if (newInterference.empty()) return false;
 
+    std::cout << std::endl << "Existing effects: " << std::endl;
+    for (const auto& effect : interference) {
+        std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
+    }
     std::cout << std::endl << "New effects: " << std::endl;
     for (const auto& effect : newInterference) {
         std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;

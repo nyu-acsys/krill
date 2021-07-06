@@ -267,6 +267,19 @@ std::unique_ptr<Annotation> AddHistoryExpansions(std::unique_ptr<Annotation> ann
     return annotation;
 }
 
+template<typename T>
+bool EmptyIntersection(const PastPredicate& past, const T& container) { // TODO: can be implemented more efficiently
+    if (auto mem = dynamic_cast<const PointsToAxiom*>(past.formula.get())) {
+        auto contains = [&container](const VariableDeclaration* decl){ return container.count(decl) != 0; };
+        if (contains(&mem->flow.get())) return false;
+        for (const auto& [field, value] : mem->fieldToValue) {
+            if (contains(&value->Decl())) return false;
+        }
+        return true;
+    }
+    return false;
+}
+
 std::unique_ptr<Annotation> AddSemanticHistoryInterpolation(std::unique_ptr<Annotation> annotation,
                                                             const std::deque<std::unique_ptr<HeapEffect>>& interferences,
                                                             const SolverConfig& config) {
@@ -281,7 +294,6 @@ std::unique_ptr<Annotation> AddSemanticHistoryInterpolation(std::unique_ptr<Anno
     z3::context context;
     z3::solver solver(context);
     Z3Encoder encoder(context, solver);
-    solver.add(encoder(*annotation));
     SymbolicFactory factory;
     for (const auto& effect : interferences) {
         factory.Avoid(*effect->pre);
@@ -290,21 +302,24 @@ std::unique_ptr<Annotation> AddSemanticHistoryInterpolation(std::unique_ptr<Anno
     }
     heal::RenameSymbolicSymbols(*annotation, factory);
     factory.Avoid(*annotation);
+    solver.add(encoder(*annotation));
 
     std::cout << "=== Semantic Interpolation for: " << *annotation << std::endl;
     for (auto& effect : interferences) std::cout << "  -- effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
 
     // feed solver with knowledge about interpolants
-    std::deque<std::unique_ptr<PastPredicate>> interpolated;
-    std::deque<z3::expr> interpolationPremises;
+    std::deque<std::pair<PastPredicate, z3::expr>> interpolation;
     for (const auto* now : nowMemories) {
         for (const auto* past : pastMemories) {
             if (&now->node->Decl() != &past->node->Decl()) continue;
             if (now->isLocal || past->isLocal) continue;
 
             for (const auto& [field, nowValue] : now->fieldToValue) {
-                auto newHistory = MakePointsTo(now->node->Decl(), factory, config);
                 auto& pastValue = past->fieldToValue.at(field);
+                if (&nowValue->Decl() == &pastValue->Decl()) continue;
+
+//                std::cout << " ||| field=" << field << " for " << *now << "  vs  " << *past << std::endl;
+                auto newHistory = MakePointsTo(now->node->Decl(), factory, config);
                 auto& histValue = newHistory->fieldToValue.at(field);
 
                 z3::expr_vector vector(encoder.context);
@@ -313,6 +328,7 @@ std::unique_ptr<Annotation> AddSemanticHistoryInterpolation(std::unique_ptr<Anno
                         // && encoder(*pastValue) == encoder(*histValue)
                         && encoder.MakeMemoryEquality(*past, *newHistory)
                 );
+//                std::cout << "       ~> " << *nowValue << " == " << *pastValue << " AND " << *past << " == " << *newHistory << std::endl;
                 for (const auto& effect : interferences) {
                     if (!UpdatesField(*effect, field)) continue;
                     auto& effectValue = effect->post->fieldToValue.at(field);
@@ -323,36 +339,47 @@ std::unique_ptr<Annotation> AddSemanticHistoryInterpolation(std::unique_ptr<Anno
                             && encoder(*effect->context)
                             && encoder.MakeMemoryEquality(*effect->post, *newHistory)
                     );
+//                    std::cout << "       ~> " << *nowValue << " != " << *pastValue << " AND " << *nowValue << " == " << *histValue << " AND " << *effect->context << " AND " << *effect->post << " == " << *newHistory << std::endl;
                 }
 
 //                solver.add(z3::mk_or(vector));
-//                std::cout << " ||| field=" << field << " for " << *now << "  vs  " << *past << std::endl << z3::mk_or(vector) << std::endl;
                 auto premise = z3::mk_or(vector);
-                interpolationPremises.push_back(premise);
-                interpolated.push_back(std::make_unique<PastPredicate>(std::move(newHistory)));
+                interpolation.emplace_back(std::move(newHistory), premise);
+//                std::cout << " ||| field=" << field << " for " << *now << "  vs  " << *past << std::endl << premise << std::endl;
             }
         }
     }
 
     // derive knowledge
-    if (interpolated.empty()) return annotation;
-    std::move(interpolated.begin(), interpolated.end(), std::back_inserter(annotation->time));
+    if (interpolation.empty()) return annotation;
+    for (const auto& [past, expr] : interpolation) annotation->time.push_back(heal::Copy(past));
     auto candidates = CandidateGenerator::Generate(*annotation, CandidateGenerator::FAST);
-    std::cout << " ~> going to solve; #interpolants=" << interpolated.size() << " #premises=" << interpolationPremises.size() << " #candidates=" << candidates.size() << std::endl;
     ImplicationCheckSet checks(context);
-    for (const auto& candidate : candidates) {
+    std::set<std::size_t> implied;
+    for (std::size_t index = 0; index < candidates.size(); ++index) {
+        auto& candidate = candidates[index];
         auto encoded = encoder(*candidate);
-        for (const auto& premise : interpolationPremises) {
-            checks.Add(z3::implies(premise, encoded), [&annotation,&candidate](bool holds){
-                if (holds) annotation->now->conjuncts.push_back(heal::Copy(*candidate));
+        auto candidateSymbols = heal::CollectSymbolicSymbols(*candidate);
+        for (const auto& [past, premise] : interpolation) {
+            auto pastSymbols = heal::CollectSymbolicSymbols((past)); // TODO: avoid repeated collection
+            if (EmptyIntersection(past, candidateSymbols)) continue;
+            checks.Add(z3::implies(premise, encoded), [&implied,index](bool holds){
+                if (holds) implied.insert(index);
             });
         }
     }
+    std::cout << " ~> going to solve; #interpolation=" << interpolation.size() << " #checks=" << checks.expressions.size() << " #candidates=" << candidates.size() << std::endl;
     bool isSolverUnsat;
     solver::ComputeImpliedCallback(solver, checks, &isSolverUnsat);
-    if (isSolverUnsat) throw std::logic_error("Unexpected unsatisfiability during semantic interpolation.");
+    if (isSolverUnsat) throw std::logic_error("Unexpected unsatisfiability during semantic interpolation."); // TODO: remove
+
+    for (auto index : implied) {
+        assert(candidates[index]);
+        annotation->now->conjuncts.push_back(std::move(candidates[index]));
+    }
 
     std::cout << "=== Semantic Interpolation yields: " << *annotation << std::endl;
+//    throw std::logic_error("interpolation inspection point");
     return annotation;
 }
 
@@ -395,7 +422,7 @@ std::unique_ptr<Annotation> FilterOutHistories(std::unique_ptr<Annotation> annot
 //    annotation = MakeHistorySymbolsUnique(std::move(annotation));
     annotation = ExtendStack(std::move(annotation), config); // makes filter more precise
 
-    heal::Simplify(*annotation);
+    heal::InlineAndSimplify(*annotation);
     auto pastMemories = CollectHistoricMemory(*annotation);
     if (pastMemories.empty()) return annotation;
 //    std::cout << "FilterOutHistories for " << *annotation << std::endl;
@@ -458,11 +485,14 @@ std::unique_ptr<Annotation> DefaultSolver::TryFindBetterHistories(std::unique_pt
     // TODO: this code is copied from ExtendStack
     // TODO: this code is copied from ExpandMemoryFrontier
     // TODO: does this work as intended? check soundness carefully again!
+    // TODO: avoid two filter steps
 
     heal::InlineAndSimplify(*annotation);
     annotation = AddHistoryExpansions(std::move(annotation), Config());
     annotation->now->conjuncts.push_back(ComputeInterpolant(*annotation, interferences));
-    annotation = AddSemanticHistoryInterpolation(std::move(annotation), interferences, Config()); // TODO: filter before
+    annotation = FilterOutHistories(std::move(annotation), Config());
+    annotation = AddSemanticHistoryInterpolation(std::move(annotation), interferences, Config());
+    annotation->now->conjuncts.push_back(ComputeInterpolant(*annotation, interferences));
     annotation = FilterOutHistories(std::move(annotation), Config());
     heal::InlineAndSimplify(*annotation);
 
@@ -548,34 +578,34 @@ struct InterferenceInfo {
         solver::ComputeImpliedCallback(solver, checks);
     }
 
-    static inline std::deque<std::unique_ptr<PastPredicate>> MakeHistory(const Annotation& annotation, std::deque<std::unique_ptr<PointsToAxiom>>&& oldMemory) {
-        // collect addresses that already have history information
-        std::set<const SymbolicVariableDeclaration*> covered;
-        for (const auto& time : annotation.time) {
-            if (auto past = dynamic_cast<const PastPredicate*>(time.get())) {
-                auto nodes = heal::CollectMemoryNodes(*past->formula);
-                covered.insert(nodes.begin(), nodes.end());
-            }
-        }
+//    static inline std::deque<std::unique_ptr<PastPredicate>> MakeHistory(const Annotation& annotation, std::deque<std::unique_ptr<PointsToAxiom>>&& oldMemory) {
+//        // collect addresses that already have history information
+//        std::set<const SymbolicVariableDeclaration*> covered;
+//        for (const auto& time : annotation.time) {
+//            if (auto past = dynamic_cast<const PastPredicate*>(time.get())) {
+//                auto nodes = heal::CollectMemoryNodes(*past->formula);
+//                covered.insert(nodes.begin(), nodes.end());
+//            }
+//        }
+//
+//        // add history information for nodes that have no history information already
+//        std::deque<std::unique_ptr<PastPredicate>> result;
+//        for (auto&& memory : oldMemory) {
+//
+//        }
+//        return result;
+//    }
 
-        // add history information for nodes that have no history information already
-        std::deque<std::unique_ptr<PastPredicate>> result;
-        for (auto&& memory : oldMemory) {
-
-        }
-        return result;
-    }
-
-    static inline std::set<const SymbolicVariableDeclaration*> GetHistoricNodes(const Annotation& annotation) {
-        std::set<const SymbolicVariableDeclaration*> result;
-        for (const auto& time : annotation.time) {
-            if (auto past = dynamic_cast<const PastPredicate*>(time.get())) {
-                auto nodes = heal::CollectMemoryNodes(*past->formula);
-                result.insert(nodes.begin(), nodes.end());
-            }
-        }
-        return result;
-    }
+//    static inline std::set<const SymbolicVariableDeclaration*> GetHistoricNodes(const Annotation& annotation) {
+//        std::set<const SymbolicVariableDeclaration*> result;
+//        for (const auto& time : annotation.time) {
+//            if (auto past = dynamic_cast<const PastPredicate*>(time.get())) {
+//                auto nodes = heal::CollectMemoryNodes(*past->formula);
+//                result.insert(nodes.begin(), nodes.end());
+//            }
+//        }
+//        return result;
+//    }
 
     inline void Apply() {
         for (auto& annotation : annotations) {
