@@ -120,9 +120,10 @@ class AnnotationJoiner {
         if (timeLost) std::cerr << "WARNING: join loses time predicates" << std::endl;
 
         assert(annotations.size() > 1);
-        ExtendHistories();
         MakeSymbolsUnique();
         AddInvariants();
+
+        std::cout << "preprocessed, now joining: "; for (const auto& elem : annotations) std::cout << *elem; std::cout << std::endl;
 
         InitializeLookup();
         CheckCommonVariableResources();
@@ -137,12 +138,6 @@ class AnnotationJoiner {
         DeriveJoinedStack();
 
         return std::move(result);
-    }
-
-    void ExtendHistories() {
-        for (auto& annotation : annotations) {
-            annotation = logicSolver.TryFindBetterHistories(std::move(annotation));
-        }
     }
 
     void MakeSymbolsUnique() {
@@ -367,6 +362,7 @@ class AnnotationJoiner {
 
             // iterate over all historic memory combinations, add and encode
             do {
+                std::cout << " join past combination:  "; for (const auto& it : cur) std::cout << **it << ",  "; std::cout << std::endl;
                 auto& address = resource->value->Decl();
                 auto historicMem = MakeCommonMemory(address, false, factory, config); // TODO: assert that all iterators refer to local memory
 

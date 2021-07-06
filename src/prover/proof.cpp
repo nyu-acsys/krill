@@ -13,7 +13,7 @@ using namespace solver;
 using namespace prover;
 
 
-constexpr std::size_t LOOP_ABORT_AFTER = 10;
+constexpr std::size_t LOOP_ABORT_AFTER = 5; // TODO: 10
 
 using UnsupportedConstructError = std::logic_error; // TODO: better error handling
 using VerificationError = std::logic_error; // TODO: better error handling
@@ -94,7 +94,6 @@ void Verifier::VerifyProgramOrFail() {
             if (function->kind != Function::Kind::INTERFACE) continue;
             HandleInterfaceFunction(*function);
         }
-//        throw std::logic_error("point du break");
     } while (ConsolidateNewInterference());
 }
 
@@ -190,10 +189,11 @@ void Verifier::HandleInterfaceFunction(const Function& function) {
     breaking.clear();
     returning.clear();
 
+    static std::size_t counter = 0;
 	std::cout << std::endl << std::endl << std::endl << std::endl << std::endl;
 	std::cout << "############################################################" << std::endl;
 	std::cout << "############################################################" << std::endl;
-	std::cout << "#################### " << function.name << std::endl;
+	std::cout << "#################### " << function.name << "  " << counter++ << std::endl;
 	std::cout << "############################################################" << std::endl;
 	std::cout << "############################################################" << std::endl;
 	std::cout << std::endl;
@@ -215,7 +215,8 @@ void Verifier::HandleInterfaceFunction(const Function& function) {
     for (auto& annotation : current) {
         returning.emplace_back(std::move(annotation), nullptr);
     }
-    std::cout << std::endl << std::endl << " CHECKING POST ANNOTATION OF " << function.name << "  " << returning.size() << std::endl << std::endl;
+    auto interim = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-start).count();
+    std::cout << std::endl << std::endl << " CHECKING POST ANNOTATION OF " << function.name << "  " << returning.size() << "  time taken so far: " << interim/1000.0 << "s" << std::endl << std::endl;
     for (auto& [annotation, command] : returning) {
         annotation = solver->Interpolate(std::move(annotation), interference);
         specification.EstablishSpecificationOrFail(*solver, *annotation, command, function);
@@ -304,12 +305,21 @@ void Verifier::HandleLoop(const ConditionalLoop& stmt) {
     stmt.body->accept(*this);
     auto firstBreaking = std::move(breaking);
     auto returningOuter = std::move(returning);
+    auto newInterferenceOuter = std::move(newInterference);
     breaking.clear();
     returning.clear();
+    newInterference.clear();
 
     // looping until fixed point
     if (!current.empty()) {
+        auto PrepareJoin = [this](){
+            if (current.size() <= 1) return;
+            PerformStep([this](auto annotation){
+                return solver->TryFindBetterHistories(std::move(annotation), interference);
+            });
+        };
         std::size_t counter = 0;
+        PrepareJoin();
         auto join = solver->Join(std::move(current));
         while (true) {
             if (counter > LOOP_ABORT_AFTER) throw std::logic_error("Aborting: loop does not seem to stabilize."); // TODO: remove / better error handling
@@ -317,11 +327,13 @@ void Verifier::HandleLoop(const ConditionalLoop& stmt) {
 
             breaking.clear();
             returning.clear();
+            newInterference.clear();
             current.clear();
             current.push_back(heal::Copy(*join));
 
             stmt.body->accept(*this);
             current.push_back(heal::Copy(*join));
+            PrepareJoin(); // TODO: before adding previous join?
             auto newJoin = solver->Join(std::move(current));
             if (solver->Implies(*newJoin, *join) == Solver::YES) break;
             join = std::move(newJoin);
@@ -333,6 +345,7 @@ void Verifier::HandleLoop(const ConditionalLoop& stmt) {
     std::move(breaking.begin(), breaking.end(), std::back_inserter(current));
     breaking = std::move(breakingOuter);
     std::move(returningOuter.begin(), returningOuter.end(), std::back_inserter(returning));
+    std::move(newInterferenceOuter.begin(), newInterferenceOuter.end(), std::back_inserter(newInterference));
 }
 
 

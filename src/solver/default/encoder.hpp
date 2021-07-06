@@ -33,12 +33,19 @@ namespace solver {
             return EncodeSymbol(decl) == Null();
         }
         template<typename T>
+        inline z3::expr MakeFlowEquality(const heal::SymbolicFlowDeclaration& flow, const heal::SymbolicFlowDeclaration& other, Z3Encoder<T>& otherEncoder) {
+            auto qv = QuantifiedVariable(flow.type.sort);
+            return z3::forall(qv, EncodeFlow(flow)(qv) == otherEncoder(other)(qv));
+        }
+        inline z3::expr MakeFlowEquality(const heal::SymbolicFlowDeclaration& flow, const heal::SymbolicFlowDeclaration& other) {
+            return MakeFlowEquality(flow, other, *this);
+        }
+        template<typename T>
         inline z3::expr MakeMemoryEquality(const heal::PointsToAxiom& memory, const heal::PointsToAxiom& other, Z3Encoder<T>& otherEncoder) {
             assert(&context == &otherEncoder.context);
-            auto qv = QuantifiedVariable(memory.flow.get().type.sort);
             z3::expr_vector eq(context);
             eq.push_back(Encode(*memory.node) == otherEncoder(*other.node));
-            eq.push_back(z3::forall(qv, EncodeFlow(memory.flow.get())(qv) == otherEncoder(other.flow.get())(qv)));
+            eq.push_back(MakeFlowEquality(memory.flow, other.flow, otherEncoder));
             assert(memory.node->Type() == other.node->Type());
             for (const auto& [field, value] : memory.fieldToValue) {
                 eq.push_back(Encode(*value) == otherEncoder(*other.fieldToValue.at(field)));

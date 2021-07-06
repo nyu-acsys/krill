@@ -308,6 +308,7 @@ PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<Annotation> pre, con
 
     // try derive helpful knowledge
     if (cmd.rhs->sort() == Sort::PTR) { //if (!solver::GetDereferences(*cmd.rhs).empty()) { // TODO: when to do this?
+//        pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), factory, Config(), { &symbol }, { &symbol }, false); // TODO: really force?
         pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), factory, Config(), { &symbol });
         pre = ExtendStack(std::move(pre), Config());
 //        pre = TryAddPureFulfillment(std::move(pre), Config());

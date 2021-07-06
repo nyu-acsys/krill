@@ -284,6 +284,7 @@ std::deque<std::unique_ptr<HeapEffect>> ExtractEffects(const EncodedFlowGraph& e
     for (const auto& node : encoding.graph.nodes) {
         auto effect = ExtractEffect(node, contextMap);
         if (!effect) continue;
+//        std::cout << "Extracted effect: " << *effect->pre << " ~~> " << *effect->post << "  under  " << *effect->context << std::endl;
         assert(effect);
         assert(effect->pre);
         assert(effect->post);

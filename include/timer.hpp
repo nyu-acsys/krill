@@ -31,6 +31,7 @@ class Timer {
                     auto end = std::chrono::steady_clock::now();
                     auto myElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
                     parent.elapsed += myElapsed;
+//                    std::cout << "$MEASUREMENT for " << parent.info << ": " << myElapsed.count() << "ms" << std::endl;
                 }
         };
 
