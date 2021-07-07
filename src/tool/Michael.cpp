@@ -32,7 +32,7 @@ void __init__() {
 
 
 inline <Node*, Node*, data_t> locate(data_t key) {
-	Node* pred, curr, next;
+	Node* pred, next, curr;
 	data_t k;
 
 	curr = Head;
@@ -67,7 +67,7 @@ bool contains(data_t key) {
 }
 
 bool add(data_t key) {
-	Node* pred, curr, entry;
+	Node* entry, pred, curr;
 	data_t k;
 
 	entry = malloc;
@@ -91,7 +91,7 @@ bool add(data_t key) {
 
 
 bool remove(data_t key) {
-	Node* pred, curr, next;
+	Node* next, pred, curr;
 	data_t k;
 
 	while (true) {

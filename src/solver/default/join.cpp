@@ -83,6 +83,15 @@ struct AnnotationInfo {
     }
 };
 
+struct VariableDeclarationComparator {
+    // this is a heuristic for which points-to predicates to prefer
+    // TODO: better heuristic for which points-to predicates to keep
+    inline bool operator()(const VariableDeclaration* decl, const VariableDeclaration* other) const {
+        if (decl->is_shared != other->is_shared) return other->is_shared;
+        return decl->id > other->id;
+    }
+};
+
 class AnnotationJoiner {
     const DefaultSolver& logicSolver;
     std::unique_ptr<Annotation> result;
@@ -91,7 +100,7 @@ class AnnotationJoiner {
     std::map<const Annotation*, AnnotationInfo> lookup; // TODO: does this need to be a map? or is a vector sufficient?
     const SolverConfig& config;
     std::map<const VariableDeclaration*, bool> commonMemory;
-    std::map<const VariableDeclaration*, std::unique_ptr<EqualsToAxiom>> varToCommonRes;
+    std::map<const VariableDeclaration*, std::unique_ptr<EqualsToAxiom>, VariableDeclarationComparator> varToCommonRes;
     std::map<const VariableDeclaration*, std::unique_ptr<PointsToAxiom>> varToCommonMem;
     z3::context context;
     z3::solver solver;
@@ -190,14 +199,14 @@ class AnnotationJoiner {
     void FindCommonMemoryResources() {
         // memory resources must be unique => handle two variables pointing to the same memory
         std::set<const SymbolicVariableDeclaration*> blacklist;
-        for (const auto& [var, _ignored] : varToCommonRes) {
+        for (const auto&[var, _ignored] : varToCommonRes) {
             if (var->type.sort != Sort::PTR) continue;
 
             bool hasCommonResource = true;
             std::optional<bool> isLocal;
-            std::set<const SymbolicVariableDeclaration*> references;
+            std::set<const SymbolicVariableDeclaration *> references;
 
-            auto isCommon = [&](const auto* memory) {
+            auto isCommon = [&](const auto *memory) {
                 if (!memory) return false;
                 if (blacklist.count(&memory->node->Decl()) != 0) return false;
                 if (!isLocal.has_value()) isLocal = memory->isLocal;
