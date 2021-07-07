@@ -39,15 +39,7 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 	do {
 		pred = curr;
 		curr = pred->next;
-
-		// if (pred->marked == false && curr == pred->next) { //////////// NEIN, die IMPL prüft Markiertheit gar nicht
-		// 	k = curr->val;
-		// } else {
-		// 	curr = Head;
-		// 	k = MIN_VAL;
-		// }
         k = curr->val;
-
 	} while (k < key);
     return <pred, curr, k>;
 }

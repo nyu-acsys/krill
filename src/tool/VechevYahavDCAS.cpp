@@ -6,7 +6,7 @@ using namespace solver;
 
 
 const std::string CODE = R"(
-#name "Vechev DCAS Set"
+#name "Vechev&Yahav DCAS Set"
 
 
 struct Node {

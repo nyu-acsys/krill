@@ -106,19 +106,55 @@ namespace solver {
                 checks.postSpec.push_back(std::make_unique<heal::FulfillmentAxiom>(obligation->kind, heal::Copy(*obligation->key), fulfilled));
             });
 
-            // debug
-            checks.Add(isPreContained, [](bool holds) {
-                std::cout << " ** isPreContained=" << holds << std::endl;
-            });
-            checks.Add(isPostContained, [](bool holds) {
-                std::cout << " ** isPostContained=" << holds << std::endl;
-            });
-            checks.Add(isPreNotContained, [](bool holds) {
-                std::cout << " ** isPreNotContained=" << holds << std::endl;
-            });
-            checks.Add(isPostNotContained, [](bool holds) {
-                std::cout << " ** isPostNotContained=" << holds << std::endl;
-            });
+//            // debug
+//            for (const auto& node : encoding.graph.nodes) {
+//                auto preFlow = encoding.encoder(node.preAllInflow);
+//                auto postFlow = encoding.encoder(node.postAllInflow);
+//                auto preKeys = encoding.encoder(node.preKeyset);
+//                auto postKeys = encoding.encoder(node.postKeyset);
+//
+//                checks.Add(preFlow(key), [&node](bool holds) {
+//                    std::cout << " ** " << node.address << " preFlow(key)=" << holds << std::endl;
+//                });
+//                checks.Add(postFlow(key), [&node](bool holds) {
+//                    std::cout << " ** " << node.address << " postFlow(key)=" << holds << std::endl;
+//                });
+//                checks.Add(preKeys(key), [&node](bool holds) {
+//                    std::cout << " ** " << node.address << " preKeys(key)=" << holds << std::endl;
+//                });
+//                checks.Add(postKeys(key), [&node](bool holds) {
+//                    std::cout << " ** " << node.address << " postKeys(key)=" << holds << std::endl;
+//                });
+//                checks.Add(contains(node, key, EMode::PRE), [&node](bool holds) {
+//                    std::cout << " ** " << node.address << " contains(key)=" << holds << std::endl;
+//                });
+//                checks.Add(!contains(node, key, EMode::PRE), [&node](bool holds) {
+//                    std::cout << " ** " << node.address << " !contains(key)=" << holds << std::endl;
+//                });
+//
+//                for (const auto& field : node.pointerFields) {
+//                    auto preOut = encoding.encoder(*field.preAllOutflow);
+//                    auto postOut = encoding.encoder(*field.postAllOutflow);
+//                    checks.Add(preOut(key), [&node,&field](bool holds) {
+//                        std::cout << " ** " << node.address << "::" << field.name << " preOut(key)=" << holds << std::endl;
+//                    });
+//                    checks.Add(postOut(key), [&node,&field](bool holds) {
+//                        std::cout << " ** " << node.address << "::" << field.name << " postOut(key)=" << holds << std::endl;
+//                    });
+//                }
+//            }
+//            checks.Add(isPreContained, [](bool holds) {
+//                std::cout << " ** isPreContained=" << holds << std::endl;
+//            });
+//            checks.Add(isPostContained, [](bool holds) {
+//                std::cout << " ** isPostContained=" << holds << std::endl;
+//            });
+//            checks.Add(isPreNotContained, [](bool holds) {
+//                std::cout << " ** isPreNotContained=" << holds << std::endl;
+//            });
+//            checks.Add(isPostNotContained, [](bool holds) {
+//                std::cout << " ** isPostNotContained=" << holds << std::endl;
+//            });
 
             // check impure
             if (checkPureOnly) continue;

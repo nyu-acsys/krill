@@ -368,9 +368,10 @@ std::unique_ptr<Annotation> AddSemanticHistoryInterpolation(std::unique_ptr<Anno
         }
     }
     std::cout << " ~> going to solve; #interpolation=" << interpolation.size() << " #checks=" << checks.expressions.size() << " #candidates=" << candidates.size() << std::endl;
-    bool isSolverUnsat;
-    solver::ComputeImpliedCallback(solver, checks, &isSolverUnsat);
-    if (isSolverUnsat) throw std::logic_error("Unexpected unsatisfiability during semantic interpolation."); // TODO: remove
+    solver::ComputeImpliedCallback(solver, checks);
+//    bool isSolverUnsat;
+//    solver::ComputeImpliedCallback(solver, checks, &isSolverUnsat);
+//    if (isSolverUnsat) throw std::logic_error("Unexpected unsatisfiability during semantic interpolation."); // TODO: remove
 
 //    // derive knowledge
 //    if (interpolation.empty()) return annotation;

@@ -52,42 +52,8 @@ void Verifier::visit(const Program&) {
     throw std::logic_error("not supported"); // TODO: better error handling
 }
 
-std::unique_ptr<HeapEffect> MakeDummyEffect(const Type& nodeType, SymbolicAxiom::Operator op) {
-//    ** effect: @a0 |-> G(@D8, next:@a24, val:@d22) ~~> @a0 |-> G(@D8, next:@a4, val:@d22) under @D8 != ∅   *   @a24 != NULL   *   @d22 == -∞   *   @d22 < ∞
-//    ** effect: @a1 |-> G(@D5, next:@a3, val:@d7) ~~> @a1 |-> G(@D32, next:@a3, val:@d7) under @D5 != ∅   *   @a3 != NULL   *   @d7 > -∞   *   @d7 < ∞
-
-    SymbolicFactory factory;
-    auto& address = factory.GetUnusedSymbolicVariable(nodeType);
-    auto& flow = factory.GetUnusedFlowVariable(Type::data_type());
-    std::map<std::string, std::unique_ptr<SymbolicVariable>> fieldToValue;
-    for (const auto& [field, type] : nodeType.fields) {
-        fieldToValue[field] = std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(type));
-    }
-    auto pre = std::make_unique<PointsToAxiom>(std::make_unique<SymbolicVariable>(address), false, flow, std::move(fieldToValue));
-
-    std::unique_ptr<PointsToAxiom> post(dynamic_cast<PointsToAxiom*>(heal::Copy(*pre).release()));
-    assert(post);
-    post->flow = factory.GetUnusedFlowVariable(Type::data_type());
-    post->fieldToValue.at("next") = std::make_unique<SymbolicVariable>(factory.GetUnusedSymbolicVariable(nodeType));
-
-    auto context = std::make_unique<SeparatingConjunction>();
-    context->conjuncts.push_back(std::make_unique<SymbolicAxiom>(heal::Copy(*pre->fieldToValue.at("next")), SymbolicAxiom::NEQ, std::make_unique<SymbolicNull>()));
-    context->conjuncts.push_back(std::make_unique<InflowEmptinessAxiom>(pre->flow, false));
-
-    return std::make_unique<HeapEffect>(std::move(pre), std::move(post), std::move(context));
-}
-
-std::deque<std::unique_ptr<HeapEffect>> MakeDummyInterference(const Type& nodeType) {
-    std::deque<std::unique_ptr<HeapEffect>> result;
-    result.push_back(MakeDummyEffect(nodeType, SymbolicAxiom::EQ));
-//    result.push_back(MakeDummyEffect(SymbolicAxiom::GT));
-    return result;
-}
-
 void Verifier::VerifyProgramOrFail() {
     // TODO: check initializer
-
-//    interference = MakeDummyInterference(*program.types.front()); // TODO: remove <<<<<<<<<<<<<<<<==========================================|||||||||||||
 
     // compute fixed point
     std::size_t counter = 0;
