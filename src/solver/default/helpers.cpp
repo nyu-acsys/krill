@@ -87,7 +87,15 @@ void AddEffectImplicationCheck(const HeapEffect& premise, const HeapEffect& conc
     if (heal::ContainsResources(*premise.context) || heal::ContainsResources(*conclusion.context)) return;
 
     // ensure that the premise updates at least the fields updated by the conclusion (points-to predicates are not encoded)
-    if (!UpdateSubset(premise, conclusion)) return;
+    if (!UpdateSubset(premise, conclusion)) {
+        std::cout << " % Effect implication (not checked):" << std::endl;
+        std::cout << " %    premise effect   : " << *premise.pre << " ~~> " << *premise.post << std::endl;
+        std::cout << " %                 under " << *premise.context << std::endl;
+        std::cout << " %    conclusion effect: " << *conclusion.pre << " ~~> " << *conclusion.post << std::endl;
+        std::cout << " %                 under " << *conclusion.context << std::endl;
+        std::cout << " %    => update subset=" << UpdateSubset(premise, conclusion) << std::endl;
+        return;
+    }
 
     // encode
     auto premisePre = encoder(*premise.pre) && encoder(*premise.context);
@@ -104,13 +112,13 @@ void AddEffectImplicationCheck(const HeapEffect& premise, const HeapEffect& conc
                      && z3::implies(samePre && samePost && conclusionPost, premisePost); // TODO: correct?
     checks.Add(isImplied, [call=std::move(eureka),&premise,&conclusion](bool holds){
 //        if (!holds) return;
-//        std::cout << " % Effect implication:" << std::endl;
-//        std::cout << " %    premise effect   : " << *premise.pre << " ~~> " << *premise.post << std::endl;
-//        std::cout << " %                 under " << *premise.context << std::endl;
-//        std::cout << " %    conclusion effect: " << *conclusion.pre << " ~~> " << *conclusion.post << std::endl;
-//        std::cout << " %                 under " << *conclusion.context << std::endl;
-//        std::cout << " %    => implied=" << holds << std::endl;
-//        std::cout << " %    => update subset=" << UpdateSubset(premise, conclusion) << std::endl;
+        std::cout << " % Effect implication (checked):" << std::endl;
+        std::cout << " %    premise effect   : " << *premise.pre << " ~~> " << *premise.post << std::endl;
+        std::cout << " %                 under " << *premise.context << std::endl;
+        std::cout << " %    conclusion effect: " << *conclusion.pre << " ~~> " << *conclusion.post << std::endl;
+        std::cout << " %                 under " << *conclusion.context << std::endl;
+        std::cout << " %    => implied=" << holds << std::endl;
+        std::cout << " %    => update subset=" << UpdateSubset(premise, conclusion) << std::endl;
         if (holds) call();
     });
 }

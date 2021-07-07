@@ -91,6 +91,12 @@ void heal::RenameSymbolicSymbols(LogicObject& object, SymbolicFactory& factory) 
     object.accept(rename);
 }
 
+void heal::RenameSymbolicSymbols(const std::vector<LogicObject*>& objects, SymbolicFactory& factory) {
+    RenameListener rename(factory);
+    for (auto* obj : objects)
+        if (obj) obj->accept(rename);
+}
+
 void heal::RenameSymbolicSymbols(LogicObject& object, const LogicObject& avoidSymbolsFrom) {
     SymbolicFactory factory(avoidSymbolsFrom);
     heal::RenameSymbolicSymbols(object, factory);

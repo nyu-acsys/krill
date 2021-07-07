@@ -109,10 +109,25 @@ bool Verifier::ConsolidateNewInterference() {
     newInterference.erase(std::remove_if(newInterference.begin(), newInterference.end(), IsEffectEmpty), newInterference.end());
     if (newInterference.empty()) return false;
 
-//    std::cout << std::endl << "Consolidating found effects: " << std::endl;
-//    for (const auto& effect : newInterference) {
-//        std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
-//    }
+    // rename to avoid name clashes
+    SymbolicFactory factory;
+    for (const auto& effect : interference) {
+        factory.Avoid(*effect->pre);
+        factory.Avoid(*effect->post);
+        factory.Avoid(*effect->context);
+    }
+    for (auto& effect : newInterference) {
+        heal::RenameSymbolicSymbols({ effect->pre.get(), effect->post.get(), effect->context.get() }, factory);
+    }
+
+    std::cout << std::endl << "Consolidating found effects: " << std::endl;
+    for (const auto& effect : newInterference) {
+        std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
+    }
+    std::cout << std::endl << "Existing effects: " << std::endl;
+    for (const auto& effect : interference) {
+        std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
+    }
 
     // TODO: which pairs should be generated?
     auto Iterate = [this](std::function<void(std::unique_ptr<HeapEffect>&, std::unique_ptr<HeapEffect>&, std::size_t)>&& callback){
@@ -138,9 +153,10 @@ bool Verifier::ConsolidateNewInterference() {
     auto implied = solver->ComputeEffectImplications(implications);
 
     // prune effects that are covered by other effects
-    Iterate([&](auto& premise, auto& conclusion, auto index){
+    Iterate([&implied](auto& premise, auto& conclusion, auto index){
         if (!implied[index]) return;
         if (!premise) return;
+        if (conclusion) std::cout << " rm: " << *conclusion->pre << " ~~> " << *conclusion->post << " under " << *conclusion->context << std::endl;
         conclusion.reset(nullptr);
     });
     // TODO: prune effects e which satisfy: e.post*e.context => e.pre*e.context ? They should not do anything
@@ -153,10 +169,6 @@ bool Verifier::ConsolidateNewInterference() {
     // check if new effects exist
     if (newInterference.empty()) return false;
 
-    std::cout << std::endl << "Existing effects: " << std::endl;
-    for (const auto& effect : interference) {
-        std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
-    }
     std::cout << std::endl << "New effects: " << std::endl;
     for (const auto& effect : newInterference) {
         std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
@@ -166,5 +178,11 @@ bool Verifier::ConsolidateNewInterference() {
     // TODO: rename to avoid name clashes? but how?
     std::move(newInterference.begin(), newInterference.end(), std::back_inserter(interference));
     newInterference.clear();
+
+    std::cout << std::endl << "Resulting overall effects: " << std::endl;
+    for (const auto& effect : interference) {
+        std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
+    }
+
     return true;
 }

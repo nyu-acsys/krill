@@ -82,6 +82,7 @@ namespace heal {
     void InlineAndSimplify(LogicObject& object);
 
     void RenameSymbolicSymbols(LogicObject& object, SymbolicFactory& factory);
+    void RenameSymbolicSymbols(const std::vector<LogicObject*>& objects, SymbolicFactory& factory);
     void RenameSymbolicSymbols(LogicObject& object, const LogicObject& avoidSymbolsFrom);
 
     //

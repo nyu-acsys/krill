@@ -193,6 +193,7 @@ void Verifier::HandleInterfaceFunction(const Function& function) {
     returning.clear();
 
     static std::size_t counter = 0;
+    if (counter >= 6) throw std::logic_error("point du break");
 	std::cout << std::endl << std::endl << std::endl << std::endl << std::endl;
 	std::cout << "############################################################" << std::endl;
 	std::cout << "############################################################" << std::endl;
