@@ -48,16 +48,6 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 			    curr = Head;
 			    k = MIN_VAL;
 			}
-//            choose {
-//                k = curr->val;
-//                assume(curr->marked == false);
-//            }{
-//                assume(curr->marked == true);
-//                next = curr->next;
-//			    CAS((pred->marked, pred->next), (false, curr), (false, next));
-//			    curr = Head;
-//			    k = MIN_VAL;
-//            }
 		} else {
             // retry
 			curr = Head;

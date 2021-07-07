@@ -16,7 +16,7 @@ bool prover::CheckLinearizability(const Program& program, std::unique_ptr<Solver
 }
 
 bool prover::CheckLinearizability(const Program& program, std::shared_ptr<SolverConfig> config) {
-    return CheckLinearizability(program, MakeDefaultSolver(std::move(config)));
+    return CheckLinearizability(program, solver::MakeDefaultSolver(std::move(config)));
 }
 
 Verifier::Verifier(const Program& program, std::unique_ptr<solver::Solver> solver_) : program(program), solver(std::move(solver_)), insideAtomic(false) {}

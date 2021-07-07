@@ -19,5 +19,5 @@ set(SOURCES
 )
 
 add_library(Prover ${SOURCES})
-target_link_libraries(Prover CoLa HeaL)
+target_link_libraries(Prover Solver CoLa HeaL)
 #target_link_libraries(Prover CoLa HeaL ${Z3_LIBRARY})
