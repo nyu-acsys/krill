@@ -82,18 +82,18 @@ inline bool UpdateSubset(const HeapEffect& premise, const HeapEffect& conclusion
     return true;
 }
 
-void AddEffectImplicationCheck(const HeapEffect& premise, const HeapEffect& conclusion, ImplicationCheckSet& checks, Z3EncoderWithRenaming& encoder, std::function<void()>&& eureka) {
+void AddEffectImplicationCheck(const HeapEffect& premise, const HeapEffect& conclusion, ImplicationCheckSet& checks, Z3Encoder<>& encoder, std::function<void()>&& eureka) {
     // give up for effects that contain resources in the context
     if (heal::ContainsResources(*premise.context) || heal::ContainsResources(*conclusion.context)) return;
 
     // ensure that the premise updates at least the fields updated by the conclusion (points-to predicates are not encoded)
     if (!UpdateSubset(premise, conclusion)) {
-        std::cout << " % Effect implication (not checked):" << std::endl;
-        std::cout << " %    premise effect   : " << *premise.pre << " ~~> " << *premise.post << std::endl;
-        std::cout << " %                 under " << *premise.context << std::endl;
-        std::cout << " %    conclusion effect: " << *conclusion.pre << " ~~> " << *conclusion.post << std::endl;
-        std::cout << " %                 under " << *conclusion.context << std::endl;
-        std::cout << " %    => update subset=" << UpdateSubset(premise, conclusion) << std::endl;
+//        std::cout << " % Effect implication (not checked):" << std::endl;
+//        std::cout << " %    premise effect   : " << *premise.pre << " ~~> " << *premise.post << std::endl;
+//        std::cout << " %                 under " << *premise.context << std::endl;
+//        std::cout << " %    conclusion effect: " << *conclusion.pre << " ~~> " << *conclusion.post << std::endl;
+//        std::cout << " %                 under " << *conclusion.context << std::endl;
+//        std::cout << " %    => update subset=" << UpdateSubset(premise, conclusion) << std::endl;
         return;
     }
 
@@ -112,19 +112,20 @@ void AddEffectImplicationCheck(const HeapEffect& premise, const HeapEffect& conc
                      && z3::implies(samePre && samePost && conclusionPost, premisePost); // TODO: correct?
     checks.Add(isImplied, [call=std::move(eureka),&premise,&conclusion](bool holds){
 //        if (!holds) return;
-        std::cout << " % Effect implication (checked):" << std::endl;
-        std::cout << " %    premise effect   : " << *premise.pre << " ~~> " << *premise.post << std::endl;
-        std::cout << " %                 under " << *premise.context << std::endl;
-        std::cout << " %    conclusion effect: " << *conclusion.pre << " ~~> " << *conclusion.post << std::endl;
-        std::cout << " %                 under " << *conclusion.context << std::endl;
-        std::cout << " %    => implied=" << holds << std::endl;
-        std::cout << " %    => update subset=" << UpdateSubset(premise, conclusion) << std::endl;
+//        std::cout << " % Effect implication (checked):" << std::endl;
+//        std::cout << " %    premise effect   : " << *premise.pre << " ~~> " << *premise.post << std::endl;
+//        std::cout << " %                 under " << *premise.context << std::endl;
+//        std::cout << " %    conclusion effect: " << *conclusion.pre << " ~~> " << *conclusion.post << std::endl;
+//        std::cout << " %                 under " << *conclusion.context << std::endl;
+//        std::cout << " %    => implied=" << holds << std::endl;
+//        std::cout << " %    => update subset=" << UpdateSubset(premise, conclusion) << std::endl;
         if (holds) call();
     });
 }
 
 
 std::vector<bool> DefaultSolver::ComputeEffectImplications(const std::deque<std::pair<const HeapEffect*, const HeapEffect*>>& implications) const {
+    // TODO: this implicitly assumes that effects have disjoint symbolic variables?
     static Timer timer("DefaultSolver::ComputeEffectImplications");
     auto measurement = timer.Measure();
 
@@ -132,7 +133,7 @@ std::vector<bool> DefaultSolver::ComputeEffectImplications(const std::deque<std:
     z3::context context;
     z3::solver solver(context);
     ImplicationCheckSet checks(context);
-    Z3EncoderWithRenaming encoder(context, solver);
+    Z3Encoder encoder(context, solver);
     for (std::size_t index = 0; index != implications.size(); ++index) {
         auto& [premise, conclusion] = implications[index];
         AddEffectImplicationCheck(*premise, *conclusion, checks, encoder, [&result,index](){ result[index] = true; });

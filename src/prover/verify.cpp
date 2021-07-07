@@ -106,6 +106,7 @@ bool Verifier::ConsolidateNewInterference() {
     auto measurement = timer.Measure();
 
     // prune trivial noop interference
+    // TODO: prune effects e which satisfy: e.post*e.context => e.pre*e.context ? They should not do anything
     newInterference.erase(std::remove_if(newInterference.begin(), newInterference.end(), IsEffectEmpty), newInterference.end());
     if (newInterference.empty()) return false;
 
@@ -120,69 +121,62 @@ bool Verifier::ConsolidateNewInterference() {
         heal::RenameSymbolicSymbols({ effect->pre.get(), effect->post.get(), effect->context.get() }, factory);
     }
 
-    std::cout << std::endl << "Consolidating found effects: " << std::endl;
-    for (const auto& effect : newInterference) {
-        std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
+    // debug
+//    std::cout << std::endl << "Consolidating found effects: " << std::endl;
+//    for (const auto& effect : newInterference) {
+//        std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
+//    }
+//    std::cout << std::endl << "Existing effects: " << std::endl;
+//    for (const auto& effect : interference) {
+//        std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
+//    }
+
+    // generate all pairs of effects and check implication, order matters
+    std::deque<std::pair<const HeapEffect*, const HeapEffect*>> pairs;
+    for (auto& e : interference) for (auto& o : newInterference) pairs.emplace_back(e.get(), o.get());
+    for (auto& e : newInterference) for (auto& o : interference) pairs.emplace_back(e.get(), o.get());
+    for (auto& e : newInterference) for (auto& o : newInterference) if (e != o) pairs.emplace_back(e.get(), o.get());
+    auto implications = solver->ComputeEffectImplications(pairs);
+
+    // find unnecessary effects
+    std::set<const HeapEffect*> prune;
+    for (std::size_t index = 0; index < implications.size(); ++index) {
+        auto [premise, conclusion] = pairs[index];
+//        std::cout << " ++ implied=" << implications[index] << " contained=" << prune.count(premise) << " for: " << *premise->pre->node << " vs " << *conclusion->pre->node << std::endl;
+        if (!implications[index]) continue;
+        if (prune.count(premise) != 0) continue;
+        prune.insert(conclusion);
     }
-    std::cout << std::endl << "Existing effects: " << std::endl;
-    for (const auto& effect : interference) {
-        std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
-    }
 
-    // TODO: which pairs should be generated?
-    auto Iterate = [this](std::function<void(std::unique_ptr<HeapEffect>&, std::unique_ptr<HeapEffect>&, std::size_t)>&& callback){
-        std::size_t index = 0;
-        // new vs old interference
-        for (auto& it : interference)
-            for (auto& other : newInterference)
-                callback(it, other, index++);
-        // old vs new interference
-        for (auto& it : newInterference)
-            for (auto& other : interference)
-                callback(it, other, index++);
-        // new vs new interference
-        for (auto& it : newInterference)
-            for (auto& other : newInterference)
-                if (it.get() != other.get())
-                    callback(it, other, index++);
-    };
+    // debug
+//    std::cout << std::endl << "Pruning effects: " << std::endl;
+//    for (const auto& effect : prune) {
+//        std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
+//    }
 
-    // create implications and check
-    std::deque<std::pair<const HeapEffect*, const HeapEffect*>> implications;
-    Iterate([&implications](auto& effect, auto& other, auto){ implications.emplace_back(effect.get(), other.get()); });
-    auto implied = solver->ComputeEffectImplications(implications);
-
-    // prune effects that are covered by other effects
-    Iterate([&implied](auto& premise, auto& conclusion, auto index){
-        if (!implied[index]) return;
-        if (!premise) return;
-        if (conclusion) std::cout << " rm: " << *conclusion->pre << " ~~> " << *conclusion->post << " under " << *conclusion->context << std::endl;
-        conclusion.reset(nullptr);
-    });
-    // TODO: prune effects e which satisfy: e.post*e.context => e.pre*e.context ? They should not do anything
-
-    // remove pruned effects
-    auto isNull = [](auto& elem){ return !elem; };
-    interference.erase(std::remove_if(interference.begin(), interference.end(), isNull), interference.end());
-    newInterference.erase(std::remove_if(newInterference.begin(), newInterference.end(), isNull), newInterference.end());
+    // remove unnecessary effects
+    auto rm = [&prune](const auto& elem){ return prune.count(elem.get()) != 0; };
+    interference.erase(std::remove_if(interference.begin(), interference.end(), rm), interference.end());
+    newInterference.erase(std::remove_if(newInterference.begin(), newInterference.end(), rm), newInterference.end());
 
     // check if new effects exist
     if (newInterference.empty()) return false;
 
+    // debug
     std::cout << std::endl << "New effects: " << std::endl;
     for (const auto& effect : newInterference) {
         std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
     }
 
     // add new effects
-    // TODO: rename to avoid name clashes? but how?
     std::move(newInterference.begin(), newInterference.end(), std::back_inserter(interference));
     newInterference.clear();
 
-    std::cout << std::endl << "Resulting overall effects: " << std::endl;
-    for (const auto& effect : interference) {
-        std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
-    }
+    // debug
+//    std::cout << std::endl << "Resulting overall effects: " << std::endl;
+//    for (const auto& effect : interference) {
+//        std::cout << "** effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
+//    }
 
     return true;
 }

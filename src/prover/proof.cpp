@@ -193,7 +193,6 @@ void Verifier::HandleInterfaceFunction(const Function& function) {
     returning.clear();
 
     static std::size_t counter = 0;
-    if (counter >= 6) throw std::logic_error("point du break");
 	std::cout << std::endl << std::endl << std::endl << std::endl << std::endl;
 	std::cout << "############################################################" << std::endl;
 	std::cout << "############################################################" << std::endl;
@@ -337,7 +336,7 @@ void Verifier::HandleLoop(const ConditionalLoop& stmt) {
 
             stmt.body->accept(*this);
             current.push_back(heal::Copy(*join));
-            PrepareJoin(); // TODO: before adding previous join?
+            PrepareJoin();
             auto newJoin = solver->Join(std::move(current));
             if (solver->Implies(*newJoin, *join) == Solver::YES) break;
             join = std::move(newJoin);
