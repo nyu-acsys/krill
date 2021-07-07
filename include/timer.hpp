@@ -6,10 +6,11 @@
 class Timer {
     private:
         std::string info;
+        std::size_t counter;
         std::chrono::milliseconds elapsed;
 
         inline void Print(const std::string& note) const {
-            std::cout << note << " '" << info << "': ";
+            std::cout << note << " '" << info << "' (" << counter << "): ";
             auto milli = elapsed.count();
             // if (milli < 1000) std::cout << milli << "ms";
             // else std::cout << ((milli/100)/10.0) << "s";
@@ -31,11 +32,12 @@ class Timer {
                     auto end = std::chrono::steady_clock::now();
                     auto myElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
                     parent.elapsed += myElapsed;
+                    parent.counter++;
 //                    std::cout << "$MEASUREMENT for " << parent.info << ": " << myElapsed.count() << "ms" << std::endl;
                 }
         };
 
-        explicit Timer(std::string info) : info(std::move(info)), elapsed(0) {}
+        explicit Timer(std::string info) : info(std::move(info)), counter(0), elapsed(0) {}
         ~Timer() { Print("Total time measured for"); }
         void Print() const { Print("Time measured for"); }
         Measurement Measure() { return Measurement(*this); }

@@ -4,6 +4,7 @@
 #include "cola/ast.hpp"
 #include "heal/logic.hpp"
 #include "flowgraph.hpp"
+#include "timer.hpp"
 
 namespace solver {
 
@@ -12,11 +13,15 @@ class CandidateGenerator : public heal::DefaultLogicListener {
         enum FlowLevel { NONE=0, ONLY=1, FAST=2, FULL=3 };
 
         static std::deque<std::unique_ptr<heal::Axiom>> Generate(const heal::LogicObject& base, FlowLevel level=FULL) {
+            static Timer timer("CandidateGenerator::Generate");
+            auto measurement = timer.Measure();
             CandidateGenerator generator(base, level);
             return std::move(generator.result);
         }
 
         static std::deque<std::unique_ptr<heal::Axiom>> Generate(const FlowGraph& graph, EMode mode, FlowLevel level=FULL) {
+            static Timer timer("CandidateGenerator::Generate");
+            auto measurement = timer.Measure();
             CandidateGenerator generator(graph, mode, level);
             return std::move(generator.result);
         }

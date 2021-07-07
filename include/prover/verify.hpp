@@ -49,6 +49,7 @@ namespace prover {
         std::deque<std::unique_ptr<heal::Annotation>> breaking;
         std::deque<std::pair<std::unique_ptr<heal::Annotation>, const cola::Return*>> returning;
         bool insideAtomic;
+        const cola::Function* currentFunction;
 
         void HandleInterfaceFunction(const cola::Function& function);
         void HandleLoop(const cola::ConditionalLoop& loop);

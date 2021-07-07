@@ -361,7 +361,6 @@ std::unique_ptr<Annotation> AddSemanticHistoryInterpolation(std::unique_ptr<Anno
         auto encoded = encoder(*candidate);
         auto candidateSymbols = heal::CollectSymbolicSymbols(*candidate);
         for (const auto& [past, premise] : interpolation) {
-            auto pastSymbols = heal::CollectSymbolicSymbols((past)); // TODO: avoid repeated collection
             if (EmptyIntersection(past, candidateSymbols)) continue;
             checks.Add(z3::implies(premise, encoded), [&implied,index](bool holds){
                 if (holds) implied.insert(index);
@@ -372,6 +371,27 @@ std::unique_ptr<Annotation> AddSemanticHistoryInterpolation(std::unique_ptr<Anno
     bool isSolverUnsat;
     solver::ComputeImpliedCallback(solver, checks, &isSolverUnsat);
     if (isSolverUnsat) throw std::logic_error("Unexpected unsatisfiability during semantic interpolation."); // TODO: remove
+
+//    // derive knowledge
+//    if (interpolation.empty()) return annotation;
+//    for (const auto& [past, expr] : interpolation) annotation->time.push_back(heal::Copy(past));
+//    auto candidates = CandidateGenerator::Generate(*annotation, CandidateGenerator::FAST);
+//    std::set<std::size_t> implied;
+//    for (const auto& [past, premise] : interpolation) {
+//        solver.push();
+//        solver.add(premise);
+//        ImplicationCheckSet checks(context);
+//        for (std::size_t index = 0; index < candidates.size(); ++index) {
+//            auto& candidate = candidates[index];
+//            auto candidateSymbols = heal::CollectSymbolicSymbols(*candidate);
+//            if (EmptyIntersection(past, candidateSymbols)) continue;
+//            checks.Add(encoder(*candidate), [&implied,index](bool holds){
+//                if (holds) implied.insert(index);
+//            });
+//        }
+//        solver::ComputeImpliedCallback(solver, checks);
+//        solver.pop();
+//    }
 
     for (auto index : implied) {
         assert(candidates[index]);

@@ -187,6 +187,7 @@ public:
 
 void Verifier::HandleInterfaceFunction(const Function& function) {
     assert(function.kind == Function::Kind::INTERFACE);
+    currentFunction = &function;
     insideAtomic = false;
     current.clear();
     breaking.clear();
@@ -296,6 +297,7 @@ void Verifier::visit(const DoWhile& stmt) {
 }
 
 void Verifier::HandleLoop(const ConditionalLoop& stmt) {
+    assert(currentFunction);
     if (current.empty()) return;
     if (dynamic_cast<const BooleanValue*>(stmt.expr.get()) == nullptr || !dynamic_cast<const BooleanValue*>(stmt.expr.get())->value) {
         throw UnsupportedConstructError("while/do-while loop with condition other than 'true'");
