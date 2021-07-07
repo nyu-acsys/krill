@@ -6,7 +6,7 @@ using namespace solver;
 
 
 const std::string CODE = R"(
-#name "Vechev&Yahav CAS Set"
+#name "Michael Set"
 
 
 struct Node {
@@ -32,14 +32,37 @@ void __init__() {
 
 
 inline <Node*, Node*, data_t> locate(data_t key) {
-	Node* pred, curr;
+	Node* pred, curr, next;
 	data_t k;
 
 	curr = Head;
 	do {
 		pred = curr;
 		curr = pred->next;
-        k = curr->val;
+        if (pred->marked == false && pred->next == curr) {
+			k = curr->val;
+			if (curr->marked == true) {
+			    next = curr->next;
+			    CAS((pred->marked, pred->next), (false, curr), (false, next));
+			    // retry // TODO: only retry if CAS successful?
+			    curr = Head;
+			    k = MIN_VAL;
+			}
+//            choose {
+//                k = curr->val;
+//                assume(curr->marked == false);
+//            }{
+//                assume(curr->marked == true);
+//                next = curr->next;
+//			    CAS((pred->marked, pred->next), (false, curr), (false, next));
+//			    curr = Head;
+//			    k = MIN_VAL;
+//            }
+		} else {
+            // retry
+			curr = Head;
+			k = MIN_VAL;
+		}
 	} while (k < key);
     return <pred, curr, k>;
 }
@@ -88,12 +111,11 @@ bool remove(data_t key) {
 			return false;
 
 		} else {
-            // TODO: support any curr->marked, not just unmarked
             next = curr->next;
 			if (CAS((curr->marked, curr->next), (false, next), (true, next))) {
-                if (CAS((pred->marked, pred->next), (false, curr), (false, next))) {
-                    return true;
-                }
+                CAS((pred->marked, pred->next), (false, curr), (false, next));
+                // TODO: (pred, curr, k) = locate(key); if CAS unsuccessful
+                return true;
 			}
 		}
 	}
@@ -183,23 +205,23 @@ struct MyBenchmark : public Benchmark {
 
     [[nodiscard]] std::unique_ptr<heal::Formula> MakeOutflow(const heal::PointsToAxiom& memory, const std::string& fieldName, const heal::SymbolicVariableDeclaration& value) const override {
         assert(fieldName == NEXT);
-//        auto isMarked = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicBool>(memory.fieldToValue.at(MARK)->Decl(), true);
-//        auto goesOut = MakeImmediateAxiom<SymbolicAxiom::LT, SymbolicVariable>(memory.fieldToValue.at(DATA)->Decl(), value);
-//        auto result = std::make_unique<StackDisjunction>();
-//        result->axioms.push_back(std::move(isMarked));
-//        result->axioms.push_back(std::move(goesOut));
-//        return result;
-        return MakeImmediateAxiom<SymbolicAxiom::LT, SymbolicVariable>(memory.fieldToValue.at(DATA)->Decl(), value);
+        auto isMarked = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicBool>(memory.fieldToValue.at(MARK)->Decl(), true);
+        auto goesOut = MakeImmediateAxiom<SymbolicAxiom::LT, SymbolicVariable>(memory.fieldToValue.at(DATA)->Decl(), value);
+        auto result = std::make_unique<StackDisjunction>();
+        result->axioms.push_back(std::move(isMarked));
+        result->axioms.push_back(std::move(goesOut));
+        return result;
+//        return MakeImmediateAxiom<SymbolicAxiom::LT, SymbolicVariable>(memory.fieldToValue.at(DATA)->Decl(), value);
     }
 
     [[nodiscard]] std::unique_ptr<heal::Formula> MakeContains(const heal::PointsToAxiom& memory, const heal::SymbolicVariableDeclaration& value) const override {
-//        auto isUnmarked = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicBool>(memory.fieldToValue.at(MARK)->Decl(), false);
-//        auto isData = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicVariable>(memory.fieldToValue.at(DATA)->Decl(), value);
-//        auto result = std::make_unique<SeparatingConjunction>();
-//        result->conjuncts.push_back(std::move(isUnmarked));
-//        result->conjuncts.push_back(std::move(isData));
-//        return result;
-        return MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicVariable>(memory.fieldToValue.at(DATA)->Decl(), value);
+        auto isUnmarked = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicBool>(memory.fieldToValue.at(MARK)->Decl(), false);
+        auto isData = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicVariable>(memory.fieldToValue.at(DATA)->Decl(), value);
+        auto result = std::make_unique<SeparatingConjunction>();
+        result->conjuncts.push_back(std::move(isUnmarked));
+        result->conjuncts.push_back(std::move(isData));
+        return result;
+//        return MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicVariable>(memory.fieldToValue.at(DATA)->Decl(), value);
     }
 
 };

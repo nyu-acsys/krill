@@ -23,6 +23,7 @@ set(BENCHMARKS
         VechevYahavDCAS
         ORVYY
         VechevYahavCAS
+        Michael
 )
 
 foreach (ENTRY IN LISTS BENCHMARKS)

@@ -4,6 +4,7 @@
 
 
 #include <memory>
+#include <optional>
 #include "cola/ast.hpp"
 #include "heal/logic.hpp"
 #include "config.hpp"
