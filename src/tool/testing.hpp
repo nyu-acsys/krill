@@ -62,23 +62,31 @@ struct Benchmark {
     }
 
     inline void operator()(std::size_t repetitions) const {
-        std::deque<std::string> reports;
-        auto start = std::chrono::steady_clock::now();
+        std::deque<std::pair<std::string, std::size_t>> reports;
+        std::size_t successes = 0;
+        std::size_t successesTime = 0;
         for (std::size_t count = 0; count < repetitions; ++count) {
+            auto start = std::chrono::steady_clock::now();
+            std::string newReport;
+            bool success = false;
             try {
                 prover::CheckLinearizability(*program, config);
-                reports.emplace_back("SUCCESS");
+                newReport = "SUCCESS";
+                success = true;
+                ++successes;
             } catch (std::logic_error& err) {
-                reports.emplace_back(err.what());
+                newReport = err.what();
             }
+            auto end = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count();
+            successesTime += elapsed;
+            reports.emplace_back(std::move(newReport), elapsed);
         }
-        auto end = std::chrono::steady_clock::now();
         std::cout << std::endl << std::endl;
         std::cout << "##########" << std::endl;
-        std::cout << std::endl << std::endl << "## Reports:" << std::endl;
-        for (const auto& elem : reports) std::cout << "##   -> " << elem << std::endl;
-        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(end-start).count();
-        std::cout << "## Time taken: " << elapsed << "s  (avg " << elapsed/repetitions << "s)" << std::endl;
+        std::cout << "## Reports for " << program->name << ":" << std::endl;
+        for (const auto& [msg, time] : reports) std::cout << "##   -> [" << time << "ms] " << msg << std::endl;
+        std::cout << "## Avg. time taken for " << successes << "/" << repetitions << " successes: " << successesTime/successes << "ms" << std::endl;
         std::cout << "##########" << std::endl << std::endl;
     }
 

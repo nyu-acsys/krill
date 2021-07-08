@@ -37,19 +37,19 @@ def run_with_timeout(name):
             output = "to"
     return output
 
-def run_test(name):
-    for i in range(REPETITIONS):
-        output = run_with_timeout(name)
-        time = extract_time(output)
-        if time != -1 and time != -2: time + "ms"
-        print("[{:>1}/{:>1}] {:<15}: {:>15}".format(i, REPETITIONS, name, time), flush=True)
+def run_test(name, i):
+    output = "to" #run_with_timeout(name)
+    time = extract_time(output)
+    if time != -1 and time != -2: time + "ms"
+    print("[{:0>2}/{:0>2}] {:>15}  for  {:<20}".format(i, REPETITIONS, time, name), flush=True)
 
 def main():
-    run_test("VechevYahavDCAS")
-    run_test("ORVYY")
-    run_test("ORVYYmod")
-    run_test("VechevYahavCAS")
-    run_test("Michael")
+    for i in range(REPETITIONS):
+        run_test("VechevYahavDCAS", i)
+        run_test("ORVYY", i)
+        run_test("ORVYYmod", i)
+        run_test("VechevYahavCAS", i)
+        run_test("Michael", i)
 
 
 if __name__ == '__main__':
