@@ -87,6 +87,7 @@ void AddFlowCoverageChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) 
     for (const auto& node : encoding.graph.nodes) {
         for (const auto& field : node.pointerFields) {
             auto sameFlowInner = encoding.encoder(field.preAllOutflow.value())(qv) == encoding.encoder(field.postAllOutflow.value())(qv); // TODO: all or graph flow?
+//            auto sameFlowInner = encoding.encoder(field.preGraphOutflow.value())(qv) == encoding.encoder(field.postGraphOutflow.value())(qv);
             auto sameFlow = z3::forall(qv, sameFlowInner);
             auto isPreNull = encoding.encoder.MakeNullCheck(field.preValue);
             auto isPostNull = encoding.encoder.MakeNullCheck(field.postValue);
@@ -318,6 +319,44 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
     EncodedFlowGraph encoding(std::move(footprint));
     FootprintChecks checks(encoding.context);
     checks.preSpec = heal::CollectObligations(*encoding.graph.pre->now);
+
+//    // debug
+//    for (const auto& node : encoding.graph.nodes) {
+//        auto inf = encoding.encoder(*std::make_unique<SymbolicMax>());
+//        auto qv = encoding.encoder.QuantifiedVariable(Config().GetFlowValueType().sort);
+//        checks.Add(encoding.encoder(node.preAllInflow)(inf), [&node](bool holds) {
+//            std::cout << " ** " << node.address << " preInflow(inf)=" << holds << std::endl;
+//        });
+//        checks.Add(z3::forall(qv, !encoding.encoder(node.frameInflow)(inf)), [&node](bool holds) {
+//            std::cout << " ** " << node.address << " frameInflow notexists=" << holds << std::endl;
+//        });
+//        checks.Add(z3::exists(qv, encoding.encoder(node.frameInflow)(inf)), [&node](bool holds) {
+//            std::cout << " ** " << node.address << " frameInflow exists=" << holds << std::endl;
+//        });
+//        checks.Add(z3::exists(qv, encoding.encoder(node.preGraphInflow)(inf)), [&node](bool holds) {
+//            std::cout << " ** " << node.address << " preGraphInflow exists=" << holds << std::endl;
+//        });
+//        checks.Add(z3::exists(qv, encoding.encoder(node.postGraphInflow)(inf)), [&node](bool holds) {
+//            std::cout << " ** " << node.address << " postGraphInflow exists=" << holds << std::endl;
+//        });
+//        for (const auto& field : node.pointerFields) {
+//            auto key = encoding.encoder.QuantifiedVariable(field.type.sort);
+//            auto preOut = encoding.encoder(*field.preAllOutflow);
+//            auto postOut = encoding.encoder(*field.postAllOutflow);
+//            checks.Add(preOut(inf), [&node,&field](bool holds) {
+//                std::cout << " ** " << node.address << "::" << field.name << " preOut(inf)=" << holds << std::endl;
+//            });
+//            checks.Add(postOut(inf), [&node,&field](bool holds) {
+//                std::cout << " ** " << node.address << "::" << field.name << " postOut(inf)=" << holds << std::endl;
+//            });
+//            checks.Add(z3::exists(key, preOut(key)), [&node,&field](bool holds) {
+//                std::cout << " ** " << node.address << "::" << field.name << " preOut(key)=" << holds << std::endl;
+//            });
+//            checks.Add(z3::exists(key, postOut(key)), [&node,&field](bool holds) {
+//                std::cout << " ** " << node.address << "::" << field.name << " postOut(key)=" << holds << std::endl;
+//            });
+//        }
+//    }
 
     CheckPublishing(encoding.graph);
     CheckReachability(encoding, checks);

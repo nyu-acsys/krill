@@ -6,7 +6,7 @@ using namespace solver;
 
 
 const std::string CODE = R"(
-#name "Michael Set"
+#name "ORVYY Set"
 
 
 struct Node {
@@ -32,34 +32,21 @@ void __init__() {
 
 
 inline <Node*, Node*, data_t> locate(data_t key) {
-	Node* curr, pred, next;
+	Node* pred, curr;
 	data_t k;
 
 	curr = Head;
 	do {
 		pred = curr;
 		curr = pred->next;
-        if (pred->marked == false && pred->next == curr) {
-			k = curr->val;
-			if (curr->marked == true) {
-			    next = curr->next;
-			    CAS((pred->marked, pred->next), (false, curr), (false, next));
-			    // retry // TODO: only retry if CAS successful?
-			    curr = Head;
-			    k = MIN_VAL;
-			}
-		} else {
-            // retry
-			curr = Head;
-			k = MIN_VAL;
-		}
+        k = curr->val;
 	} while (k < key);
     return <pred, curr, k>;
 }
 
 
 bool contains(data_t key) {
-	Node* curr, pred;
+	Node* pred, curr;
 	data_t k;
 
 	(pred, curr, k) = locate(key);
@@ -67,7 +54,7 @@ bool contains(data_t key) {
 }
 
 bool add(data_t key) {
-	Node* curr, pred, entry;
+	Node* entry, pred, curr;
 	data_t k;
 
 	entry = malloc;
@@ -82,8 +69,16 @@ bool add(data_t key) {
 
 		} else {
 			entry->next = curr;
-            if (CAS((pred->marked, pred->next), (false, curr), (false, entry))) {
-				return true;
+			atomic {
+				choose {
+					assume(pred->marked == false);
+					assume(curr == pred->next);
+
+					pred->next = entry;
+					return true;
+				}{
+					skip; // retry
+				}
 			}
 		}
 	}
@@ -91,7 +86,7 @@ bool add(data_t key) {
 
 
 bool remove(data_t key) {
-	Node* curr, pred, next;
+	Node* pred, curr, next;
 	data_t k;
 
 	while (true) {
@@ -102,10 +97,8 @@ bool remove(data_t key) {
 
 		} else {
             next = curr->next;
-			if (CAS((curr->marked, curr->next), (false, next), (true, next))) {
-                CAS((pred->marked, pred->next), (false, curr), (false, next));
-                // TODO: (pred, curr, k) = locate(key); if CAS unsuccessful
-                return true;
+			if (CAS((pred->marked, pred->next, curr->marked, curr->next), (false, curr, false, next), (false, next, true, next))) {
+				return true;
 			}
 		}
 	}
@@ -166,22 +159,13 @@ struct MyBenchmark : public Benchmark {
         result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*isUnmarked), heal::Copy(*flow)));
 
         // memory.flow != \empty ==> memory.marked == false
-//        result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*hasFlow), heal::Copy(*isUnmarked)));
-
-        // memory.flow == \empty ==> memory.marked == true
-        auto noFlow = std::make_unique<InflowEmptinessAxiom>(memory.flow, true);
-        auto isMarked = MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicBool>(memory.fieldToValue.at(MARK)->Decl(), true);
-        result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*noFlow), heal::Copy(*isMarked)));
+        result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*hasFlow), heal::Copy(*isUnmarked)));
 
         // memory.flow != \empty ==> [memory.data, MAX] \subset memory.flow
         result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*hasFlow), heal::Copy(*flow)));
 
         // memory.next == NULL ==> memory.node == tail
         result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*isNull), heal::Copy(*isTail)));
-
-        // memory.next != NULL ==> memory.data != MAX
-        auto notMaxData = MakeImmediateAxiom<SymbolicAxiom::NEQ, SymbolicMax>(memory.fieldToValue.at(DATA)->Decl());
-        result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*nonNull), heal::Copy(*notMaxData)));
 
         return result;
     }
@@ -215,7 +199,6 @@ struct MyBenchmark : public Benchmark {
         result->conjuncts.push_back(std::move(isUnmarked));
         result->conjuncts.push_back(std::move(isData));
         return result;
-//        return MakeImmediateAxiom<SymbolicAxiom::EQ, SymbolicVariable>(memory.fieldToValue.at(DATA)->Decl(), value);
     }
 
 };

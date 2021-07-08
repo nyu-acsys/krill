@@ -51,6 +51,8 @@ struct Benchmark {
 
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count();
         std::cout << std::endl << std::endl;
+        std::cout << "!@#$%^&*()" << std::endl;
+        std::cout << std::endl << std::endl;
         std::cout << "##########" << std::endl;
         std::cout << "## Test " << program->name << ": is " << (isLinearizable ? "" : "NOT") << " linearizable" << std::endl;
         std::cout << "## Time taken: " << elapsed << "ms" << std::endl;

@@ -22,6 +22,7 @@ include(ExternalTclap)
 set(BENCHMARKS
         VechevYahavDCAS
         ORVYY
+        ORVYYmod
         VechevYahavCAS
         Michael
 )

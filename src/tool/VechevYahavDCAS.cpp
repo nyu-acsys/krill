@@ -29,7 +29,7 @@ void __init__() {
 
 
 inline <Node*, Node*, data_t> locate(data_t key) {
-	Node* curr, pred;
+	Node* pred, curr;
 	data_t k;
 
 	curr = Head;
@@ -49,7 +49,7 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 
 
 bool contains(data_t key) {
-	Node* curr, pred;
+	Node* pred, curr;
 	data_t k;
 
 	(pred, curr, k) = locate(key);
@@ -64,7 +64,7 @@ bool add(data_t key) {
 	entry->val = key;
 
 	while (true) {
-		Node* curr, pred;
+		Node* pred, curr;
 		data_t k;
 
 		(pred, curr, k) = locate(key);
@@ -84,7 +84,7 @@ bool add(data_t key) {
 
 bool remove(data_t key) {
 	while (true) {
-		Node* curr, pred;
+		Node* pred, curr;
 		data_t k;
 
 		(pred, curr, k) = locate(key);
@@ -178,8 +178,8 @@ struct MyBenchmark : public Benchmark {
         // result->conjuncts.push_back(std::make_unique<SeparatingImplication>(std::move(hasFlow), std::move(conclusion)));
 
         // memory.next != NULL ==> memory.data != MAX
-        result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*nonNull), heal::Copy(*notMaxData)));
-
+//        result->conjuncts.push_back(std::make_unique<SeparatingImplication>(heal::Copy(*nonNull), heal::Copy(*notMaxData)));
+//
         return result;
     }
 
