@@ -81,6 +81,18 @@ struct AnnotationInfo {
             }
         }
     }
+
+    void UpdateMemory(const Annotation& annotation) { // TODO: copied from above
+        varToMem.clear();
+        for (const auto* variable : VariableCollector::Collect(annotation)) {
+            auto resource = FindResource(*variable, annotation);
+            if (!resource) continue;
+            if (variable->type.sort != Sort::PTR) continue;
+            auto memory = FindMemory(resource->value->Decl(), annotation);
+            if (!memory) continue;
+            varToMem[variable] = memory;
+        }
+    }
 };
 
 struct VariableDeclarationComparator {
@@ -88,7 +100,7 @@ struct VariableDeclarationComparator {
     // TODO: better heuristic for which points-to predicates to keep
     inline bool operator()(const VariableDeclaration* decl, const VariableDeclaration* other) const {
         if (decl->is_shared != other->is_shared) return other->is_shared;
-        return decl->id > other->id;
+        return decl->id < other->id;
     }
 };
 
@@ -130,7 +142,7 @@ class AnnotationJoiner {
 
         assert(annotations.size() > 1);
         MakeSymbolsUnique();
-        AddInvariants();
+//        AddInvariants();
 
         std::cout << "preprocessed, now joining: "; for (const auto& elem : annotations) std::cout << *elem; std::cout << std::endl;
 
@@ -155,19 +167,19 @@ class AnnotationJoiner {
         }
     }
 
-    void AddInvariants() {
-        for (auto& annotation : annotations) {
-            auto memories = heal::CollectMemory(*annotation->now);
-            auto variables = heal::CollectVariables(*annotation->now);
-            for (const auto* memory : memories) {
-                annotation->now->conjuncts.push_back(config.GetNodeInvariant(*memory));
-            }
-            for (const auto* variable : variables) {
-                if (!variable->variable->decl.is_shared) continue;
-                annotation->now->conjuncts.push_back(config.GetSharedVariableInvariant(*variable));
-            }
-        }
-    }
+//    void AddInvariants() {
+//        for (auto& annotation : annotations) {
+//            auto memories = heal::CollectMemory(*annotation->now);
+//            auto variables = heal::CollectVariables(*annotation->now);
+//            for (const auto* memory : memories) {
+//                annotation->now->conjuncts.push_back(config.GetNodeInvariant(*memory));
+//            }
+//            for (const auto* variable : variables) {
+//                if (!variable->variable->decl.is_shared) continue;
+//                annotation->now->conjuncts.push_back(config.GetSharedVariableInvariant(*variable));
+//            }
+//        }
+//    }
 
     void InitializeLookup() {
         for (const auto& annotation : annotations) {
@@ -199,32 +211,55 @@ class AnnotationJoiner {
     void FindCommonMemoryResources() {
         // memory resources must be unique => handle two variables pointing to the same memory
         std::set<const SymbolicVariableDeclaration*> blacklist;
-        for (const auto&[var, _ignored] : varToCommonRes) {
-            if (var->type.sort != Sort::PTR) continue;
+        auto matchMemoryResources = [this,&blacklist]() {
+            for (const auto&[var, _ignored] : varToCommonRes) {
+                if (var->type.sort != Sort::PTR) continue;
 
-            bool hasCommonResource = true;
-            std::optional<bool> isLocal;
-            std::set<const SymbolicVariableDeclaration *> references;
+                bool hasCommonResource = true;
+                std::optional<bool> isLocal;
+                std::set<const SymbolicVariableDeclaration *> references;
 
-            auto isCommon = [&](const auto *memory) {
-                if (!memory) return false;
-                if (blacklist.count(&memory->node->Decl()) != 0) return false;
-                if (!isLocal.has_value()) isLocal = memory->isLocal;
-                if (isLocal.value() != memory->isLocal) return false;
-                return true;
-            };
-            for (const auto &annotation : annotations) {
-                auto memory = lookup.at(annotation.get()).varToMem[var];
-                if (!isCommon(memory)) {
-                    hasCommonResource = false;
-                    break;
+                auto isCommon = [&](const auto *memory) {
+                    if (!memory) return false;
+                    if (blacklist.count(&memory->node->Decl()) != 0) return false;
+                    if (!isLocal.has_value()) isLocal = memory->isLocal;
+                    if (isLocal.value() != memory->isLocal) return false;
+                    return true;
+                };
+                for (const auto &annotation : annotations) {
+                    auto memory = lookup.at(annotation.get()).varToMem[var];
+                    if (!isCommon(memory)) {
+                        hasCommonResource = false;
+                        break;
+                    }
+                    references.insert(&memory->node->Decl());
                 }
-                references.insert(&memory->node->Decl());
-            }
 
-            if (!hasCommonResource || !isLocal.has_value()) continue;
-            commonMemory.emplace(var, isLocal.value());
-            blacklist.insert(references.begin(), references.end());
+                if (!hasCommonResource || !isLocal.has_value()) continue;
+                std::cout << " common memory for " << var->name << " blacklisting: "; for (auto* elem : references) std::cout << *elem << ", "; std::cout << std::endl;
+                commonMemory.emplace(var, isLocal.value());
+                blacklist.insert(references.begin(), references.end());
+            }
+        };
+
+        matchMemoryResources();
+        std::size_t counter = 0;
+        for (const auto& [var, ignore] : varToCommonRes) {
+            if (var->is_shared) continue;
+            if (var->type.sort != Sort::PTR) continue;
+            if (++counter > 2) continue; // TODO: dirty hack
+            std::cout << " expanding on " << var->name << std::endl;
+            for (auto& annotation : annotations) {
+                auto& info = lookup.at(annotation.get());
+                assert(var->name == info.varToRes.at(var)->variable->decl.name);
+                auto* adr = &info.varToRes.at(var)->value->Decl();
+                auto force = blacklist;
+                force.insert(adr);
+                // TODO: is it a good idea to alter the annotations without recomputing lookup information?
+                annotation->now = ExpandMemoryFrontier(std::move(annotation->now), factory, config, { adr }, std::move(force), false);
+                info.UpdateMemory(*annotation);
+            }
+            matchMemoryResources();
         }
     }
 
@@ -320,6 +355,15 @@ class AnnotationJoiner {
 
             // encode annotation
             encoded.push_back(encoder(*annotation->now));
+
+            // encode invariants
+            for (const auto* memory : heal::CollectMemory(*annotation->now)) {
+                encoded.push_back(encoder(*config.GetNodeInvariant(*memory)));
+            }
+            for (const auto* variable : heal::CollectVariables(*annotation->now)) {
+                if (!variable->variable->decl.is_shared) continue;
+                encoded.push_back(encoder(*config.GetSharedVariableInvariant(*variable)));
+            }
 
             // force common variables to agree
             for (const auto& [var, resource] : varToCommonRes) {

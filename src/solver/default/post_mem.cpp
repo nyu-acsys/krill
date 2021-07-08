@@ -240,7 +240,6 @@ void AddEffectContextGenerators(EncodedFlowGraph& encoding, FootprintChecks& che
         }
     }
 
-    // test flow variables
     for (const auto* decl : vars) {
         for (auto&& generator : GetContextGenerators(*decl)) {
             auto candidate = encoding.encoder(*generator());
