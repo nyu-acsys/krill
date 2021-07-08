@@ -38,7 +38,7 @@ def run_with_timeout(name):
     return output
 
 def run_test(name, i):
-    output = "to" #run_with_timeout(name)
+    output = run_with_timeout(name)
     time = extract_time(output)
     if time != -1 and time != -2: time + "ms"
     print("[{:0>2}/{:0>2}] {:>15}  for  {:<20}".format(i, REPETITIONS, time, name), flush=True)
