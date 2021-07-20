@@ -220,24 +220,21 @@ struct PrintVisitor final : public BaseVisitor {
 
 		// print kind
 		switch (function.kind) {
-			case Function::INTERFACE: stream << "proc "; break;
-			case Function::MACRO: stream << "macro "; break;
+			case Function::INTERFACE: stream << ""; break;
+			case Function::INIT: stream << ""; break;
+			case Function::MACRO: stream << "inline "; break;
 		}
 
+		// print type
+		print_elem_or_tuple(function.return_type, [](const auto& type){ return type.get().name; }, true);
+
 		// print name
-		stream << function.name;
+		stream << " " << function.name;
 
 		// print args
 		stream << "(";
 		print_elem_or_tuple(function.args, [&](auto& decl){ decl->accept(*this); return ""; }, false);
 		stream << ") ";
-
-		// print returns
-		if (!function.returns.empty()) {
-			stream << " returns (";
-			print_elem_or_tuple(function.returns, [&](auto& decl){ decl->accept(*this); return ""; }, false);
-			stream << ") ";
-		}
 
 		// print body
 		print_scope(*function.body);
@@ -365,15 +362,25 @@ struct PrintVisitor final : public BaseVisitor {
 		stream << indent << com.lhs.name << " = malloc;" << std::endl;
 	}
 
-	void visit(const Assignment& com) {
-		stream << indent;
-		com.lhs->accept(exprinter);
-		stream << " = ";
-		com.rhs->accept(exprinter);
-		stream << ";";
-		stream << " // " << com.id;
-		stream << std::endl;
-	}
+    void visit(const Assignment& com) {
+        stream << indent;
+        com.lhs->accept(exprinter);
+        stream << " = ";
+        com.rhs->accept(exprinter);
+        stream << ";";
+        stream << " // " << com.id;
+        stream << std::endl;
+    }
+
+    void visit(const ParallelAssignment& com) {
+        stream << indent;
+        print_elem_or_tuple(com.lhs, [this](auto& expr){ expr->accept(exprinter); return ""; });
+        stream << " = ";
+        print_elem_or_tuple(com.rhs, [this](auto& expr){ expr->accept(exprinter); return ""; });
+        stream << ";";
+        stream << " // " << com.id;
+        stream << std::endl;
+    }
 
 	void visit(const Macro& com) {
 		stream << indent;
@@ -410,4 +417,68 @@ void cola::print(const Command& command, std::ostream& stream) {
 void cola::print(const Statement& statement, std::ostream& stream) {
 	PrintVisitor visitor(stream);
 	statement.accept(visitor);
+}
+
+
+std::ostream& cola::operator<<(std::ostream& stream, const AstNode& object) {
+    struct StreamVisitor : public BaseVisitor {
+        std::ostream& stream;
+        explicit StreamVisitor(std::ostream& stream) : stream(stream) {}
+        void visit(const Expression& node) override { cola::print(node, stream); }
+        void visit(const BooleanValue& node) override { cola::print(node, stream); }
+        void visit(const NullValue& node) override { cola::print(node, stream); }
+        void visit(const EmptyValue& node) override { cola::print(node, stream); }
+        void visit(const MaxValue& node) override { cola::print(node, stream); }
+        void visit(const MinValue& node) override { cola::print(node, stream); }
+        void visit(const NDetValue& node) override { cola::print(node, stream); }
+        void visit(const VariableExpression& node) override { cola::print(node, stream); }
+        void visit(const NegatedExpression& node) override { cola::print(node, stream); }
+        void visit(const BinaryExpression& node) override { cola::print(node, stream); }
+        void visit(const Dereference& node) override { cola::print(node, stream); }
+        void visit(const Sequence& node) override { cola::print(node, stream); }
+        void visit(const Scope& node) override { cola::print(node, stream); }
+        void visit(const Atomic& node) override { cola::print(node, stream); }
+        void visit(const Choice& node) override { cola::print(node, stream); }
+        void visit(const IfThenElse& node) override { cola::print(node, stream); }
+        void visit(const Loop& node) override { cola::print(node, stream); }
+        void visit(const While& node) override { cola::print(node, stream); }
+        void visit(const DoWhile& node) override { cola::print(node, stream); }
+        void visit(const Skip& node) override { cola::print(node, stream); }
+        void visit(const Break& node) override { cola::print(node, stream); }
+        void visit(const Continue& node) override { cola::print(node, stream); }
+        void visit(const Assume& node) override { cola::print(node, stream); }
+        void visit(const Assert& node) override { cola::print(node, stream); }
+        void visit(const Return& node) override { cola::print(node, stream); }
+        void visit(const Malloc& node) override { cola::print(node, stream); }
+        void visit(const Assignment& node) override { cola::print(node, stream); }
+        void visit(const ParallelAssignment& node) override { cola::print(node, stream); }
+        void visit(const Macro& node) override { cola::print(node, stream); }
+        void visit(const CompareAndSwap& node) override { cola::print((const Command&) node, stream); }
+        void visit(const Function& node) override { PrintVisitor visitor(stream); node.accept(visitor); }
+        void visit(const Program& node) override { cola::print(node, stream); }
+    } visitor(stream);
+    object.accept(visitor);
+    return stream;
+}
+
+std::ostream& cola::operator<<(std::ostream& stream, const Sort& sort) {
+    switch (sort) {
+        case Sort::VOID: stream << "VoidSort"; break;
+        case Sort::BOOL: stream << "BoolSort"; break;
+        case Sort::DATA: stream << "DataSort"; break;
+        case Sort::PTR: stream << "PointerSort"; break;
+    }
+    return stream;
+}
+
+std::ostream& cola::operator<<(std::ostream& stream, const Type& type) {
+    stream << "type " << type.name << " { ";
+    bool first = true;
+    for (const auto& [field, type] : type.fields) {
+        if (first) first = false;
+        else stream << ", ";
+        stream << field << ":" << type.get().name;
+    }
+    stream << " }";
+    return stream;
 }

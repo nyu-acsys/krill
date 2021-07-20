@@ -3,7 +3,6 @@
 #include <memory>
 #include <deque>
 #include <unordered_map>
-// TODO: import string
 #include "antlr4-runtime.h"
 #include "CoLaVisitor.h"
 #include "cola/ast.hpp"
@@ -13,7 +12,7 @@ namespace cola {
 
 	class AstBuilder : public cola::CoLaVisitor { // TODO: should this be a private subclass to avoid misuse?
 		private:
-			const std::string INIT_NAME = "init";
+			const std::string INIT_NAME = "__init__";
 			enum struct Modifier { NONE, INLINE };
 			enum struct ExprForm { NOPTR, PTR, DEREF, NESTED };
 
@@ -21,10 +20,12 @@ namespace cola {
 			using VariableMap = std::unordered_map<std::string, std::unique_ptr<VariableDeclaration>>;
 			using FunctionMap = std::unordered_map<std::string, Function&>;
 			using ArgDeclList = std::vector<std::pair<std::string, std::string>>;
+			using TypeList = std::vector<std::reference_wrapper<const Type>>;
 			std::shared_ptr<Program> _program = nullptr;
 			std::deque<VariableMap> _scope;
 			TypeMap _types;
 			FunctionMap _functions;
+			bool _found_init = false;
 			bool _inside_loop = false;
 			const Function* _currentFunction;
 
@@ -33,6 +34,7 @@ namespace cola {
 			void addVariable(std::unique_ptr<VariableDeclaration> variable);
 			bool isVariableDeclared(std::string variableName);
 			const VariableDeclaration& lookupVariable(std::string variableName);
+			void addFunction(Function& function);
 			bool isTypeDeclared(std::string typeName);
 			const Type& lookupType(std::string typeName);
 			std::unique_ptr<Statement> mk_stmt_from_list(std::vector<cola::CoLaParser::StatementContext*> stmts);
@@ -40,11 +42,13 @@ namespace cola {
 			std::vector<std::unique_ptr<Expression>> mk_expr_from_list(std::vector<cola::CoLaParser::ExpressionContext*> exprs);
 			Statement* as_command(Statement* stmt);
 			Expression* mk_binary_expr(CoLaParser::ExpressionContext* lhs, BinaryExpression::Operator op, CoLaParser::ExpressionContext* rhs);
-			antlrcpp::Any handleFunction(Function::Kind kind, std::string name, CoLaParser::ArgDeclListContext* args,
-				CoLaParser::RetDeclContext* rets, CoLaParser::ScopeContext* body);
+			void addFunctionArgumentScope(const Function& function, const ArgDeclList& args);
+			std::vector<std::unique_ptr<VariableDeclaration>> retrieveFunctionArgumentScope(const ArgDeclList& args);
+			antlrcpp::Any handleFunction(Function::Kind kind, std::string name, TypeList returnTypes, ArgDeclList args, CoLaParser::ScopeContext* body);
 
 		public:
 			static std::shared_ptr<Program> buildFrom(cola::CoLaParser::ProgramContext* parseTree);
+			static std::string iTh(std::size_t number);
 
 			antlrcpp::Any visitProgram(cola::CoLaParser::ProgramContext* context) override;
 			antlrcpp::Any visitStruct_decl(cola::CoLaParser::Struct_declContext* context) override;
@@ -60,9 +64,9 @@ namespace cola {
 			antlrcpp::Any visitVarDeclList(CoLaParser::VarDeclListContext* context) override;
 			antlrcpp::Any visitFunctionInterface(CoLaParser::FunctionInterfaceContext* context) override;
 			antlrcpp::Any visitFunctionMacro(CoLaParser::FunctionMacroContext* context) override;
+			antlrcpp::Any visitFunctionInit(CoLaParser::FunctionInitContext* context) override;
 			antlrcpp::Any visitArgDeclList(cola::CoLaParser::ArgDeclListContext* context) override;
-			antlrcpp::Any visitRetDeclVoid(CoLaParser::RetDeclVoidContext* context) override;
-			antlrcpp::Any visitRetDeclList(CoLaParser::RetDeclListContext* context) override;
+			antlrcpp::Any visitTypeList(CoLaParser::TypeListContext* context) override;
 
 			antlrcpp::Any visitBlockStmt(cola::CoLaParser::BlockStmtContext* context) override;
 			antlrcpp::Any visitBlockScope(cola::CoLaParser::BlockScopeContext* context) override;

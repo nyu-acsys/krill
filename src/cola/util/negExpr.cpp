@@ -3,7 +3,7 @@
 using namespace cola;
 
 
-BinaryExpression::Operator negate_binary_opereator(BinaryExpression::Operator op) {
+static inline BinaryExpression::Operator negate_binary_opereator(BinaryExpression::Operator op) {
 	switch (op) {
 		case BinaryExpression::Operator::EQ: return BinaryExpression::Operator::NEQ;
 		case BinaryExpression::Operator::NEQ: return BinaryExpression::Operator::EQ;

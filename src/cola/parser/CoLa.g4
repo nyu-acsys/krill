@@ -20,21 +20,23 @@ type : name=typeName      #typeValue
      | name=typeName '*'  #typePointer
      ;
 
+typeList : types+=type
+         | '(' types+=type (',' types+=type)+ ')'
+         | '<' types+=type (',' types+=type)+ '>'
+         ;
+
 field_decl : type names+=Identifier (',' names+=Identifier)* ';' ;
 
 var_decl : type name=Identifier '@root' ';'                     #varDeclRoot
          | type names+=Identifier (',' names+=Identifier)* ';'  #varDeclList
          ;
 
-function : 'proc' name=Identifier args=argDeclList rets=retDecl body=scope (';')?   #functionInterface
-         | 'macro' name=Identifier args=argDeclList rets=retDecl body=scope (';')?  #functionMacro
+function :          types=typeList name=Identifier args=argDeclList body=scope (';')?  #functionInterface
+         | 'inline' types=typeList name=Identifier args=argDeclList body=scope (';')?  #functionMacro
+         |          VoidType       '__init__'      '(' ')'          body=scope (';')?  #functionInit
          ;
 
 argDeclList : '(' (argTypes+=type argNames+=Identifier (',' argTypes+=type argNames+=Identifier)*)? ')' ;
-
-retDecl : ('returns' 'void')?             #retDeclVoid
-        | 'returns' rets=argDeclList  #retDeclList
-        ;
 
 block : statement  #blockStmt
       | scope      #blockScope
@@ -65,6 +67,7 @@ command : 'skip'                                           #cmdSkip
         | cas                                              #cmdCas
         ;
 
+// TODO: singleton argList should not have parenthesis
 argList : '(' (arg+=expression (',' arg+=expression)*)? ')'
         | '<' (arg+=expression (',' arg+=expression)*)? '>'
         ;

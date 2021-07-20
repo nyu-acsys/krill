@@ -65,14 +65,16 @@ set(SOURCES
 	transform/renameVars.cpp
 	transform/rmCAS.cpp
 	transform/rmConditionalLoops.cpp
+	transform/rmConditionalBranches.cpp
 	transform/rmUselessScopes.cpp
+	transform/simplifyconditions.cpp
+	transform/simplifyReturns.cpp
 
 	# util
 	util/cpExpr.cpp
 	util/cpStmt.cpp
 	util/negExpr.cpp
-	util/print.cpp
-)
+	util/print.cpp)
 
 add_library(CoLa ${antlr4cpp_src_files} ${SOURCES})
 add_dependencies(CoLa antlr4cpp)

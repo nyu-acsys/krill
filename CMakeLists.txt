@@ -23,17 +23,13 @@ add_definitions(-Wall -Wextra)
 add_definitions(-fshow-column)
 # add_definitions(-Wno-unused-parameter -Wno-unused-function)
 
-# adds test target
-# enable_testing()
-
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # includes
-include_directories(src)
+include_directories(include)
 
 # sources/executables
 add_subdirectory(src)
-add_subdirectory(test)
 
 # installation
 install(FILES benchmark.py DESTINATION ${INSTALL_FOLDER})

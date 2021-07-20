@@ -1,2 +1,5 @@
 add_subdirectory(cola)
-add_subdirectory(plankton)
+add_subdirectory(heal)
+add_subdirectory(solver)
+add_subdirectory(prover)
+add_subdirectory(tool)
