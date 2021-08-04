@@ -2,16 +2,26 @@
 #ifndef TESTING
 #define TESTING
 
+// TODO: clean up mports
 #include <chrono>
+#include "programs/ast.hpp"
+#include "programs/util.hpp"
+#include "logics/ast.hpp"
+#include "logics/util.hpp"
+
 #include "cola/ast.hpp"
 #include "cola/util.hpp"
 #include "cola/parse.hpp"
 #include "cola/transform.hpp"
 #include "heal/logic.hpp"
 #include "heal/util.hpp"
+#include "engine/config.hpp"
+#include "engine/linearizability.hpp"
+#include "engine/proof.hpp"
+#include "engine/solver.hpp"
 #include "solver/config.hpp"
 #include "solver/solver.hpp"
-#include "prover/verify.hpp"
+#include "solver/verify.hpp"
 
 
 struct Benchmark {

@@ -50,6 +50,6 @@ namespace solver {
     std::unique_ptr<heal::Annotation> MakePostAssignVar(PostInfo info, const cola::VariableExpression& lhs, const cola::Dereference& rhs, const cola::VariableExpression& rhsDeref);
     std::unique_ptr<heal::Annotation> MakePostAssignDeref(PostInfo info, const cola::Dereference& lhs, const cola::VariableExpression& lhsDerefVar, const cola::SimpleExpression& rhs);
 
-} // namespace solver
+} // namespace engine
 
 #endif

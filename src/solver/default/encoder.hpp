@@ -8,7 +8,62 @@
 #include "heal/logic.hpp"
 #include "heal/collect.hpp"
 
-namespace solver {
+namespace engine {
+
+//    TODO: encapsulate Z3 encoding (should not be exposed "too much" to the engine)
+//    struct EScalarTerm {
+//        inline EScalarTerm operator&&(const EScalarTerm& other) const { return EScalarTerm(repr && other.repr); }
+//        inline EScalarTerm operator||(const EScalarTerm& other) const { return EScalarTerm(repr || other.repr); }
+//        inline EScalarTerm operator==(const EScalarTerm& other) const { return EScalarTerm(repr == other.repr); }
+//        inline EScalarTerm operator!=(const EScalarTerm& other) const { return EScalarTerm(repr != other.repr); }
+//        inline EScalarTerm operator<(const EScalarTerm& other) const { return EScalarTerm(repr < other.repr); }
+//        inline EScalarTerm operator<=(const EScalarTerm& other) const { return EScalarTerm(repr <= other.repr); }
+//        inline EScalarTerm operator>(const EScalarTerm& other) const { return EScalarTerm(repr > other.repr); }
+//        inline EScalarTerm operator>=(const EScalarTerm& other) const { return EScalarTerm(repr >= other.repr); }
+//        inline EScalarTerm operator>>(const EScalarTerm& other) const { return EScalarTerm(z3::implies(repr, other.repr)); }
+//
+//        static inline EScalarTerm And(const EScalarTerm& lhs, const EScalarTerm& rhs) { return lhs && rhs; }
+//        static inline EScalarTerm Or(const EScalarTerm& lhs, const EScalarTerm& rhs) { return lhs || rhs; }
+//        static inline EScalarTerm Equal(const EScalarTerm& lhs, const EScalarTerm& rhs) { return lhs == rhs; }
+//        static inline EScalarTerm NotEqual(const EScalarTerm& lhs, const EScalarTerm& rhs) { return lhs != rhs; }
+//        static inline EScalarTerm Less(const EScalarTerm& lhs, const EScalarTerm& rhs) { return lhs < rhs; }
+//        static inline EScalarTerm LessEqual(const EScalarTerm& lhs, const EScalarTerm& rhs) { return lhs <= rhs; }
+//        static inline EScalarTerm Greater(const EScalarTerm& lhs, const EScalarTerm& rhs) { return lhs > rhs; }
+//        static inline EScalarTerm GreaterEqual(const EScalarTerm& lhs, const EScalarTerm& rhs) { return lhs >= rhs; }
+//        static inline EScalarTerm Implies(const EScalarTerm& lhs, const EScalarTerm& rhs) { return lhs >> rhs; }
+//
+//        static inline EScalarTerm And(std::initializer_list<EScalarTerm> terms) { throw std::logic_error("not implemented"); }
+//        static inline EScalarTerm Or(std::initializer_list<EScalarTerm> terms) { throw std::logic_error("not implemented"); }
+//
+//
+//        explicit EScalarTerm(const z3::expr& repr) : repr(repr) {}
+//        private: const z3::expr& repr;
+//    };
+//
+//    struct ESetTerm {
+//        inline ESetTerm operator&&(const ESetTerm& other) const { throw std::logic_error("not implemented"); }
+//        inline ESetTerm operator||(const ESetTerm& other) const { throw std::logic_error("not implemented"); }
+//        inline EScalarTerm operator==(const ESetTerm& other) const { throw std::logic_error("not implemented"); }
+//        inline EScalarTerm operator!=(const ESetTerm& other) const { throw std::logic_error("not implemented"); }
+//        inline EScalarTerm operator<(const ESetTerm& other) const { throw std::logic_error("not implemented"); }
+//        inline EScalarTerm operator<=(const ESetTerm& other) const { throw std::logic_error("not implemented"); }
+//        inline EScalarTerm operator>(const ESetTerm& other) const { throw std::logic_error("not implemented"); }
+//        inline EScalarTerm operator>=(const ESetTerm& other) const { throw std::logic_error("not implemented"); }
+//        inline EScalarTerm operator()(const EScalarTerm& other) const { throw std::logic_error("not implemented"); }
+//
+//        static inline ESetTerm Intersection(const ESetTerm& lhs, const ESetTerm& rhs) { return lhs && rhs; }
+//        static inline ESetTerm Union(const ESetTerm& lhs, const ESetTerm& rhs) { return lhs || rhs; }
+//        static inline EScalarTerm Equal(const ESetTerm& lhs, const ESetTerm& rhs) { return lhs == rhs; }
+//        static inline EScalarTerm NotEqual(const ESetTerm& lhs, const ESetTerm& rhs) { return lhs != rhs; }
+//        static inline EScalarTerm Subset(const ESetTerm& lhs, const ESetTerm& rhs) { return lhs < rhs; }
+//        static inline EScalarTerm SubsetEqual(const ESetTerm& lhs, const ESetTerm& rhs) { return lhs <= rhs; }
+//        static inline EScalarTerm Superset(const ESetTerm& lhs, const ESetTerm& rhs) { return lhs > rhs; }
+//        static inline EScalarTerm SupersetEqual(const ESetTerm& lhs, const ESetTerm& rhs) { return lhs >= rhs; }
+//        static inline EScalarTerm Contains(const EScalarTerm& set, const EScalarTerm& val) { return set >> val; }
+//
+//        explicit ESetTerm(const z3::expr& repr) : repr(repr) {}
+//        private: const z3::expr& repr;
+//    };
 
     struct NoRenaming {
         static inline const cola::VariableDeclaration* Rename(const cola::VariableDeclaration* decl) { return decl; }
@@ -29,13 +84,19 @@ namespace solver {
         inline z3::expr operator()(const heal::SymbolicVariableDeclaration& decl) { return EncodeSymbol(decl); }
         inline z3::func_decl operator()(const heal::SymbolicFlowDeclaration& decl) { return EncodeFlow(decl); }
         inline z3::expr QuantifiedVariable(cola::Sort sort) { return context.constant("__qv", EncodeSort(sort)); }
+        inline z3::expr MakeFlowContains(const z3::func_decl& flow, const z3::expr& expr) {
+            return flow(expr);
+        }
+        inline z3::expr MakeFlowContains(const heal::SymbolicFlowDeclaration& flow, const z3::expr& expr) {
+            return MakeFlowContains(operator()(flow), expr);
+        }
         inline z3::expr MakeNullCheck(const heal::SymbolicVariableDeclaration& decl) {
             return EncodeSymbol(decl) == Null();
         }
         template<typename T>
         inline z3::expr MakeFlowEquality(const heal::SymbolicFlowDeclaration& flow, const heal::SymbolicFlowDeclaration& other, Z3Encoder<T>& otherEncoder) {
             auto qv = QuantifiedVariable(flow.type.sort);
-            return z3::forall(qv, EncodeFlow(flow)(qv) == otherEncoder(other)(qv));
+            return z3::forall(qv, MakeFlowContains(flow, qv) == otherEncoder.MakeFlowContains(other, qv));
         }
         inline z3::expr MakeFlowEquality(const heal::SymbolicFlowDeclaration& flow, const heal::SymbolicFlowDeclaration& other) {
             return MakeFlowEquality(flow, other, *this);
@@ -69,20 +130,18 @@ namespace solver {
         void visit(const heal::Annotation& obj) override { result = Encode(*obj.now); }
 
         void visit(const heal::InflowContainsValueAxiom& obj) override {
-            result = EncodeFlow(obj.flow)(Encode(*obj.value));
+            result = MakeFlowContains(obj.flow, Encode(*obj.value));
         }
         void visit(const heal::InflowContainsRangeAxiom& obj) override {
             auto qv = QuantifiedVariable(obj.valueLow->Sort());
             auto premise = (Encode(*obj.valueLow) <= qv) && (qv <= Encode(*obj.valueHigh));
-            auto conclusion = EncodeFlow(obj.flow)(qv);
+            auto conclusion = MakeFlowContains(obj.flow, qv);
             result = z3::forall(qv, z3::implies(premise, conclusion));
         }
         void visit(const heal::InflowEmptinessAxiom& obj) override {
             auto qv = QuantifiedVariable(obj.flow.get().type.sort);
-            if (obj.isEmpty) result = z3::forall(qv, !EncodeFlow(obj.flow)(qv));
-            else result = z3::exists(qv, EncodeFlow(obj.flow)(qv));
-//            result = z3::exists(qv, EncodeFlow(obj.flow)(qv));
-//            if (obj.isEmpty) result = !result;
+            if (obj.isEmpty) result = z3::forall(qv, !MakeFlowContains(obj.flow, qv));
+            else result = z3::exists(qv, MakeFlowContains(obj.flow, qv));
         }
 
         void visit(const heal::SeparatingConjunction& obj) override {

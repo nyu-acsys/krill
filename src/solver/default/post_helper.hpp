@@ -3,12 +3,12 @@
 #define SOLVER_POST_HELPER
 
 #include <set>
-#include "timer.hpp"
+#include "util/timer.hpp"
 #include "encoder.hpp"
 #include "flowgraph.hpp"
 #include "candidates.hpp"
 
-namespace solver {
+namespace engine {
 
     struct FootprintChecks {
         using ContextMap = std::map<const cola::VariableDeclaration*, heal::SeparatingConjunction>;
@@ -51,8 +51,8 @@ namespace solver {
         z3::expr_vector preContains(encoding.encoder.context);
         z3::expr_vector postContains(encoding.encoder.context);
         for (const auto& node : encoding.graph.nodes) {
-            preContains.push_back(encoding.encoder(node.preKeyset)(qv) && contains(node, qv, EMode::PRE));
-            postContains.push_back(encoding.encoder(node.postKeyset)(qv) && contains(node, qv, EMode::POST));
+            preContains.push_back(encoding.encoder.MakeFlowContains(node.preKeyset, qv) && contains(node, qv, EMode::PRE));
+            postContains.push_back(encoding.encoder.MakeFlowContains(node.postKeyset, qv) && contains(node, qv, EMode::POST));
         }
         auto isPure = z3::forall(qv, z3::mk_or(preContains) == z3::mk_or(postContains)); // TODO: also check non-containedness?
         checks.Add(isPure, [mustBePure,&checks](bool isPure){
@@ -79,12 +79,12 @@ namespace solver {
             for (const auto &node : encoding.graph.nodes) {
                 auto preKeys = encoding.encoder(node.preKeyset);
                 auto postKeys = encoding.encoder(node.postKeyset);
-                othersPreContainedVec.push_back(preKeys(qv) && contains(node, qv, EMode::PRE));
-                othersPostContainedVec.push_back(postKeys(qv) && contains(node, qv, EMode::POST));
-                keyPreContainedVec.push_back(preKeys(key) && contains(node, key, EMode::PRE));
-                keyPostContainedVec.push_back(postKeys(key) && contains(node, key, EMode::POST));
-                keyPreNotContainedVec.push_back(preKeys(key) && !contains(node, key, EMode::PRE));
-                keyPostNotContainedVec.push_back(postKeys(key) && !contains(node, key, EMode::POST));
+                othersPreContainedVec.push_back(encoding.encoder.MakeFlowContains(preKeys, qv) && contains(node, qv, EMode::PRE));
+                othersPostContainedVec.push_back(encoding.encoder.MakeFlowContains(postKeys, qv) && contains(node, qv, EMode::POST));
+                keyPreContainedVec.push_back(encoding.encoder.MakeFlowContains(preKeys, key) && contains(node, key, EMode::PRE));
+                keyPostContainedVec.push_back(encoding.encoder.MakeFlowContains(postKeys, key) && contains(node, key, EMode::POST));
+                keyPreNotContainedVec.push_back(encoding.encoder.MakeFlowContains(preKeys, key) && !contains(node, key, EMode::PRE));
+                keyPostNotContainedVec.push_back(encoding.encoder.MakeFlowContains(postKeys, key) && !contains(node, key, EMode::POST));
             }
             auto othersUnchanged = z3::forall(qv, z3::implies(qv != key, z3::mk_or(othersPreContainedVec) == z3::mk_or(othersPostContainedVec)));
             auto isPreContained = z3::mk_or(keyPreContainedVec);
@@ -186,28 +186,28 @@ namespace solver {
     static std::unique_ptr<heal::Annotation> ExtendStack(std::unique_ptr<heal::Annotation> annotation, const SolverConfig& config) {
         // TODO: use this method less! rather invoke it before interference
         std::cout << "%% extending stack" << std::endl;
-        static Timer timer("solver::ExtendStack");
+        static Timer timer("engine::ExtendStack");
         auto measurement = timer.Measure();
 
-        auto graph = solver::MakePureHeapGraph(std::move(annotation), config);
+        auto graph = engine::MakePureHeapGraph(std::move(annotation), config);
         if (graph.nodes.empty()) return std::move(graph.pre);
         EncodedFlowGraph encoding(std::move(graph));
         FootprintChecks checks(encoding.context);
         AddDerivedKnowledgeChecks(encoding, checks, EMode::PRE); // TODO: when to do this? what to derive (only flow? only info about symbols involved in points-to?)
-        solver::ComputeImpliedCallback(encoding.solver, checks.checks);
+        engine::ComputeImpliedCallback(encoding.solver, checks.checks);
         annotation = std::move(encoding.graph.pre);
         heal::InlineAndSimplify(*annotation);
 
 //        auto candidates = CandidateGenerator::Generate(*annotation, CandidateGenerator::FlowLevel::NONE);
 //        z3::context context;
-//        z3::solver solver(context);
-//        Z3Encoder encoder(context, solver);
-//        solver.add(encoder(*annotation->now));
-//        for (auto* memory : heal::CollectMemory(*annotation)) solver.add(encoder(*config.GetNodeInvariant(*memory)));
-//        for (auto* resource : heal::CollectVariables(*annotation)) if (resource->variable->decl.is_shared) solver.add(encoder(*config.GetSharedVariableInvariant(*resource)));
+//        z3::engine engine(context);
+//        Z3Encoder encoder(context, engine);
+//        engine.add(encoder(*annotation->now));
+//        for (auto* memory : heal::CollectMemory(*annotation)) engine.add(encoder(*config.GetNodeInvariant(*memory)));
+//        for (auto* resource : heal::CollectVariables(*annotation)) if (resource->variable->decl.is_shared) engine.add(encoder(*config.GetSharedVariableInvariant(*resource)));
 //        z3::expr_vector vector(context);
 //        for (const auto& candidate : candidates) vector.push_back(encoder(*candidate));
-//        auto implied = ComputeImplied(solver, vector);
+//        auto implied = ComputeImplied(engine, vector);
 //        for (std::size_t index = 0; index < candidates.size(); ++index) {
 //            if (!implied.at(index)) continue;
 //            annotation->now->conjuncts.push_back(std::move(candidates.at(index)));
@@ -218,17 +218,17 @@ namespace solver {
     }
 
     static std::unique_ptr<heal::Annotation> TryAddPureFulfillment(std::unique_ptr<heal::Annotation> annotation, const SolverConfig& config, bool* isAnnotationUnsatisfiable= nullptr) {
-        static Timer timer("solver::TryAddPureFulfillment");
+        static Timer timer("engine::TryAddPureFulfillment");
         auto measurement = timer.Measure();
 
-        auto graph = solver::MakePureHeapGraph(std::move(annotation), config);
+        auto graph = engine::MakePureHeapGraph(std::move(annotation), config);
         if (graph.nodes.empty()) return std::move(graph.pre);
         EncodedFlowGraph encoding(std::move(graph));
         FootprintChecks checks(encoding.context);
         checks.preSpec = heal::CollectObligations(*encoding.graph.pre->now);
         AddSpecificationChecks<true>(encoding, checks);
 //        AddDerivedKnowledgeChecks(encoding, checks, EMode::PRE); // TODO: when to do this? what to derive (only flow? only info about symbols involved in points-to?)
-        solver::ComputeImpliedCallback(encoding.solver, checks.checks, isAnnotationUnsatisfiable);
+        engine::ComputeImpliedCallback(encoding.solver, checks.checks, isAnnotationUnsatisfiable);
         annotation = std::move(encoding.graph.pre);
         annotation = RemoveObligations(std::move(annotation), std::move(checks.preSpec));
         std::move(checks.postSpec.begin(), checks.postSpec.end(), std::back_inserter(annotation->now->conjuncts));

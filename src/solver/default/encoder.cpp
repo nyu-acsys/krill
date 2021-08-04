@@ -2,7 +2,7 @@
 
 #include "z3.h"
 
-using namespace solver;
+using namespace engine;
 
 
 
@@ -24,7 +24,7 @@ inline bool IsImplied(z3::solver& solver, const z3::expr& expr) {
     }
 }
 
-bool solver::ComputeImplied(z3::solver& solver, const z3::expr& premise, const z3::expr& conclusion) {
+bool engine::ComputeImplied(z3::solver& solver, const z3::expr& premise, const z3::expr& conclusion) {
     return IsImplied(solver, z3::implies(premise, conclusion));
 }
 
@@ -47,13 +47,13 @@ inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const z3::e
     z3::expr_vector assumptions(context);
     z3::expr_vector consequences(context);
 
-    // prepare solver
+    // prepare engine
     for (unsigned int index = 0; index < expressions.size(); ++index) {
         std::string name = "__chk__" + std::to_string(index);
         auto var = context.bool_const(name.c_str());
         variables.push_back(var);
-//        solver.add(z3::implies(expressions[(int) index], var)); // TODO: or solver.add(var == expressions[(int) index]) ?
-        solver.add(var == expressions[(int) index]); // TODO: or solver.add(var == expressions[(int) index]) ?
+//        engine.add(z3::implies(expressions[(int) index], var)); // TODO: or engine.add(var == expressions[(int) index]) ?
+        solver.add(var == expressions[(int) index]); // TODO: or engine.add(var == expressions[(int) index]) ?
     }
 
     // check
@@ -86,8 +86,8 @@ inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const z3::e
 
 struct MethodChooser {
     // TODO: identify working method beforehand (during construction)
-    // static std::function<std::vector<bool>(z3::solver&, const z3::expr_vector&, bool*)> method = GetSolvingMethod();
-    // return method(solver, expressions, isSolverUnsatisfiable);
+    // static std::function<std::vector<bool>(z3::engine&, const z3::expr_vector&, bool*)> method = GetSolvingMethod();
+    // return method(engine, expressions, isSolverUnsatisfiable);
 
     bool fallback = false;
     inline std::vector<bool> operator()(z3::solver& solver, const z3::expr_vector& expressions, bool* isSolverUnsatisfiable) {
@@ -98,7 +98,7 @@ struct MethodChooser {
             auto result = ComputeImpliedOneAtATime(solver, expressions, isSolverUnsatisfiable);
             unsigned int versionMajor, versionMinor, versionBuild, versionRevision;
             Z3_get_version(&versionMajor, &versionMinor, &versionBuild, &versionRevision);
-            std::cerr << "WARNING: solving failure with Z3's solver::consequences! This issue is known to happen for versions >4.8.7, " <<
+            std::cerr << "WARNING: solving failure with Z3's engine::consequences! This issue is known to happen for versions >4.8.7, " <<
                       "your version is " << versionMajor << "." << versionMinor << "." << versionBuild << ". " <<
                       "Using fallback, performance may degrade..." << std::endl;
             fallback = true;
@@ -108,11 +108,11 @@ struct MethodChooser {
 } method;
 
 
-std::vector<bool> solver::ComputeImplied(z3::solver& solver, const z3::expr_vector& expressions, bool* isSolverUnsatisfiable) {
+std::vector<bool> engine::ComputeImplied(z3::solver& solver, const z3::expr_vector& expressions, bool* isSolverUnsatisfiable) {
     return method(solver, expressions, isSolverUnsatisfiable);
 }
 
-void solver::ComputeImpliedCallback(z3::solver& solver, const ImplicationCheckSet& checks, bool* isSolverUnsatisfiable) {
+void engine::ComputeImpliedCallback(z3::solver& solver, const ImplicationCheckSet& checks, bool* isSolverUnsatisfiable) {
     auto implied = ComputeImplied(solver, checks.expressions, isSolverUnsatisfiable);
     assert(checks.expressions.size() == implied.size());
     for (std::size_t index = 0; index < implied.size(); ++index) {

@@ -4,9 +4,9 @@
 #include "cola/ast.hpp"
 #include "heal/logic.hpp"
 #include "flowgraph.hpp"
-#include "timer.hpp"
+#include "util/timer.hpp"
 
-namespace solver {
+namespace engine {
 
 class CandidateGenerator : public heal::DefaultLogicListener {
     public:

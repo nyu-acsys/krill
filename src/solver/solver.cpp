@@ -1,12 +1,12 @@
 #include "solver/solver.hpp"
 
-#include "default/default_solver.hpp"
-//#include "solver/encoder.hpp"
+#include "engine/solver.hpp"
+//#include "engine/encoder.hpp"
 //#include "heal/util.hpp"
 
 using namespace cola;
 using namespace heal;
-using namespace solver;
+using namespace engine;
 
 //explicit PostImage();
 //explicit PostImage(std::unique_ptr<heal::Annotation> post);
@@ -63,7 +63,7 @@ std::unique_ptr<Annotation> Solver::Join(std::deque<std::unique_ptr<Annotation>>
     return Join(std::move(vector));
 }
 
-std::unique_ptr<Solver> solver::MakeDefaultSolver(std::shared_ptr<SolverConfig> config) {
+std::unique_ptr<Solver> engine::MakeDefaultSolver(std::shared_ptr<SolverConfig> config) {
     return std::make_unique<DefaultSolver>(std::move(config));
 }
 
@@ -80,6 +80,6 @@ std::unique_ptr<Solver> solver::MakeDefaultSolver(std::shared_ptr<SolverConfig> 
 //    return checker->Implies(post);
 //}
 
-//std::unique_ptr<Solver> solver::MakeDefaultSolver(std::shared_ptr<SolverConfig> config, std::unique_ptr<Encoder> encoder) {
+//std::unique_ptr<Solver> engine::MakeDefaultSolver(std::shared_ptr<SolverConfig> config, std::unique_ptr<Encoder> encoder) {
 //    return std::make_unique<DefaultSolver>(std::move(config), std::move(encoder));
 //}

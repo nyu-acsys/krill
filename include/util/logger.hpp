@@ -9,8 +9,10 @@
 #include "heal/logic.hpp"
 #include "heal/util.hpp"
 
+// TODO: properly named include guards
+// TODO: namespace plankton
 
-namespace prover {
+namespace engine {
 
 	struct Logger {
 		template<typename T, typename = std::enable_if_t<

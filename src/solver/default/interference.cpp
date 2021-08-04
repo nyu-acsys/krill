@@ -1,6 +1,6 @@
-#include "default_solver.hpp"
+#include "engine/solver.hpp"
 
-#include "timer.hpp"
+#include "util/timer.hpp"
 #include "heal/util.hpp"
 #include "heal/collect.hpp"
 #include "encoder.hpp"
@@ -9,7 +9,7 @@
 
 using namespace cola;
 using namespace heal;
-using namespace solver;
+using namespace engine;
 
 
 inline bool UpdatesFlow(const HeapEffect& effect) {
@@ -137,7 +137,7 @@ TryAddPureFulfillmentForHistories(std::unique_ptr<heal::Annotation> annotation, 
         auto tmp = heal::Copy(*base);
         // base contains only local memory, so we can simply add the shared resources from past
         tmp->now->conjuncts.push_back(heal::Copy(*past->formula));
-        tmp->now = solver::ExpandMemoryFrontier(std::move(tmp->now), config, past->formula.get());
+        tmp->now = engine::ExpandMemoryFrontier(std::move(tmp->now), config, past->formula.get());
 
         states.push_back(std::move(tmp->now));
     }
@@ -233,8 +233,8 @@ std::unique_ptr<Annotation> AddHistoryExpansions(std::unique_ptr<Annotation> ann
 
         // find new memories
         auto existingMemories = heal::CollectMemory(*tmp->now);
-        tmp->now = solver::ExpandMemoryFrontier(std::move(tmp->now), factory, config, IntersectExpansion(expansion, *past));
-//        tmp->now = solver::ExpandMemoryFrontier(std::move(tmp->now), Config(), past->formula.get());
+        tmp->now = engine::ExpandMemoryFrontier(std::move(tmp->now), factory, config, IntersectExpansion(expansion, *past));
+//        tmp->now = engine::ExpandMemoryFrontier(std::move(tmp->now), Config(), past->formula.get());
         auto newMemories = heal::CollectMemory(*tmp->now);
         bool foundNewMemory = false;
         for (const auto* memory : newMemories) {
@@ -245,7 +245,7 @@ std::unique_ptr<Annotation> AddHistoryExpansions(std::unique_ptr<Annotation> ann
         if (!foundNewMemory) continue; // we expect to already know everything about the existing memories
 
         // extend stack
-        auto graph = solver::MakePureHeapGraph(std::move(tmp), config);
+        auto graph = engine::MakePureHeapGraph(std::move(tmp), config);
         assert(!graph.nodes.empty());
         EncodedFlowGraph encoding(std::move(graph));
         FootprintChecks checks(encoding.context);
@@ -257,7 +257,7 @@ std::unique_ptr<Annotation> AddHistoryExpansions(std::unique_ptr<Annotation> ann
                 target->conjuncts.push_back(std::move(candidates[index]));
             });
         }
-        solver::ComputeImpliedCallback(encoding.solver, checks.checks);
+        engine::ComputeImpliedCallback(encoding.solver, checks.checks);
     }
 
     annotation->now->conjuncts.push_back(std::move(newStack));
@@ -307,7 +307,7 @@ std::unique_ptr<Annotation> AddSemanticHistoryInterpolation(std::unique_ptr<Anno
     std::cout << "=== Semantic Interpolation for: " << *annotation << std::endl;
     for (auto& effect : interferences) std::cout << "  -- effect: " << *effect->pre << " ~~> " << *effect->post << " under " << *effect->context << std::endl;
 
-    // feed solver with knowledge about interpolants
+    // feed engine with knowledge about interpolants
     std::deque<std::pair<PastPredicate, z3::expr>> interpolation;
     for (const auto* now : nowMemories) {
         for (const auto* past : pastMemories) {
@@ -342,7 +342,7 @@ std::unique_ptr<Annotation> AddSemanticHistoryInterpolation(std::unique_ptr<Anno
 //                    std::cout << "       ~> " << *nowValue << " != " << *pastValue << " AND " << *nowValue << " == " << *histValue << " AND " << *effect->context << " AND " << *effect->post << " == " << *newHistory << std::endl;
                 }
 
-//                solver.add(z3::mk_or(vector));
+//                engine.add(z3::mk_or(vector));
                 auto premise = z3::mk_or(vector);
                 interpolation.emplace_back(std::move(newHistory), premise);
 //                std::cout << " ||| field=" << field << " for " << *now << "  vs  " << *past << std::endl << premise << std::endl;
@@ -368,9 +368,9 @@ std::unique_ptr<Annotation> AddSemanticHistoryInterpolation(std::unique_ptr<Anno
         }
     }
     std::cout << " ~> going to solve; #interpolation=" << interpolation.size() << " #checks=" << checks.expressions.size() << " #candidates=" << candidates.size() << std::endl;
-    solver::ComputeImpliedCallback(solver, checks);
+    engine::ComputeImpliedCallback(solver, checks);
 //    bool isSolverUnsat;
-//    solver::ComputeImpliedCallback(solver, checks, &isSolverUnsat);
+//    engine::ComputeImpliedCallback(engine, checks, &isSolverUnsat);
 //    if (isSolverUnsat) throw std::logic_error("Unexpected unsatisfiability during semantic interpolation."); // TODO: remove
 
 //    // derive knowledge
@@ -379,8 +379,8 @@ std::unique_ptr<Annotation> AddSemanticHistoryInterpolation(std::unique_ptr<Anno
 //    auto candidates = CandidateGenerator::Generate(*annotation, CandidateGenerator::FAST);
 //    std::set<std::size_t> implied;
 //    for (const auto& [past, premise] : interpolation) {
-//        solver.push();
-//        solver.add(premise);
+//        engine.push();
+//        engine.add(premise);
 //        ImplicationCheckSet checks(context);
 //        for (std::size_t index = 0; index < candidates.size(); ++index) {
 //            auto& candidate = candidates[index];
@@ -390,8 +390,8 @@ std::unique_ptr<Annotation> AddSemanticHistoryInterpolation(std::unique_ptr<Anno
 //                if (holds) implied.insert(index);
 //            });
 //        }
-//        solver::ComputeImpliedCallback(solver, checks);
-//        solver.pop();
+//        engine::ComputeImpliedCallback(engine, checks);
+//        engine.pop();
 //    }
 
     for (auto index : implied) {
@@ -479,7 +479,7 @@ std::unique_ptr<Annotation> FilterOutHistories(std::unique_ptr<Annotation> annot
             });
         }
     }
-    solver::ComputeImpliedCallback(solver, checks);
+    engine::ComputeImpliedCallback(solver, checks);
 //    for (auto* elem : unnecessary) std::cout << "  => removing: " << *elem << "  " << std::endl;
 
     annotation->time.erase(std::remove_if(annotation->time.begin(), annotation->time.end(), [&unnecessary](const auto& elem){
@@ -596,7 +596,7 @@ struct InterferenceInfo {
                 }
             }
         }
-        solver::ComputeImpliedCallback(solver, checks);
+        engine::ComputeImpliedCallback(solver, checks);
     }
 
 //    static inline std::deque<std::unique_ptr<PastPredicate>> MakeHistory(const Annotation& annotation, std::deque<std::unique_ptr<PointsToAxiom>>&& oldMemory) {

@@ -26,6 +26,6 @@ struct Z3Error : public prover::PlanktonError {
 		Z3SolvingError(std::string cause);
 	};
 
-} // namespace solver
+} // namespace engine
 
 #endif

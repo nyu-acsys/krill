@@ -9,7 +9,7 @@
 #include "../../include/cola/util.hpp"
 #include "../../include/cola/transform.hpp"
 
-#include "../../include/prover/verify.hpp"
+#include "solver/verify.hpp"
 
 using namespace TCLAP;
 using namespace cola;

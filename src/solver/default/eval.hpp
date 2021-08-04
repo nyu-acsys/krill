@@ -5,7 +5,7 @@
 #include "cola/ast.hpp"
 #include "heal/logic.hpp"
 
-namespace solver {
+namespace engine {
 
     // TODO: FindResource that returns unique_ptr reference, FindResource for memory by SymbolicVariable
 

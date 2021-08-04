@@ -1,12 +1,12 @@
-#include "default_solver.hpp"
+#include "engine/solver.hpp"
 
-#include "timer.hpp"
+#include "util/timer.hpp"
 #include "encoder.hpp"
 #include "heal/util.hpp"
 
 using namespace cola;
 using namespace heal;
-using namespace solver;
+using namespace engine;
 
 
 const EqualsToAxiom* DefaultSolver::GetVariableResource(const cola::VariableDeclaration& decl, const LogicObject& object) const {
@@ -34,7 +34,7 @@ std::optional<bool> DefaultSolver::GetBoolValue(const cola::Expression& expr, co
             if (holds) result = b;
         });
     }
-    solver::ComputeImpliedCallback(solver, checks);
+    engine::ComputeImpliedCallback(solver, checks);
     return result;
 }
 
@@ -138,7 +138,7 @@ std::vector<bool> DefaultSolver::ComputeEffectImplications(const std::deque<std:
         auto& [premise, conclusion] = implications[index];
         AddEffectImplicationCheck(*premise, *conclusion, checks, encoder, [&result,index](){ result[index] = true; });
     }
-    solver::ComputeImpliedCallback(solver, checks);
+    engine::ComputeImpliedCallback(solver, checks);
     return result;
 }
 
@@ -181,14 +181,14 @@ Solver::Result DefaultSolver::Implies(const Annotation& premise, const Annotatio
     std::map<const PointsToAxiom*, const PointsToAxiom*> memoryMap;
     for (const auto* conclusionVariable : variablesConclusion) {
         // get memory resource in conclusion
-        auto conclusionMemory = solver::FindMemory(conclusionVariable->value->Decl(), conclusion);
+        auto conclusionMemory = engine::FindMemory(conclusionVariable->value->Decl(), conclusion);
         if (!conclusionMemory) continue;
         conclusionMemAdrToVar[&conclusionMemory->node->Decl()] = &conclusionVariable->variable->decl;
 
         // match memory resource against premise
-        auto premiseVariable = solver::FindResource(conclusionVariable->variable->decl, premise);
+        auto premiseVariable = engine::FindResource(conclusionVariable->variable->decl, premise);
         if (!premiseVariable) return Solver::NO;
-        auto premiseMemory = solver::FindMemory(premiseVariable->value->Decl(), premise);
+        auto premiseMemory = engine::FindMemory(premiseVariable->value->Decl(), premise);
         if (!premiseMemory) return Solver::NO;
         auto insertion = memoryMap.emplace(conclusionMemory, premiseMemory);
         assert(insertion.second);
@@ -264,7 +264,7 @@ Solver::Result DefaultSolver::Implies(const Annotation& premise, const Annotatio
             });
         }
     }
-    solver::ComputeImpliedCallback(solver, checks);
+    engine::ComputeImpliedCallback(solver, checks);
     return pastMemConclusion.size() == impliedTime.size() ? Solver::YES : Solver::NO;
 }
 
@@ -297,13 +297,13 @@ Solver::Result DefaultSolver::Implies(const Annotation& premise, const Annotatio
 //    std::map<const PointsToAxiom*, const PointsToAxiom*> memoryMap;
 //    for (const auto* conclusionVariable : variablesConclusion) {
 //        // get memory resource in conclusion
-//        auto conclusionMemory = solver::FindMemory(conclusionVariable->value->Decl(), conclusion);
+//        auto conclusionMemory = engine::FindMemory(conclusionVariable->value->Decl(), conclusion);
 //        if (!conclusionMemory) continue;
 //
 //        // match memory resource against interpolant
-//        auto interpolantVariable = solver::FindResource(conclusionVariable->variable->decl, *interpolant);
+//        auto interpolantVariable = engine::FindResource(conclusionVariable->variable->decl, *interpolant);
 //        if (!interpolantVariable) return Solver::NO;
-//        auto interpolantMemory = solver::FindMemory(interpolantVariable->value->Decl(), *interpolant);
+//        auto interpolantMemory = engine::FindMemory(interpolantVariable->value->Decl(), *interpolant);
 //        if (!interpolantMemory) return Solver::NO;
 //        auto insertion = memoryMap.emplace(conclusionMemory, interpolantMemory);
 //        assert(insertion.second);
@@ -313,8 +313,8 @@ Solver::Result DefaultSolver::Implies(const Annotation& premise, const Annotatio
 //
 //    // encode
 //    z3::context context;
-//    z3::solver solver(context);
-//    Z3Encoder encoder(context, solver);
+//    z3::engine engine(context);
+//    Z3Encoder encoder(context, engine);
 //
 //    z3::expr_vector checkPremise(context);
 //    checkPremise.push_back(encoder(*interpolant));
@@ -322,6 +322,6 @@ Solver::Result DefaultSolver::Implies(const Annotation& premise, const Annotatio
 //        checkPremise.push_back(encoder.MakeMemoryEquality(*memory, *other));
 //    }
 //
-//    auto result = ComputeImplied(solver, z3::mk_and(checkPremise), encoder(conclusion));
+//    auto result = ComputeImplied(engine, z3::mk_and(checkPremise), encoder(conclusion));
 //    return result ? Solver::YES : Solver::NO;
 //}

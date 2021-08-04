@@ -1,12 +1,12 @@
 #include "flowgraph.hpp"
 
-#include "timer.hpp"
+#include "util/timer.hpp"
 #include "eval.hpp"
 #include "expand.hpp"
 
 using namespace cola;
 using namespace heal;
-using namespace solver;
+using namespace engine;
 
 
 constexpr unsigned int MAX_INFLOW_PREDECESSORS = 1; // TODO: make this configurable via the formula/annotation itself
@@ -161,7 +161,7 @@ inline std::unique_ptr<Annotation> ExtendStateForFootprintConstruction(FlowGraph
     auto candidates = CandidateGenerator::Generate(encoding.graph, EMode::PRE, CandidateGenerator::FlowLevel::FAST);
     z3::expr_vector expressions(encoding.context);
     for (const auto& candidate : candidates) expressions.push_back(encoding.encoder(*candidate));
-    auto implied = solver::ComputeImplied(encoding.solver, expressions);
+    auto implied = engine::ComputeImplied(encoding.solver, expressions);
     for (std::size_t index = 0; index < implied.size(); ++index) {
         if (implied.at(index)) encoding.graph.pre->now->conjuncts.push_back(std::move(candidates.at(index)));
     }
@@ -169,7 +169,7 @@ inline std::unique_ptr<Annotation> ExtendStateForFootprintConstruction(FlowGraph
     // expand memory
     auto force = missing;
     for (const auto& node : encoding.graph.nodes) force.insert(&node.address);
-    encoding.graph.pre->now = solver::ExpandMemoryFrontier(std::move(encoding.graph.pre->now), factory, encoding.graph.config, missing, std::move(force), false);
+    encoding.graph.pre->now = engine::ExpandMemoryFrontier(std::move(encoding.graph.pre->now), factory, encoding.graph.config, missing, std::move(force), false);
 
     return std::move(encoding.graph.pre);
 }
@@ -215,8 +215,8 @@ inline FlowGraph MakeFootprintGraph(std::unique_ptr<Annotation> state, const Sym
     }
 }
 
-FlowGraph solver::MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const MultiUpdate& update, const SolverConfig& config) {
-    static Timer timer("solver::MakeFlowFootprint");
+FlowGraph engine::MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const MultiUpdate& update, const SolverConfig& config) {
+    static Timer timer("engine::MakeFlowFootprint");
     auto measurement = timer.Measure();
 
     heal::InlineAndSimplify(*pre);
@@ -292,8 +292,8 @@ FlowGraph solver::MakeFlowFootprint(std::unique_ptr<heal::Annotation> pre, const
     return result;
 }
 
-FlowGraph solver::MakePureHeapGraph(std::unique_ptr<heal::Annotation> state, const SolverConfig& config) {
-    static Timer timer("solver::MakePureHeapGraph");
+FlowGraph engine::MakePureHeapGraph(std::unique_ptr<heal::Annotation> state, const SolverConfig& config) {
+    static Timer timer("engine::MakePureHeapGraph");
     auto measurement = timer.Measure();
 
     heal::InlineAndSimplify(*state);
@@ -419,16 +419,16 @@ z3::expr EncodeOutflow(EncodedFlowGraph& encoding, const FlowGraphNode& node, co
     z3::expr_vector result(encoder.context);
 
     // outflow
-    result.push_back(z3::forall(qv, (graphIn(qv) && mkFlow(qv)) == graphOut(qv)));
-    result.push_back(z3::forall(qv, (allIn(qv) && mkFlow(qv)) == allOut(qv)));
+    result.push_back(z3::forall(qv, (encoder.MakeFlowContains(graphIn, qv) && mkFlow(qv)) == encoder.MakeFlowContains(graphOut, qv)));
+    result.push_back(z3::forall(qv, (encoder.MakeFlowContains(allIn, qv) && mkFlow(qv)) == encoder.MakeFlowContains(allOut, qv)));
 
     // outflow received by successor
     auto* successor = graph.GetNodeOrNull(forPre ? field.preValue : field.postValue);
     if (successor) {
         auto nextGraphIn = encoder(forPre ? successor->preGraphInflow : successor->postGraphInflow);
         auto nextAllIn = encoder(forPre ? successor->preAllInflow : successor->postAllInflow);
-        result.push_back(z3::forall(qv, z3::implies(graphOut(qv), nextGraphIn(qv))));
-        result.push_back(z3::forall(qv, z3::implies(allOut(qv), nextAllIn(qv))));
+        result.push_back(z3::forall(qv, z3::implies(encoder.MakeFlowContains(graphOut, qv), encoder.MakeFlowContains(nextGraphIn, qv))));
+        result.push_back(z3::forall(qv, z3::implies(encoder.MakeFlowContains(allOut, qv), encoder.MakeFlowContains(nextAllIn, qv))));
     }
 
     return z3::mk_and(result);
@@ -454,17 +454,17 @@ inline z3::expr EncodeFlowRules(EncodedFlowGraph& encoding, const FlowGraphNode&
     z3::expr_vector preOuts(encoder.context);
     z3::expr_vector postOuts(encoder.context);
     for (const auto& field : node.pointerFields) {
-        preOuts.push_back(encoder(field.preAllOutflow.value())(qv));
-        postOuts.push_back(encoder(field.postAllOutflow.value())(qv));
+        preOuts.push_back(encoder.MakeFlowContains(field.preAllOutflow.value(), qv));
+        postOuts.push_back(encoder.MakeFlowContains(field.postAllOutflow.value(), qv));
     }
 
-    auto preGraph = encoder(node.preGraphInflow)(qv);
-    auto postGraph = encoder(node.postGraphInflow)(qv);
-    auto preAll = encoder(node.preAllInflow)(qv);
-    auto postAll = encoder(node.postAllInflow)(qv);
-    auto preKey = encoder(node.preKeyset)(qv);
-    auto postKey = encoder(node.postKeyset)(qv);
-    auto frame = encoder(node.frameInflow)(qv);
+    auto preGraph = encoder.MakeFlowContains(node.preGraphInflow, qv);
+    auto postGraph = encoder.MakeFlowContains(node.postGraphInflow, qv);
+    auto preAll = encoder.MakeFlowContains(node.preAllInflow, qv);
+    auto postAll = encoder.MakeFlowContains(node.postAllInflow, qv);
+    auto preKey = encoder.MakeFlowContains(node.preKeyset, qv);
+    auto postKey = encoder.MakeFlowContains(node.postKeyset, qv);
+    auto frame = encoder.MakeFlowContains(node.frameInflow, qv);
     auto preOut = z3::mk_or(preOuts);
     auto postOut = z3::mk_or(postOuts);
 
@@ -496,7 +496,7 @@ inline z3::expr EncodeFlowRules(EncodedFlowGraph& encoding, const FlowGraphNode&
         for (auto[theRoot, mode] : {std::make_pair(preGraph, EMode::PRE), std::make_pair(postGraph, EMode::POST)}) {
             auto incomingRootFlow = GetGraphInflow(encoding.graph, node, mode);
             z3::expr_vector inflow(encoder.context);
-            for (auto* edge : incomingRootFlow) inflow.push_back(encoder(*edge)(qv));
+            for (auto* edge : incomingRootFlow) inflow.push_back(encoder.MakeFlowContains(*edge, qv));
             addRule(theRoot, z3::mk_or(inflow));
         }
     }
@@ -509,7 +509,7 @@ z3::expr EncodedFlowGraph::EncodeKeysetDisjointness(EMode mode) {
     z3::expr_vector keyset(encoder.context);
     for (const auto& node : graph.nodes) {
         auto& nodeKeyset = mode == EMode::PRE ? node.preKeyset.get() : node.postKeyset.get();
-        keyset.push_back(encoder(nodeKeyset)(qv));
+        keyset.push_back(encoder.MakeFlowContains(nodeKeyset, qv));
     }
     return z3::forall(qv, z3::atmost(keyset, 1));
 }
@@ -540,7 +540,7 @@ inline z3::expr EncodeFlow(EncodedFlowGraph& encoding) {
     // same inflow in root before and after update
 //    auto& root = graph.nodes.front();
 //    assert(&root.preAllInflow.get() == &root.postAllInflow.get());
-//     TODO: if preGraph == preAll, do we need to explicitly tell the solver that the frame flow is empty?
+//     TODO: if preGraph == preAll, do we need to explicitly tell the engine that the frame flow is empty?
 //    result.push_back(z3::forall(qv, !encoder(root.frameInflow)(qv)));
 
     // go over graph and encode flow
@@ -578,5 +578,5 @@ EncodedFlowGraph::EncodedFlowGraph(FlowGraph&& graph_) : solver(context), encode
 
 //    assert(!graph_.nodes.empty());
     solver.add(EncodeFlow(*this));
-//    assert(solver.check() != z3::unsat);
+//    assert(engine.check() != z3::unsat);
 }

@@ -9,7 +9,7 @@
 #include "solver/config.hpp"
 #include "solver/solver.hpp"
 
-#include "prover/verify.hpp"
+#include "solver/verify.hpp"
 
 using namespace cola;
 using namespace heal;

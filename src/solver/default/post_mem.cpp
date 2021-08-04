@@ -1,4 +1,4 @@
-#include "default_solver.hpp"
+#include "engine/solver.hpp"
 
 #include "z3++.h"
 #include "eval.hpp"
@@ -7,11 +7,11 @@
 #include "cola/util.hpp" // TODO: delete
 #include "expand.hpp"
 #include "post_helper.hpp"
-#include "timer.hpp"
+#include "util/timer.hpp"
 
 using namespace cola;
 using namespace heal;
-using namespace solver;
+using namespace engine;
 
 /* NOTE:
  * This checks for acyclicity of the flow graph. One would prefer to check for non-empty flow cycles instead.
@@ -83,12 +83,9 @@ void AddFlowCoverageChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) 
         mustHaveNode->needed = true;
     };
 
-    auto qv = encoding.encoder.QuantifiedVariable(encoding.graph.config.GetFlowValueType().sort);
     for (const auto& node : encoding.graph.nodes) {
         for (const auto& field : node.pointerFields) {
-            auto sameFlowInner = encoding.encoder(field.preAllOutflow.value())(qv) == encoding.encoder(field.postAllOutflow.value())(qv); // TODO: all or graph flow?
-//            auto sameFlowInner = encoding.encoder(field.preGraphOutflow.value())(qv) == encoding.encoder(field.postGraphOutflow.value())(qv);
-            auto sameFlow = z3::forall(qv, sameFlowInner);
+            auto sameFlow = encoding.encoder.MakeFlowEquality(field.preAllOutflow.value(), field.postAllOutflow.value());
             auto isPreNull = encoding.encoder.MakeNullCheck(field.preValue);
             auto isPostNull = encoding.encoder.MakeNullCheck(field.postValue);
             checks.Add(sameFlow || isPreNull, [ensureFootprintContains,&node,&field](bool unchanged){
@@ -157,7 +154,7 @@ void AddInvariantChecks(EncodedFlowGraph& encoding, FootprintChecks& checks) {
 //
 
 void PerformChecks(EncodedFlowGraph& encoding, const FootprintChecks& checks) {
-    solver::ComputeImpliedCallback(encoding.solver, checks.checks);
+    engine::ComputeImpliedCallback(encoding.solver, checks.checks);
 }
 
 void MinimizeFootprint(FlowGraph& footprint) {
@@ -313,8 +310,8 @@ PostImage DefaultSolver::PostMemoryUpdate(std::unique_ptr<Annotation> pre, const
 //    // end debug
 
     heal::InlineAndSimplify(*pre);
-    for (const auto& [lhs, rhs] : update) pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *lhs);
-    FlowGraph footprint = solver::MakeFlowFootprint(std::move(pre), update, Config());
+    for (const auto& [lhs, rhs] : update) pre->now = engine::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *lhs);
+    FlowGraph footprint = engine::MakeFlowFootprint(std::move(pre), update, Config());
     std::cout << "** pre after footprint creation: " << *footprint.pre << std::endl;
     EncodedFlowGraph encoding(std::move(footprint));
     FootprintChecks checks(encoding.context);

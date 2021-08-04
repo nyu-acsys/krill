@@ -34,6 +34,6 @@ namespace solver {
         [[nodiscard]] virtual std::unique_ptr<heal::SeparatingConjunction> ComputeImpliedConjuncts(const heal::SeparatingConjunction& conjuncts) const = 0;
     };
 
-} // namespace solver
+} // namespace engine
 
 #endif

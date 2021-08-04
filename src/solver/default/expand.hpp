@@ -7,7 +7,7 @@
 #include "flowgraph.hpp"
 #include "post_helper.hpp"
 
-namespace solver {
+namespace engine {
 
     struct Reachability {
     private:
@@ -140,14 +140,14 @@ namespace solver {
                          std::set<const heal::SymbolicVariableDeclaration*>&& forceExpansion = {}, bool forceFail = true) {
         // TODO: move removed overlap into a past predicate
 
-        static Timer timer("solver::ExpandMemoryFrontier");
+        static Timer timer("engine::ExpandMemoryFrontier");
         auto measurement = timer.Measure();
 
         if (expansionAddresses.empty()) return state;
 
         // add force aliases
         for (const auto* force : forceExpansion) {
-            if (auto memory = solver::FindMemory(*force, *state)) {
+            if (auto memory = engine::FindMemory(*force, *state)) {
                 forceExpansion.insert(&memory->node->Decl());
             }
         }
@@ -162,7 +162,7 @@ namespace solver {
             return symbolForced;
         });
         for (auto it = addresses.begin(); it != addresses.end();) {
-            if (solver::FindMemory(**it, *state)) it = addresses.erase(it);
+            if (engine::FindMemory(**it, *state)) it = addresses.erase(it);
             else ++it;
         }
         if (addresses.empty()) return state;
@@ -230,7 +230,7 @@ namespace solver {
                 });
             }
         }
-        solver::ComputeImpliedCallback(solver, checks);
+        engine::ComputeImpliedCallback(solver, checks);
         heal::Simplify(*state);
 
         // find new points-to predicates
@@ -262,7 +262,7 @@ namespace solver {
             // deeper analysis if forced address is potentially overlapping with local address
             if (potentiallyOverlappingWithLocalOrForced && forceAddress) {
                 std::cout << ">> local overlap on forced address detected, performing deep analysis..." << std::endl;
-                auto graph = solver::MakePureHeapGraph(std::make_unique<heal::Annotation>(heal::Copy(*state)), config); // TODO: avoid copy?
+                auto graph = engine::MakePureHeapGraph(std::make_unique<heal::Annotation>(heal::Copy(*state)), config); // TODO: avoid copy?
                 if (!graph.nodes.empty()) {
                     EncodedFlowGraph encoding(std::move(graph));
                     ImplicationCheckSet localChecks(encoding.context);
@@ -273,7 +273,7 @@ namespace solver {
                             if (holds) potentiallyOverlapping.erase(memory);
                         });
                     }
-                    solver::ComputeImpliedCallback(encoding.solver, localChecks);
+                    engine::ComputeImpliedCallback(encoding.solver, localChecks);
                     potentiallyOverlappingWithLocalOrForced = false;
                     for (const auto* memory : potentiallyOverlapping) updateOverlapFlag(*memory);
                 }
@@ -325,7 +325,7 @@ namespace solver {
 
     static std::unique_ptr<heal::SeparatingConjunction>
     ExpandMemoryFrontierForAccess(std::unique_ptr<heal::SeparatingConjunction> state, const SolverConfig& config, const cola::Expression& accessesFrom) {
-        static Timer timer("solver::ExpandMemoryFrontierForAccess");
+        static Timer timer("engine::ExpandMemoryFrontierForAccess");
         auto measurement = timer.Measure();
 
         auto dereferences = GetDereferences(accessesFrom);

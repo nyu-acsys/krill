@@ -1,6 +1,6 @@
-#include "prover/verify.hpp"
+#include "solver/verify.hpp"
 
-#include "timer.hpp"
+#include "util/timer.hpp"
 #include "solver/solver.hpp"
 
 using namespace cola;
@@ -84,7 +84,7 @@ void Verifier::ApplyInterference(const Statement& after) {
     if (IsRightMover(after)) return;
     current = solver->MakeStable(std::move(current), interference);
 //    PerformStep([this](auto annotation){
-//        return solver->Interpolate(std::move(annotation), interference);
+//        return engine->Interpolate(std::move(annotation), interference);
 //    });
 }
 

@@ -6,10 +6,10 @@
 #include "heal/logic.hpp"
 #include "heal/util.hpp"
 #include "solver/solver.hpp"
-#include "default_solver.hpp"
+#include "engine/solver.hpp"
 #include "encoder.hpp"
 
-namespace solver {
+namespace engine {
 
     enum struct EMode { PRE, POST };
 
@@ -58,7 +58,7 @@ namespace solver {
     };
 
     struct FlowGraph {
-        const solver::SolverConfig& config;
+        const engine::SolverConfig& config;
         std::deque<FlowGraphNode> nodes;
         std::unique_ptr<heal::Annotation> pre;
 

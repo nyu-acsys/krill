@@ -3,7 +3,7 @@
 #include <map>
 #include "cola/util.hpp"
 #include "heal/util.hpp"
-#include "prover/logger.hpp" // TODO: delete
+#include "util/logger.hpp" // TODO: delete
 #include "prover/util.hpp"
 #include "prover/solverimpl/post/info.hpp"
 
@@ -199,7 +199,7 @@ std::unique_ptr<ConjunctionFormula> VarPostComputer::MakePostNowSemantic() {
 	for (auto [lhs, rhs] : assignment) {
 		checker.AddPremise(encoder.MakeEqual(encoder.EncodeNext(lhs), encoder.EncodeNow(rhs)));
 
-		// in case there are variables that are not covered by 'info.solver.GetVariablesInScope()'
+		// in case there are variables that are not covered by 'info.engine.GetVariablesInScope()'
 		// TODO: properly collect variables occuring in pre and assignment
 		auto [isRhsVar, rhsVar] = heal::is_of_type<VariableExpression>(rhs.get());
 		if (!isRhsVar) continue;

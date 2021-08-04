@@ -6,7 +6,7 @@
 
 using namespace cola;
 using namespace heal;
-using namespace solver;
+using namespace engine;
 
 using SimpleSelector = std::pair<const VariableDeclaration*, std::string>;
 
@@ -51,11 +51,11 @@ VariableResourceFinder MakeVariableResourceFinder(const VariableDeclaration& var
     return finder;
 }
 
-EqualsToAxiom* solver::FindResource(const VariableDeclaration& variable, LogicObject& object) {
+EqualsToAxiom* engine::FindResource(const VariableDeclaration& variable, LogicObject& object) {
     return MakeVariableResourceFinder(variable, object).resultNonConst;
 }
 
-const EqualsToAxiom* solver::FindResource(const VariableDeclaration& variable, const LogicObject& object) {
+const EqualsToAxiom* engine::FindResource(const VariableDeclaration& variable, const LogicObject& object) {
     return MakeVariableResourceFinder(variable, object).resultConst;
 }
 
@@ -137,19 +137,19 @@ const PointsToAxiom* FindDereferenceResource(const SimpleSelector& dereference, 
     return MakeMemoryResourceFinder(dereference, object).resultConst;
 }
 
-PointsToAxiom* solver::FindResource(const cola::Dereference& dereference, LogicObject& object) {
+PointsToAxiom* engine::FindResource(const cola::Dereference& dereference, LogicObject& object) {
     return FindDereferenceResource(DereferenceToSelector(dereference), object);
 }
 
-const PointsToAxiom* solver::FindResource(const cola::Dereference& dereference, const LogicObject& object) {
+const PointsToAxiom* engine::FindResource(const cola::Dereference& dereference, const LogicObject& object) {
     return FindDereferenceResource(DereferenceToSelector(dereference), object);
 }
 
-heal::PointsToAxiom* solver::FindMemory(const heal::SymbolicVariableDeclaration& address, heal::LogicObject& object) {
+heal::PointsToAxiom* engine::FindMemory(const heal::SymbolicVariableDeclaration& address, heal::LogicObject& object) {
     return MakeMemoryResourceFinder(address, object).resultNonConst;
 }
 
-const heal::PointsToAxiom* solver::FindMemory(const heal::SymbolicVariableDeclaration& address, const heal::LogicObject& object) {
+const heal::PointsToAxiom* engine::FindMemory(const heal::SymbolicVariableDeclaration& address, const heal::LogicObject& object) {
     return MakeMemoryResourceFinder(address, object).resultConst;
 }
 
@@ -168,7 +168,7 @@ struct SpecificationFinder : public BaseResourceVisitor {
     void exit(const FulfillmentAxiom& obj) override { if (Matches(obj)) result.push_back(&obj); }
 };
 
-std::deque<const heal::SpecificationAxiom*> solver::FindSpecificationAxioms(const heal::SymbolicVariableDeclaration& key,
+std::deque<const heal::SpecificationAxiom*> engine::FindSpecificationAxioms(const heal::SymbolicVariableDeclaration& key,
                                                                             const heal::LogicObject& object) {
     if (key.type.sort != Sort::DATA) return {};
     SpecificationFinder finder(EqualityFinder::FindEqualities(key, object));
@@ -186,7 +186,7 @@ const heal::PointsToAxiom* ValuationMap<LAZY>::GetMemoryResourceOrNull(const hea
         auto find = addressToMemory.find(&variable);
         if (find != addressToMemory.end()) return find->second;
     }
-    auto* result = solver::FindMemory(variable, context);
+    auto* result = engine::FindMemory(variable, context);
     if (LAZY) addressToMemory[&variable] = result;
     return result;
 }
@@ -205,7 +205,7 @@ const SymbolicVariableDeclaration* ValuationMap<LAZY>::GetValueOrNull(const Vari
         if (find != variableToSymbolic.end()) return find->second;
     }
     const SymbolicVariableDeclaration *result = nullptr;
-    auto resource = solver::FindResource(decl, context);
+    auto resource = engine::FindResource(decl, context);
     if (resource) result = &resource->value->Decl();
     if (LAZY) variableToSymbolic[&decl] = result;
     return result;
@@ -280,5 +280,5 @@ std::unique_ptr<heal::SymbolicExpression> ValuationMap<LAZY>::Evaluate(const Exp
     return std::move(evaluator.result);
 }
 
-template class solver::ValuationMap<true>;
-template class solver::ValuationMap<false>;
+template class engine::ValuationMap<true>;
+template class engine::ValuationMap<false>;

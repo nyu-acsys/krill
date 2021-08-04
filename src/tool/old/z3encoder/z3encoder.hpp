@@ -184,6 +184,6 @@ namespace solver {
 			std::vector<std::pair<std::string, const cola::Type*>> pointerFields;
 	};
 
-} // namespace solver
+} // namespace engine
 
 #endif

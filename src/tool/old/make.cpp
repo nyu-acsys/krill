@@ -1,7 +1,7 @@
 #include "prover/solverimpl/linsolver.hpp"
 
 #include "heal/util.hpp"
-#include "prover/logger.hpp" // TODO: remove
+#include "util/logger.hpp" // TODO: remove
 
 using namespace cola;
 using namespace heal;

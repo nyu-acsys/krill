@@ -14,8 +14,9 @@
 ################################
 
 set(SOURCES
-	proof.cpp
-	verify.cpp
+		proof.cpp
+		proofgen.cpp
+        linearizability.cpp
 )
 
 add_library(Prover ${SOURCES})

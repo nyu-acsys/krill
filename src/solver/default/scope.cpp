@@ -1,11 +1,11 @@
-#include "default_solver.hpp"
+#include "engine/solver.hpp"
 
 #include "heal/util.hpp"
 #include "post_helper.hpp"
 
 using namespace cola;
 using namespace heal;
-using namespace solver;
+using namespace engine;
 
 
 inline std::unique_ptr<heal::Annotation> AddScope(std::unique_ptr<Annotation> pre, const std::vector<std::unique_ptr<VariableDeclaration>>& scope) {

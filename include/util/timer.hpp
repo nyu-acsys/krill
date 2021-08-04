@@ -2,6 +2,8 @@
 #ifndef TIMER
 #define TIMER
 
+// TODO: properly named include guards
+// TODO: namespace plankton
 
 class Timer {
     private:

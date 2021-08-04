@@ -1,4 +1,4 @@
-#include "prover/verify.hpp"
+#include "solver/verify.hpp"
 
 #include <map>
 #include "cola/util.hpp"
@@ -12,7 +12,7 @@ using namespace prover;
 
 //
 // NOTE:
-// this is currently supposed to be done in the solver
+// this is currently supposed to be done in the engine
 //
 
 void Verifier::ApplyInterference() {
@@ -58,11 +58,11 @@ void Verifier::ExtendInterference(std::deque<std::unique_ptr<solver::Effect>> ef
 //		}
 //
 //		// TODO: implement iterative solving => extend effects with an ImplicationChecker?
-//		if (solver->Implies(*command->precondition, *other->precondition)) {
+//		if (engine->Implies(*command->precondition, *other->precondition)) {
 //			is_effect_new = false;
 //			break;
 //		}
-//		if (solver->Implies(*other->precondition, *command->precondition)) {
+//		if (engine->Implies(*other->precondition, *command->precondition)) {
 //			other.reset();
 //			effect_pruned = true;
 //		}
@@ -86,7 +86,7 @@ void Verifier::ExtendInterference(std::deque<std::unique_ptr<solver::Effect>> ef
 //}
 //
 //void Verifier::ExtendInterference(const Assignment& command) {
-//    currentAnnotation = solver->AddInvariant(std::move(currentAnnotation));
+//    currentAnnotation = engine->AddInvariant(std::move(currentAnnotation));
 //	auto transformer = interference_renaming_info.as_transformer();
 //
 //	// make effect: (rename(currentAnnotation.now), rename(command)) where rename(x) renames the local variables in x
@@ -107,11 +107,11 @@ void Verifier::ExtendInterference(std::deque<std::unique_ptr<solver::Effect>> ef
 //	if (insideAtomic) return;
 //
 //	auto stable = std::make_unique<ConjunctionFormula>();
-//    currentAnnotation = solver->StripInvariant(std::move(currentAnnotation));
+//    currentAnnotation = engine->StripInvariant(std::move(currentAnnotation));
 //	log() << std::endl << "∆∆∆ applying interference" << std::endl;
 //	std::size_t counter = 0;
 //
-//	if (solver->ImpliesFalse(*currentAnnotation)) { // TODO: do a quick/syntactic check
+//	if (engine->ImpliesFalse(*currentAnnotation)) { // TODO: do a quick/syntactic check
 //		log() << "    => pruning: premise is false" << std::endl;
 //		return;
 //	}
@@ -161,7 +161,7 @@ void Verifier::ExtendInterference(std::deque<std::unique_ptr<solver::Effect>> ef
 //bool Verifier::is_interference_free(const ConjunctionFormula& formula){
 //	for (const auto& effect : interference) {
 //		// TODO important: should we combine effect->precondition and formula?
-//		if (!solver->UncheckedPostEntails(*effect->precondition, *effect->command, formula)) {
+//		if (!engine->UncheckedPostEntails(*effect->precondition, *effect->command, formula)) {
 //			// log() << " ==> no" << std::endl;
 //			return false;
 //		}

@@ -2,7 +2,7 @@
 
 #include "cola/util.hpp"
 #include "heal/util.hpp"
-#include "prover/logger.hpp" // TODO: delete
+#include "util/logger.hpp" // TODO: delete
 #include "prover/solverimpl/post/info.hpp"
 
 using namespace cola;

@@ -46,6 +46,6 @@ namespace solver {
 			mutable z3::solver solver;
 	};
 
-} // namespace solver
+} // namespace engine
 
 #endif

@@ -1,4 +1,4 @@
-#include "default_solver.hpp"
+#include "engine/solver.hpp"
 
 #include <numeric>
 #include "z3++.h"
@@ -10,7 +10,7 @@
 
 using namespace cola;
 using namespace heal;
-using namespace solver;
+using namespace engine;
 
 
 // TODO: where to interpolate historic flow info? how not to duplicate history? Or: how to handle duplicate history during joining?
@@ -128,7 +128,7 @@ class AnnotationJoiner {
             auto isFalse = z3::implies(encoder(*annotation), context.bool_val(false));
             checks.Add(isFalse, [&annotation](bool holds){ if (holds) annotation.reset(nullptr); });
         }
-        solver::ComputeImpliedCallback(solver, checks);
+        engine::ComputeImpliedCallback(solver, checks);
         annotations.erase(std::remove_if(annotations.begin(), annotations.end(), [](const auto& elem){ return elem.get() == nullptr; }), annotations.end());
     }
 
@@ -449,7 +449,7 @@ class AnnotationJoiner {
         for (const auto& candidate : candidates) {
             encoded.push_back(encoder(*candidate));
         }
-        auto implied = solver::ComputeImplied(solver, encoded);
+        auto implied = engine::ComputeImplied(solver, encoded);
 
         for (std::size_t index = 0; index < candidates.size(); ++index) {
             if (!implied.at(index)) continue;

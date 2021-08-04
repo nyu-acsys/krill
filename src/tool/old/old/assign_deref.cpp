@@ -1,6 +1,6 @@
 #include "prover/solverimpl/linsolver.hpp"
 
-#include "prover/logger.hpp" // TODO: delete
+#include "util/logger.hpp" // TODO: delete
 #include "prover/error.hpp"
 #include "prover/util.hpp"
 #include "prover/solverimpl/post/info.hpp"
@@ -684,7 +684,7 @@ void DerefPostComputer::CheckSpecification(Node node) {
 		Throw("Specification violated by impure heap update", "multiple keys inserted/deleted at once");
 
 //	// begin debug output
-//	for (auto var : info.solver.GetVariablesInScope()) {
+//	for (auto var : info.engine.GetVariablesInScope()) {
 //		if (checker.Implies(encoder.EncodeNow(*var).Equal(impureKey))) {
 //			log() << "      impure key == " << var->name << std::endl;
 //		}
@@ -793,8 +793,8 @@ void DerefPostComputer::ExploreAndCheckFootprint() {
 //					auto nextFlow = encoder.EncodeNextFlow(fpnode, interfaceKey);
 //					auto nowUnique = encoder.EncodeNowUniqueInflow(fpnode, interfaceKey);
 //					auto nextUnique = encoder.EncodeNextUniqueInflow(fpnode, interfaceKey);
-//					auto nowOut = encoder.EncodeNowPredicate(info.solver.config.flowDomain->GetOutFlowContains("next"), fpnode, interfaceKey);
-//					auto nextOut = encoder.EncodeNextPredicate(info.solver.config.flowDomain->GetOutFlowContains("next"), fpnode, interfaceKey);
+//					auto nowOut = encoder.EncodeNowPredicate(info.engine.config.flowDomain->GetOutFlowContains("next"), fpnode, interfaceKey);
+//					auto nextOut = encoder.EncodeNextPredicate(info.engine.config.flowDomain->GetOutFlowContains("next"), fpnode, interfaceKey);
 //
 //					std::string res_nowFlow = checker.Implies(nowFlow) ? "1" : (checker.Implies(nowFlow.Negate()) ? "0" : "?");
 //					std::string res_nextFlow = checker.Implies(nextFlow) ? "1" : (checker.Implies(nextFlow.Negate()) ? "0" : "?");

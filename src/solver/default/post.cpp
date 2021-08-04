@@ -1,4 +1,4 @@
-#include "default_solver.hpp"
+#include "engine/solver.hpp"
 
 #include "cola/util.hpp"
 #include "heal/util.hpp"
@@ -7,11 +7,11 @@
 #include "z3++.h"
 #include "expand.hpp"
 #include "post_helper.hpp"
-#include "timer.hpp"
+#include "util/timer.hpp"
 
 using namespace cola;
 using namespace heal;
-using namespace solver;
+using namespace engine;
 
 
 //
@@ -133,7 +133,7 @@ inline std::deque<std::unique_ptr<SeparatingConjunction>> PrunePaths(const Annot
             if (holds) elem.reset(nullptr);
         });
     }
-    solver::ComputeImpliedCallback(solver, checks);
+    engine::ComputeImpliedCallback(solver, checks);
     paths.erase(std::remove_if(paths.begin(), paths.end(), [](const auto& elem){ return elem.get() == nullptr; }), paths.end());
 
     return paths;
@@ -144,20 +144,20 @@ PostImage DefaultSolver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd
     auto measurement = timer.Measure();
 
     std::cout << "******** Post image for " << *pre << " " << cmd;
-    pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *cmd.expr);
+    pre->now = engine::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *cmd.expr);
     PostImage result;
     auto paths = SplitDisjunctions(ExpressionToFormula(*cmd.expr, *pre));
     paths = PrunePaths(*pre, std::move(paths)); // TODO: do this here?
     for (const auto& formula : paths) {
         auto post = heal::Copy(*pre);
         post->now = heal::Conjoin(std::move(post->now), heal::Copy(*formula)); // TODO: avoid copy
-//        post->now = solver::ExpandMemoryFrontier(std::move(post->now), Config(), *formula); // TODO: do this here?
+//        post->now = engine::ExpandMemoryFrontier(std::move(post->now), Config(), *formula); // TODO: do this here?
 //        bool isUnsatisfiable = false;
-//        post = solver::TryAddPureFulfillment(std::move(post), Config(), &isUnsatisfiable);
+//        post = engine::TryAddPureFulfillment(std::move(post), Config(), &isUnsatisfiable);
 //        if (isUnsatisfiable) continue;
         post->now = ExpandMemoryFrontier(std::move(post->now), Config(), formula.get());
         post = ExtendStack(std::move(post), Config());
-//        post = solver::TryAddPureFulfillment(std::move(post), Config());
+//        post = engine::TryAddPureFulfillment(std::move(post), Config());
 
         heal::InlineAndSimplify(*post);
         std::cout << "  ~> " << *post << std::endl;
@@ -184,9 +184,9 @@ inline void CheckCell(const Formula& state, const SymbolicVariableDeclaration& a
     z3::context context;
     z3::solver solver(context);
     Z3Encoder encoder(context, solver);
-    auto memory = solver::FindMemory(address, state); // TODO: avoid search
+    auto memory = engine::FindMemory(address, state); // TODO: avoid search
     if (!memory) throw std::logic_error("Cannot retrieve newly allocated memory resource."); // TODO: better error handling
-    auto good = solver::ComputeImplied(solver, encoder(state), encoder(*config.GetNodeInvariant(*memory)));
+    auto good = engine::ComputeImplied(solver, encoder(state), encoder(*config.GetNodeInvariant(*memory)));
     if (!good) throw std::logic_error("Newly allocated node does not satisfy invariant."); // TODO: better error handling
 }
 
@@ -295,7 +295,7 @@ PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<Annotation> pre, con
 //    end debug
 
     // perform update
-    pre->now = solver::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *cmd.rhs);
+    pre->now = engine::ExpandMemoryFrontierForAccess(std::move(pre->now), Config(), *cmd.rhs);
     std::cout << "    ==> pre after expansion: " << *pre << std::endl;
 
     SymbolicFactory factory(*pre);
@@ -307,9 +307,9 @@ PostImage DefaultSolver::PostVariableUpdate(std::unique_ptr<Annotation> pre, con
     pre->now->conjuncts.push_back(std::make_unique<SymbolicAxiom>(std::make_unique<SymbolicVariable>(symbol), SymbolicAxiom::EQ, std::move(value)));
 
     // try derive helpful knowledge
-    if (cmd.rhs->sort() == Sort::PTR) { //if (!solver::GetDereferences(*cmd.rhs).empty()) { // TODO: when to do this?
-//        pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), factory, Config(), { &symbol }, { &symbol }, false); // TODO: really force?
-        pre->now = solver::ExpandMemoryFrontier(std::move(pre->now), factory, Config(), { &symbol });
+    if (cmd.rhs->sort() == Sort::PTR) { //if (!engine::GetDereferences(*cmd.rhs).empty()) { // TODO: when to do this?
+//        pre->now = engine::ExpandMemoryFrontier(std::move(pre->now), factory, Config(), { &symbol }, { &symbol }, false); // TODO: really force?
+        pre->now = engine::ExpandMemoryFrontier(std::move(pre->now), factory, Config(), {&symbol });
         pre = ExtendStack(std::move(pre), Config());
 //        pre = TryAddPureFulfillment(std::move(pre), Config());
     }

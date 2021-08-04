@@ -1,6 +1,6 @@
 #include "z3chkimp.hpp"
 
-#include "prover/logger.hpp" // TODO: remove
+#include "util/logger.hpp" // TODO: remove
 
 using namespace cola;
 using namespace heal;
@@ -20,17 +20,17 @@ void Z3ImplicationChecker::Pop() {
 }
 
 void Z3ImplicationChecker::AddPremise(Z3Expr expr) {
-	// log() << " @@adding expr to solver@@  " << expr.expr << std::endl;
+	// log() << " @@adding expr to engine@@  " << expr.expr << std::endl;
 	solver.add(expr);
 }
 
 void Z3ImplicationChecker::AddPremise(Term term) {
-	// log() << " @@adding term to solver@@  " << term << std::endl;
+	// log() << " @@adding term to engine@@  " << term << std::endl;
 	solver.add(encoder.Internalize(term));
 }
 
 void Z3ImplicationChecker::AddPremise(const Formula& premise) {
-	// log() << " @@adding formula to solver@@  " << premise << std::endl;
+	// log() << " @@adding formula to engine@@  " << premise << std::endl;
 	solver.add(encoder.EncodeZ3(premise, encodingTag));
 }
 
@@ -170,7 +170,7 @@ std::vector<bool> Z3ImplicationChecker::ComputeImplied(const std::vector<Z3Expr>
 	auto assumptions = encoder.MakeZ3ExprVector();
 	auto consequences = encoder.MakeZ3ExprVector();
 
-	// prepare solver
+	// prepare engine
 	for (std::size_t index = 0; index < exprs.size(); ++index) {
 		solver.add(variables[index] == exprs.at(index).expr);
 	}
@@ -192,7 +192,7 @@ std::vector<bool> Z3ImplicationChecker::ComputeImplied(const std::vector<Z3Expr>
 			return result;
 
 		case z3::sat:
-		    // TODO: implement more robust version (add result to solver and then check given exprs?)
+		    // TODO: implement more robust version (add result to engine and then check given exprs?)
 			for (std::size_t index = 0; index < exprs.size(); ++index) {
 				auto searchFor = z3::implies(encoder.MakeZ3True(), variables[index]);
 				for (auto implication : consequences) {
