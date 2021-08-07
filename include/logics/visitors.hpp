@@ -5,6 +5,7 @@
 namespace plankton {
     
     // forward declarations
+    struct VariableDeclaration;
     struct SymbolDeclaration;
     struct SymbolicVariable;
     struct SymbolicBool;
@@ -147,6 +148,7 @@ namespace plankton {
         void Visit(const FuturePredicate& object) override;
         void Visit(const Annotation& object) override;
         
+        virtual void Enter(const VariableDeclaration& object);
         virtual void Enter(const SymbolDeclaration& object);
         virtual void Enter(const SymbolicVariable& object);
         virtual void Enter(const SymbolicBool& object);
@@ -289,6 +291,7 @@ namespace plankton {
         void Visit(FuturePredicate& object) override;
         void Visit(Annotation& object) override;
         
+        virtual void Enter(const VariableDeclaration& object);
         virtual void Enter(const SymbolDeclaration& object);
         virtual void Enter(SymbolicVariable& object);
         virtual void Enter(SymbolicBool& object);

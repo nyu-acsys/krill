@@ -3,12 +3,12 @@
 #define PLANKTON_PROGRAMS_UTIL_HPP
 
 #include <string>
-#include <type_traits>
 #include "ast.hpp"
+#include "util/shortcuts.hpp"
 
 namespace plankton {
     
-    template<typename T, typename = std::enable_if_t<std::is_base_of_v<Expression, T> || std::is_base_of_v<Command, T>>>
+    template<typename T, EnableIfBaseOf<AstNode, T>>
     std::unique_ptr<T> Copy(const T& object);
     
     void Print(const AstNode& object, std::ostream& stream);

@@ -1,10 +1,33 @@
+#pragma once
 #ifndef PLANKTON_UTIL_SHORTCUTS_HPP
 #define PLANKTON_UTIL_SHORTCUTS_HPP
 
 #include <memory>
 #include <exception>
+#include <algorithm>
+#include <type_traits>
 
 namespace plankton {
+    
+    template<typename Base, typename Sub>
+    using EnableIfBaseOf = typename std::enable_if_t<std::is_base_of_v<Base, Sub>>;
+    
+    template<typename T, typename U>
+    static inline std::pair<bool, const T*> IsOfType(const U& object) {
+        auto result = dynamic_cast<const T*>(&object);
+        if (result) return std::make_pair(true, result);
+        else return std::make_pair(false, nullptr);
+    }
+    
+    template<typename T, typename = void>
+    std::unique_ptr<T> Copy(const T& object);
+    
+    template<typename T>
+    static inline T CopyAll(const T& container) {
+        T result;
+        for (const auto& elem : container) container.push_back(plankton::Copy(*elem));
+        return result;
+    }
     
     template<typename T, typename U>
     static inline void MoveInto(T&& srcContainer, U& dstContainer) {
@@ -27,10 +50,18 @@ namespace plankton {
     }
     
     template<typename T, typename U>
-    static inline std::pair<bool, const T*> IsOfType(const U& object) {
-        auto result = dynamic_cast<const T*>(&object);
-        if (result) return std::make_pair(true, result);
-        else return std::make_pair(false, nullptr);
+    static inline bool Any(const T& container, const U& unaryPredicate) {
+        return std::any_of(container.begin(), container.end(), unaryPredicate);
+    }
+    
+    template<typename T, typename U>
+    static inline bool All(const T& container, const U& unaryPredicate) {
+        return std::all_of(container.begin(), container.end(), unaryPredicate);
+    }
+    
+    template<typename T, typename U>
+    static inline bool Membership(const T& container, const U& element) {
+        return std::find(container.begin(), container.end(), element) != container.end();
     }
     
     struct ExceptionWithMessage : public std::exception {

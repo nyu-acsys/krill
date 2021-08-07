@@ -1,5 +1,6 @@
 #include "logics/visitors.hpp"
 
+#include "programs/ast.hpp"
 #include "logics/ast.hpp"
 #include "util/shortcuts.hpp"
 
@@ -220,7 +221,7 @@ void LogicListener::Visit(const SymbolicMax& object) { Enter(object); Walk(objec
 void LogicListener::Visit(const SeparatingConjunction& object) { Enter(object); Walk(object); }
 void LogicListener::Visit(const LocalMemoryResource& object) { Enter(object); Walk(object); }
 void LogicListener::Visit(const SharedMemoryCore& object) { Enter(object); Walk(object); }
-void LogicListener::Visit(const EqualsToAxiom& object) { Enter(object); Walk(object); }
+void LogicListener::Visit(const EqualsToAxiom& object) { Enter(object); Enter(object.variable); Walk(object); }
 void LogicListener::Visit(const StackAxiom& object) { Enter(object); Walk(object); }
 void LogicListener::Visit(const InflowEmptinessAxiom& object) { Enter(object); Walk(object); }
 void LogicListener::Visit(const InflowContainsValueAxiom& object) { Enter(object); Walk(object); }
@@ -240,7 +241,7 @@ void MutableLogicListener::Visit(SymbolicMax& object) { Enter(object); Walk(obje
 void MutableLogicListener::Visit(SeparatingConjunction& object) { Enter(object); Walk(object); }
 void MutableLogicListener::Visit(LocalMemoryResource& object) { Enter(object); Walk(object); }
 void MutableLogicListener::Visit(SharedMemoryCore& object) { Enter(object); Walk(object); }
-void MutableLogicListener::Visit(EqualsToAxiom& object) { Enter(object); Walk(object); }
+void MutableLogicListener::Visit(EqualsToAxiom& object) { Enter(object); Enter(object.variable); Walk(object); }
 void MutableLogicListener::Visit(StackAxiom& object) { Enter(object); Walk(object); }
 void MutableLogicListener::Visit(InflowEmptinessAxiom& object) { Enter(object); Walk(object); }
 void MutableLogicListener::Visit(InflowContainsValueAxiom& object) { Enter(object); Walk(object); }
@@ -252,6 +253,7 @@ void MutableLogicListener::Visit(PastPredicate& object) { Enter(object); Walk(ob
 void MutableLogicListener::Visit(FuturePredicate& object) { Enter(object); Walk(object); }
 void MutableLogicListener::Visit(Annotation& object) { Enter(object); Walk(object); }
 
+void LogicListener::Enter(const VariableDeclaration& /*object*/) { /* do nothing */ }
 void LogicListener::Enter(const SymbolDeclaration& /*object*/) { /* do nothing */ }
 void LogicListener::Enter(const SymbolicVariable& /*object*/) { /* do nothing */ }
 void LogicListener::Enter(const SymbolicBool& /*object*/) { /* do nothing */ }
@@ -273,6 +275,7 @@ void LogicListener::Enter(const PastPredicate& /*object*/) { /* do nothing */ }
 void LogicListener::Enter(const FuturePredicate& /*object*/) { /* do nothing */ }
 void LogicListener::Enter(const Annotation& /*object*/) { /* do nothing */ }
 
+void MutableLogicListener::Enter(const VariableDeclaration& /*object*/) { /* do nothing */ }
 void MutableLogicListener::Enter(const SymbolDeclaration& /*object*/) { /* do nothing */ }
 void MutableLogicListener::Enter(SymbolicVariable& /*object*/) { /* do nothing */ }
 void MutableLogicListener::Enter(SymbolicBool& /*object*/) { /* do nothing */ }

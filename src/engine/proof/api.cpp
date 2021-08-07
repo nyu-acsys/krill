@@ -50,13 +50,13 @@ void ProofGenerator::Visit(const Function& func) {
 // Interface function
 //
 
-inline ObligationAxiom::Kind GetKind(const Function& function) { // TODO: move to utils?
+inline Specification GetKind(const Function& function) { // TODO: move to utils?
     if (function.name == "contains") {
-        return ObligationAxiom::Kind::CONTAINS;
+        return Specification::CONTAINS;
     } else if (function.name == "insert" || function.name == "add") {
-        return ObligationAxiom::Kind::INSERT;
+        return Specification::INSERT;
     } else if (function.name == "delete" || function.name == "remove") {
-        return ObligationAxiom::Kind::DELETE;
+        return Specification::DELETE;
     } else {
         throw std::logic_error("Specification for function '" + function.name + "' unknown, expected one of: 'contains', 'insert', 'add', 'delete', 'remove'."); // TODO: better error handling
     }
@@ -68,7 +68,7 @@ inline std::unique_ptr<SymbolicVariable> GetSearchKeyValue(const Annotation& ann
     }
     auto param = function.parameters.front().get();
     auto variables = plankton::Collect<EqualsToAxiom>(*annotation.now);
-    auto find = FindIf(variables, [param](auto elem){ return &elem->variable->Decl() == param; });
+    auto find = FindIf(variables, [param](auto elem){ return &elem->variable->Func() == param; });
     if (find != variables.end()) return std::make_unique<SymbolicVariable>((**find).value->Decl());
     throw std::logic_error("Could not find search key"); // TODO: better error handling
 }

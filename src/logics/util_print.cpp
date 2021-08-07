@@ -42,7 +42,7 @@ std::string MakeString(const T& object) {
 
 std::string plankton::ToString(const LogicObject& object) { return MakeString(object); }
 std::string plankton::ToString(const SymbolDeclaration& object) { return MakeString(object); }
-std::string plankton::ToString(ObligationAxiom::Kind object) { return MakeString(object); }
+std::string plankton::ToString(Specification object) { return MakeString(object); }
 
 
 //
@@ -84,7 +84,7 @@ struct LogicPrinter : public LogicVisitor {
     void Visit(const LocalMemoryResource& formula) override { PrintMemory(formula, SYMBOL_LOCAL_POINTS_TO); }
     void Visit(const SharedMemoryCore& formula) override { PrintMemory(formula, SYMBOL_SHARED_POINTS_TO); }
     void Visit(const EqualsToAxiom& formula) override {
-        stream << *formula.variable << SYMBOL_EQUALS_TO;
+        stream << formula.Variable() << SYMBOL_EQUALS_TO;
         formula.value->Accept(*this);
     }
     void Visit(const StackAxiom& formula) override {
@@ -112,7 +112,7 @@ struct LogicPrinter : public LogicVisitor {
     }
     void Visit(const ObligationAxiom& formula) override {
         stream << LITERAL_OBLIGATION;
-        stream << formula.kind << "(";
+        stream << formula.spec << "(";
         formula.key->Accept(*this);
         stream << ")";
     }

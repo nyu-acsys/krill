@@ -26,11 +26,6 @@ bool Type::AssignableFrom(const Type& other) const { return other.AssignableTo(*
 
 bool Type::Comparable(const Type& other) const { return AssignableTo(other) || AssignableFrom(other); }
 
-//const Type& Type::Void() {
-//    static const Type type = Type("void", Sort::VOID);
-//    return type;
-//}
-
 const Type& Type::Bool() {
     static const Type type = Type("bool", Sort::BOOL);
     return type;
@@ -54,6 +49,10 @@ bool Type::AssignableTo(const Type& other) const {
 
 VariableDeclaration::VariableDeclaration(std::string name, const Type& type, bool shared)
 : name(std::move(name)), type(type), isShared(shared) {}
+
+bool VariableDeclaration::operator==(const VariableDeclaration& other) const { return this == &other; }
+
+bool VariableDeclaration::operator!=(const VariableDeclaration& other) const { return this != &other; }
 
 
 //
@@ -103,11 +102,13 @@ const Type& Dereference::Type() const {
     return variable->Type()[fieldName];
 }
 
-BinaryExpression::BinaryExpression(BinaryOperator op, std::unique_ptr<Expression> lhs_, std::unique_ptr<Expression> rhs_)
-: op(op), lhs(std::move(lhs_)), rhs(std::move(rhs_)) {
+BinaryExpression::BinaryExpression(BinaryOperator op, std::unique_ptr<ValueExpression> lhs_,
+                                   std::unique_ptr<ValueExpression> rhs_)
+        : op(op), lhs(std::move(lhs_)), rhs(std::move(rhs_)) {
     assert(lhs);
     assert(rhs);
     assert(lhs->Type().Comparable(rhs->Type()));
+    assert(op == BinaryOperator::EQ || op == BinaryOperator::NEQ || lhs->Type() == Type::Data());
 }
 
 const Type& BinaryExpression::Type() const { return plankton::Type::Bool(); }
@@ -160,13 +161,24 @@ Return::Return(std::unique_ptr<SimpleExpression> expression) {
     expressions.push_back(std::move(expression));
 }
 
-Assume::Assume(std::unique_ptr<SimpleExpression> cond) : condition(std::move(cond)) {
+Assume::Assume(std::unique_ptr<BinaryExpression> cond) : condition(std::move(cond)) {
     assert(condition);
+    assert(condition->Type() == Type::Bool());
 }
 
-Assert::Assert(std::unique_ptr<SimpleExpression> cond) : condition(std::move(cond)) {
+Assert::Assert(std::unique_ptr<BinaryExpression> cond) : condition(std::move(cond)) {
     assert(condition);
+    assert(condition->Type() == Type::Bool());
 }
+
+Malloc::Malloc(std::unique_ptr<VariableExpression> left) : lhs(std::move(left)) {
+    assert(lhs);
+}
+
+Macro::Macro(const Function& function) : function(function) {
+}
+
+const Function& Macro::Func() const { return function; }
 
 template<typename L, typename R>
 Assignment<L,R>::Assignment() = default;

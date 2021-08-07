@@ -19,6 +19,8 @@ namespace plankton {
     struct Return;
     struct Assume;
     struct Assert;
+    struct Malloc;
+    struct Macro;
     struct VariableAssignment;
     struct MemoryRead;
     struct MemoryWrite;
@@ -48,6 +50,8 @@ namespace plankton {
         virtual void Visit(const Return& object) = 0;
         virtual void Visit(const Assume& object) = 0;
         virtual void Visit(const Assert& object) = 0;
+        virtual void Visit(const Malloc& object) = 0;
+        virtual void Visit(const Macro& object) = 0;
         virtual void Visit(const VariableAssignment& object) = 0;
         virtual void Visit(const MemoryRead& object) = 0;
         virtual void Visit(const MemoryWrite& object) = 0;
@@ -77,6 +81,8 @@ namespace plankton {
         void Visit(const Return& object) override;
         void Visit(const Assume& object) override;
         void Visit(const Assert& object) override;
+        void Visit(const Malloc& object) override;
+        void Visit(const Macro& object) override;
         void Visit(const VariableAssignment& object) override;
         void Visit(const MemoryRead& object) override;
         void Visit(const MemoryWrite& object) override;
@@ -106,6 +112,8 @@ namespace plankton {
         void Visit(const Return& object) override;
         void Visit(const Assume& object) override;
         void Visit(const Assert& object) override;
+        void Visit(const Malloc& object) override;
+        void Visit(const Macro& object) override;
         void Visit(const VariableAssignment& object) override;
         void Visit(const MemoryRead& object) override;
         void Visit(const MemoryWrite& object) override;
@@ -135,6 +143,8 @@ namespace plankton {
         void Visit(const Return& object) override;
         void Visit(const Assume& object) override;
         void Visit(const Assert& object) override;
+        void Visit(const Malloc& object) override;
+        void Visit(const Macro& object) override;
         void Visit(const VariableAssignment& object) override;
         void Visit(const MemoryRead& object) override;
         void Visit(const MemoryWrite& object) override;
@@ -160,6 +170,8 @@ namespace plankton {
         virtual void Enter(const Return& object);
         virtual void Enter(const Assume& object);
         virtual void Enter(const Assert& object);
+        virtual void Enter(const Malloc& object);
+        virtual void Enter(const Macro& object);
         virtual void Enter(const VariableAssignment& object);
         virtual void Enter(const MemoryRead& object);
         virtual void Enter(const MemoryWrite& object);
@@ -190,6 +202,8 @@ namespace plankton {
         virtual void Visit(Return& object) = 0;
         virtual void Visit(Assume& object) = 0;
         virtual void Visit(Assert& object) = 0;
+        virtual void Visit(Malloc& object) = 0;
+        virtual void Visit(Macro& object) = 0;
         virtual void Visit(VariableAssignment& object) = 0;
         virtual void Visit(MemoryRead& object) = 0;
         virtual void Visit(MemoryWrite& object) = 0;
@@ -219,6 +233,8 @@ namespace plankton {
         void Visit(Return& object) override;
         void Visit(Assume& object) override;
         void Visit(Assert& object) override;
+        void Visit(Malloc& object) override;
+        void Visit(Macro& object) override;
         void Visit(VariableAssignment& object) override;
         void Visit(MemoryRead& object) override;
         void Visit(MemoryWrite& object) override;
@@ -248,6 +264,8 @@ namespace plankton {
         void Visit(Return& object) override;
         void Visit(Assume& object) override;
         void Visit(Assert& object) override;
+        void Visit(Malloc& object) override;
+        void Visit(Macro& object) override;
         void Visit(VariableAssignment& object) override;
         void Visit(MemoryRead& object) override;
         void Visit(MemoryWrite& object) override;
@@ -277,6 +295,8 @@ namespace plankton {
         void Visit(Return& object) override;
         void Visit(Assume& object) override;
         void Visit(Assert& object) override;
+        void Visit(Malloc& object) override;
+        void Visit(Macro& object) override;
         void Visit(VariableAssignment& object) override;
         void Visit(MemoryRead& object) override;
         void Visit(MemoryWrite& object) override;
@@ -303,6 +323,8 @@ namespace plankton {
         virtual void Enter(Return& object);
         virtual void Enter(Assume& object);
         virtual void Enter(Assert& object);
+        virtual void Enter(Malloc& object);
+        virtual void Enter(Macro& object);
         virtual void Enter(VariableAssignment& object);
         virtual void Enter(MemoryRead& object);
         virtual void Enter(MemoryWrite& object);

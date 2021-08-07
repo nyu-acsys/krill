@@ -1,6 +1,8 @@
 
 set(SOURCES
         ast.cpp
+        util_collect.cpp
+        util_copy.cpp
         util_equal.cpp
         util_print.cpp
         util_rename.cpp

@@ -10,6 +10,9 @@ using namespace plankton;
 // Symbolic Variables
 //
 
+bool SymbolDeclaration::operator==(const SymbolDeclaration& other) const { return this == &other; }
+bool SymbolDeclaration::operator!=(const SymbolDeclaration& other) const { return this != &other; }
+
 inline constexpr std::string_view MakeNamePrefix(Sort sort, Order order) {
     switch (order) {
         case Order::FIRST:
@@ -76,6 +79,7 @@ const SymbolDeclaration& SymbolFactory::GetFresh(const Type& type, Order order) 
     if (find != symbols.end()) return **find;
     
     // make new symbol
+    assert(order == Order::FIRST || type == Type::Data());
     symbols.emplace_back(new SymbolDeclaration(MakeName(type, order), type, order));
     return *symbols.back();
 }
@@ -87,21 +91,31 @@ const SymbolDeclaration& SymbolFactory::GetFresh(const Type& type, Order order) 
 
 SymbolicVariable::SymbolicVariable(const SymbolDeclaration& decl) : decl(decl) {}
 
+Order SymbolicVariable::Order() const { return Decl().order; }
+
 const Type& SymbolicVariable::Type() const { return Decl().type; }
 
 SymbolicBool::SymbolicBool(bool value) : value(value) {}
+
+Order SymbolicBool::Order() const { return plankton::Order::FIRST; }
 
 const Type& SymbolicBool::Type() const { return Type::Bool(); }
 
 SymbolicNull::SymbolicNull(const plankton::Type& type) : type(type) {}
 
+Order SymbolicNull::Order() const { return plankton::Order::FIRST; }
+
 const Type& SymbolicNull::Type() const { return type; }
 
 SymbolicMin::SymbolicMin() = default;
 
+Order SymbolicMin::Order() const { return plankton::Order::FIRST; }
+
 const Type& SymbolicMin::Type() const { return Type::Data(); }
 
 SymbolicMax::SymbolicMax() = default;
+
+Order SymbolicMax::Order() const { return plankton::Order::FIRST; }
 
 const Type& SymbolicMax::Type() const { return Type::Data(); }
 
@@ -112,51 +126,112 @@ const Type& SymbolicMax::Type() const { return Type::Data(); }
 
 SeparatingConjunction::SeparatingConjunction() = default;
 
+void SeparatingConjunction::Conjoin(std::unique_ptr<Formula> formula) {
+    // TODO: flatten if formula is a SeparatingConjunction?
+    conjuncts.push_back(std::move(formula));
+}
+
+void SeparatingConjunction::RemoveConjunctsIf(const std::function<bool(const Formula&)>& predicate) {
+    Simplify(*this);
+    RemoveIf(conjuncts, [&predicate](const auto& elem){ return predicate(*elem); });
+}
+
 MemoryAxiom::MemoryAxiom(std::unique_ptr<SymbolicVariable> adr, std::unique_ptr<SymbolicVariable> flw,
                          std::map<std::string, std::unique_ptr<SymbolicVariable>> fields)
         : node(std::move(adr)), flow(std::move(flw)), fieldToValue(std::move(fields)) {
-    assert(adr);
-    assert(flw);
-    for (const auto& field : adr->Type()) assert(fields.count(field.first) != 0);
+    assert(node);
+    assert(node->Order() == Order::FIRST);
+    assert(flow);
+    assert(flow->Order() == Order::SECOND);
+    for (const auto& field : adr->Type()) {
+        assert(fieldToValue.count(field.first) != 0);
+        assert(fieldToValue[field.first]->Order() == Order::FIRST);
+        assert(fieldToValue[field.first]->Type() == field.second);
+    }
 }
 
-EqualsToAxiom::EqualsToAxiom(std::unique_ptr<VariableExpression> var, std::unique_ptr<SymbolicVariable> val)
-        : variable(std::move(var)), value(std::move(val)) {
-    assert(variable);
-    assert(value);
+std::map<std::string, std::unique_ptr<SymbolicVariable>> ToUPtr(const std::map<std::string, std::reference_wrapper<const SymbolDeclaration>>& fieldToValue) {
+    std::map<std::string, std::unique_ptr<SymbolicVariable>> result;
+    for (const auto& [field, value] : fieldToValue) result[field] = std::make_unique<SymbolicVariable>(value);
+    return result;
 }
+
+MemoryAxiom::MemoryAxiom(const SymbolDeclaration& node, const SymbolDeclaration& flow,
+                         const std::map<std::string, std::reference_wrapper<const SymbolDeclaration>>& fieldToValue)
+        : MemoryAxiom(std::make_unique<SymbolicVariable>(node), std::make_unique<SymbolicVariable>(flow),
+                      ToUPtr(fieldToValue)) {}
+                      
+EqualsToAxiom::EqualsToAxiom(const VariableDeclaration& var, std::unique_ptr<SymbolicVariable> val)
+        : variable(var), value(std::move(val)) {
+    assert(value);
+    assert(variable.get().type == value->Type());
+    assert(value->Order() == Order::FIRST);
+}
+
+EqualsToAxiom::EqualsToAxiom(const VariableDeclaration& variable, const SymbolDeclaration& value)
+        : EqualsToAxiom(variable, std::make_unique<SymbolicVariable>(value)) {}
 
 StackAxiom::StackAxiom(BinaryOperator op, std::unique_ptr<SymbolicExpression> left,
                        std::unique_ptr<SymbolicExpression> right)
         : op(op), lhs(std::move(left)), rhs(std::move(right)) {
     assert(lhs);
     assert(rhs);
+    assert(rhs->Type() == lhs->Type());
+    assert(rhs->Order() == lhs->Order());
 }
 
-InflowEmptinessAxiom::InflowEmptinessAxiom(std::unique_ptr<SymbolicVariable> flw, bool isEmpty) : flow(std::move(flw)),
-                                                                                                  isEmpty(isEmpty) {
+InflowEmptinessAxiom::InflowEmptinessAxiom(std::unique_ptr<SymbolicVariable> flw, bool isEmpty)
+        : flow(std::move(flw)), isEmpty(isEmpty) {
     assert(flow);
+    assert(flow->Order() == Order::SECOND);
 }
+
+InflowEmptinessAxiom::InflowEmptinessAxiom(const SymbolDeclaration& flow, bool isEmpty)
+        : InflowEmptinessAxiom(std::make_unique<SymbolicVariable>(flow), isEmpty) {}
 
 InflowContainsValueAxiom::InflowContainsValueAxiom(std::unique_ptr<SymbolicVariable> flw,
                                                    std::unique_ptr<SymbolicVariable> val)
         : flow(std::move(flw)), value(std::move(val)) {
     assert(flow);
+    assert(flow->Order() == Order::SECOND);
     assert(value);
+    assert(value->Order() == Order::FIRST);
+    assert(flow->Type() == value->Type());
 }
+
+InflowContainsValueAxiom::InflowContainsValueAxiom(const SymbolDeclaration& flow, const SymbolDeclaration& value)
+        : InflowContainsValueAxiom(std::make_unique<SymbolicVariable>(flow),
+                                   std::make_unique<SymbolicVariable>(value)) {}
 
 InflowContainsRangeAxiom::InflowContainsRangeAxiom(std::unique_ptr<SymbolicVariable> flw,
                                                    std::unique_ptr<SymbolicExpression> low,
                                                    std::unique_ptr<SymbolicExpression> high)
         : flow(std::move(flw)), valueLow(std::move(low)), valueHigh(std::move(high)) {
-    assert(flw);
+    assert(flow);
+    assert(flow->Order() == Order::SECOND);
     assert(valueLow);
+    assert(valueLow->Order() == Order::FIRST);
+    assert(flow->Type() == valueLow->Type());
     assert(valueHigh);
+    assert(valueHigh->Order() == Order::FIRST);
+    assert(valueLow->Type() == valueHigh->Type());
 }
 
-ObligationAxiom::ObligationAxiom(Kind kind, std::unique_ptr<SymbolicVariable> k) : kind(kind), key(std::move(k)) {
+InflowContainsRangeAxiom::InflowContainsRangeAxiom(const SymbolDeclaration& flow,
+                                                   const SymbolDeclaration& valueLow,
+                                                   const SymbolDeclaration& valueHigh)
+        : InflowContainsRangeAxiom(std::make_unique<SymbolicVariable>(flow),
+                                   std::make_unique<SymbolicVariable>(valueLow),
+                                   std::make_unique<SymbolicVariable>(valueHigh)) {}
+
+ObligationAxiom::ObligationAxiom(Specification spec, std::unique_ptr<SymbolicVariable> k) : spec(spec), key(std::move(k)) {
     assert(key);
+    assert(key->Order() == Order::FIRST);
+    assert(key->Type() == Type::Data());
 }
+
+ObligationAxiom::ObligationAxiom(Specification spec, const SymbolDeclaration& key)
+        : ObligationAxiom(spec, std::make_unique<SymbolicVariable>(key)) {}
 
 FulfillmentAxiom::FulfillmentAxiom(bool returnValue) : returnValue(returnValue) {}
 
@@ -204,6 +279,10 @@ Annotation::Annotation(std::unique_ptr<SeparatingConjunction> nw, std::deque<std
     for (const auto& elem : future) assert(elem);
 }
 
+void Annotation::Conjoin(std::unique_ptr<Formula> formula) { now->Conjoin(std::move(formula)); }
+void Annotation::Conjoin(std::unique_ptr<PastPredicate> predicate) { past.push_back(std::move(predicate)); }
+void Annotation::Conjoin(std::unique_ptr<FuturePredicate> predicate) { future.push_back(std::move(predicate)); }
+
 
 //
 // Output
@@ -219,11 +298,11 @@ std::ostream& plankton::operator<<(std::ostream& out, const SymbolDeclaration& d
     return out;
 }
 
-std::ostream& plankton::operator<<(std::ostream& out, ObligationAxiom::Kind kind) {
-    switch (kind) {
-        case ObligationAxiom::Kind::CONTAINS: out << "contains"; break;
-        case ObligationAxiom::Kind::INSERT: out << "insert"; break;
-        case ObligationAxiom::Kind::DELETE: out << "delete"; break;
+std::ostream& plankton::operator<<(std::ostream& out, Specification spec) {
+    switch (spec) {
+        case Specification::CONTAINS: out << "contains"; break;
+        case Specification::INSERT: out << "insert"; break;
+        case Specification::DELETE: out << "delete"; break;
     }
     return out;
 }

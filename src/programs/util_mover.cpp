@@ -23,14 +23,15 @@ struct RightMoveVisitor : public BaseProgramVisitor {
     void Visit(const Assume& node) override { node.condition->Accept(*this); }
     void Visit(const Assert& node) override { node.condition->Accept(*this); }
     void Visit(const Return& node) override { for (const auto& expr : node.expressions) expr->Accept(*this); }
-    void Visit(const Malloc& node) override { isRightMover &= !node.lhs.is_shared; }
+    void Visit(const Malloc& node) override { node.lhs->Accept(*this); }
     void Visit(const Macro& /*node*/) override { isRightMover = false; }
     template<typename T>
     void HandleAssignment(const T& node) {
-    
+        for (const auto& elem : node.lhs) elem->Accept(*this);
+        for (const auto& elem : node.rhs) elem->Accept(*this);
     }
-    void Visit(const MemoryRead& node) override { node.lhs->Accept(*this); node.rhs->Accept(*this); }
-    void Visit(const MemoryWrite& node) override { for (const auto& lhs : node.lhs) lhs->Accept(*this); for (const auto& rhs : node.rhs) rhs->accept(*this); }
+    void Visit(const MemoryRead& node) override { HandleAssignment(node); }
+    void Visit(const MemoryWrite& node) override { HandleAssignment(node); }
     void Visit(const Function& /*node*/) override { isRightMover = false; }
 };
 

@@ -32,7 +32,7 @@ static inline bool IsEqual(const MemoryAxiom& object, const MemoryAxiom& other) 
            && std::all_of(object.fieldToValue.begin(), object.fieldToValue.end(), fieldIsEqual);
 }
 static inline bool IsEqual(const EqualsToAxiom& object, const EqualsToAxiom& other) {
-    return &object.variable->Decl() == &other.variable->Decl() && IsEqual(*object.value, *other.value);
+    return &object.Variable() == &other.Variable() && IsEqual(*object.value, *other.value);
 }
 static inline bool IsEqual(const StackAxiom& object, const StackAxiom& other) {
     return (
@@ -58,7 +58,7 @@ static inline bool IsEqual(const InflowContainsRangeAxiom& object, const InflowC
            && plankton::SyntacticalEqual(*object.valueHigh, *other.valueHigh);
 }
 static inline bool IsEqual(const ObligationAxiom& object, const ObligationAxiom& other) {
-    return object.kind == other.kind && IsEqual(*object.key, *other.key);
+    return object.spec == other.spec && IsEqual(*object.key, *other.key);
 }
 static inline bool IsEqual(const FulfillmentAxiom& object, const FulfillmentAxiom& other) {
     return object.returnValue == other.returnValue;

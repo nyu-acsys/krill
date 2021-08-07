@@ -22,10 +22,11 @@ constexpr std::string_view CMD_BREAK = "break";
 constexpr std::string_view CMD_RETURN = "return";
 constexpr std::string_view CMD_ASSUME = "assume";
 constexpr std::string_view CMD_ASSERT = "assert";
+constexpr std::string_view CMD_MALLOC = "malloc";
+constexpr std::string_view CMD_SIZEOF = "malloc";
 constexpr std::string_view STMT_ATOMIC = "atomic";
 constexpr std::string_view STMT_LOOP = "while (true)";
 constexpr std::string_view STMT_CHOICE = "choose";
-
 
 //
 // Wrappers
@@ -101,6 +102,17 @@ struct CommandPrinter : public BaseProgramVisitor {
     void Visit(const Assert& object) override {
         stream << CMD_ASSERT << "(";
         object.condition->Accept(expressionPrinter);
+        stream << ");" << LB;
+    }
+    void Visit(const Malloc& object) override {
+        object.lhs->Accept(*this);
+        stream << SYMBOL_ASSIGN << CMD_MALLOC << "(" << CMD_SIZEOF << "(";
+        stream << object.lhs->Type().name << "))" << ";" << LB;
+    }
+    void Visit(const Macro& object) override {
+        PrintSequence(object.lhs);
+        stream << SYMBOL_ASSIGN << object.Func().name << "(";
+        PrintSequence(object.arguments);
         stream << ");" << LB;
     }
     template<typename T>
@@ -248,6 +260,8 @@ void plankton::Print(const AstNode& object, std::ostream& stream) {
         void Visit(const Return& object) override { PrintCommand(object); }
         void Visit(const Assume& object) override { PrintCommand(object); }
         void Visit(const Assert& object) override { PrintCommand(object); }
+        void Visit(const Malloc& object) override { PrintCommand(object); }
+        void Visit(const Macro& object) override { PrintCommand(object); }
         void Visit(const VariableAssignment& object) override { PrintCommand(object); }
         void Visit(const MemoryRead& object) override { PrintCommand(object); }
         void Visit(const MemoryWrite& object) override { PrintCommand(object); }

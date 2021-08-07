@@ -53,7 +53,6 @@ namespace plankton {
         [[nodiscard]] bool AssignableFrom(const Type& other) const;
         [[nodiscard]] bool Comparable(const Type& other) const;
         
-//        static const Type& Void();
         static const Type& Bool();
         static const Type& Data();
     };
@@ -65,6 +64,9 @@ namespace plankton {
         
         explicit VariableDeclaration(std::string name, const Type& type, bool shared);
         VariableDeclaration(const VariableDeclaration&) = delete;
+        
+        [[nodiscard]] bool operator==(const VariableDeclaration& other) const;
+        [[nodiscard]] bool operator!=(const VariableDeclaration& other) const;
     };
     
     //
@@ -106,7 +108,10 @@ namespace plankton {
         [[nodiscard]] virtual Sort Sort() const { return Type().sort; };
     };
     
-    struct SimpleExpression : Expression {
+    struct ValueExpression : Expression {
+    };
+    
+    struct SimpleExpression : ValueExpression {
     };
 
     struct VariableExpression final : public SimpleExpression {
@@ -150,7 +155,7 @@ namespace plankton {
         ACCEPT_PROGRAM_VISITOR
     };
 
-    struct Dereference final : public Expression {
+    struct Dereference final : public ValueExpression {
         std::unique_ptr<VariableExpression> variable;
         std::string fieldName;
         
@@ -165,10 +170,11 @@ namespace plankton {
     
     struct BinaryExpression final : public Expression {
         BinaryOperator op;
-        std::unique_ptr<Expression> lhs;
-        std::unique_ptr<Expression> rhs;
-        
-        explicit BinaryExpression(BinaryOperator op_, std::unique_ptr<Expression> lhs_, std::unique_ptr<Expression> rhs_);
+        std::unique_ptr<ValueExpression> lhs;
+        std::unique_ptr<ValueExpression> rhs;
+    
+        explicit BinaryExpression(BinaryOperator op_, std::unique_ptr<ValueExpression> lhs_,
+                                  std::unique_ptr<ValueExpression> rhs_);
         [[nodiscard]] const plankton::Type& Type() const override;
         ACCEPT_PROGRAM_VISITOR
     };
@@ -244,21 +250,40 @@ namespace plankton {
     };
 
     struct Assume final : public Command {
-        std::unique_ptr<SimpleExpression> condition;
+        std::unique_ptr<BinaryExpression> condition;
         
-        explicit Assume(std::unique_ptr<SimpleExpression> condition);
+        explicit Assume(std::unique_ptr<BinaryExpression> condition);
         ACCEPT_PROGRAM_VISITOR
     };
 
     struct Assert final : public Command {
-        std::unique_ptr<SimpleExpression> condition;
+        std::unique_ptr<BinaryExpression> condition;
         
-        explicit Assert(std::unique_ptr<SimpleExpression> condition);
+        explicit Assert(std::unique_ptr<BinaryExpression> condition);
+        ACCEPT_PROGRAM_VISITOR
+    };
+    
+    struct Malloc final : public Command {
+        std::unique_ptr<VariableExpression> lhs;
+        
+        explicit Malloc(std::unique_ptr<VariableExpression> lhs);
+        ACCEPT_PROGRAM_VISITOR
+    };
+    
+    struct Macro final : public Command {
+        // lhs must not occur twice
+        std::vector<std::unique_ptr<VariableExpression>> lhs;
+        std::reference_wrapper<const Function> function;
+        std::vector<std::unique_ptr<SimpleExpression>> arguments;
+        
+        explicit Macro(const Function& function);
+        [[nodiscard]] const Function& Func() const;
         ACCEPT_PROGRAM_VISITOR
     };
     
     template<typename L, typename R>
     struct Assignment : public Command {
+        // lhs must not occur twice
         std::vector<std::unique_ptr<L>> lhs;
         std::vector<std::unique_ptr<R>> rhs;
         
@@ -266,7 +291,7 @@ namespace plankton {
         explicit Assignment(std::unique_ptr<L> lhs, std::unique_ptr<R> rhs);
     };
     
-    struct VariableAssignment final : public Assignment<VariableExpression, VariableExpression> {
+    struct VariableAssignment final : public Assignment<VariableExpression, SimpleExpression> {
         using Assignment::Assignment;
         ACCEPT_PROGRAM_VISITOR
     };
@@ -276,7 +301,7 @@ namespace plankton {
         ACCEPT_PROGRAM_VISITOR
     };
     
-    struct MemoryWrite final : public Assignment<Dereference, VariableExpression> {
+    struct MemoryWrite final : public Assignment<Dereference, SimpleExpression> {
         using Assignment::Assignment;
         ACCEPT_PROGRAM_VISITOR
     };

@@ -11,11 +11,11 @@
 namespace plankton {
 
     struct HeapEffect final {
-        std::unique_ptr<PointsToAxiom> pre; // memory before update
-        std::unique_ptr<PointsToAxiom> post; // memory after update
+        std::unique_ptr<SharedMemoryCore> pre; // memory before update
+        std::unique_ptr<SharedMemoryCore> post; // memory after update
         std::unique_ptr<Formula> context; // required but unaltered resources (not a frame!)
     
-        explicit HeapEffect(std::unique_ptr<PointsToAxiom> pre, std::unique_ptr<PointsToAxiom> post,
+        explicit HeapEffect(std::unique_ptr<SharedMemoryCore> pre, std::unique_ptr<SharedMemoryCore> post,
                             std::unique_ptr<Formula> context);
     };
 
@@ -26,31 +26,27 @@ namespace plankton {
         explicit PostImage();
         explicit PostImage(std::unique_ptr<Annotation> post);
         explicit PostImage(std::deque<std::unique_ptr<Annotation>> posts);
-        explicit PostImage(std::unique_ptr<Annotation> post,
-                           std::deque<std::unique_ptr<HeapEffect>> effects);
-        explicit PostImage(std::deque<std::unique_ptr<Annotation>> posts,
-                           std::deque<std::unique_ptr<HeapEffect>> effects);
+        explicit PostImage(std::unique_ptr<Annotation> post, std::deque<std::unique_ptr<HeapEffect>> effects);
+        explicit PostImage(std::deque<std::unique_ptr<Annotation>> posts, std::deque<std::unique_ptr<HeapEffect>> effects);
     };
 
     struct Solver final {
         explicit Solver(const SolverConfig& config);
 
-        [[nodiscard]] std::unique_ptr<Annotation> PostEnter(std::unique_ptr<Annotation> pre, const Program& scope) const;
+        [[nodiscard]] static std::unique_ptr<Annotation> PostEnter(std::unique_ptr<Annotation> pre, const Program& scope);
         [[nodiscard]] std::unique_ptr<Annotation> PostEnter(std::unique_ptr<Annotation> pre, const Function& scope) const;
         [[nodiscard]] std::unique_ptr<Annotation> PostEnter(std::unique_ptr<Annotation> pre, const Scope& scope) const;
-        [[nodiscard]] std::unique_ptr<Annotation> PostLeave(std::unique_ptr<Annotation> pre, const Program& scope) const;
         [[nodiscard]] std::unique_ptr<Annotation> PostLeave(std::unique_ptr<Annotation> pre, const Function& scope) const;
         [[nodiscard]] std::unique_ptr<Annotation> PostLeave(std::unique_ptr<Annotation> pre, const Scope& scope) const;
 
         [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const;
         [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const Malloc& cmd) const;
-        [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const Assignment& cmd) const;
-        [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const ParallelAssignment& cmd) const;
+        [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const VariableAssignment& cmd) const;
+        [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const MemoryRead& cmd) const;
+        [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd) const;
 
         [[nodiscard]] bool Implies(const Annotation& premise, const Annotation& conclusion) const;
-
-        [[nodiscard]] std::unique_ptr<Annotation> Join(std::vector<std::unique_ptr<Annotation>> annotations) const;
-    
+        [[nodiscard]] std::unique_ptr<Annotation> Join(std::deque<std::unique_ptr<Annotation>> annotations) const;
         [[nodiscard]] std::unique_ptr<Annotation> TryAddFulfillment(std::unique_ptr<Annotation> annotation) const;
 
         [[nodiscard]] std::unique_ptr<Annotation> MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const;
@@ -66,9 +62,9 @@ namespace plankton {
 //        [[nodiscard]] std::unique_ptr<heal::Annotation> Interpolate(std::unique_ptr<heal::Annotation> annotation, const std::deque<std::unique_ptr<HeapEffect>>& interferences) const;
 //        [[nodiscard]] std::unique_ptr<heal::Annotation> TryFindBetterHistories(std::unique_ptr<heal::Annotation> annotation, const std::deque<std::unique_ptr<HeapEffect>>& interferences) const override;
 
-        private:
-            const SolverConfig& config;
-            std::deque<std::unique_ptr<HeapEffect>> interference;
+    private:
+        const SolverConfig& config;
+        std::deque<std::unique_ptr<HeapEffect>> interference;
     };
 
 } // namespace plankton

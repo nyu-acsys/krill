@@ -19,16 +19,13 @@ struct CopyVisitor : public BaseProgramVisitor {
     }
     
     template<typename U>
-    void Handle(const U& /*object*/);
-    
-    template<typename U, std::enable_if<std::is_base_of_v<T, U>>>
-    void Handle(const U& object) {
-        result = plankton::Copy(object);
-    }
-    
-    template<typename U, std::enable_if<!std::is_base_of_v<T, U>>>
     void Handle(const U& /*object*/) {
         throw std::logic_error("Internal error: 'Copy' failed."); // TODO: better error handling
+    }
+    
+    template<typename U, EnableIfBaseOf<T, U>>
+    void Handle(const U& object) {
+        result = plankton::Copy(object);
     }
     
     void Visit(const VariableExpression& object) override { Handle(object); }
@@ -52,6 +49,11 @@ struct CopyVisitor : public BaseProgramVisitor {
 template<>
 std::unique_ptr<Expression> plankton::Copy<Expression>(const Expression& object) {
     return CopyVisitor<Expression>::Copy(object);
+}
+
+template<>
+std::unique_ptr<ValueExpression> plankton::Copy<ValueExpression>(const ValueExpression& object) {
+    return CopyVisitor<ValueExpression>::Copy(object);
 }
 
 template<>
@@ -135,6 +137,19 @@ std::unique_ptr<Assume> plankton::Copy<Assume>(const Assume& object) {
 template<>
 std::unique_ptr<Assert> plankton::Copy<Assert>(const Assert& object) {
     return std::make_unique<Assert>(plankton::Copy(*object.condition));
+}
+
+template<>
+std::unique_ptr<Malloc> plankton::Copy<Malloc>(const Malloc& object) {
+    return std::make_unique<Malloc>(plankton::Copy(*object.lhs));
+}
+
+template<>
+std::unique_ptr<Macro> plankton::Copy<Macro>(const Macro& object) {
+    auto result = std::make_unique<Macro>(object.function);
+    for (const auto& elem : object.lhs) result->lhs.push_back(plankton::Copy(*elem));
+    for (const auto& elem : object.arguments) result->arguments.push_back(plankton::Copy(*elem));
+    return result;
 }
 
 template<typename T>

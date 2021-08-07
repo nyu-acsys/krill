@@ -3,10 +3,8 @@
 #include <set>
 #include <sstream>
 #include "util/timer.hpp"
-//#include "cola/util.hpp"
 #include "logics/util.hpp"
-//#include "util/logger.hpp" // TODO:remove
-//#include "heal/collect.hpp"
+#include "util/shortcuts.hpp"
 
 using namespace plankton;
 
@@ -33,12 +31,6 @@ void ProofGenerator::Visit(const Atomic& stmt) {
     MakeInterferenceStable(stmt);
 }
 
-inline std::deque<std::unique_ptr<Annotation>> CopyList(const std::deque<std::unique_ptr<Annotation>>& list) {
-    std::deque<std::unique_ptr<Annotation>> result;
-    for (const auto& elem : list) result.push_back(plankton::Copy(*elem));
-    return result;
-}
-
 void ProofGenerator::Visit(const Choice& stmt) {
     if (stmt.branches.empty()) return;
     
@@ -46,21 +38,14 @@ void ProofGenerator::Visit(const Choice& stmt) {
     decltype(pre) post;
     current.clear();
     
-    // handle all but first branch => current annotations need to be copied
-    for (auto it = std::next(stmt.branches.begin()); it != stmt.branches.end(); ++it) {
-        current = CopyList(pre);
-        it->get()->Accept(*this);
-        std::move(current.begin(), current.end(), std::back_inserter(post));
+    for (const auto& branch : stmt.branches) {
+        current = plankton::CopyAll(pre);
+        branch->Accept(*this);
+        MoveInto(std::move(current), post);
     }
-    
-    // for the remaining first branch elide the copy
-    current = std::move(pre);
-    stmt.branches.front()->Accept(*this);
-    std::move(post.begin(), post.end(), std::back_inserter(current));
 }
 
-void ProofGenerator::visit(const UnconditionalLoop& stmt) {
-    assert(currentFunction);
+void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
     if (current.empty()) return;
     
     // peel first loop iteration
@@ -77,15 +62,8 @@ void ProofGenerator::visit(const UnconditionalLoop& stmt) {
     
     // looping until fixed point
     if (!current.empty()) {
-        auto PrepareJoin = [this](){
-            if (current.size() <= 1) return;
-            PerformStep([this](auto annotation){
-                return solver->TryFindBetterHistories(std::move(annotation), interference);
-            });
-        };
         std::size_t counter = 0;
-        PrepareJoin();
-        auto join = solver->Join(std::move(current));
+        auto join = solver.Join(std::move(current));
         while (true) {
             if (counter > LOOP_ABORT_AFTER) throw std::logic_error("Aborting: loop does not seem to stabilize."); // TODO: remove / better error handling
             std::cout << std::endl << std::endl << " ------ loop " << ++counter << " ------ " << std::endl;
@@ -97,18 +75,17 @@ void ProofGenerator::visit(const UnconditionalLoop& stmt) {
             current.push_back(plankton::Copy(*join));
             
             stmt.body->Accept(*this);
-            current.push_back(plankton::Copy(*join));
-            PrepareJoin();
-            auto newJoin = solver->Join(std::move(current));
-            if (solver->Implies(*newJoin, *join) == Solver::YES) break;
+            current.push_back(plankton::Copy(*join)); // TODO: is this needed??
+            auto newJoin = solver.Join(std::move(current));
+            if (solver.Implies(*newJoin, *join)) break;
             join = std::move(newJoin);
         }
     }
     
     // post loop
     current = std::move(firstBreaking);
-    std::move(breaking.begin(), breaking.end(), std::back_inserter(current));
+    MoveInto(std::move(breaking), current);
     breaking = std::move(breakingOuter);
-    std::move(returningOuter.begin(), returningOuter.end(), std::back_inserter(returning));
-    std::move(newInterferenceOuter.begin(), newInterferenceOuter.end(), std::back_inserter(newInterference));
+    MoveInto(std::move(returningOuter), returning);
+    MoveInto(std::move(newInterferenceOuter), newInterference);
 }
