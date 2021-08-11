@@ -4,7 +4,7 @@
 #include <sstream>
 #include "util/timer.hpp"
 #include "cola/util.hpp"
-#include "util/logger.hpp" // TODO:remove
+#include "util/log.hpp" // TODO:remove
 #include "heal/collect.hpp"
 
 using namespace cola;

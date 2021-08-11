@@ -4,11 +4,11 @@ using namespace plankton;
 
 
 template<typename T>
-struct ConstCollector : public LogicListener {
+struct Collector : public LogicListener {
     std::set<T*> result;
     const std::function<bool(const T&)>& pickPredicate;
     
-    explicit ConstCollector(const std::function<bool(const T&)>& filter) : pickPredicate(filter) {}
+    explicit Collector(const std::function<bool(const T&)>& filter) : pickPredicate(filter) {}
     
     template<typename U>
     void Handle(const U& /*object*/) {
@@ -22,8 +22,12 @@ struct ConstCollector : public LogicListener {
         result.insert(const_cast<T*>(&object));
     }
     
-    void Visit(const Annotation& /*object*/) override {
-        throw std::logic_error("Cautiously refusing to 'Collect' from 'Annotation'."); // TODO: better error handling
+    void HandleAnnotation(const Annotation& object) {
+        if constexpr (std::is_same_v<T, SymbolDeclaration>) {
+            Walk(object);
+        } else {
+            throw std::logic_error("Cautiously refusing to 'Collect' from 'Annotation'."); // TODO: better error handling
+        }
     }
     
     void Enter(const VariableDeclaration& object) override { Handle(object); }
@@ -47,19 +51,20 @@ struct ConstCollector : public LogicListener {
     void Enter(const PastPredicate& object) override { Handle(object); }
     void Enter(const FuturePredicate& object) override { Handle(object); }
     void Enter(const Annotation& object) override { Handle(object); }
+    void Visit(const Annotation& object) override { HandleAnnotation(object); }
 };
 
 
 template<typename T>
 std::set<const T*> plankton::Collect(const LogicObject& object, const std::function<bool(const T&)>& filter) {
-    ConstCollector<const T> collector(filter);
+    Collector<const T> collector(filter);
     object.Accept(collector);
     return std::move(collector.result);
 }
 
 template<typename T>
 std::set<T*> plankton::CollectMutable(LogicObject& object, const std::function<bool(const T&)>& filter) {
-    ConstCollector<T> collector(filter);
+    Collector<T> collector(filter);
     object.Accept(collector);
     return std::move(collector.result);
 }

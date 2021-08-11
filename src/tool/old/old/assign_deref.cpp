@@ -1,6 +1,6 @@
 #include "prover/solverimpl/linsolver.hpp"
 
-#include "util/logger.hpp" // TODO: delete
+#include "util/log.hpp" // TODO: delete
 #include "prover/error.hpp"
 #include "prover/util.hpp"
 #include "prover/solverimpl/post/info.hpp"

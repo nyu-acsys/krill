@@ -2,6 +2,7 @@
 
 #include "programs/util.hpp"
 #include "util/shortcuts.hpp"
+#include "util/log.hpp"
 
 using namespace plankton;
 
@@ -21,7 +22,7 @@ void ProofGenerator::Visit(const Break& /*cmd*/) {
     current.clear();
 }
 
-void ProofGenerator::Visit(const Assert& cmd) {
+void ProofGenerator::Visit(const Assert& /*cmd*/) {
     throw std::logic_error("unsupported: 'assert'"); // TODO: better error handling
 }
 
@@ -116,6 +117,7 @@ void ProofGenerator::Visit(const Macro& cmd) {
     breaking = std::move(breakingOuter);
     returning = std::move(returningOuter);
 
-    std::cout << std::endl << "________" << std::endl << "Post annotation for macro '" << cmd.Func().name << "':" << std::endl;
-    for (const auto& elem : current) std::cout << "  ~~> " << *elem << std::endl; std::cout << std::endl << std::endl << std::endl;
+    DEBUG(std::endl << "________" << std::endl << "Post annotation for macro '" << cmd.Func().name << "':" << std::endl)
+    for (const auto& elem : current) DEBUG("  ~~> " << *elem << std::endl)
+    DEBUG(std::endl << std::endl << std::endl)
 }

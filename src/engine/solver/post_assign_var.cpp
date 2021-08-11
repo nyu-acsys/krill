@@ -8,7 +8,7 @@ using namespace plankton;
 
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const VariableAssignment& cmd) const {
     assert(cmd.lhs.size() == cmd.rhs.size());
-    plankton::CheckAccess(cmd, *pre); // TODO: ensure no shared variable is updated
+    PrepareAccess(*pre, cmd); // TODO: ensure no shared variable is updated
     plankton::InlineAndSimplify(*pre);
     
     // evaluate rhs

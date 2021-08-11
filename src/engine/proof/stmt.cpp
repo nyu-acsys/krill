@@ -5,6 +5,7 @@
 #include "util/timer.hpp"
 #include "logics/util.hpp"
 #include "util/shortcuts.hpp"
+#include "util/log.hpp"
 
 using namespace plankton;
 
@@ -49,7 +50,7 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
     if (current.empty()) return;
     
     // peel first loop iteration
-    std::cout << std::endl << std::endl << " ------ loop 0 (peeled) ------ " << std::endl;
+    DEBUG(std::endl << " ------ loop 0 (peeled) ------ " << std::endl)
     auto breakingOuter = std::move(breaking);
     breaking.clear();
     stmt.body->Accept(*this);
@@ -62,11 +63,18 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
     
     // looping until fixed point
     if (!current.empty()) {
+        auto joinCurrent = [this]() {
+            auto join = solver.Join(std::move(current));
+            join = plankton::Normalize(std::move(join));
+            current.clear();
+            return join;
+        };
+
         std::size_t counter = 0;
-        auto join = solver.Join(std::move(current));
+        auto join = joinCurrent();
         while (true) {
-            if (counter > LOOP_ABORT_AFTER) throw std::logic_error("Aborting: loop does not seem to stabilize."); // TODO: remove / better error handling
-            std::cout << std::endl << std::endl << " ------ loop " << ++counter << " ------ " << std::endl;
+            if (counter++ > LOOP_ABORT_AFTER) throw std::logic_error("Aborting: loop does not seem to stabilize."); // TODO: remove / better error handling
+            DEBUG(std::endl << std::endl << " ------ loop " << counter << " ------ " << std::endl)
             
             breaking.clear();
             returning.clear();
@@ -76,8 +84,9 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
             
             stmt.body->Accept(*this);
             current.push_back(plankton::Copy(*join)); // TODO: is this needed??
-            auto newJoin = solver.Join(std::move(current));
-            if (solver.Implies(*newJoin, *join)) break;
+            auto newJoin = joinCurrent();
+
+            if (plankton::SyntacticalEqual(*newJoin, *join)) break;
             join = std::move(newJoin);
         }
     }

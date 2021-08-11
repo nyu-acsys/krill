@@ -383,7 +383,7 @@ class AnnotationJoiner {
         solver.add(z3::mk_or(vector));
     }
 
-    void HandleHistories() {
+    void EncodePast() {
         for (const auto& [variable, resource] : varToCommonRes) {
             // get cur to historic memory sets
             std::deque<const Annotation*> annotationPointers;

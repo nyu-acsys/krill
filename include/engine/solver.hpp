@@ -6,7 +6,8 @@
 #include <memory>
 #include "programs/ast.hpp"
 #include "logics/ast.hpp"
-#include "engine/config.hpp"
+#include "config.hpp"
+#include "static.hpp"
 
 namespace plankton {
 
@@ -31,9 +32,9 @@ namespace plankton {
     };
 
     struct Solver final {
-        explicit Solver(const SolverConfig& config);
+        explicit Solver(const Program& program, const SolverConfig& config);
 
-        [[nodiscard]] static std::unique_ptr<Annotation> PostEnter(std::unique_ptr<Annotation> pre, const Program& scope);
+        [[nodiscard]] std::unique_ptr<Annotation> PostEnter(std::unique_ptr<Annotation> pre, const Program& scope) const;
         [[nodiscard]] std::unique_ptr<Annotation> PostEnter(std::unique_ptr<Annotation> pre, const Function& scope) const;
         [[nodiscard]] std::unique_ptr<Annotation> PostEnter(std::unique_ptr<Annotation> pre, const Scope& scope) const;
         [[nodiscard]] std::unique_ptr<Annotation> PostLeave(std::unique_ptr<Annotation> pre, const Function& scope) const;
@@ -44,13 +45,16 @@ namespace plankton {
         [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const VariableAssignment& cmd) const;
         [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const MemoryRead& cmd) const;
         [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd) const;
-
-        [[nodiscard]] bool Implies(const Annotation& premise, const Annotation& conclusion) const;
+        
         [[nodiscard]] std::unique_ptr<Annotation> Join(std::deque<std::unique_ptr<Annotation>> annotations) const;
         [[nodiscard]] std::unique_ptr<Annotation> TryAddFulfillment(std::unique_ptr<Annotation> annotation) const;
 
         [[nodiscard]] std::unique_ptr<Annotation> MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const;
         bool AddInterference(std::deque<std::unique_ptr<HeapEffect>> interference);
+        
+        
+    private:
+        void PrepareAccess(Annotation& annotation, const Command& command) const;
         
 //        [[nodiscard]] PostImage PostVariableUpdate(std::unique_ptr<heal::Annotation> pre, const cola::Assignment& cmd, const cola::VariableExpression& lhs) const;
 //        [[nodiscard]] PostImage PostMemoryUpdate(std::unique_ptr<heal::Annotation> pre, const MultiUpdate& update) const;
@@ -64,8 +68,12 @@ namespace plankton {
 
     private:
         const SolverConfig& config;
+        DataFlowAnalysis dataFlow;
         std::deque<std::unique_ptr<HeapEffect>> interference;
     };
+    
+    
+    std::ostream& operator<<(std::ostream& out, const HeapEffect& object);
 
 } // namespace plankton
 

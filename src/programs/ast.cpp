@@ -102,6 +102,17 @@ const Type& Dereference::Type() const {
     return variable->Type()[fieldName];
 }
 
+BinaryOperator plankton::Symmetric(BinaryOperator op) {
+    switch (op) {
+        case BinaryOperator::EQ: return BinaryOperator::EQ;
+        case BinaryOperator::NEQ: return BinaryOperator::NEQ;
+        case BinaryOperator::LEQ: return BinaryOperator::GEQ;
+        case BinaryOperator::LT: return BinaryOperator::GT;
+        case BinaryOperator::GEQ: return BinaryOperator::LEQ;
+        case BinaryOperator::GT: return BinaryOperator::LT;
+    }
+}
+
 BinaryExpression::BinaryExpression(BinaryOperator op, std::unique_ptr<ValueExpression> lhs_,
                                    std::unique_ptr<ValueExpression> rhs_)
         : op(op), lhs(std::move(lhs_)), rhs(std::move(rhs_)) {

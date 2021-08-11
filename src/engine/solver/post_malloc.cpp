@@ -2,39 +2,22 @@
 
 #include "logics/util.hpp"
 #include "engine/util.hpp"
+#include "engine/encoding.hpp"
 
 using namespace plankton;
 
 
 inline void CheckAllocation(const LocalMemoryResource& memory, const Formula& state, const SolverConfig& config) {
-    // TODO: check invariant
-    throw std::logic_error("not yet implemented");
-    
-//    z3::context context;
-//    z3::solver solver(context);
-//    Z3Encoder encoder(context, solver);
-//    auto good = engine::ComputeImplied(solver, encoder(state), encoder(*config.GetNodeInvariant(*memory)));
-//    if (!good)
-//        throw std::logic_error("Newly allocated node does not satisfy invariant."); // TODO: better error handling
-}
-
-inline std::unique_ptr<LocalMemoryResource>
-MakeMemoryResource(const SymbolicVariable& address, SymbolFactory& factory, const SolverConfig& config) {
-    auto node = plankton::Copy(address);
-    auto flow = std::make_unique<SymbolicVariable>(factory.GetFreshSO(config.GetFlowValueType()));
-    std::map<std::string, std::unique_ptr<SymbolicVariable>> fieldToValue;
-    for (const auto&[field, type] : address.Type().fields) {
-        auto& value = factory.GetFreshFO(type);
-        fieldToValue[field] = std::make_unique<SymbolicVariable>(value);
-    }
-    return std::make_unique<LocalMemoryResource>(std::move(node), std::move(flow), std::move(fieldToValue));
+    auto invariant = config.GetLocalNodeInvariant(memory);
+    if (Encoding(state).Implies(*invariant)) return;
+    throw std::logic_error("Newly allocated node does not satisfy invariant."); // TODO: better error handling
 }
 
 inline std::pair<std::unique_ptr<SymbolicVariable>, std::unique_ptr<Formula>>
 MakeFreshCell(const Type& type, const Annotation& frame, const SolverConfig& config) {
     SymbolFactory factory(frame);
     auto address = std::make_unique<SymbolicVariable>(factory.GetFreshFO(type));
-    auto memory = MakeMemoryResource(*address, factory, config);
+    auto memory = plankton::MakeLocalMemory(address->Decl(), config.GetFlowValueType(), factory);
     auto context = std::make_unique<SeparatingConjunction>();
     
     // address is not NULL
@@ -54,6 +37,7 @@ MakeFreshCell(const Type& type, const Annotation& frame, const SolverConfig& con
     }
     
     // address is fresh, i.e., distinct from other addresses
+    // TODO: not true when havoc is supported for pointers
     auto hasSameType = [&type](const auto& sym) { return sym.order == Order::FIRST && sym.type == type; };
     for (const auto* symbol : Collect<SymbolDeclaration>(frame, hasSameType)) {
         context->Conjoin(std::make_unique<StackAxiom>(
@@ -68,9 +52,9 @@ MakeFreshCell(const Type& type, const Annotation& frame, const SolverConfig& con
 
 
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const Malloc& cmd) const {
-    plankton::CheckAccess(cmd, *pre);
+    PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
-    assert(!cmd.lhs->Decl().isShared); // TODO: ensure via CheckAccess // TODO: throw?
+    assert(!cmd.lhs->Decl().isShared);
     
     auto& resource = plankton::GetResource(cmd.lhs->Decl(), *pre->now);
     auto [cell, context] = MakeFreshCell(cmd.lhs->Type(), *pre, config);

@@ -156,6 +156,7 @@ namespace plankton {
         explicit EqualsToAxiom(const VariableDeclaration& variable, const SymbolDeclaration& value);
         explicit EqualsToAxiom(const VariableDeclaration& variable, std::unique_ptr<SymbolicVariable> value);
         [[nodiscard]] inline const VariableDeclaration& Variable() const { return variable; }
+        [[nodiscard]] inline const SymbolDeclaration& Value() const { return value->Decl(); }
         ACCEPT_LOGIC_VISITOR
     };
 
@@ -238,9 +239,9 @@ namespace plankton {
     //
 
     struct PastPredicate final : public LogicObject {
-        std::unique_ptr<Formula> formula; // TODO: SeparatingConjunction?
+        std::unique_ptr<SharedMemoryCore> formula; // TODO: what goes into the history really?
 
-        explicit PastPredicate(std::unique_ptr<Formula> formula);
+        explicit PastPredicate(std::unique_ptr<SharedMemoryCore> formula);
         ACCEPT_LOGIC_VISITOR
     };
 

@@ -3,6 +3,7 @@
 #include "programs/util.hpp"
 #include "logics/util.hpp"
 #include "util/shortcuts.hpp"
+#include "util/log.hpp"
 
 using namespace plankton;
 
@@ -26,6 +27,7 @@ void ProofGenerator::GenerateProof() {
 }
 
 void ProofGenerator::Visit(const Program& object) {
+    assert(&object == &program);
     for (const auto& function : program.apiFunctions)
         HandleInterfaceFunction(*function);
 }
@@ -66,9 +68,9 @@ inline std::unique_ptr<SymbolicVariable> GetSearchKeyValue(const Annotation& ann
     if (function.parameters.size() != 1) {
         throw std::logic_error("Expected one parameter to function '" + function.name + "', got " + std::to_string(function.parameters.size()) + "."); // TODO: better error handling
     }
-    auto param = function.parameters.front().get();
+    auto& param = *function.parameters.front().get();
     auto variables = plankton::Collect<EqualsToAxiom>(*annotation.now);
-    auto find = FindIf(variables, [param](auto elem){ return &elem->variable->Func() == param; });
+    auto find = FindIf(variables, [&param](auto* elem){ return elem->Variable() == param; });
     if (find != variables.end()) return std::make_unique<SymbolicVariable>((**find).value->Decl());
     throw std::logic_error("Could not find search key"); // TODO: better error handling
 }
@@ -96,19 +98,19 @@ inline bool IsFulfilled(const Annotation& annotation, const Return& command) {
     else throw std::logic_error("Cannot detect return value"); // TODO: better error handling
     auto fulfillments = plankton::Collect<FulfillmentAxiom>(*annotation.now);
     return std::any_of(fulfillments.begin(), fulfillments.end(),
-                       [returnValue](auto* elem) { return elem->return_value == returnValue; });
+                       [returnValue](auto* elem) { return elem->returnValue == returnValue; });
 }
 
 void ProofGenerator::HandleInterfaceFunction(const Function& function) {
     assert(function.kind == Function::Kind::API);
     
-	std::cout << std::endl << std::endl << std::endl << std::endl << std::endl;
-	std::cout << "############################################################" << std::endl;
-	std::cout << "############################################################" << std::endl;
-	std::cout << "#################### " << function.name << std::endl;
-	std::cout << "############################################################" << std::endl;
-	std::cout << "############################################################" << std::endl;
-	std::cout << std::endl;
+	DEBUG(std::endl << std::endl << std::endl << std::endl << std::endl)
+	DEBUG("############################################################" << std::endl)
+	DEBUG("############################################################" << std::endl)
+	DEBUG("#################### " << function.name << std::endl)
+	DEBUG("############################################################" << std::endl)
+	DEBUG("############################################################" << std::endl)
+	DEBUG(std::endl)
  
 	// reset
     insideAtomic = false;
@@ -121,11 +123,11 @@ void ProofGenerator::HandleInterfaceFunction(const Function& function) {
     function.Accept(*this);
     
     // check post annotations
-    std::cout << std::endl << std::endl << " CHECKING POST ANNOTATION OF " << function.name << "  " << returning.size() << std::endl;
+    DEBUG(std::endl << std::endl << " CHECKING POST ANNOTATION OF " << function.name << "  " << returning.size() << std::endl)
     for (auto& [annotation, command] : returning) {
         assert(command);
-//        annotation = solver->Interpolate(std::move(annotation), interference);
-//        specification.EstablishSpecificationOrFail(solver, *annotation, command, function);
+        if (IsFulfilled(*annotation, *command)) continue;
+        annotation = solver.TryAddFulfillment(std::move(annotation));
         if (IsFulfilled(*annotation, *command)) continue;
         throw std::logic_error("Could not establish linearizability for function '" + function.name + "'."); // TODO: better error handling
     }

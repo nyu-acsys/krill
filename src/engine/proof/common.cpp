@@ -7,7 +7,7 @@ using namespace plankton;
 
 
 ProofGenerator::ProofGenerator(const Program& program, const SolverConfig& config)
-        : program(program), solver(config), insideAtomic(false) {}
+        : program(program), solver(program, config), insideAtomic(false) {}
 
 void ProofGenerator::ApplyTransformer(
         const std::function<std::unique_ptr<Annotation>(std::unique_ptr<Annotation>)>& transformer) {

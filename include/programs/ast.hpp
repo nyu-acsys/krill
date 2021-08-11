@@ -168,6 +168,8 @@ namespace plankton {
         EQ, NEQ, LEQ, LT, GEQ, GT
     };
     
+    BinaryOperator Symmetric(BinaryOperator op);
+    
     struct BinaryExpression final : public Expression {
         BinaryOperator op;
         std::unique_ptr<ValueExpression> lhs;

@@ -4,12 +4,24 @@
 
 using namespace plankton;
 
+
+template<typename T, typename U>
+const T* GetResourceOrNull(const Formula& state, const U& filter) {
+    auto collect = plankton::Collect<T>(state, filter);
+    if (collect.empty()) return nullptr;
+    assert(collect.size() == 1);
+    return *collect.begin();
+}
+
 template<typename T, typename U>
 const T& GetResourceOrFail(const Formula& state, const U& filter) {
-    auto collect = plankton::Collect<T>(state, filter);
-    if (collect.empty()) throw std::logic_error("Internal error: cannot find resource"); // better error handling
-    assert(collect.size() == 1);
-    return **collect.begin();
+    auto result = GetResourceOrNull<T>(state, filter);
+    if (!result) throw std::logic_error("Internal error: cannot find resource"); // better error handling
+    return *result;
+}
+
+const EqualsToAxiom* plankton::TryGetResource(const VariableDeclaration& variable, const Formula& state) {
+    return GetResourceOrNull<EqualsToAxiom>(state, [&variable](auto& obj){ return obj.Variable() == variable; });
 }
 
 const EqualsToAxiom& plankton::GetResource(const VariableDeclaration& variable, const Formula& state) {
@@ -18,6 +30,10 @@ const EqualsToAxiom& plankton::GetResource(const VariableDeclaration& variable, 
 
 EqualsToAxiom& plankton::GetResource(const VariableDeclaration& variable, Formula& state) {
     return const_cast<EqualsToAxiom&>(plankton::GetResource(variable, std::as_const(state)));
+}
+
+const MemoryAxiom* plankton::TryGetResource(const SymbolDeclaration& address, const Formula& state) {
+    return GetResourceOrNull<MemoryAxiom>(state, [&address](auto& obj){ return obj.node->Decl() == address; });
 }
 
 const MemoryAxiom& plankton::GetResource(const SymbolDeclaration& address, const Formula& state) {

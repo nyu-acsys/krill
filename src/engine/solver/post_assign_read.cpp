@@ -8,8 +8,7 @@ using namespace plankton;
 
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryRead& cmd) const {
     assert(cmd.lhs.size() == cmd.rhs.size());
-    plankton::MakeMemoryAccessible(*pre, cmd);
-    plankton::CheckAccess(cmd, *pre);
+    PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
     
     for (std::size_t index = 0; index < cmd.lhs.size(); ++index) {

@@ -25,7 +25,7 @@ namespace plankton {
     template<typename T>
     static inline T CopyAll(const T& container) {
         T result;
-        for (const auto& elem : container) container.push_back(plankton::Copy(*elem));
+        for (const auto& elem : container) result.push_back(plankton::Copy(*elem));
         return result;
     }
     
@@ -45,8 +45,21 @@ namespace plankton {
     }
     
     template<typename T, typename U>
+    static inline void DiscardIf(T& container, const U& unaryPredicate) {
+        for (auto it = container.begin(), end = container.end(); it != end; ) {
+            if (unaryPredicate(*it)) it = container.erase(it);
+            else ++it;
+        }
+    }
+    
+    template<typename T, typename U>
     static inline typename T::iterator FindIf(T& container, const U& unaryPredicate) {
         return std::find_if(container.begin(), container.end(), unaryPredicate);
+    }
+    
+    template<typename T, typename U>
+    static inline bool ContainsIf(T& container, const U& unaryPredicate) {
+        return std::find_if(container.begin(), container.end(), unaryPredicate) != container.end();
     }
     
     template<typename T, typename U>

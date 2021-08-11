@@ -8,7 +8,9 @@ using namespace plankton;
 inline std::unique_ptr<Annotation>
 AddScope(std::unique_ptr<Annotation> pre, const std::vector<std::unique_ptr<VariableDeclaration>>& scope) {
     auto inScope = plankton::Collect<EqualsToAxiom>(*pre);
-    auto clash = Any(scope, [&inScope](const auto& elem){ return Membership(inScope, elem.get()); });
+    auto clash = Any(scope, [&inScope](const auto& elem){
+        return ContainsIf(inScope, [&elem](auto* other){ return other->Variable() == *elem; });
+    });
     if (clash) throw std::logic_error("Variable hiding is not supported."); // TODO: better error handling
     
     SymbolFactory factory(*pre);
@@ -19,7 +21,7 @@ AddScope(std::unique_ptr<Annotation> pre, const std::vector<std::unique_ptr<Vari
     return pre;
 }
 
-std::unique_ptr<Annotation> Solver::PostEnter(std::unique_ptr<Annotation> pre, const Program& scope) {
+std::unique_ptr<Annotation> Solver::PostEnter(std::unique_ptr<Annotation> pre, const Program& scope) const {
     return AddScope(std::move(pre), scope.variables);
 }
 

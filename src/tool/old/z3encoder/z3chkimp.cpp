@@ -1,6 +1,6 @@
 #include "z3chkimp.hpp"
 
-#include "util/logger.hpp" // TODO: remove
+#include "util/log.hpp" // TODO: remove
 
 using namespace cola;
 using namespace heal;

@@ -251,7 +251,7 @@ SeparatingImplication::SeparatingImplication(std::unique_ptr<Formula> pre, std::
 // Predicates
 //
 
-PastPredicate::PastPredicate(std::unique_ptr<Formula> form) : formula(std::move(form)) {
+PastPredicate::PastPredicate(std::unique_ptr<SharedMemoryCore> form) : formula(std::move(form)) {
     assert(formula);
 }
 

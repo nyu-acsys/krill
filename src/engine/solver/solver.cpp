@@ -1,5 +1,7 @@
 #include "engine/solver.hpp"
 
+#include "programs/util.hpp"
+
 using namespace plankton;
 
 
@@ -12,8 +14,10 @@ HeapEffect::HeapEffect(std::unique_ptr<SharedMemoryCore> before, std::unique_ptr
     assert(context);
 }
 
-//    std::deque<std::unique_ptr<Annotation>> annotations;
-//    std::deque<std::unique_ptr<HeapEffect>> effects;
+std::ostream& plankton::operator<<(std::ostream& out, const HeapEffect& object) {
+    out << "[ " << *object.pre << " ~~> " << *object.post << " | " << *object.context << " ]";
+    return out;
+}
 
 PostImage::PostImage() = default;
 
@@ -39,6 +43,41 @@ PostImage::PostImage(std::deque<std::unique_ptr<Annotation>> posts, std::deque<s
     for (const auto& elem : effects) assert(elem);
 }
 
-Solver::Solver(const SolverConfig& config) : config(config) {
-    // TODO: perform sanity/assumption checks on config?
+
+struct AssumptionChecker : DefaultProgramVisitor {
+    void Visit(const Malloc& object) override {
+        if (!object.lhs->Decl().isShared) return;
+        throw std::logic_error("Allocation to shared variable '" + object.lhs->Decl().name + "' not supported.");
+    }
+    
+    template<typename T>
+    inline void CheckShared(const T& object) {
+        for (const auto& var : object.lhs) {
+            if (!var->Decl().isShared) continue;
+            throw std::logic_error("Assignment to shared variable '" + var->Decl().name + "' not supported.");
+        }
+    }
+    
+    template<typename T>
+    inline void CheckDuplicates(const T& object) {
+        for (auto it = object.lhs.begin(); it != object.lhs.end(); ++it) {
+            auto exprString = plankton::ToString(**it);
+            for (auto ot = std::next(it); ot != object.lhs.end(); ++ot) {
+                if (exprString != plankton::ToString(**ot)) continue;
+                throw std::logic_error("Malformed assignment: multiple occurrences of '" + exprString + "' " +
+                "at left-hand side of '" + plankton::ToString(object) + "'.");
+            }
+        }
+    }
+    
+    void Visit(const Macro& object) override { CheckShared(object); CheckDuplicates(object); }
+    void Visit(const VariableAssignment& object) override { CheckShared(object); CheckDuplicates(object); }
+    void Visit(const MemoryRead& object) override { CheckShared(object); CheckDuplicates(object); }
+    void Visit(const MemoryWrite& object) override { CheckDuplicates(object); }
+};
+
+Solver::Solver(const Program& program, const SolverConfig& config) : config(config), dataFlow(program) {
+    // sanity check
+    AssumptionChecker checker;
+    program.Accept(checker);
 }
