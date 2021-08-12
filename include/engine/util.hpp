@@ -29,11 +29,14 @@ namespace plankton {
     void AvoidEffectSymbols(SymbolFactory& factory, const HeapEffect& effect);
     void AvoidEffectSymbols(SymbolFactory& factory, const std::deque<std::unique_ptr<HeapEffect>>& effects);
     
-    void MakeMemoryAccessible(Annotation& annotation, std::set<const SymbolDeclaration*> addresses, const Type& flowType);
+    void MakeMemoryAccessible(SeparatingConjunction& formula, std::set<const SymbolDeclaration*> addresses,
+                              const Type& flowType, SymbolFactory& factory, Encoding& encoding);
+    void MakeMemoryAccessible(Annotation& annotation, std::set<const SymbolDeclaration*> addresses,
+                              const Type& flowType);
     
-    enum struct ExtensionPolicy { FAST, FULL };
-    void ExtendStack(Annotation& annotation, ExtensionPolicy policy);
+    enum struct ExtensionPolicy { POINTERS, FAST, FULL };
     void ExtendStack(Annotation& annotation, Encoding& encoding, ExtensionPolicy policy);
+    void ExtendStack(Annotation& annotation, ExtensionPolicy policy);
     
     
 //    bool JoinCompatibleResources(const std::vector<const Annotation*>& annotations);

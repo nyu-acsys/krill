@@ -303,7 +303,7 @@ namespace plankton {
         ACCEPT_PROGRAM_VISITOR
     };
     
-    struct MemoryWrite final : public Assignment<Dereference, SimpleExpression> {
+    struct MemoryWrite final : public Assignment<Dereference, VariableExpression> {
         using Assignment::Assignment;
         ACCEPT_PROGRAM_VISITOR
     };

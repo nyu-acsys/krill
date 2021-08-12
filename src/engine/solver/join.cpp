@@ -25,16 +25,6 @@ inline std::unique_ptr<FulfillmentAxiom> MakeFulfillment(bool value) {
     return std::make_unique<FulfillmentAxiom>(value);
 }
 
-inline bool IsLocal(const MemoryAxiom& axiom) {
-    struct : public BaseLogicVisitor {
-        bool result = false;
-        void Visit(const LocalMemoryResource& /*object*/) override { result = true; }
-        void Visit(const SharedMemoryCore& /*object*/) override { result = false; }
-    } visitor;
-    axiom.Accept(visitor);
-    return visitor.result;
-}
-
 struct AnnotationInfo {
     const Annotation& annotation;
     std::map<const VariableDeclaration*, const EqualsToAxiom*> varToRes;
@@ -222,7 +212,7 @@ struct AnnotationJoiner {
             for (const auto* memory : memories) {
                 if (!memory) return NONE;
                 if (plankton::Membership(blacklist, &memory->node->Decl())) return NONE;
-                if (IsLocal(*memory)) hasLocal = true;
+                if (plankton::IsLocal(*memory)) hasLocal = true;
                 else hasShared = true;
                 if (hasShared && hasLocal) return NONE;
             }

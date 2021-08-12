@@ -7,6 +7,7 @@
 #include <variant>
 #include "logics/ast.hpp"
 #include "solver.hpp"
+#include "flowgraph.hpp"
 
 namespace plankton {
     
@@ -41,6 +42,8 @@ namespace plankton {
         void AddPremise(const EExpr& expr);
         void AddPremise(const Formula& premise);
         void AddPremise(const SeparatingImplication& premise);
+        void Push();
+        void Pop();
         
         void AddCheck(const EExpr& expr, std::function<void(bool)> callback);
         void Check();

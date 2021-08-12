@@ -41,6 +41,8 @@ namespace plankton {
     std::unique_ptr<SharedMemoryCore> MakeSharedMemory(const SymbolDeclaration& address, const Type& flowType, SymbolFactory& factory);
     std::unique_ptr<LocalMemoryResource> MakeLocalMemory(const SymbolDeclaration& address, const Type& flowType, SymbolFactory& factory);
     
+    bool IsLocal(const MemoryAxiom& axiom);
+    
 } // namespace plankton
 
 #endif //PLANKTON_LOGICS_UTIL_HPP

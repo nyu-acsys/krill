@@ -40,6 +40,10 @@ set(SOURCES
         encoding.cpp
         encoding_encode.cpp
         encoding_solve.cpp
+
+        flowgraph.cpp
+        flowgraph_make.cpp
+
         linearizability.cpp
         static.cpp
 )

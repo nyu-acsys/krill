@@ -4,7 +4,7 @@ set(SOURCES
         util_collect.cpp
         util_copy.cpp
         util_equal.cpp
-        util_make.cpp
+        util_memory.cpp
         util_normalize.cpp
         util_print.cpp
         util_rename.cpp

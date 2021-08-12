@@ -24,3 +24,13 @@ std::unique_ptr<LocalMemoryResource>
 plankton::MakeLocalMemory(const SymbolDeclaration& address, const Type& flowType, SymbolFactory& factory) {
     return MakeMemory<LocalMemoryResource>(address, flowType, factory);
 }
+
+bool plankton::IsLocal(const MemoryAxiom& axiom) {
+    struct : public BaseLogicVisitor {
+        bool result = false;
+        void Visit(const LocalMemoryResource& /*object*/) override { result = true; }
+        void Visit(const SharedMemoryCore& /*object*/) override { result = false; }
+    } visitor;
+    axiom.Accept(visitor);
+    return visitor.result;
+}

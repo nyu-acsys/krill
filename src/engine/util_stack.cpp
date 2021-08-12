@@ -32,22 +32,32 @@ struct Generator {
     
 private:
     inline void MakeCandidates() {
-        auto forAllFlows = [this](auto func){
-            for (const auto* flow : flows) func(flow);
-        };
-        
-        bool notFast = policy != ExtensionPolicy::FAST;
-        forAllFlows([this](auto flow){ AddUnaryFlowCandidates(*flow); });
+        // symbols
+        auto isPtr = [](auto it){ return (**it).type.sort == Sort::PTR; };
         for (auto symbol = symbols.begin(); symbol != symbols.end(); ++symbol) {
+            if (!isPtr(symbol) && !AtLeast(ExtensionPolicy::FAST)) continue;
             AddUnarySymbolCandidates(**symbol);
-            if (notFast) forAllFlows([this,symbol](auto flow){ AddBinaryFlowCandidates(*flow, **symbol); });
             for (auto other = std::next(symbol); other != symbols.end(); ++other) {
                 AddBinarySymbolCandidates(**symbol, **other);
-                if (notFast) forAllFlows([this,symbol,other](auto flow){
-                        AddTernaryFlowCandidates(*flow, **symbol, **other);
-                    });
             }
         }
+        
+        // flows
+        if (!AtLeast(ExtensionPolicy::FAST)) return;
+        for (const auto* flow : flows) {
+            AddUnaryFlowCandidates(*flow);
+            for (auto symbol = symbols.begin(); symbol != symbols.end(); ++symbol) {
+                AddBinaryFlowCandidates(*flow, **symbol);
+                if (!AtLeast(ExtensionPolicy::FULL)) continue;
+                for (auto other = std::next(symbol); other != symbols.end(); ++other) {
+                    AddTernaryFlowCandidates(*flow, **symbol, **other);
+                }
+            }
+        }
+    }
+    
+    [[nodiscard]] inline bool AtLeast(ExtensionPolicy min) const {
+        return min <= policy;
     }
 
     inline static std::unique_ptr<SymbolicVariable> MkVar(const SymbolDeclaration& decl) {

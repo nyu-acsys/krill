@@ -93,3 +93,11 @@ void Encoding::AddCheck(const EExpr& expr, std::function<void(bool)> callback) {
     checks_premise.push_back(expr.AsExpr());
     checks_callback.push_back(std::move(callback));
 }
+
+void Encoding::Push() {
+    solver.push();
+}
+
+void Encoding::Pop() {
+    solver.pop();
+}
