@@ -8,7 +8,7 @@
 namespace plankton {
     
     enum struct EMode { PRE, POST };
-
+    
     struct Field {
         const std::string name;
         const Type& type;
@@ -38,6 +38,7 @@ namespace plankton {
     };
 
     struct FlowGraphNode {
+        const struct FlowGraph& parent;
         const SymbolDeclaration& address;
         bool needed;
         bool preLocal;
@@ -54,8 +55,8 @@ namespace plankton {
 
         FlowGraphNode(FlowGraphNode&& other) = default;
         FlowGraphNode(const FlowGraphNode& other) = delete;
-        FlowGraphNode(const SymbolDeclaration& address, bool local, const SymbolDeclaration& preFlow,
-                      SymbolFactory& factory, const Type& flowType);
+        FlowGraphNode(const FlowGraph& parent, const SymbolDeclaration& address, bool local,
+                      const SymbolDeclaration& preFlow, SymbolFactory& factory);
         
         [[nodiscard]] bool IsLocal(EMode mode) const;
         [[nodiscard]] const SymbolDeclaration& AllInflow(EMode mode) const;
@@ -78,7 +79,7 @@ namespace plankton {
         [[nodiscard]] const FlowGraphNode& GetRoot() const;
         [[nodiscard]] FlowGraphNode* GetNodeOrNull(const SymbolDeclaration& address);
         [[nodiscard]] const FlowGraphNode* GetNodeOrNull(const SymbolDeclaration& address) const;
-        [[nodiscard]] std::vector<const Field*> GetIncomingEdges(const FlowGraphNode& node, EMode mode) const;
+        [[nodiscard]] std::vector<const PointerField*> GetIncomingEdges(const FlowGraphNode& node, EMode mode) const;
         
         private:
             explicit FlowGraph(std::unique_ptr<Annotation> pre, const SolverConfig& config);

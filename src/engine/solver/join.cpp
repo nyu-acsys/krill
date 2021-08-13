@@ -65,7 +65,12 @@ struct AnnotationInfo {
         }
         
         // past
-        throw std::logic_error("not yet implemented");
+        for (const auto& past : annotation.past) {
+            for (const auto& [variable, resource] : varToRes) {
+                if (resource->Value() != past->formula->node->Decl()) continue;
+                varToHist[variable].insert(past->formula.get());
+            }
+        }
     }
 };
 

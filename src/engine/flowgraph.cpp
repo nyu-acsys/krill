@@ -19,7 +19,7 @@ inline T& Switch(EMode mode, T& pre, T& post) {
 
 Field::Field(std::string name, const Type& type, const SymbolDeclaration& value)
         : name(std::move(name)), type(type), preValue(value), postValue(value) {
-    (value.order == Order::FIRST);
+    assert(value.order == Order::FIRST);
 }
 
 const SymbolDeclaration& Field::Value(EMode mode) const {
@@ -41,12 +41,16 @@ const SymbolDeclaration& PointerField::GraphOutflow(EMode mode) const {
     return Switch(mode, preGraphOutflow, postGraphOutflow);
 }
 
-FlowGraphNode::FlowGraphNode(const SymbolDeclaration& address, bool local, const SymbolDeclaration& preFlow,
-                             SymbolFactory& factory, const Type& flowType)
-        : address(address), needed(false), preLocal(local), postLocal(local), preAllInflow(preFlow),
-          preGraphInflow(factory.GetFreshSO(flowType)), preKeyset(factory.GetFreshSO(flowType)),
-          postAllInflow(factory.GetFreshSO(flowType)), postGraphInflow(factory.GetFreshSO(flowType)),
-          postKeyset(factory.GetFreshSO(flowType)), frameInflow(factory.GetFreshSO(flowType)) {
+inline const SymbolDeclaration& MkFlow(const FlowGraph& graph, SymbolFactory& factory) {
+    return factory.GetFreshSO(graph.config.GetFlowValueType());
+}
+
+FlowGraphNode::FlowGraphNode(const FlowGraph& parent, const SymbolDeclaration& address, bool local,
+                             const SymbolDeclaration& preFlow, SymbolFactory& factory)
+        : parent(parent), address(address), needed(false), preLocal(local), postLocal(local), preAllInflow(preFlow),
+          preGraphInflow(MkFlow(parent, factory)), preKeyset(MkFlow(parent, factory)),
+          postAllInflow(MkFlow(parent, factory)), postGraphInflow(MkFlow(parent, factory)),
+          postKeyset(MkFlow(parent, factory)), frameInflow(MkFlow(parent, factory)) {
     assert(address.order == Order::FIRST);
 }
 
@@ -102,6 +106,11 @@ std::unique_ptr<MemoryAxiom> FlowGraphNode::ToLogic(EMode mode) const {
     else return MakeMemoryAxiom<SharedMemoryCore>(*this, mode);
 }
 
+FlowGraph::FlowGraph(std::unique_ptr<Annotation> pre_, const SolverConfig& config)
+        : config(config), pre(std::move(pre_)) {
+    assert(pre);
+}
+
 const FlowGraphNode& FlowGraph::GetRoot() const {
     return nodes.at(0);
 }
@@ -116,8 +125,8 @@ FlowGraphNode* FlowGraph::GetNodeOrNull(const SymbolDeclaration& address) {
     return const_cast<FlowGraphNode*>(std::as_const(*this).GetNodeOrNull(address));
 }
 
-std::vector<const Field*> FlowGraph::GetIncomingEdges(const FlowGraphNode& target, EMode mode) const {
-    std::vector<const Field*> result;
+std::vector<const PointerField*> FlowGraph::GetIncomingEdges(const FlowGraphNode& target, EMode mode) const {
+    std::vector<const PointerField*> result;
 
     for (const auto& node : nodes) {
         for (const auto& field : node.pointerFields) {

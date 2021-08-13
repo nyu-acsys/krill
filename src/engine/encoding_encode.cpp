@@ -14,14 +14,25 @@ EExpr Encoding::Max() { return EExpr(context.int_val(MAX_VALUE)); }
 EExpr Encoding::Null() { return EExpr(context.int_val(NULL_VALUE)); }
 EExpr Encoding::Bool(bool val) { return EExpr(context.bool_val(val)); }
 
-#define MakeOp(X) \
-    z3::expr_vector result(context); \
-    for (const auto& elem : expressions) result.push_back(elem.AsExpr()); \
-    return EExpr(X(result));
-    
-EExpr Encoding::MakeDistinct(const std::vector<EExpr>& expressions) { MakeOp(z3::distinct) }
-EExpr Encoding::MakeAnd(const std::vector<EExpr>& expressions) { MakeOp(z3::mk_and) }
-EExpr Encoding::MakeOr(const std::vector<EExpr>& expressions) { MakeOp(z3::mk_or) }
+z3::expr Encoding::Replace(const EExpr& expression, const EExpr& replace, const EExpr& with) {
+    z3::expr_vector replaceVec(context), withVec(context);
+    replaceVec.push_back(replace.AsExpr());
+    withVec.push_back(with.AsExpr());
+    return expression.AsExpr().substitute(replaceVec, withVec);
+}
+
+z3::expr_vector Encoding::AsVector(const std::vector<EExpr>& vector) {
+    z3::expr_vector result(context);
+    for (const auto& elem : vector) result.push_back(elem.AsExpr());
+    return result;
+}
+
+EExpr Encoding::MakeDistinct(const std::vector<EExpr>& vec) { return EExpr(z3::distinct(AsVector(vec))); }
+EExpr Encoding::MakeAnd(const std::vector<EExpr>& vec) { return EExpr(z3::mk_and(AsVector(vec))); }
+EExpr Encoding::MakeOr(const std::vector<EExpr>& vec) { return EExpr(z3::mk_or(AsVector(vec))); }
+EExpr Encoding::MakeAtMost(const std::vector<EExpr>& vec, unsigned int count) {
+    return EExpr(z3::atmost(AsVector(vec), count));
+}
 
 
 z3::sort Encoding::EncodeSort(Sort sort) {
@@ -212,5 +223,62 @@ EExpr Encoding::EncodeInvariants(const Formula& formula, const SolverConfig& con
     for (const auto* mem : shared) result.push_back(Encode(*config.GetSharedNodeInvariant(*mem)));
     for (const auto* var : variables)
         if (var->Variable().isShared) result.push_back(Encode(*config.GetSharedVariableInvariant(*var)));
+    return MakeAnd(result);
+}
+
+inline std::map<const SymbolDeclaration*, std::set<const SymbolDeclaration*>> ComputeReachability(const Formula& formula) {
+    std::map<const SymbolDeclaration*, std::set<const SymbolDeclaration*>> reachability;
+    auto memories = plankton::Collect<MemoryAxiom>(formula);
+    bool changed;
+    do {
+        changed = false;
+        for (const auto& memory : memories) {
+            auto& nodeReach = reachability[&memory->node->Decl()];
+            auto size = nodeReach.size();
+            for (const auto& [field, value] : memory->fieldToValue) {
+                if (value->Sort() != Sort::PTR) continue;
+                nodeReach.insert(&value->Decl());
+                const auto& nextReach = reachability[&value->Decl()];
+                nodeReach.insert(nextReach.begin(), nextReach.end());
+            }
+            changed |= size != nodeReach.size();
+        }
+    } while (!changed);
+    return reachability;
+}
+
+EExpr Encoding::EncodeAcyclicity(const Formula& formula) {
+    auto reachability = ComputeReachability(formula);
+    std::vector<EExpr> result;
+    result.reserve(reachability.size());
+    for (const auto& [node, reach] : reachability) {
+        std::vector<EExpr> distinct;
+        distinct.reserve(reach.size() + 1);
+        distinct.push_back(Encode(*node));
+        for (const auto* other : reach) distinct.push_back(Encode(*other));
+        result.push_back(MakeDistinct(distinct));
+    }
+    return MakeAnd(result);
+}
+
+EExpr Encoding::EncodeOwnership(const Formula& formula) {
+    auto local = plankton::Collect<LocalMemoryResource>(formula);
+    auto shared = plankton::Collect<SharedMemoryCore>(formula);
+    auto variables = plankton::Collect<EqualsToAxiom>(formula);
+    auto result = plankton::MakeVector<EExpr>(local.size() * (shared.size() + variables.size()));
+    for (const auto* memory : local) {
+        auto address = Encode(memory->node->Decl());
+        for (const auto* variable : variables) {
+            if (!variable->Variable().isShared) continue;
+            result.push_back(address != Encode(variable->Variable()));
+        }
+        for (const auto* other : shared) {
+            result.push_back(address != Encode(other->node->Decl()));
+            for (const auto& pair : other->fieldToValue) {
+                if (pair.second->Sort() != Sort::PTR) continue;
+                result.push_back(address != Encode(pair.second->Decl()));
+            }
+        }
+    }
     return MakeAnd(result);
 }

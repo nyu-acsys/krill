@@ -70,10 +70,15 @@ struct AssumptionChecker : DefaultProgramVisitor {
         }
     }
     
-    void Visit(const Macro& object) override { CheckShared(object); CheckDuplicates(object); }
     void Visit(const VariableAssignment& object) override { CheckShared(object); CheckDuplicates(object); }
     void Visit(const MemoryRead& object) override { CheckShared(object); CheckDuplicates(object); }
     void Visit(const MemoryWrite& object) override { CheckDuplicates(object); }
+    void Visit(const Macro& object) override {
+        CheckShared(object);
+        CheckDuplicates(object);
+        if (object.function.get().kind == Function::MACRO) return;
+        throw std::logic_error("Cannot call non-macro function '" + object.function.get().name + "'."); // TODO: better error handling
+    }
 };
 
 Solver::Solver(const Program& program, const SolverConfig& config) : config(config), dataFlow(program) {

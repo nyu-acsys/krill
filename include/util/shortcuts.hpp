@@ -52,8 +52,8 @@ namespace plankton {
         }
     }
     
-    template<typename T, typename U>
-    static inline typename T::iterator FindIf(T& container, const U& unaryPredicate) {
+    template<typename T, typename U, typename R = typename T::const_iterator>
+    static inline R FindIf(T& container, const U& unaryPredicate) {
         return std::find_if(container.begin(), container.end(), unaryPredicate);
     }
     
@@ -75,6 +75,13 @@ namespace plankton {
     template<typename T, typename U>
     static inline bool Membership(const T& container, const U& element) {
         return std::find(container.begin(), container.end(), element) != container.end();
+    }
+    
+    template<typename T>
+    static inline std::vector<T> MakeVector(std::size_t reserve) { // TODO: use instead of vector::reserve
+        std::vector<T> result;
+        result.reserve(reserve);
+        return result;
     }
     
     struct ExceptionWithMessage : public std::exception {

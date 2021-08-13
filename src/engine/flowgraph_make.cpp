@@ -1,5 +1,6 @@
 #include "engine/flowgraph.hpp"
 
+#include <array>
 #include "logics/util.hpp"
 #include "engine/util.hpp"
 #include "util/log.hpp"
@@ -7,7 +8,7 @@
 using namespace plankton;
 
 
-constexpr std::array<EMode, 2> AllEMode = { EMode::PRE, EMode::POST };
+constexpr std::array<EMode, 2> AllEMode = {EMode::PRE, EMode::POST };
 
 struct UpdateMap {
     using update_t = std::pair<const Dereference*, const VariableExpression*>;
@@ -52,33 +53,21 @@ struct Worklist {
     }
 };
 
-inline std::deque<std::set<const SymbolDeclaration*>> ComputeAllRootPaths(const FlowGraph& graph) {
-    std::deque<std::set<const SymbolDeclaration*>> result;
-    std::deque<std::pair<const FlowGraphNode*, std::set<const SymbolDeclaration*>>> worklist;
-    worklist.push_back({&graph.GetRoot(), {}});
+inline FlowGraphNode MakeNodeFromResource(const MemoryAxiom& axiom, SymbolFactory factory, const FlowGraph& graph) {
+    FlowGraphNode result(graph, axiom.node->Decl(), plankton::IsLocal(axiom), axiom.flow->Decl(), factory);
     
-    while (!worklist.empty()) {
-        auto [node, set] = worklist.front();
-        set.insert(&node->address);
-        bool hasNext = false;
-        for (const auto& pointerField : node->pointerFields) {
-            for (auto mode : AllEMode) {
-                if (auto next = graph.GetNodeOrNull(pointerField.Value(mode))) {
-                    hasNext = true;
-                    worklist.emplace_back(next, set);
-                }
-            }
+    auto& flowType = axiom.flow->Type();
+    result.dataFields.reserve(axiom.fieldToValue.size());
+    result.pointerFields.reserve(axiom.fieldToValue.size());
+    for (const auto&[name, value] : axiom.fieldToValue) {
+        if (value->Sort() == Sort::PTR) {
+            result.pointerFields.emplace_back(name, value->Type(), value->Decl(), factory, flowType);
+        } else {
+            result.dataFields.emplace_back(name, value->Type(), value->Decl());
         }
-        if (!hasNext) result.push_back(std::move(set));
-        worklist.pop_front();
     }
     
     return result;
-}
-
-inline std::unique_ptr<StackAxiom> MakeNeq(const SymbolDeclaration& decl, const SymbolDeclaration& other) {
-    return std::make_unique<StackAxiom>(BinaryOperator::NEQ, std::make_unique<SymbolicVariable>(decl),
-                                        std::make_unique<SymbolicVariable>(other));
 }
 
 struct FlowGraphGenerator {
@@ -98,23 +87,6 @@ struct FlowGraphGenerator {
         auto expr = encoding.Encode(address);
         for (const auto& node : graph.nodes) vector.push_back(encoding.Encode(node.address) != expr);
         return encoding.Implies(encoding.MakeAnd(vector));
-    }
-    
-    inline FlowGraphNode MakeNodeFromResource(const MemoryAxiom& axiom) {
-        auto& flowType = axiom.flow->Type();
-        FlowGraphNode result(axiom.node->Decl(), plankton::IsLocal(axiom), axiom.flow->Decl(), factory, flowType);
-    
-        result.dataFields.reserve(axiom.fieldToValue.size());
-        result.pointerFields.reserve(axiom.fieldToValue.size());
-        for (const auto&[name, value] : axiom.fieldToValue) {
-            if (value->Sort() == Sort::PTR) {
-                result.pointerFields.emplace_back(name, value->Type(), value->Decl(), factory, flowType);
-            } else {
-                result.dataFields.emplace_back(name, value->Type(), value->Decl());
-            }
-        }
-    
-        return result;
     }
     
     inline void ApplyUpdates(FlowGraphNode& node) {
@@ -150,7 +122,7 @@ struct FlowGraphGenerator {
         if (!IsDistinct(alias)) return nullptr;
 
         // create a new node, add to footprint
-        auto newNode = MakeNodeFromResource(*resource);
+        auto newNode = MakeNodeFromResource(*resource, factory, graph);
         ApplyUpdates(newNode);
         graph.nodes.push_back(std::move(newNode));
         return &graph.nodes.back();
@@ -220,34 +192,23 @@ struct FlowGraphGenerator {
         auto& flowType = graph.config.GetFlowValueType();
         plankton::MakeMemoryAccessible(state, frontier, flowType, factory, encoding);
         encoding.AddPremise(encoding.EncodeInvariants(state, graph.config)); // for newly added memory
-        
-        // no cycles => nodes on a path are all distinct
-        auto paths = ComputeAllRootPaths(graph);
-        for (const auto& path : paths) {
-            for (auto it = path.begin(); it != path.end(); ++it) {
-                for (auto ot = std::next(it); ot != path.end(); ++it) {
-                    auto distinct = MakeNeq(**it, **ot);
-                    encoding.AddPremise(*distinct);
-                    state.Conjoin(std::move(distinct));
-                }
-            }
-        }
+        encoding.AddPremise(encoding.EncodeAcyclicity(state)); // for newly added memory
         
         // nodes with same address => same fields
         // prune duplicate memory
         plankton::ExtendStack(*graph.pre, encoding, ExtensionPolicy::POINTERS);
         assert(&state == graph.pre->now.get());
-        plankton::InlineAndSimplify(state);
-        throw std::logic_error("not yet implemented"); // TODO: inline same/duplicate memory
+        plankton::InlineAndSimplify(*graph.pre);
     }
     
     void Construct(const VariableDeclaration& root, std::size_t depth) {
-        
         std::set<const SymbolDeclaration*> frontier;
         while (true) {
             encoding.Push();
             encoding.AddPremise(state); // TODO: encoding.AddPremise(graph) for more precision (trades in runtime)?
             encoding.AddPremise(encoding.EncodeInvariants(state, graph.config));
+            encoding.AddPremise(encoding.EncodeAcyclicity(state));
+            encoding.AddPremise(encoding.EncodeOwnership(state));
     
             MakeRoot(root);
             auto newFrontier = ExpandGraph(depth);
@@ -274,6 +235,13 @@ FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const Mem
     FlowGraphGenerator generator(graph, updateMap);
     generator.Construct(root, depth);
     
+    for (const auto& dereference : command.lhs) {
+        auto target = graph.GetNodeOrNull(plankton::Evaluate(*dereference->variable, *graph.pre->now));
+        if (target) continue;
+        throw std::logic_error("Footprint construction failed: update to '"
+                               + plankton::ToString(*dereference) + "' not covered.");
+    }
+    
     DEBUG("Footprint: " << std::endl)
     for (const auto& node : graph.nodes) {
         DEBUG("   - Node " << node.address.name << std::endl)
@@ -287,45 +255,26 @@ FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const Mem
 }
 
 FlowGraph plankton::MakePureHeapGraph(std::unique_ptr<Annotation> state, const SolverConfig& config) {
-    throw;
+    plankton::InlineAndSimplify(*state);
+    FlowGraph graph(std::move(state), config);
+    SymbolFactory factory(*graph.pre);
 
-//    heal::InlineAndSimplify(*state);
-//    //    std::cout << "Making pure heap graph for: " << *state << std::endl;
-//    FlowGraph graph{config, {}, std::move(state)};
-//
-//    SymbolicFactory factory(*graph.pre);
-//    LazyValuationMap eval(*graph.pre);
-//
-//    // add all nodes
-//    auto memory = heal::CollectMemory(*graph.pre);
-//    for (const auto* mem : memory) {
-//        TryGetOrCreateNode(graph, eval, factory, mem->node->Decl());
-//    }
-//
-//    // make pre/post state equal
-//    for (auto& node : graph.nodes) {
-//        node.needed = true;
-//        node.postAllInflow = node.preAllInflow;
-//        node.postKeyset = node.preKeyset;
-//        node.postGraphInflow = node.preGraphInflow;
-//
-//        for (auto& field : node.pointerFields) {
-//            field.postAllOutflow = field.preAllOutflow;
-//            field.postGraphOutflow = field.preGraphOutflow;
-//        }
-//    }
-//
-//    // begin debug
-//    //    std::cout << "Pure heap graph:" << std::endl;
-//    //    for (const auto& node : graph.nodes) {
-//    //        std::cout << "   - Node " << node.address.name << std::endl;
-//    //        for (const auto& next : node.pointerFields) {
-//    //            std::cout << "      - " << node.address.name << "->" << next.name << " == " << next.preValue.get().name << " / " << next.postValue.get().name << std::endl;
-//    //        }
-//    //    }
-//    //    std::cout << "graph.pre: " << *graph.pre << std::endl;
-//    // end debug
-//
-//    // TODO: find a root (some node that is not reachable from any other node)?
-//    return graph;
+    // add all nodes
+    auto memories = plankton::Collect<MemoryAxiom>(*graph.pre->now);
+    for (const auto* memory : memories) {
+        graph.nodes.push_back(MakeNodeFromResource(*memory, factory, graph));
+    }
+
+    // make pre/post state equal
+    for (auto& node : graph.nodes) {
+        node.needed = true;
+        node.postAllInflow = node.preAllInflow;
+        node.postKeyset = node.preKeyset;
+        node.postGraphInflow = node.preGraphInflow;
+        for (auto& field : node.pointerFields) {
+            field.postAllOutflow = field.preAllOutflow;
+            field.postGraphOutflow = field.preGraphOutflow;
+        }
+    }
+    return graph;
 }

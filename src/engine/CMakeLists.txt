@@ -39,6 +39,7 @@ set(SOURCES
 
         encoding.cpp
         encoding_encode.cpp
+        encoding_flowgraph.cpp
         encoding_solve.cpp
 
         flowgraph.cpp

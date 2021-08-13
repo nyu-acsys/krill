@@ -13,6 +13,24 @@ using namespace plankton;
 //  4. trivally true formeln entfernen
 
 
+struct SymbolRenamingListener : public MutableLogicListener {
+    const SymbolDeclaration& search;
+    const SymbolDeclaration& replace;
+    
+    explicit SymbolRenamingListener(const SymbolDeclaration& search, const SymbolDeclaration& replace)
+    : search(search), replace(replace) {}
+    
+    void Enter(SymbolicVariable& object) override {
+        if (&object.Decl() != &search) return;
+        object.decl = replace;
+    }
+};
+
+inline void ApplyRenaming(LogicObject& object, const SymbolDeclaration& search, const SymbolDeclaration& replace) {
+    SymbolRenamingListener replacer(search, replace);
+    object.Accept(replacer);
+}
+
 //
 // Flatten
 //
@@ -51,21 +69,72 @@ inline void Flatten(LogicObject& object) {
 
 
 //
-// Inline Equalities
+// Inline memories
 //
 
-struct SymbolRenamingListener : public MutableLogicListener {
-    const SymbolDeclaration& search;
-    const SymbolDeclaration& replace;
+struct EqualityCollection {
+    std::set<std::pair<const SymbolDeclaration*, const SymbolDeclaration*>> set;
     
-    explicit SymbolRenamingListener(const SymbolDeclaration& search, const SymbolDeclaration& replace)
-            : search(search), replace(replace) {}
+    void Add(const SymbolDeclaration& symbol, const SymbolDeclaration& other) {
+        assert(symbol.type == other.type);
+        assert(symbol.order == other.order);
+        if (&symbol <= &other) set.emplace(&symbol, &other);
+        else set.emplace(&other, &symbol);
+    }
     
-    void Enter(SymbolicVariable& object) override {
-        if (&object.Decl() != &search) return;
-        object.decl = replace;
+    void Handle(const SharedMemoryCore& memory, SharedMemoryCore& other) {
+        if (memory.node->Decl() != other.node->Decl()) return;
+        Add(memory.node->Decl(), other.node->Decl());
+        Add(memory.flow->Decl(), other.flow->Decl());
+        assert(memory.node->Type() == other.node->Type());
+        for (const auto& [field, value] : memory.fieldToValue) {
+            Add(value->Decl(), other.fieldToValue.at(field)->Decl());
+        }
     }
 };
+
+inline std::set<SharedMemoryCore*> GetMemories(LogicObject& object) {
+    // TODO: how to avoid this?
+    if (auto annotation = dynamic_cast<Annotation*>(&object))
+        return plankton::CollectMutable<SharedMemoryCore>(*annotation->now);
+    return plankton::CollectMutable<SharedMemoryCore>(object);
+}
+
+inline void ExtractEqualities(SeparatingConjunction& object, EqualityCollection& equalities) {
+    auto memories = GetMemories(object);
+    for (auto it = memories.begin(); it != memories.end(); ++it) {
+        for (auto ot = std::next(it); ot != memories.end(); ++ot) {
+            equalities.Handle(**it, **ot);
+        }
+    }
+}
+
+inline void InlineMemories(LogicObject& object) {
+    // find equalities
+    struct : public MutableDefaultLogicVisitor {
+        EqualityCollection equalities;
+        
+        void Visit(SeparatingConjunction& object) override { ExtractEqualities(object, equalities); }
+        void Visit(Annotation& object) override { Walk(object); }
+        
+        inline static void Raise(const std::string& typeName) {
+            throw std::logic_error("Cannot simplify '" + typeName + "'");// TODO: better error handling
+        }
+        void Visit(SeparatingImplication& /*object*/) override { Raise("SeparatingImplication"); }
+        void Visit(FuturePredicate& /*object*/) override { Raise("FuturePredicate"); }
+    } dispatcher;
+    object.Accept(dispatcher);
+    
+    // inline equalities
+    for (const auto& [symbol, other] : dispatcher.equalities.set) {
+        ApplyRenaming(object, *symbol, *other);
+    }
+}
+
+
+//
+// Inline Equalities
+//
 
 struct SyntacticEqualityInliningListener final : public MutableLogicListener {
     std::reference_wrapper<LogicObject> target;
@@ -75,8 +144,7 @@ struct SyntacticEqualityInliningListener final : public MutableLogicListener {
         if (object.op != BinaryOperator::EQ) return;
         if (auto lhsVar = dynamic_cast<const SymbolicVariable*>(object.lhs.get())) {
             if (auto rhsVar = dynamic_cast<const SymbolicVariable*>(object.rhs.get())) {
-                SymbolRenamingListener renaming(lhsVar->Decl(), rhsVar->Decl());
-                target.get().Accept(renaming);
+                ApplyRenaming(target, lhsVar->Decl(), rhsVar->Decl());
             }
         }
     }
@@ -105,7 +173,6 @@ inline void InlineEqualities(LogicObject& object) {
     SyntacticEqualityInliningListener inlining(object);
     object.Accept(inlining);
 }
-
 
 //
 // Remove trivialities and duplicates
@@ -161,7 +228,9 @@ void plankton::Simplify(LogicObject& object) {
 }
 
 void plankton::InlineAndSimplify(LogicObject& object) {
+    // TODO: should this be done for annotations only?
     Flatten(object);
+    InlineMemories(object);
     InlineEqualities(object);
     RemoveNoise(object);
 }

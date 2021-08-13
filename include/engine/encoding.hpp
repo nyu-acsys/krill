@@ -31,6 +31,7 @@ namespace plankton {
             
             // TODO: error handling?
             [[nodiscard]] inline z3::expr AsExpr() const { return std::get<z3::expr>(repr); }
+//            [[nodiscard]] inline z3::func_decl AsFunc() const { return std::get<z3::func_decl>(repr); }
             
             friend struct Encoding;
     };
@@ -42,6 +43,7 @@ namespace plankton {
         void AddPremise(const EExpr& expr);
         void AddPremise(const Formula& premise);
         void AddPremise(const SeparatingImplication& premise);
+        void AddPremise(const FlowGraph& graph);
         void Push();
         void Pop();
         
@@ -66,6 +68,14 @@ namespace plankton {
         EExpr EncodeIsNonNull(const VariableDeclaration& decl);
         EExpr EncodeMemoryEquality(const MemoryAxiom& memory, const MemoryAxiom& other);
         EExpr EncodeInvariants(const Formula& formula, const SolverConfig& config);
+        EExpr EncodeAcyclicity(const Formula& formula);
+        EExpr EncodeOwnership(const Formula& formula);
+        
+        EExpr Encode(const FlowGraph& graph);
+        EExpr EncodeKeysetDisjointness(const FlowGraph& graph, EMode mode);
+        EExpr EncodeInflowUniqueness(const FlowGraph& graph, EMode mode);
+        EExpr EncodeLogicallyContains(const FlowGraphNode& node, const EExpr& value, EMode mode);
+        EExpr EncodeOutflowContains(const FlowGraphNode& node, const std::string& field, const EExpr& value, EMode mode);
         
         EExpr Min();
         EExpr Max();
@@ -75,6 +85,7 @@ namespace plankton {
         EExpr MakeDistinct(const std::vector<EExpr>& expressions);
         EExpr MakeAnd(const std::vector<EExpr>& expressions);
         EExpr MakeOr(const std::vector<EExpr>& expressions);
+        EExpr MakeAtMost(const std::vector<EExpr>& expressions, unsigned int count);
 
         private:
             z3::context context;
@@ -86,6 +97,11 @@ namespace plankton {
             
             z3::sort EncodeSort(Sort sort);
             z3::expr MakeQuantifiedVariable(Sort sort);
+            z3::expr EncodeFlowRules(const FlowGraphNode& node);
+            z3::expr EncodeOutflow(const FlowGraphNode& node, const PointerField& field, EMode mode);
+            z3::expr_vector AsVector(const std::vector<EExpr>& vector);
+            z3::expr Replace(const EExpr& expression, const EExpr& replace, const EExpr& with);
+            void AddPremise(const z3::expr& expr);
     };
     
 } // plankton
