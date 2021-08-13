@@ -18,11 +18,11 @@ using EffectPairDeque = std::deque<std::pair<const HeapEffect*, const HeapEffect
 inline bool CheckContext(const Formula& context) {
     struct : public LogicListener {
         bool result = true;
-        void Visit(const LocalMemoryResource& /*object*/) override { result = false; }
-        void Visit(const SharedMemoryCore& /*object*/) override { result = false; }
-        // void Visit(const EqualsToAxiom& /*object*/) override { result = false; }
-        void Visit(const ObligationAxiom& /*object*/) override { result = false; }
-        void Visit(const FulfillmentAxiom& /*object*/) override { result = false; }
+        void Enter(const LocalMemoryResource& /*object*/) override { result = false; }
+        void Enter(const SharedMemoryCore& /*object*/) override { result = false; }
+        // void Enter(const EqualsToAxiom& /*object*/) override { result = false; }
+        void Enter(const ObligationAxiom& /*object*/) override { result = false; }
+        void Enter(const FulfillmentAxiom& /*object*/) override { result = false; }
     } visitor;
     context.Accept(visitor);
     return visitor.result;

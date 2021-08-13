@@ -8,7 +8,6 @@
 #include "engine/encoding.hpp"
 
 namespace plankton {
-    // TODO: move functions to solver if they require a SolverConfig ?
     
     const EqualsToAxiom* TryGetResource(const VariableDeclaration& variable, const Formula& state);
     const EqualsToAxiom& GetResource(const VariableDeclaration& variable, const Formula& state);
@@ -37,44 +36,7 @@ namespace plankton {
     enum struct ExtensionPolicy { POINTERS, FAST, FULL };
     void ExtendStack(Annotation& annotation, Encoding& encoding, ExtensionPolicy policy);
     void ExtendStack(Annotation& annotation, ExtensionPolicy policy);
-    
-    
-//    bool JoinCompatibleResources(const std::vector<const Annotation*>& annotations);
-//    inline bool JoinCompatibleResources() {
-//        // abort if resource counts mismatch
-//        if (!CompareResourceCount<LocalMemoryResource>()) return false;
-//        if (!CompareResourceCount<SharedMemoryCore>()) return false;
-//        if (!CompareResourceCount<FulfillmentAxiom>()) return false;
-//        if (!CompareResourceCount<MemoryAxiom, std::less_equal<>, EqualsToAxiom>()) return false;
-//
-//        // check same variables in scope
-//        //        auto variablesPremise = plankton::Collect<VariableDeclaration>(*premise.now);
-//        //        auto variablesConclusion = plankton::Collect<VariableDeclaration>(*conclusion->now);
-//        //        if (variablesPremise.size() != variablesConclusion.size()) return false;
-//        //        for (const auto* resource : plankton::Collect<VariableDeclaration>(*premise.now)) {
-//        //            plankton::Fin
-//        //        }
-//
-//        // check obligation resources per specification type
-//        std::map<Specification, int> obligationCount;
-//        for (const auto* obligation : plankton::Collect<ObligationAxiom>(*premise.now)) {
-//            obligationCount[obligation->spec] += 1;
-//        }
-//        for (const auto* obligation : plankton::Collect<ObligationAxiom>(*conclusion->now)) {
-//            obligationCount[obligation->spec] -= 1;
-//        }
-//        return plankton::All(obligationCount, [](const auto& entry){ return entry.second == 0; });
-//    }
-//template<typename T, typename F = std::equal_to<>, typename U = T>
-//        inline bool CompareResourceCount() {
-//            auto premiseCollection = plankton::Collect<T>(*premise.now);
-//            auto conclusionCollection = plankton::Collect<U>(*conclusion->now);
-//            return F()(premiseCollection.size(), conclusionCollection.size());
-//        }
-    
-//    using MemoryMap = std::map<const VariableDeclaration*, const MemoryAxiom*>;
-//    MemoryMap MakeMemoryMap(const LogicObject& object);
-    
+
 }
 
 #endif //PLANKTON_ENGINE_UTIL_HPP

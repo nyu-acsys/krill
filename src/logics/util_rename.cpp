@@ -20,7 +20,7 @@ struct SymbolRenamingListener : public MutableLogicListener {
     
     explicit SymbolRenamingListener(const SymbolRenaming& renaming) : renaming(renaming) {}
     
-    void Visit(SymbolicVariable& object) override {
+    void Enter(SymbolicVariable& object) override {
         object.decl = renaming(object.Decl());
     }
 };

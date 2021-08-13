@@ -5,13 +5,13 @@
 using namespace plankton;
 
 
-struct VariableCollector : public ProgramListener {
+struct PointerCollector : public ProgramListener {
     std::set<const VariableDeclaration*> result;
     void Enter(const VariableDeclaration& object) override { result.insert(&object); }
 };
 
 inline void CheckVariableAccess(const Command& command, const Annotation& annotation) {
-    VariableCollector collector;
+    PointerCollector collector;
     command.Accept(collector);
     for (const auto& decl : collector.result) {
         auto resource = plankton::TryGetResource(*decl, *annotation.now);
@@ -47,7 +47,7 @@ inline void MakeAccessible(Annotation& annotation, const Command& command, const
     for (const auto* variable : collector.result) {
         if (variable->type.sort != Sort::PTR) continue;
         // TODO: more involved shared reachability check?
-        if (!dataFlow.NeverPointsToLocal(*variable)) continue;
+        if (dataFlow.AlwaysPointsToShared(*variable)) continue;
         
         auto& resource = plankton::GetResource(*variable, *annotation.now);
         symbols.insert(&resource.Value());
