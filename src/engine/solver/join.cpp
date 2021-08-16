@@ -381,6 +381,7 @@ std::unique_ptr<Annotation> Solver::Join(std::deque<std::unique_ptr<Annotation>>
     DEBUG(std::endl)
     
     if (annotations.empty()) throw std::logic_error("Cannot join empty set"); // TODO: better error handling
+    for (auto& elem : annotations) ImprovePast(*elem);
     auto result = AnnotationJoiner(std::move(annotations), config).GetResult();
     plankton::InlineAndSimplify(*result);
     DEBUG("** join result: " << *result << std::endl << std::endl << std::endl)

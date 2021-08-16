@@ -4,7 +4,6 @@
 
 #include "ast.hpp"
 #include "programs/util.hpp"
-#include "util/shortcuts.hpp"
 
 namespace plankton {
 

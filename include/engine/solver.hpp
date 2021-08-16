@@ -55,6 +55,7 @@ namespace plankton {
         
     private:
         void PrepareAccess(Annotation& annotation, const Command& command) const;
+        void ImprovePast(Annotation& annotation) const;
         
 //        [[nodiscard]] PostImage PostVariableUpdate(std::unique_ptr<heal::Annotation> pre, const cola::Assignment& cmd, const cola::VariableExpression& lhs) const;
 //        [[nodiscard]] PostImage PostMemoryUpdate(std::unique_ptr<heal::Annotation> pre, const MultiUpdate& update) const;

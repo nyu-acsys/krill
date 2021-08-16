@@ -124,12 +124,13 @@ private:
 void plankton::ExtendStack(Annotation& annotation, Encoding& encoding, ExtensionPolicy policy) {
     Generator candidates(policy);
     candidates.AddSymbolsFrom(annotation);
-    
+
     for (auto& candidate : candidates.Generate()) {
         encoding.AddCheck(encoding.Encode(*candidate), [&candidate,&annotation](bool holds){
             if (holds) annotation.Conjoin(std::move(candidate));
         });
     }
+    encoding.Check();
 }
 
 void plankton::ExtendStack(Annotation& annotation, ExtensionPolicy policy) {

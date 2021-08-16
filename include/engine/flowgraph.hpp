@@ -86,8 +86,7 @@ namespace plankton {
             friend FlowGraph MakePureHeapGraph(std::unique_ptr<Annotation>, const SolverConfig&);
             friend FlowGraph MakeFlowFootprint(std::unique_ptr<Annotation>, const MemoryWrite&, const SolverConfig&);
     };
-
-    // TODO: add invariants to flow graph
+    
     [[nodiscard]] FlowGraph MakePureHeapGraph(std::unique_ptr<Annotation> state, const SolverConfig& config);
     [[nodiscard]] FlowGraph MakeFlowFootprint(std::unique_ptr<Annotation> pre, const MemoryWrite& update, const SolverConfig& config);
     

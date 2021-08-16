@@ -34,6 +34,7 @@ namespace plankton {
                               const Type& flowType);
     
     enum struct ExtensionPolicy { POINTERS, FAST, FULL };
+    std::deque<std::unique_ptr<StackAxiom>> MakeStackCandidates(std::set<const SymbolDeclaration*> symbols, ExtensionPolicy policy);
     void ExtendStack(Annotation& annotation, Encoding& encoding, ExtensionPolicy policy);
     void ExtendStack(Annotation& annotation, ExtensionPolicy policy);
 

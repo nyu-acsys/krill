@@ -98,7 +98,7 @@ struct InterferenceInfo {
 std::unique_ptr<Annotation> Solver::MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const {
     // TODO: should this take a list of annotations?
     if (interference.empty()) return annotation;
-//    annotation = TryFindBetterHistories(std::move(annotation), interference);
+    ImprovePast(*annotation);
     InterferenceInfo info(std::move(annotation), interference);
     auto result = info.GetResult();
 //    result = PerformInterpolation(std::move(result), interference);

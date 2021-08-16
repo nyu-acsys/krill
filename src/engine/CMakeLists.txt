@@ -17,6 +17,7 @@ set(SOURCES
         solver/access.cpp
         solver/interference.cpp
         solver/join.cpp
+        solver/past.cpp
         solver/post_assign_var.cpp
         solver/post_assign_read.cpp
         solver/post_assign_write.cpp

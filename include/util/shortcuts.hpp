@@ -84,6 +84,18 @@ namespace plankton {
         return result;
     }
     
+    template<typename T, typename U>
+    static inline bool NonEmptyIntersection(const T& container, const U& other) {
+        return plankton::ContainsIf(container, [&other](const auto& elem){
+            return plankton::ContainsIf(other, [&elem](const auto& item) { return elem == item; });
+        });
+    }
+    
+    template<typename T, typename U>
+    static inline bool EmptyIntersection(const T& container, const U& other) {
+        return !plankton::NonEmptyIntersection(container, other);
+    }
+    
     struct ExceptionWithMessage : public std::exception {
         std::string message;
         explicit ExceptionWithMessage(std::string message) : message(std::move(message)) {}
