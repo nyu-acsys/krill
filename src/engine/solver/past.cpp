@@ -197,10 +197,17 @@ private:
                 }
             }
         }
-        
         encoding.Check();
+        
+        std::set<const LogicObject*> prune;
+        std::set<std::pair<const LogicObject*, const LogicObject*>> blacklist;
+        for (const auto& [weaker, stronger] : subsumption) {
+            if (plankton::Membership(blacklist, std::make_pair(stronger, weaker))) continue; // break circles
+            blacklist.emplace(weaker, stronger);
+            prune.insert(weaker);
+        }
         plankton::RemoveIf(annotation.past,
-                           [&subsumption](const auto& elem) { return plankton::Membership(subsumption, elem.get()); });
+                           [&prune](const auto& elem) { return plankton::Membership(prune, elem.get()); });
     }
     
     void Filter() {
