@@ -1,10 +1,11 @@
 
 set(SOURCES
         ast.cpp
-        util_copy.cpp
-        util_mover.cpp
-        util_print.cpp
         visitors.cpp
+
+        util/copy.cpp
+        util/mover.cpp
+        util/print.cpp
 )
 
 add_library(Programs ${SOURCES})

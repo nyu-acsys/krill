@@ -1,15 +1,17 @@
 
 set(SOURCES
         ast.cpp
-        util_collect.cpp
-        util_copy.cpp
-        util_equal.cpp
-        util_memory.cpp
-        util_normalize.cpp
-        util_print.cpp
-        util_rename.cpp
-        util_simplify.cpp
         visitors.cpp
+
+        util/collect.cpp
+        util/copy.cpp
+        util/equal.cpp
+        util/memory.cpp
+        util/normalize.cpp
+        util/print.cpp
+        util/rename.cpp
+        util/simplify.cpp
 )
 
 add_library(Logics ${SOURCES})
+target_link_libraries(Logics Programs)

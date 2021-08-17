@@ -14,7 +14,16 @@ include_directories(${Z3_INCLUDE})
 ################################
 
 set(SOURCES
+        encoding/encoding.cpp
+        encoding/encode.cpp
+        encoding/graph.cpp
+        encoding/solve.cpp
+
+        flowgraph/flowgraph.cpp
+        flowgraph/make.cpp
+
         solver/access.cpp
+        solver/ful.cpp
         solver/interference.cpp
         solver/join.cpp
         solver/past.cpp
@@ -32,23 +41,15 @@ set(SOURCES
         proof/cmd.cpp
         proof/stmt.cpp
 
-        util_effects.cpp
-        util_eval.cpp
-        util_memory.cpp
-        util_stack.cpp
-        util_symbolic.cpp
-
-        encoding.cpp
-        encoding_encode.cpp
-        encoding_flowgraph.cpp
-        encoding_solve.cpp
-
-        flowgraph.cpp
-        flowgraph_make.cpp
+        util/effects.cpp
+        util/eval.cpp
+        util/memory.cpp
+        util/stack.cpp
+        util/symbolic.cpp
 
         linearizability.cpp
         static.cpp
 )
 
 add_library(Engine ${SOURCES})
-target_link_libraries(Engine CoLa HeaL ${Z3_LIBRARY})
+target_link_libraries(Engine Programs Logics ${Z3_LIBRARY})
