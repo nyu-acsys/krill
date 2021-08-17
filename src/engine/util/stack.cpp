@@ -14,14 +14,18 @@ struct Generator {
     
     explicit Generator(ExtensionPolicy policy) : policy(policy) {}
     
-    inline void AddSymbolsFrom(const LogicObject& object) {
-        auto newSymbols = plankton::Collect<SymbolicVariable>(object);
+    inline void AddSymbolsFrom(const std::set<const SymbolDeclaration*>& newSymbols) {
         for (const auto* elem : newSymbols) {
-            switch (elem->Order()) {
-                case Order::FIRST: symbols.insert(&elem->Decl()); break;
-                case Order::SECOND: flows.insert(&elem->Decl()); break;
+            switch (elem->order) {
+                case Order::FIRST: symbols.insert(elem); break;
+                case Order::SECOND: flows.insert(elem); break;
             }
         }
+    }
+    
+    inline void AddSymbolsFrom(const LogicObject& object) {
+        auto newSymbols = plankton::Collect<SymbolDeclaration>(object);
+        AddSymbolsFrom(newSymbols);
     }
     
     inline std::deque<std::unique_ptr<Axiom>> Generate() {
@@ -121,10 +125,17 @@ private:
 };
 
 
+std::deque<std::unique_ptr<Axiom>> plankton::MakeStackCandidates(const std::set<const SymbolDeclaration*>& symbols,
+                                                                 ExtensionPolicy policy) {
+    Generator candidates(policy);
+    candidates.AddSymbolsFrom(symbols);
+    return candidates.Generate();
+}
+
 void plankton::ExtendStack(Annotation& annotation, Encoding& encoding, ExtensionPolicy policy) {
     Generator candidates(policy);
     candidates.AddSymbolsFrom(annotation);
-
+    
     for (auto& candidate : candidates.Generate()) {
         encoding.AddCheck(encoding.Encode(*candidate), [&candidate,&annotation](bool holds){
             if (holds) annotation.Conjoin(std::move(candidate));

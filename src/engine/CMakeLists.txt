@@ -44,6 +44,7 @@ set(SOURCES
         util/effects.cpp
         util/eval.cpp
         util/memory.cpp
+        util/reachability.cpp
         util/stack.cpp
         util/symbolic.cpp
 

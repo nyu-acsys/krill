@@ -34,10 +34,18 @@ namespace plankton {
                               const Type& flowType);
     
     enum struct ExtensionPolicy { POINTERS, FAST, FULL };
-    std::deque<std::unique_ptr<StackAxiom>> MakeStackCandidates(std::set<const SymbolDeclaration*> symbols, ExtensionPolicy policy);
+    std::deque<std::unique_ptr<Axiom>> MakeStackCandidates(const std::set<const SymbolDeclaration*>& symbols,
+                                                           ExtensionPolicy policy);
     void ExtendStack(Annotation& annotation, Encoding& encoding, ExtensionPolicy policy);
     void ExtendStack(Annotation& annotation, ExtensionPolicy policy);
-
+    
+    struct ReachSet {
+        std::map<const SymbolDeclaration*, std::set<const SymbolDeclaration*>> container;
+        [[nodiscard]] bool IsReachable(const SymbolDeclaration& source, const SymbolDeclaration& target) const;
+        [[nodiscard]] const std::set<const SymbolDeclaration*>& GetReachable(const SymbolDeclaration& source) const;
+    };
+    ReachSet ComputeReachability(const Formula& formula);
+    ReachSet ComputeReachability(const FlowGraph& graph, EMode mode);
 }
 
 #endif //PLANKTON_ENGINE_UTIL_HPP

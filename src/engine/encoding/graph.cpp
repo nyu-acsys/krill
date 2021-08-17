@@ -178,3 +178,18 @@ EExpr Encoding::EncodeOutflowContains(const FlowGraphNode& node, const std::stri
     auto predicate = node.parent.config.GetOutflowContains(*axiom, field, dummy);
     return EExpr(Replace(Encode(*predicate), Encode(dummy), value));
 }
+
+struct InvariantCreator : public BaseLogicVisitor {
+    std::unique_ptr<SeparatingImplication> invariant;
+    const SolverConfig& config;
+    explicit InvariantCreator(const SolverConfig& config) : config(config) {}
+    void Visit(const LocalMemoryResource& object) override { invariant = config.GetLocalNodeInvariant(object); }
+    void Visit(const SharedMemoryCore& object) override { invariant = config.GetSharedNodeInvariant(object); }
+};
+
+EExpr Encoding::EncodeNodeInvariant(const FlowGraphNode& node, EMode mode) {
+    InvariantCreator encoder(node.parent.config);
+    node.ToLogic(mode)->Accept(encoder);
+    if (!encoder.invariant) throw std::logic_error("Internal error: cannot produce invariant for node.");
+    return Encode(*encoder.invariant);
+}

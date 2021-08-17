@@ -6,6 +6,10 @@
 
 namespace plankton {
     
+    
+    // void LogMsg(const std::string& msg, std::size_t level = 0) { /* ... */ }
+    // #define LOG(...) LogMsg(__VA_ARGS__)
+    
     #define DEBUG(X) { std::cout << X; }
     
     #define INFO(X) { std::cout << X; }

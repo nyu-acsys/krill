@@ -1,6 +1,7 @@
 #include "engine/encoding.hpp"
 
 #include "logics/util.hpp"
+#include "engine/util.hpp"
 
 using namespace plankton;
 
@@ -123,6 +124,18 @@ EExpr Encoding::EncodeIsNonNull(const VariableDeclaration& decl) {
     return Encode(decl) != Null();
 }
 
+EExpr Encoding::EncodeIsNull(const EExpr& expr) {
+    return expr == Null();
+}
+
+EExpr Encoding::EncodeIsNull(const SymbolDeclaration& decl) {
+    return Encode(decl) == Null();
+}
+
+EExpr Encoding::EncodeIsNull(const VariableDeclaration& decl) {
+    return Encode(decl) == Null();
+}
+
 EExpr Encoding::EncodeMemoryEquality(const MemoryAxiom& memory, const MemoryAxiom& other) {
     z3::expr_vector result(context);
     result.push_back(Encode(memory.node->Decl()).AsExpr() == Encode(other.node->Decl()).AsExpr());
@@ -226,32 +239,11 @@ EExpr Encoding::EncodeInvariants(const Formula& formula, const SolverConfig& con
     return MakeAnd(result);
 }
 
-inline std::map<const SymbolDeclaration*, std::set<const SymbolDeclaration*>> ComputeReachability(const Formula& formula) {
-    std::map<const SymbolDeclaration*, std::set<const SymbolDeclaration*>> reachability;
-    auto memories = plankton::Collect<MemoryAxiom>(formula);
-    bool changed;
-    do {
-        changed = false;
-        for (const auto& memory : memories) {
-            auto& nodeReach = reachability[&memory->node->Decl()];
-            auto size = nodeReach.size();
-            for (const auto& [field, value] : memory->fieldToValue) {
-                if (value->Sort() != Sort::PTR) continue;
-                nodeReach.insert(&value->Decl());
-                const auto& nextReach = reachability[&value->Decl()];
-                nodeReach.insert(nextReach.begin(), nextReach.end());
-            }
-            changed |= size != nodeReach.size();
-        }
-    } while (!changed);
-    return reachability;
-}
-
 EExpr Encoding::EncodeAcyclicity(const Formula& formula) {
-    auto reachability = ComputeReachability(formula);
+    auto reachability = plankton::ComputeReachability(formula);
     std::vector<EExpr> result;
-    result.reserve(reachability.size());
-    for (const auto& [node, reach] : reachability) {
+    result.reserve(reachability.container.size());
+    for (const auto& [node, reach] : reachability.container) {
         std::vector<EExpr> distinct;
         distinct.reserve(reach.size() + 1);
         distinct.push_back(Encode(*node));

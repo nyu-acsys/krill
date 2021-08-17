@@ -39,6 +39,7 @@ namespace plankton {
     struct Encoding { // TODO: rename to 'StackEncoding' ?
         explicit Encoding();
         explicit Encoding(const Formula& premise);
+        explicit Encoding(const FlowGraph& graph);
         
         void AddPremise(const EExpr& expr);
         void AddPremise(const Formula& premise);
@@ -66,12 +67,16 @@ namespace plankton {
         EExpr EncodeIsNonNull(const EExpr& expr);
         EExpr EncodeIsNonNull(const SymbolDeclaration& decl);
         EExpr EncodeIsNonNull(const VariableDeclaration& decl);
+        EExpr EncodeIsNull(const EExpr& expr);
+        EExpr EncodeIsNull(const SymbolDeclaration& decl);
+        EExpr EncodeIsNull(const VariableDeclaration& decl);
         EExpr EncodeMemoryEquality(const MemoryAxiom& memory, const MemoryAxiom& other);
         EExpr EncodeInvariants(const Formula& formula, const SolverConfig& config);
         EExpr EncodeAcyclicity(const Formula& formula);
         EExpr EncodeOwnership(const Formula& formula);
         
         EExpr Encode(const FlowGraph& graph);
+        EExpr EncodeNodeInvariant(const FlowGraphNode& node, EMode mode);
         EExpr EncodeKeysetDisjointness(const FlowGraph& graph, EMode mode);
         EExpr EncodeInflowUniqueness(const FlowGraph& graph, EMode mode);
         EExpr EncodeLogicallyContains(const FlowGraphNode& node, const EExpr& value, EMode mode);

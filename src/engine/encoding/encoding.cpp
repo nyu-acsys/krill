@@ -77,6 +77,10 @@ Encoding::Encoding(const Formula& premise) : Encoding() {
     AddPremise(premise);
 }
 
+Encoding::Encoding(const FlowGraph& graph) : Encoding() {
+    AddPremise(graph);
+}
+
 void Encoding::AddPremise(const EExpr& expr) {
     solver.add(expr.AsExpr());
 }
