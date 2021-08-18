@@ -254,10 +254,10 @@ FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const Mem
     return graph;
 }
 
-FlowGraph plankton::MakePureHeapGraph(std::unique_ptr<Annotation> state, const SolverConfig& config) {
+FlowGraph plankton::MakePureHeapGraph(std::unique_ptr<Annotation> state, SymbolFactory& factory, const SolverConfig& config) {
     plankton::InlineAndSimplify(*state);
     FlowGraph graph(std::move(state), config);
-    SymbolFactory factory(*graph.pre);
+    factory.Avoid(*graph.pre);
 
     // add all nodes
     auto memories = plankton::Collect<MemoryAxiom>(*graph.pre->now);

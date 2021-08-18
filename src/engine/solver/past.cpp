@@ -60,7 +60,7 @@ private:
             plankton::MakeMemoryAccessible(*past->now, ptrFields, flowType, factory, encoding);
             
             encoding.Push();
-            auto graph = plankton::MakePureHeapGraph(std::move(past), config);
+            auto graph = plankton::MakePureHeapGraph(std::move(past), factory, config);
             encoding.AddPremise(graph);
             plankton::ExtendStack(*graph.pre, encoding, POLICY);
             encoding.Push();

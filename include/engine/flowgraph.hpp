@@ -83,11 +83,11 @@ namespace plankton {
         
         private:
             explicit FlowGraph(std::unique_ptr<Annotation> pre, const SolverConfig& config);
-            friend FlowGraph MakePureHeapGraph(std::unique_ptr<Annotation>, const SolverConfig&);
+            friend FlowGraph MakePureHeapGraph(std::unique_ptr<Annotation>, SymbolFactory&, const SolverConfig&);
             friend FlowGraph MakeFlowFootprint(std::unique_ptr<Annotation>, const MemoryWrite&, const SolverConfig&);
     };
     
-    [[nodiscard]] FlowGraph MakePureHeapGraph(std::unique_ptr<Annotation> state, const SolverConfig& config);
+    [[nodiscard]] FlowGraph MakePureHeapGraph(std::unique_ptr<Annotation> state, SymbolFactory& factory, const SolverConfig& config);
     [[nodiscard]] FlowGraph MakeFlowFootprint(std::unique_ptr<Annotation> pre, const MemoryWrite& update, const SolverConfig& config);
     
 } // namespace plankton

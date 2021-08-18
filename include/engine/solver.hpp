@@ -52,25 +52,13 @@ namespace plankton {
         [[nodiscard]] std::unique_ptr<Annotation> MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const;
         bool AddInterference(std::deque<std::unique_ptr<HeapEffect>> interference);
         
-        
-    private:
-        void PrepareAccess(Annotation& annotation, const Command& command) const;
-        void ImprovePast(Annotation& annotation) const;
-        
-//        [[nodiscard]] PostImage PostVariableUpdate(std::unique_ptr<heal::Annotation> pre, const cola::Assignment& cmd, const cola::VariableExpression& lhs) const;
-//        [[nodiscard]] PostImage PostMemoryUpdate(std::unique_ptr<heal::Annotation> pre, const MultiUpdate& update) const;
-//        [[nodiscard]] std::deque<std::unique_ptr<heal::Annotation>> MakeInterferenceStable(std::deque<std::unique_ptr<heal::Annotation>> annotations) const;
-        // i don't like those (here)
-//        [[nodiscard]] const heal::EqualsToAxiom* GetVariableResource(const cola::VariableDeclaration& decl, const heal::LogicObject& object) const override;
-//        [[nodiscard]] std::optional<bool> GetBoolValue(const cola::Expression& expr, const heal::LogicObject& object) const override;
-//        [[nodiscard]] std::vector<bool> ComputeEffectImplications(const std::deque<std::pair<const HeapEffect*, const HeapEffect*>>& implications) const override;
-//        [[nodiscard]] std::unique_ptr<heal::Annotation> Interpolate(std::unique_ptr<heal::Annotation> annotation, const std::deque<std::unique_ptr<HeapEffect>>& interferences) const;
-//        [[nodiscard]] std::unique_ptr<heal::Annotation> TryFindBetterHistories(std::unique_ptr<heal::Annotation> annotation, const std::deque<std::unique_ptr<HeapEffect>>& interferences) const override;
-
-    private:
-        const SolverConfig& config;
-        DataFlowAnalysis dataFlow;
-        std::deque<std::unique_ptr<HeapEffect>> interference;
+        private:
+            const SolverConfig& config;
+            DataFlowAnalysis dataFlow;
+            std::deque<std::unique_ptr<HeapEffect>> interference;
+            
+            void PrepareAccess(Annotation& annotation, const Command& command) const;
+            void ImprovePast(Annotation& annotation) const;
     };
     
     
