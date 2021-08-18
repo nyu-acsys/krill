@@ -48,6 +48,7 @@ struct Collector : public LogicListener {
     void Enter(const ObligationAxiom& object) override { Handle(object); }
     void Enter(const FulfillmentAxiom& object) override { Handle(object); }
     void Enter(const SeparatingImplication& object) override { Handle(object); }
+    void Enter(const Invariant& object) override { Handle(object); }
     void Enter(const PastPredicate& object) override { Handle(object); }
     void Enter(const FuturePredicate& object) override { Handle(object); }
     void Enter(const Annotation& object) override { Handle(object); }
@@ -96,6 +97,7 @@ CONST_INSTANCE(InflowContainsRangeAxiom)
 CONST_INSTANCE(ObligationAxiom)
 CONST_INSTANCE(FulfillmentAxiom)
 CONST_INSTANCE(SeparatingImplication)
+CONST_INSTANCE(Invariant)
 CONST_INSTANCE(PastPredicate)
 CONST_INSTANCE(FuturePredicate)
 CONST_INSTANCE(Annotation)
@@ -127,6 +129,7 @@ MUTABLE_INSTANCE(InflowContainsRangeAxiom)
 MUTABLE_INSTANCE(ObligationAxiom)
 MUTABLE_INSTANCE(FulfillmentAxiom)
 MUTABLE_INSTANCE(SeparatingImplication)
+MUTABLE_INSTANCE(Invariant)
 MUTABLE_INSTANCE(PastPredicate)
 MUTABLE_INSTANCE(FuturePredicate)
 MUTABLE_INSTANCE(Annotation)

@@ -58,8 +58,9 @@ struct LogicPrinter : public LogicVisitor {
     void Visit(const SymbolicNull& /*expression*/) override { stream << LITERAL_NULL; }
     void Visit(const SymbolicMin& /*expression*/) override { stream << LITERAL_MIN; }
     void Visit(const SymbolicMax& /*expression*/) override { stream << LITERAL_MAX; }
-
-    void Visit(const SeparatingConjunction& formula) override {
+    
+    template<typename T>
+    inline void HandleSeparatedConjuncts(const T& formula) {
         if (formula.conjuncts.empty()) {
             stream << LITERAL_TRUE;
             return;
@@ -70,6 +71,10 @@ struct LogicPrinter : public LogicVisitor {
             else stream << SYMBOL_STAR;
             elem->Accept(*this);
         }
+    }
+    
+    void Visit(const SeparatingConjunction& formula) override {
+        HandleSeparatedConjuncts(formula);
     }
     void PrintMemory(const MemoryAxiom& formula, std::string_view symbol) {
         formula.node->Accept(*this);
@@ -126,6 +131,9 @@ struct LogicPrinter : public LogicVisitor {
         stream << "]" << SYMBOL_IMPLICATION << "[";
         formula.conclusion->Accept(*this);
         stream << "]";
+    }
+    void Visit(const Invariant& formula) override {
+        HandleSeparatedConjuncts(formula);
     }
 
     void Visit(const PastPredicate& predicate) override {

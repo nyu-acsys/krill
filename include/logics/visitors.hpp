@@ -23,6 +23,7 @@ namespace plankton {
     struct ObligationAxiom;
     struct FulfillmentAxiom;
     struct SeparatingImplication;
+    struct Invariant;
     struct PastPredicate;
     struct FuturePredicate;
     struct Annotation;
@@ -48,6 +49,7 @@ namespace plankton {
         virtual void Visit(const ObligationAxiom& object) = 0;
         virtual void Visit(const FulfillmentAxiom& object) = 0;
         virtual void Visit(const SeparatingImplication& object) = 0;
+        virtual void Visit(const Invariant& object) = 0;
         virtual void Visit(const PastPredicate& object) = 0;
         virtual void Visit(const FuturePredicate& object) = 0;
         virtual void Visit(const Annotation& object) = 0;
@@ -68,6 +70,7 @@ namespace plankton {
         void Walk(const ObligationAxiom& object);
         void Walk(const FulfillmentAxiom& object);
         void Walk(const SeparatingImplication& object);
+        void Walk(const Invariant& object);
         void Walk(const PastPredicate& object);
         void Walk(const FuturePredicate& object);
         void Walk(const Annotation& object);
@@ -93,6 +96,7 @@ namespace plankton {
         void Visit(const ObligationAxiom& object) override;
         void Visit(const FulfillmentAxiom& object) override;
         void Visit(const SeparatingImplication& object) override;
+        void Visit(const Invariant& object) override;
         void Visit(const PastPredicate& object) override;
         void Visit(const FuturePredicate& object) override;
         void Visit(const Annotation& object) override;
@@ -118,6 +122,7 @@ namespace plankton {
         void Visit(const ObligationAxiom& object) override;
         void Visit(const FulfillmentAxiom& object) override;
         void Visit(const SeparatingImplication& object) override;
+        void Visit(const Invariant& object) override;
         void Visit(const PastPredicate& object) override;
         void Visit(const FuturePredicate& object) override;
         void Visit(const Annotation& object) override;
@@ -144,6 +149,7 @@ namespace plankton {
         void Visit(const ObligationAxiom& object) override;
         void Visit(const FulfillmentAxiom& object) override;
         void Visit(const SeparatingImplication& object) override;
+        void Visit(const Invariant& object) override;
         void Visit(const PastPredicate& object) override;
         void Visit(const FuturePredicate& object) override;
         void Visit(const Annotation& object) override;
@@ -166,6 +172,7 @@ namespace plankton {
         virtual void Enter(const ObligationAxiom& object);
         virtual void Enter(const FulfillmentAxiom& object);
         virtual void Enter(const SeparatingImplication& object);
+        virtual void Enter(const Invariant& object);
         virtual void Enter(const PastPredicate& object);
         virtual void Enter(const FuturePredicate& object);
         virtual void Enter(const Annotation& object);
@@ -192,6 +199,7 @@ namespace plankton {
         virtual void Visit(ObligationAxiom& object) = 0;
         virtual void Visit(FulfillmentAxiom& object) = 0;
         virtual void Visit(SeparatingImplication& object) = 0;
+        virtual void Visit(Invariant& object) = 0;
         virtual void Visit(PastPredicate& object) = 0;
         virtual void Visit(FuturePredicate& object) = 0;
         virtual void Visit(Annotation& object) = 0;
@@ -212,6 +220,7 @@ namespace plankton {
         void Walk(ObligationAxiom& object);
         void Walk(FulfillmentAxiom& object);
         void Walk(SeparatingImplication& object);
+        void Walk(Invariant& object);
         void Walk(PastPredicate& object);
         void Walk(FuturePredicate& object);
         void Walk(Annotation& object);
@@ -237,6 +246,7 @@ namespace plankton {
         void Visit(ObligationAxiom& object) override;
         void Visit(FulfillmentAxiom& object) override;
         void Visit(SeparatingImplication& object) override;
+        void Visit(Invariant& object) override;
         void Visit(PastPredicate& object) override;
         void Visit(FuturePredicate& object) override;
         void Visit(Annotation& object) override;
@@ -262,6 +272,7 @@ namespace plankton {
         void Visit(ObligationAxiom& object) override;
         void Visit(FulfillmentAxiom& object) override;
         void Visit(SeparatingImplication& object) override;
+        void Visit(Invariant& object) override;
         void Visit(PastPredicate& object) override;
         void Visit(FuturePredicate& object) override;
         void Visit(Annotation& object) override;
@@ -287,6 +298,7 @@ namespace plankton {
         void Visit(ObligationAxiom& object) override;
         void Visit(FulfillmentAxiom& object) override;
         void Visit(SeparatingImplication& object) override;
+        void Visit(Invariant& object) override;
         void Visit(PastPredicate& object) override;
         void Visit(FuturePredicate& object) override;
         void Visit(Annotation& object) override;
@@ -309,6 +321,7 @@ namespace plankton {
         virtual void Enter(ObligationAxiom& object);
         virtual void Enter(FulfillmentAxiom& object);
         virtual void Enter(SeparatingImplication& object);
+        virtual void Enter(Invariant& object);
         virtual void Enter(PastPredicate& object);
         virtual void Enter(FuturePredicate& object);
         virtual void Enter(Annotation& object);

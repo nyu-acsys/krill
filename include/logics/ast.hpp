@@ -223,7 +223,7 @@ namespace plankton {
     };
 
     //
-    // Implications
+    // Invariants
     //
     
     struct SeparatingImplication : public LogicObject {
@@ -231,6 +231,14 @@ namespace plankton {
         std::unique_ptr<Formula> conclusion;
 
         explicit SeparatingImplication(std::unique_ptr<Formula> premise, std::unique_ptr<Formula> conclusion);
+        ACCEPT_LOGIC_VISITOR
+    };
+    
+    struct Invariant : public LogicObject {
+        std::deque<std::unique_ptr<SeparatingImplication>> conjuncts;
+        
+        explicit Invariant();
+        void Conjoin(std::unique_ptr<SeparatingImplication> implication);
         ACCEPT_LOGIC_VISITOR
     };
 

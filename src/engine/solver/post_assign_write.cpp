@@ -287,7 +287,7 @@ inline std::unique_ptr<Annotation> ExtractPost(PostImageInfo&& info) {
         bool Delete(const LogicObject& object) { result = false; object.Accept(*this); return result; }
     } check;
     plankton::Simplify(*info.pre.now);
-    plankton::RemoveIf(info.pre.now->conjuncts, [&check](const auto& elem){ return check.Delete(*elem); });
+    info.pre.now->RemoveConjunctsIf([&check](const auto& elem){ return check.Delete(elem); });
     assert(plankton::Collect<MemoryAxiom>(*info.pre.now).empty());
     assert(plankton::Collect<ObligationAxiom>(*info.pre.now).empty());
     assert(plankton::Collect<FulfillmentAxiom>(*info.pre.now).empty());

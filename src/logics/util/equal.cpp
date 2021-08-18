@@ -53,7 +53,8 @@ inline bool IsEqual(const FulfillmentAxiom& object, const FulfillmentAxiom& othe
     return object.returnValue == other.returnValue;
 }
 
-inline bool IsEqual(const SeparatingConjunction& object, const SeparatingConjunction& other) {
+template<typename T>
+inline bool AreConjunctsEqual(const T& object, const T& other) {
     if (object.conjuncts.size() != other.conjuncts.size()) return false;
     for (std::size_t index = 0; index < object.conjuncts.size(); ++index) {
         if (!plankton::SyntacticalEqual(*object.conjuncts.at(index), *other.conjuncts.at(index))) return false;
@@ -61,6 +62,12 @@ inline bool IsEqual(const SeparatingConjunction& object, const SeparatingConjunc
     return true;
 }
 
+inline bool IsEqual(const SeparatingConjunction& object, const SeparatingConjunction& other) {
+    return AreConjunctsEqual(object, other);
+}
+inline bool IsEqual(const Invariant& object, const Invariant& other) {
+    return AreConjunctsEqual(object, other);
+}
 inline bool IsEqual(const SeparatingImplication& object, const SeparatingImplication& other) {
     return plankton::SyntacticalEqual(*object.premise, *other.premise) &&
            plankton::SyntacticalEqual(*object.conclusion, *other.conclusion);
@@ -88,7 +95,7 @@ inline bool IsEqual(const Annotation& object, const Annotation& other) {
     return true;
 }
 
-struct Comparator : public BaseLogicVisitor {
+struct Comparator : public LogicVisitor {
     bool result = false;
     const LogicObject& compare;
     
@@ -117,6 +124,7 @@ struct Comparator : public BaseLogicVisitor {
     void Visit(const ObligationAxiom& object) override { Compare(object); }
     void Visit(const FulfillmentAxiom& object) override { Compare(object); }
     void Visit(const SeparatingImplication& object) override { Compare(object); }
+    void Visit(const Invariant& object) override { Compare(object); }
     void Visit(const PastPredicate& object) override { Compare(object); }
     void Visit(const FuturePredicate& object) override { Compare(object); }
     void Visit(const Annotation& object) override { Compare(object); }

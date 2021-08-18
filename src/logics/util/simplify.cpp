@@ -57,6 +57,7 @@ struct FlattenVisitor final : public MutableDefaultLogicVisitor {
     }
     
     void Visit(SeparatingImplication& object) override { Walk(object); }
+    void Visit(Invariant& object) override { Walk(object); }
     void Visit(PastPredicate& object) override { Walk(object); }
     void Visit(FuturePredicate& object) override { Walk(object); }
     void Visit(Annotation& object) override { Walk(object); }
@@ -208,6 +209,7 @@ struct CleanUpVisitor final : public MutableDefaultLogicVisitor {
     }
     
     void Visit(SeparatingImplication& object) override { Walk(object); }
+    void Visit(Invariant& object) override { Walk(object); }
     void Visit(PastPredicate& object) override { Walk(object); }
     void Visit(FuturePredicate& object) override { Walk(object); }
     void Visit(Annotation& object) override { Walk(object); }

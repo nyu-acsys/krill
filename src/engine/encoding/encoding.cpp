@@ -93,6 +93,10 @@ void Encoding::AddPremise(const SeparatingImplication& formula) {
     solver.add(Encode(formula).AsExpr());
 }
 
+void Encoding::AddPremise(const Invariant& formula) {
+    solver.add(Encode(formula).AsExpr());
+}
+
 void Encoding::AddPremise(const FlowGraph& graph) {
     solver.add(Encode(graph).AsExpr());
 }

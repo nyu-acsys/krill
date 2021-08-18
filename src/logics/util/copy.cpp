@@ -10,7 +10,7 @@ using namespace plankton;
 //
 
 template<typename T>
-struct CopyVisitor : public BaseLogicVisitor {
+struct CopyVisitor : public LogicVisitor {
     std::unique_ptr<T> result;
     
     static std::unique_ptr<T> Copy(const T& object) {
@@ -46,6 +46,7 @@ struct CopyVisitor : public BaseLogicVisitor {
     void Visit(const ObligationAxiom& object) override { Handle(object); }
     void Visit(const FulfillmentAxiom& object) override { Handle(object); }
     void Visit(const SeparatingImplication& object) override { Handle(object); }
+    void Visit(const Invariant& object) override { Handle(object); }
     void Visit(const PastPredicate& object) override { Handle(object); }
     void Visit(const FuturePredicate& object) override { Handle(object); }
     void Visit(const Annotation& object) override { Handle(object); }

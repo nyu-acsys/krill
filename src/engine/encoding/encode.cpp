@@ -219,6 +219,11 @@ struct FormulaEncoder : public BaseLogicVisitor {
     void Visit(const SeparatingImplication& object) override {
         result = Encode(*object.premise) >> Encode(*object.conclusion);
     }
+    void Visit(const Invariant& object) override {
+        auto conjuncts = plankton::MakeVector<EExpr>(object.conjuncts.size());
+        for (const auto& conjunct : object.conjuncts) conjuncts.push_back(Encode(*conjunct));
+        result = encoding.MakeAnd(conjuncts);
+    }
 };
 
 EExpr Encoding::Encode(const LogicObject& object) {

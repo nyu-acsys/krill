@@ -136,6 +136,10 @@ bool Encoding::Implies(const SeparatingImplication& formula) {
     return IsImplied(solver, Encode(formula).AsExpr());
 }
 
+bool Encoding::Implies(const Invariant& formula) {
+    return IsImplied(solver, Encode(formula).AsExpr());
+}
+
 std::set<const SymbolDeclaration*> Encoding::ComputeNonNull(std::set<const SymbolDeclaration*> symbols) {
     plankton::DiscardIf(symbols, [](auto* decl){ return decl->type.sort != Sort::PTR; });
     

@@ -237,13 +237,19 @@ FulfillmentAxiom::FulfillmentAxiom(bool returnValue) : returnValue(returnValue) 
 
 
 //
-// Implications
+// Invariants
 //
 
 SeparatingImplication::SeparatingImplication(std::unique_ptr<Formula> pre, std::unique_ptr<Formula> post)
 : premise(std::move(pre)), conclusion(std::move(post)) {
     assert(premise);
     assert(conclusion);
+}
+
+Invariant::Invariant() = default;
+
+void Invariant::Conjoin(std::unique_ptr<SeparatingImplication> implication) {
+    conjuncts.push_back(std::move(implication));
 }
 
 

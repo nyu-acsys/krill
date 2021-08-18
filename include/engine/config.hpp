@@ -31,7 +31,7 @@ namespace plankton {
          * @param memory The node that the invariant should be instantiated for.
          * @return Instantiated invariant.
          */
-        [[nodiscard]] virtual std::unique_ptr<SeparatingImplication>
+        [[nodiscard]] virtual std::unique_ptr<Invariant>
         GetSharedNodeInvariant(const SharedMemoryCore& memory) const = 0;
         
         /**
@@ -39,7 +39,7 @@ namespace plankton {
          * @param memory The node that the invariant should be instantiated for.
          * @return Instantiated invariant.
          */
-        [[nodiscard]] virtual std::unique_ptr<SeparatingImplication>
+        [[nodiscard]] virtual std::unique_ptr<Invariant>
         GetLocalNodeInvariant(const LocalMemoryResource& memory) const = 0;
         
         /**
@@ -47,7 +47,7 @@ namespace plankton {
          * @param variable The variable that the invariant should be instantiated for.
          * @return Instantiated invariant.
          */
-        [[nodiscard]] virtual std::unique_ptr<SeparatingImplication>
+        [[nodiscard]] virtual std::unique_ptr<Invariant>
         GetSharedVariableInvariant(const EqualsToAxiom& variable) const = 0;
         
         /**

@@ -180,7 +180,7 @@ EExpr Encoding::EncodeOutflowContains(const FlowGraphNode& node, const std::stri
 }
 
 struct InvariantCreator : public BaseLogicVisitor {
-    std::unique_ptr<SeparatingImplication> invariant;
+    std::unique_ptr<Invariant> invariant;
     const SolverConfig& config;
     explicit InvariantCreator(const SolverConfig& config) : config(config) {}
     void Visit(const LocalMemoryResource& object) override { invariant = config.GetLocalNodeInvariant(object); }
