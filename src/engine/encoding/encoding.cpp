@@ -97,10 +97,6 @@ void Encoding::AddPremise(const FlowGraph& graph) {
     solver.add(Encode(graph).AsExpr());
 }
 
-void Encoding::AddPremise(const z3::expr& expr) {
-    solver.add(expr);
-}
-
 void Encoding::AddCheck(const EExpr& expr, std::function<void(bool)> callback) {
     checks_premise.push_back(expr.AsExpr());
     checks_callback.push_back(std::move(callback));

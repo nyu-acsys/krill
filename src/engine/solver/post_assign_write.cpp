@@ -21,14 +21,16 @@ struct PostImageInfo {
     FlowGraph footprint;
     Encoding encoding;
     Annotation& pre;
+    std::set<const ObligationAxiom*> preObligations;
+    std::deque<std::unique_ptr<Axiom>> postSpecifications;
     
     std::map<const SymbolDeclaration*, const SymbolDeclaration*> outsideInsideAlias;
     std::map<const SymbolDeclaration*, std::set<const SymbolDeclaration*>> outsideInsideDistinct;
     std::map<const SymbolDeclaration*, std::deque<std::unique_ptr<Axiom>>> effectContext;
     
-    explicit PostImageInfo(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, const SolverConfig& config)
-            : config(config), command(cmd), footprint(plankton::MakeFlowFootprint(std::move(pre), cmd, config)),
-              encoding(footprint), pre(*footprint.pre) {
+    explicit PostImageInfo(std::unique_ptr<Annotation> pre_, const MemoryWrite& cmd, const SolverConfig& config)
+            : config(config), command(cmd), footprint(plankton::MakeFlowFootprint(std::move(pre_), cmd, config)),
+              encoding(footprint), pre(*footprint.pre), preObligations(plankton::Collect<ObligationAxiom>(*pre.now)) {
         DEBUG("** pre after footprint creation: " << *footprint.pre << std::endl)
     }
     
@@ -148,6 +150,34 @@ inline void AddFlowUniquenessChecks(PostImageInfo& info) {
     });
 }
 
+inline void AddSpecificationChecks(PostImageInfo& info) {
+    // check purity
+    plankton::AddPureCheck(info.footprint, info.encoding, [&info](bool isPure) {
+        DEBUG(" ** is pure=" << isPure << std::endl)
+        if (isPure) {
+            for (const auto* obl : info.preObligations) info.postSpecifications.push_back(plankton::Copy(*obl));
+            return;
+        }
+        if (!info.preObligations.empty()) return;
+        throw std::logic_error("Unsafe update: impure update without obligation."); // TODO: better error handling
+    });
+
+    // check impurity and obligations
+    for (const auto* obligation : info.preObligations){
+        plankton::AddPureSpecificationCheck(info.footprint, info.encoding, *obligation, [&info](auto ful) {
+            if (!ful.has_value()) return;
+            info.postSpecifications.push_back(std::make_unique<FulfillmentAxiom>(ful.value()));
+        });
+        plankton::AddImpureSpecificationCheck(info.footprint, info.encoding, *obligation, [&info](auto ful) {
+            if (ful.has_value()) {
+                info.postSpecifications.push_back(std::make_unique<FulfillmentAxiom>(ful.value()));
+                return;
+            }
+            throw std::logic_error("Unsafe update: impure update that does not satisfy the specification");
+        });
+    }
+}
+
 inline void AddInvariantChecks(PostImageInfo& info) {
     for (const auto& node : info.footprint.nodes) {
         auto nodeInvariant = info.encoding.EncodeNodeInvariant(node, EMode::POST);
@@ -247,12 +277,6 @@ inline std::unique_ptr<Annotation> ExtractPost(PostImageInfo&& info) {
         newMemory.push_back(HandleSharedOutside(info, *shared));
     }
     
-    // create post obligations/fulfillments
-    std::deque<std::unique_ptr<Axiom>> newSpec;
-    // TODO: implement
-    throw std::logic_error("not yet implemented");
-    assert(!newSpec.empty()); // early abort in debug mode
-    
     // delete old memory/obligations/fulfillments
     struct : public LogicListener {
         bool result = false;
@@ -270,7 +294,7 @@ inline std::unique_ptr<Annotation> ExtractPost(PostImageInfo&& info) {
     
     // put together post
     plankton::MoveInto(std::move(newMemory), info.pre.now->conjuncts);
-    plankton::MoveInto(std::move(newSpec), info.pre.now->conjuncts);
+    plankton::MoveInto(std::move(info.postSpecifications), info.pre.now->conjuncts);
     return std::move(info.footprint.pre);
 }
 
@@ -380,13 +404,10 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd) 
     DEBUG(std::endl << std::endl << std::endl << "====================" << std::endl)
     DEBUG("== Command: " << cmd << "== Pre: " << std::endl << *pre << std::endl)
 
-    // TODO: use future
+    // TODO: use futures
     PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
     PostImageInfo info(std::move(pre), cmd, config);
-    
-//    FootprintChecks checks(encoding.context);
-//    checks.preSpec = heal::CollectObligations(*encoding.graph.pre->now);
 
     CheckPublishing(info);
     CheckReachability(info);
@@ -402,9 +423,6 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd) 
     MinimizeFootprint(info);
     auto effects = ExtractEffects(info);
     auto post = ExtractPost(std::move(info));
-    
-    // TODO: AddSpecificationChecks
-    // TODO: handle obligations/fulfillments in ExtractPost
     
     return PostImage(std::move(post), std::move(effects));
 }

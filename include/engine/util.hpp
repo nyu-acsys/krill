@@ -46,6 +46,12 @@ namespace plankton {
     };
     ReachSet ComputeReachability(const Formula& formula);
     ReachSet ComputeReachability(const FlowGraph& graph, EMode mode);
+    
+    void AddPureCheck(const FlowGraph& graph, Encoding& encoding, const std::function<void(bool)>& acceptPurity);
+    void AddPureSpecificationCheck(const FlowGraph& graph, Encoding& encoding, const ObligationAxiom& obligation,
+                                   const std::function<void(std::optional<bool>)>& acceptFulfillment);
+    void AddImpureSpecificationCheck(const FlowGraph& graph, Encoding& encoding, const ObligationAxiom& obligation,
+                                     const std::function<void(std::optional<bool>)>& acceptFulfillment);
 }
 
 #endif //PLANKTON_ENGINE_UTIL_HPP

@@ -81,6 +81,11 @@ namespace plankton {
         EExpr EncodeInflowUniqueness(const FlowGraph& graph, EMode mode);
         EExpr EncodeLogicallyContains(const FlowGraphNode& node, const EExpr& value, EMode mode);
         EExpr EncodeOutflowContains(const FlowGraphNode& node, const std::string& field, const EExpr& value, EMode mode);
+        EExpr EncodeIsPure(const FlowGraph& graph);
+        EExpr EncodeContainsKey(const FlowGraph& graph, const SymbolDeclaration& key);
+        EExpr EncodeNotContainsKey(const FlowGraph& graph, const SymbolDeclaration& key);
+        EExpr EncodeIsInsertion(const FlowGraph& graph, const SymbolDeclaration& key);
+        EExpr EncodeIsDeletion(const FlowGraph& graph, const SymbolDeclaration& key);
         
         EExpr Min();
         EExpr Max();
@@ -106,7 +111,6 @@ namespace plankton {
             z3::expr EncodeOutflow(const FlowGraphNode& node, const PointerField& field, EMode mode);
             z3::expr_vector AsVector(const std::vector<EExpr>& vector);
             z3::expr Replace(const EExpr& expression, const EExpr& replace, const EExpr& with);
-            void AddPremise(const z3::expr& expr);
     };
     
 } // plankton

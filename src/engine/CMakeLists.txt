@@ -18,6 +18,7 @@ set(SOURCES
         encoding/encode.cpp
         encoding/graph.cpp
         encoding/solve.cpp
+        encoding/spec.cpp
 
         flowgraph/flowgraph.cpp
         flowgraph/make.cpp
@@ -45,6 +46,7 @@ set(SOURCES
         util/eval.cpp
         util/memory.cpp
         util/reachability.cpp
+        util/spec.cpp
         util/stack.cpp
         util/symbolic.cpp
 
