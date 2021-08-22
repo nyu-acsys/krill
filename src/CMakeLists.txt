@@ -1,6 +1,7 @@
 add_subdirectory(programs)
 add_subdirectory(logics)
 add_subdirectory(engine)
+add_subdirectory(parser)
 
 #add_subdirectory(cola)
 #add_subdirectory(heal)
