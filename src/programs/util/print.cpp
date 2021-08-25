@@ -99,10 +99,8 @@ struct CommandPrinter : public BaseProgramVisitor {
         object.condition->Accept(expressionPrinter);
         stream << ");" << LB;
     }
-    void Visit(const Assert& object) override {
-        stream << CMD_ASSERT << "(";
-        object.condition->Accept(expressionPrinter);
-        stream << ");" << LB;
+    void Visit(const Fail& /*object*/) override {
+        stream << CMD_ASSERT << "(" << LITERAL_FALSE << ");" << LB;
     }
     void Visit(const Malloc& object) override {
         object.lhs->Accept(*this);
@@ -125,7 +123,6 @@ struct CommandPrinter : public BaseProgramVisitor {
         stream << LB;
     }
     void Visit(const VariableAssignment& object) override { HandleAssignment(object); }
-    void Visit(const MemoryRead& object) override { HandleAssignment(object); }
     void Visit(const MemoryWrite& object) override { HandleAssignment(object); }
 };
 
@@ -259,11 +256,10 @@ void plankton::Print(const AstNode& object, std::ostream& stream) {
         void Visit(const Break& object) override { PrintCommand(object); }
         void Visit(const Return& object) override { PrintCommand(object); }
         void Visit(const Assume& object) override { PrintCommand(object); }
-        void Visit(const Assert& object) override { PrintCommand(object); }
+        void Visit(const Fail& object) override { PrintCommand(object); }
         void Visit(const Malloc& object) override { PrintCommand(object); }
         void Visit(const Macro& object) override { PrintCommand(object); }
         void Visit(const VariableAssignment& object) override { PrintCommand(object); }
-        void Visit(const MemoryRead& object) override { PrintCommand(object); }
         void Visit(const MemoryWrite& object) override { PrintCommand(object); }
         void Visit(const Scope& object) override { PrintProgram(object); }
         void Visit(const Atomic& object) override { PrintProgram(object); }

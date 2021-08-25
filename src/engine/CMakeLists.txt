@@ -29,7 +29,6 @@ set(SOURCES
         solver/join.cpp
         solver/past.cpp
         solver/post_assign_var.cpp
-        solver/post_assign_read.cpp
         solver/post_assign_write.cpp
         solver/post_assume.cpp
         solver/post_malloc.cpp

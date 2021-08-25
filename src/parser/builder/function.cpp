@@ -47,7 +47,7 @@ inline std::vector<std::reference_wrapper<const Type>> MakeReturnTypes(FunctionI
 inline void AddParams(FunctionInfo& info, AstBuilder& builder) {
     if (!info.argDeclList) return;
     for (auto* decl : info.argDeclList->args) {
-        builder.AddDecl(builder.MakeVariable(*decl, false));
+        builder.AddDecl(*decl, false);
     }
 }
 

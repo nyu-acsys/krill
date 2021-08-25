@@ -8,7 +8,7 @@ grammar Plankton;
 program : option* programElement* EOF ;
 
 programElement : structDecl         #programStruct
-               | varDecl ';'        #programVariable
+               | varDeclList ';'    #programVariable
                | function           #programFunction
                | containsPredicate  #programContains
                | outflowPredicate   #programOutflow
@@ -28,14 +28,14 @@ option : '#' ident=Identifier str=String ;
 
 structDecl : 'struct' name=Identifier '{' fieldDecl* '}' (';')? ;
 
-type : VoidType             #typeVoid
-     | BoolType             #typeBool
+type : BoolType             #typeBool
      | IntType              #typeInt
      | DataType             #typeData
      | name=Identifier '*'  #typePtr
      ;
 
-typeList : types+=type
+typeList : VoidType
+         | types+=type
          | '<' types+=type (',' types+=type)+ '>'
          ;
 
@@ -46,6 +46,8 @@ fieldDecl : type name=Identifier ';' ;
 //
 
 varDecl : type name=Identifier ;
+
+varDeclList : type names+=Identifier ( ',' names+=Identifier )* ;
 
 function :          types=typeList name=Identifier args=argDeclList body=scope  #functionInterface
          | 'inline' types=typeList name=Identifier args=argDeclList body=scope  #functionMacro
@@ -58,7 +60,7 @@ block : statement  #blockStmt
       | scope      #blockScope
       ;
 
-scope : '{' (varDecl ';')* statement* '}' ;
+scope : '{' (varDeclList ';')* statement* '}' ;
 
 statement : 'choose' scope+                                               #stmtChoose
           | 'loop' scope                                                  #stmtLoop
@@ -68,19 +70,6 @@ statement : 'choose' scope+                                               #stmtC
           | 'do' body=block 'while' '(' expr=logicCondition ')' ';'       #stmtDo
           | command ';'                                                   #stmtCom
           ;
-
-//command : 'skip'                                            #cmdSkip
-//        | lhs=exprList '=' rhs=exprList                     #cmdAssign
-//        | lhs=Identifier '=' rhs=condition                  #cmdCond
-//        | lhs=Identifier '=' 'malloc'                       #cmdMalloc
-//        | 'assume' '(' condition ')'                        #cmdAssume
-//        | 'assert' '(' condition ')'                        #cmdAssert
-//        | (lhs=exprList '=')? name=Identifier args=argList  #cmdCall
-//        | 'break'                                           #cmdBreak
-//        | 'return'                                          #cmdReturnVoid
-//        | 'return' exprList                                 #cmdReturnExpr
-//        | cas                                               #cmdCas
-//        ;
 
 command : 'skip'                                            #cmdSkip
         | lhs=varList '=' rhs=exprList                      #cmdAssignStack
@@ -93,10 +82,10 @@ command : 'skip'                                            #cmdSkip
         | (lhs=varList '=')? name=Identifier args=argList   #cmdCall
         | 'break'                                           #cmdBreak
         | 'return'                                          #cmdReturnVoid
-        | 'return' simpleExpression                         #cmdReturnExpr
+        | 'return' varList                                  #cmdReturnExpr
         ;
 
-cas : 'CAS' '(' dst=varList ',' cmp=simpleExprList ',' src=simpleExprList ')'  #casStack
+cas : 'CAS' '(' dst=varList ',' cmp=simpleExprList ',' src=simpleExprList ')'    #casStack
     | 'CAS' '(' dst=derefList ',' cmp=simpleExprList ',' src=simpleExprList ')'  #casHeap
     ;
 
@@ -120,7 +109,7 @@ derefList : elems+=deref
           | '<' elems+=deref (',' elems+=deref)+ '>'
           ;
 
-argList : '(' (expr+=simpleExpression (',' expr+=simpleExpression)*)? ')' ;
+argList : '(' (elems+=simpleExpression (',' elems+=simpleExpression)*)? ')' ;
 
 value : Null    #valueNull
       | True    #valueTrue
@@ -129,11 +118,11 @@ value : Null    #valueNull
       | Minval  #valueMin
       ;
 
-simpleExpression : name=Identifier                        #exprSimpleIdentifier
-                 | value                                  #exprSimpleValue
+simpleExpression : name=Identifier  #exprSimpleIdentifier
+                 | value            #exprSimpleValue
                  ;
 
-deref : name=Identifier '->' field=Identifier  #exprDeref ;
+deref : name=Identifier '->' field=Identifier;
 
 expression : simpleExpression | deref ;
 
@@ -141,7 +130,7 @@ condition : logicCondition  #condLogic
           | cas             #condCas
           ;
 
-simpleCondition : expression      #condSimpleIdentifier
+simpleCondition : expression      #condSimpleExpr
                 | Neg expression  #condSimpleNegation
                 ;
 
@@ -154,9 +143,9 @@ binaryCondition : simpleCondition                              #condBinarySimple
                 | lhs=simpleCondition Gte rhs=simpleCondition  #condBinaryGte
                 ;
 
-logicCondition : binaryCondition                              #condLogicBinary
-               | lhs=binaryCondition And rhs=binaryCondition  #condLogicAnd
-               | lhs=binaryCondition Or rhs=binaryCondition   #condLogicOr
+logicCondition : binaryCondition                                       #condLogicBinary
+               | elems+=binaryCondition (And elems+=binaryCondition)+  #condLogicAnd
+               | elems+=binaryCondition (Or elems+=binaryCondition)+   #condLogicOr
                ;
 
 

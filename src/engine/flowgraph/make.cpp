@@ -230,6 +230,8 @@ FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const Mem
     for (const auto& lhs : command.lhs)
         depth = std::max(depth, config.GetMaxFootprintDepth(lhs->fieldName));
     
+    // update map must create symbolic variables for immediate values
+    throw std::logic_error("not yet implemented: plankton::MakeFlowFootprint");
     UpdateMap updateMap(command);
     FlowGraph graph(std::move(pre), config);
     FlowGraphGenerator generator(graph, updateMap);

@@ -26,11 +26,10 @@ void BaseProgramVisitor::Visit(const Skip& /*object*/) { COMPLAIN(BaseProgramVis
 void BaseProgramVisitor::Visit(const Break& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
 void BaseProgramVisitor::Visit(const Return& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
 void BaseProgramVisitor::Visit(const Assume& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const Assert& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
+void BaseProgramVisitor::Visit(const Fail& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
 void BaseProgramVisitor::Visit(const Malloc& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
 void BaseProgramVisitor::Visit(const Macro& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
 void BaseProgramVisitor::Visit(const VariableAssignment& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const MemoryRead& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
 void BaseProgramVisitor::Visit(const MemoryWrite& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
 void BaseProgramVisitor::Visit(const Scope& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
 void BaseProgramVisitor::Visit(const Atomic& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
@@ -52,11 +51,10 @@ void MutableBaseProgramVisitor::Visit(Skip& /*object*/) { COMPLAIN(MutableBasePr
 void MutableBaseProgramVisitor::Visit(Break& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Break&); }
 void MutableBaseProgramVisitor::Visit(Return& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Return&); }
 void MutableBaseProgramVisitor::Visit(Assume& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Assume&); }
-void MutableBaseProgramVisitor::Visit(Assert& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Assert&); }
+void MutableBaseProgramVisitor::Visit(Fail& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Assert&); }
 void MutableBaseProgramVisitor::Visit(Malloc& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Assert&); }
 void MutableBaseProgramVisitor::Visit(Macro& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Assert&); }
 void MutableBaseProgramVisitor::Visit(VariableAssignment& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, VariableAssignment&); }
-void MutableBaseProgramVisitor::Visit(MemoryRead& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, MemoryRead&); }
 void MutableBaseProgramVisitor::Visit(MemoryWrite& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, MemoryWrite&); }
 void MutableBaseProgramVisitor::Visit(Scope& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Scope&); }
 void MutableBaseProgramVisitor::Visit(Atomic& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Atomic&); }
@@ -79,11 +77,10 @@ void DefaultProgramVisitor::Visit(const Skip& /*object*/) { /* do nothing */ }
 void DefaultProgramVisitor::Visit(const Break& /*object*/) { /* do nothing */ }
 void DefaultProgramVisitor::Visit(const Return& /*object*/) { /* do nothing */ }
 void DefaultProgramVisitor::Visit(const Assume& /*object*/) { /* do nothing */ }
-void DefaultProgramVisitor::Visit(const Assert& /*object*/) { /* do nothing */ }
+void DefaultProgramVisitor::Visit(const Fail& /*object*/) { /* do nothing */ }
 void DefaultProgramVisitor::Visit(const Malloc& /*object*/) { /* do nothing */ }
 void DefaultProgramVisitor::Visit(const Macro& /*object*/) { /* do nothing */ }
 void DefaultProgramVisitor::Visit(const VariableAssignment& /*object*/) { /* do nothing */ }
-void DefaultProgramVisitor::Visit(const MemoryRead& /*object*/) { /* do nothing */ }
 void DefaultProgramVisitor::Visit(const MemoryWrite& /*object*/) { /* do nothing */ }
 void DefaultProgramVisitor::Visit(const Scope& /*object*/) { /* do nothing */ }
 void DefaultProgramVisitor::Visit(const Atomic& /*object*/) { /* do nothing */ }
@@ -105,11 +102,10 @@ void MutableDefaultProgramVisitor::Visit(Skip& /*object*/) { /* do nothing */ }
 void MutableDefaultProgramVisitor::Visit(Break& /*object*/) { /* do nothing */ }
 void MutableDefaultProgramVisitor::Visit(Return& /*object*/) { /* do nothing */ }
 void MutableDefaultProgramVisitor::Visit(Assume& /*object*/) { /* do nothing */ }
-void MutableDefaultProgramVisitor::Visit(Assert& /*object*/) { /* do nothing */ }
+void MutableDefaultProgramVisitor::Visit(Fail& /*object*/) { /* do nothing */ }
 void MutableDefaultProgramVisitor::Visit(Malloc& /*object*/) { /* do nothing */ }
 void MutableDefaultProgramVisitor::Visit(Macro& /*object*/) { /* do nothing */ }
 void MutableDefaultProgramVisitor::Visit(VariableAssignment& /*object*/) { /* do nothing */ }
-void MutableDefaultProgramVisitor::Visit(MemoryRead& /*object*/) { /* do nothing */ }
 void MutableDefaultProgramVisitor::Visit(MemoryWrite& /*object*/) { /* do nothing */ }
 void MutableDefaultProgramVisitor::Visit(Scope& /*object*/) { /* do nothing */ }
 void MutableDefaultProgramVisitor::Visit(Atomic& /*object*/) { /* do nothing */ }
@@ -133,11 +129,10 @@ void ProgramListener::Enter(const Skip& /*object*/) { /* do nothing */ }
 void ProgramListener::Enter(const Break& /*object*/) { /* do nothing */ }
 void ProgramListener::Enter(const Return& /*object*/) { /* do nothing */ }
 void ProgramListener::Enter(const Assume& /*object*/) { /* do nothing */ }
-void ProgramListener::Enter(const Assert& /*object*/) { /* do nothing */ }
+void ProgramListener::Enter(const Fail& /*object*/) { /* do nothing */ }
 void ProgramListener::Enter(const Malloc& /*object*/) { /* do nothing */ }
 void ProgramListener::Enter(const Macro& /*object*/) { /* do nothing */ }
 void ProgramListener::Enter(const VariableAssignment& /*object*/) { /* do nothing */ }
-void ProgramListener::Enter(const MemoryRead& /*object*/) { /* do nothing */ }
 void ProgramListener::Enter(const MemoryWrite& /*object*/) { /* do nothing */ }
 void ProgramListener::Enter(const Scope& /*object*/) { /* do nothing */ }
 void ProgramListener::Enter(const Atomic& /*object*/) { /* do nothing */ }
@@ -161,11 +156,10 @@ void MutableProgramListener::Enter(Skip& /*object*/) { /* do nothing */ }
 void MutableProgramListener::Enter(Break& /*object*/) { /* do nothing */ }
 void MutableProgramListener::Enter(Return& /*object*/) { /* do nothing */ }
 void MutableProgramListener::Enter(Assume& /*object*/) { /* do nothing */ }
-void MutableProgramListener::Enter(Assert& /*object*/) { /* do nothing */ }
+void MutableProgramListener::Enter(Fail& /*object*/) { /* do nothing */ }
 void MutableProgramListener::Enter(Malloc& /*object*/) { /* do nothing */ }
 void MutableProgramListener::Enter(Macro& /*object*/) { /* do nothing */ }
 void MutableProgramListener::Enter(VariableAssignment& /*object*/) { /* do nothing */ }
-void MutableProgramListener::Enter(MemoryRead& /*object*/) { /* do nothing */ }
 void MutableProgramListener::Enter(MemoryWrite& /*object*/) { /* do nothing */ }
 void MutableProgramListener::Enter(Scope& /*object*/) { /* do nothing */ }
 void MutableProgramListener::Enter(Atomic& /*object*/) { /* do nothing */ }
@@ -203,9 +197,8 @@ void ProgramListener::Visit(const Assume& object) {
     Enter(object);
     object.condition->Accept(*this);
 }
-void ProgramListener::Visit(const Assert& object) {
+void ProgramListener::Visit(const Fail& object) {
     Enter(object);
-    object.condition->Accept(*this);
 }
 void ProgramListener::Visit(const Malloc& object) {
     Enter(object);
@@ -217,11 +210,6 @@ void ProgramListener::Visit(const Macro& object) {
     for (const auto& elem : object.arguments) elem->Accept(*this);
 }
 void ProgramListener::Visit(const VariableAssignment& object) {
-    Enter(object);
-    for (const auto& elem : object.lhs) elem->Accept(*this);
-    for (const auto& elem : object.rhs) elem->Accept(*this);
-}
-void ProgramListener::Visit(const MemoryRead& object) {
     Enter(object);
     for (const auto& elem : object.lhs) elem->Accept(*this);
     for (const auto& elem : object.rhs) elem->Accept(*this);
@@ -294,9 +282,8 @@ void MutableProgramListener::Visit(Assume& object) {
     Enter(object);
     object.condition->Accept(*this);
 }
-void MutableProgramListener::Visit(Assert& object) {
+void MutableProgramListener::Visit(Fail& object) {
     Enter(object);
-    object.condition->Accept(*this);
 }
 void MutableProgramListener::Visit(Malloc& object) {
     Enter(object);
@@ -308,11 +295,6 @@ void MutableProgramListener::Visit(Macro& object) {
     for (auto& elem : object.arguments) elem->Accept(*this);
 }
 void MutableProgramListener::Visit(VariableAssignment& object) {
-    Enter(object);
-    for (const auto& elem : object.lhs) elem->Accept(*this);
-    for (const auto& elem : object.rhs) elem->Accept(*this);
-}
-void MutableProgramListener::Visit(MemoryRead& object) {
     Enter(object);
     for (const auto& elem : object.lhs) elem->Accept(*this);
     for (const auto& elem : object.rhs) elem->Accept(*this);

@@ -71,7 +71,6 @@ struct AlwaysShared : public ProgramListener {
         }
     }
     void Enter(const VariableAssignment& object) override { HandleAssignment(object); }
-    void Enter(const MemoryRead& object) override { HandleAssignment(object); }
     void Enter(const MemoryWrite& /*object*/) override { /* do nothing */ }
     void Enter(const Malloc& object) override { sharedPointers.erase(&object.lhs->Decl()); }
     

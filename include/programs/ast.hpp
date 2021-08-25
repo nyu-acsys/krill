@@ -169,6 +169,7 @@ namespace plankton {
     };
     
     BinaryOperator Symmetric(BinaryOperator op);
+    BinaryOperator Negate(BinaryOperator op);
     
     struct BinaryExpression final : public Expression {
         BinaryOperator op;
@@ -238,6 +239,11 @@ namespace plankton {
         ACCEPT_PROGRAM_VISITOR
     };
 
+    struct Fail final : public Command {
+        explicit Fail();
+        ACCEPT_PROGRAM_VISITOR
+    };
+
     struct Break final : public Command {
         explicit Break();
         ACCEPT_PROGRAM_VISITOR
@@ -255,13 +261,6 @@ namespace plankton {
         std::unique_ptr<BinaryExpression> condition;
         
         explicit Assume(std::unique_ptr<BinaryExpression> condition);
-        ACCEPT_PROGRAM_VISITOR
-    };
-
-    struct Assert final : public Command {
-        std::unique_ptr<BinaryExpression> condition;
-        
-        explicit Assert(std::unique_ptr<BinaryExpression> condition);
         ACCEPT_PROGRAM_VISITOR
     };
     
@@ -293,17 +292,12 @@ namespace plankton {
         explicit Assignment(std::unique_ptr<L> lhs, std::unique_ptr<R> rhs);
     };
     
-    struct VariableAssignment final : public Assignment<VariableExpression, SimpleExpression> {
+    struct VariableAssignment final : public Assignment<VariableExpression, ValueExpression> {
         using Assignment::Assignment;
         ACCEPT_PROGRAM_VISITOR
     };
     
-    struct MemoryRead final : public Assignment<VariableExpression, Dereference> {
-        using Assignment::Assignment;
-        ACCEPT_PROGRAM_VISITOR
-    };
-    
-    struct MemoryWrite final : public Assignment<Dereference, VariableExpression> {
+    struct MemoryWrite final : public Assignment<Dereference, SimpleExpression> {
         using Assignment::Assignment;
         ACCEPT_PROGRAM_VISITOR
     };

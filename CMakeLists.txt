@@ -3,7 +3,7 @@ set(TOOL_NAME plankton)
 set(INSTALL_FOLDER plankton)
 
 # built requirements
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.7 FATAL_ERROR)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 

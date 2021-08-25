@@ -19,9 +19,9 @@ struct RightMoveVisitor : public BaseProgramVisitor {
     void Visit(const Choice& node) override { for (const auto& branch : node.branches) branch->Accept(*this); }
     void Visit(const UnconditionalLoop& node) override { node.body->Accept(*this); }
     void Visit(const Skip& /*node*/) override { /* do nothing */ }
+    void Visit(const Fail& /*node*/) override { /* do nothing */ }
     void Visit(const Break& /*node*/) override { /* do nothing */ }
     void Visit(const Assume& node) override { node.condition->Accept(*this); }
-    void Visit(const Assert& node) override { node.condition->Accept(*this); }
     void Visit(const Return& node) override { for (const auto& expr : node.expressions) expr->Accept(*this); }
     void Visit(const Malloc& node) override { node.lhs->Accept(*this); }
     void Visit(const Macro& /*node*/) override { isRightMover = false; }
@@ -30,7 +30,6 @@ struct RightMoveVisitor : public BaseProgramVisitor {
         for (const auto& elem : node.lhs) elem->Accept(*this);
         for (const auto& elem : node.rhs) elem->Accept(*this);
     }
-    void Visit(const MemoryRead& node) override { HandleAssignment(node); }
     void Visit(const MemoryWrite& node) override { HandleAssignment(node); }
     void Visit(const Function& /*node*/) override { isRightMover = false; }
 };

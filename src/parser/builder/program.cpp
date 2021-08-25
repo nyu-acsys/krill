@@ -67,7 +67,7 @@ inline void HandleTypes(PlanktonParser::ProgramContext& context, AstBuilder& bui
 
 inline void HandleSharedVariables(PlanktonParser::ProgramContext& context, AstBuilder& builder) {
     for (auto* variable : Elements<PlanktonParser::ProgramVariableContext>(context)) {
-        builder.AddDecl(builder.MakeVariable(*variable->varDecl(), true));
+        builder.AddDecl(*variable->varDeclList(), true);
     }
 }
 

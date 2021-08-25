@@ -113,6 +113,17 @@ BinaryOperator plankton::Symmetric(BinaryOperator op) {
     }
 }
 
+BinaryOperator plankton::Negate(BinaryOperator op) {
+    switch (op) {
+        case BinaryOperator::EQ: return BinaryOperator::NEQ;
+        case BinaryOperator::NEQ: return BinaryOperator::EQ;
+        case BinaryOperator::LEQ: return BinaryOperator::GT;
+        case BinaryOperator::LT: return BinaryOperator::GEQ;
+        case BinaryOperator::GEQ: return BinaryOperator::LT;
+        case BinaryOperator::GT: return BinaryOperator::LEQ;
+    }
+}
+
 BinaryExpression::BinaryExpression(BinaryOperator op, std::unique_ptr<ValueExpression> lhs_,
                                    std::unique_ptr<ValueExpression> rhs_)
         : op(op), lhs(std::move(lhs_)), rhs(std::move(rhs_)) {
@@ -163,6 +174,8 @@ Choice::Choice(std::unique_ptr<Scope> branch1, std::unique_ptr<Scope> branch2) {
 
 Skip::Skip() = default;
 
+Fail::Fail() = default;
+
 Break::Break() = default;
 
 Return::Return() = default;
@@ -173,11 +186,6 @@ Return::Return(std::unique_ptr<SimpleExpression> expression) {
 }
 
 Assume::Assume(std::unique_ptr<BinaryExpression> cond) : condition(std::move(cond)) {
-    assert(condition);
-    assert(condition->Type() == Type::Bool());
-}
-
-Assert::Assert(std::unique_ptr<BinaryExpression> cond) : condition(std::move(cond)) {
     assert(condition);
     assert(condition->Type() == Type::Bool());
 }

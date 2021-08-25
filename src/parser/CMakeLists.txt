@@ -68,7 +68,7 @@ set(SOURCES
         parse.cpp
 
         builder/builder.cpp
-        builder/cmd.cpp
+        builder/expr.cpp
         builder/function.cpp
         builder/lookup.cpp
         builder/program.cpp

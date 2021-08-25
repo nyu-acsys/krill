@@ -40,9 +40,8 @@ struct CopyVisitor : public BaseProgramVisitor {
     void Visit(const Break& object) override { Handle(object); }
     void Visit(const Return& object) override { Handle(object); }
     void Visit(const Assume& object) override { Handle(object); }
-    void Visit(const Assert& object) override { Handle(object); }
+    void Visit(const Fail& object) override { Handle(object); }
     void Visit(const VariableAssignment& object) override { Handle(object); }
-    void Visit(const MemoryRead& object) override { Handle(object); }
     void Visit(const MemoryWrite& object) override { Handle(object); }
 };
 
@@ -135,8 +134,8 @@ std::unique_ptr<Assume> plankton::Copy<Assume>(const Assume& object) {
 }
 
 template<>
-std::unique_ptr<Assert> plankton::Copy<Assert>(const Assert& object) {
-    return std::make_unique<Assert>(plankton::Copy(*object.condition));
+std::unique_ptr<Fail> plankton::Copy<Fail>(const Fail& /*object*/) {
+    return std::make_unique<Fail>();
 }
 
 template<>
@@ -166,11 +165,6 @@ std::unique_ptr<T> CopyAssignment(const T& assignment) {
 
 template<>
 std::unique_ptr<VariableAssignment> plankton::Copy<VariableAssignment>(const VariableAssignment& object) {
-    return CopyAssignment(object);
-}
-
-template<>
-std::unique_ptr<MemoryRead> plankton::Copy<MemoryRead>(const MemoryRead& object) {
     return CopyAssignment(object);
 }
 

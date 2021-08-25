@@ -71,7 +71,6 @@ struct AssumptionChecker : DefaultProgramVisitor {
     }
     
     void Visit(const VariableAssignment& object) override { CheckShared(object); CheckDuplicates(object); }
-    void Visit(const MemoryRead& object) override { CheckShared(object); CheckDuplicates(object); }
     void Visit(const MemoryWrite& object) override { CheckDuplicates(object); }
     void Visit(const Macro& object) override {
         CheckShared(object);

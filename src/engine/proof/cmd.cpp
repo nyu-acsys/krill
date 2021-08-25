@@ -41,11 +41,6 @@ void ProofGenerator::Visit(const VariableAssignment& cmd) {
     MakeInterferenceStable(cmd);
 }
 
-void ProofGenerator::Visit(const MemoryRead& cmd) {
-    ApplyTransformer(MakePostTransformer(cmd, solver));
-    MakeInterferenceStable(cmd);
-}
-
 void ProofGenerator::Visit(const MemoryWrite& cmd) {
     ApplyTransformer(MakePostTransformer(cmd, solver));
     MakeInterferenceStable(cmd);
@@ -64,7 +59,7 @@ void ProofGenerator::Visit(const Return& cmd) {
 
 inline std::vector<std::unique_ptr<VariableExpression>>
 AsExpr(const std::vector<std::unique_ptr<VariableDeclaration>>& decls) {
-    std::vector<std::unique_ptr<VariableExpression>> result;
+    auto result = plankton::MakeVector<std::unique_ptr<VariableExpression>>(decls.size());
     for (const auto& elem : decls) result.push_back(std::make_unique<VariableExpression>(*elem));
     return result;
 }
@@ -72,8 +67,8 @@ AsExpr(const std::vector<std::unique_ptr<VariableDeclaration>>& decls) {
 inline std::unique_ptr<Statement> MakeMacroAssignment(const std::vector<std::unique_ptr<VariableExpression>>& lhs,
                                                       const std::vector<std::unique_ptr<SimpleExpression>>& rhs) {
     auto result = std::make_unique<VariableAssignment>();
-    result->lhs = plankton::CopyAll(lhs);
-    result->rhs = plankton::CopyAll(rhs);
+    plankton::MoveInto(::CopyAll(lhs), result->lhs);
+    plankton::MoveInto(::CopyAll(rhs), result->rhs);
     return result;
 }
 
