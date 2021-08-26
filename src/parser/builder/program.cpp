@@ -105,6 +105,8 @@ std::unique_ptr<Program> AstBuilder::MakeProgram(PlanktonParser::ProgramContext&
     auto init = MakeInitFunction(context, *this);
     auto name = MakeName(context, *this);
     auto program = std::make_unique<Program>(name, std::move(init));
+    // TODO: remove skips
+    // TODO: apply left movers
     
     program->variables = PopScope();
     plankton::MoveInto(std::move(_types), program->types);

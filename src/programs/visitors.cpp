@@ -14,30 +14,30 @@ struct ProgramVisitorNotImplementedException : public ExceptionWithMessage {
 
 #define COMPLAIN(B,T) throw ProgramVisitorNotImplementedException(#B,#T)
 
-void BaseProgramVisitor::Visit(const VariableExpression& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const TrueValue& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const FalseValue& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const MinValue& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const MaxValue& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const NullValue& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const Dereference& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const BinaryExpression& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const Skip& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const Break& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const Return& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const Assume& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const Fail& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const Malloc& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const Macro& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const VariableAssignment& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const MemoryWrite& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const Scope& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const Atomic& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const Sequence& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const UnconditionalLoop& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const Choice& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const Function& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
-void BaseProgramVisitor::Visit(const Program& /*object*/) { COMPLAIN(BaseProgramVisitor, const ProgramVisitorNotImplementedException&); }
+void BaseProgramVisitor::Visit(const VariableExpression& /*object*/) { COMPLAIN(BaseProgramVisitor, const VariableExpression&); }
+void BaseProgramVisitor::Visit(const TrueValue& /*object*/) { COMPLAIN(BaseProgramVisitor, const TrueValue&); }
+void BaseProgramVisitor::Visit(const FalseValue& /*object*/) { COMPLAIN(BaseProgramVisitor, const FalseValue&); }
+void BaseProgramVisitor::Visit(const MinValue& /*object*/) { COMPLAIN(BaseProgramVisitor, const MinValue&); }
+void BaseProgramVisitor::Visit(const MaxValue& /*object*/) { COMPLAIN(BaseProgramVisitor, const MaxValue&); }
+void BaseProgramVisitor::Visit(const NullValue& /*object*/) { COMPLAIN(BaseProgramVisitor, const NullValue&); }
+void BaseProgramVisitor::Visit(const Dereference& /*object*/) { COMPLAIN(BaseProgramVisitor, const Dereference&); }
+void BaseProgramVisitor::Visit(const BinaryExpression& /*object*/) { COMPLAIN(BaseProgramVisitor, const BinaryExpression&); }
+void BaseProgramVisitor::Visit(const Skip& /*object*/) { COMPLAIN(BaseProgramVisitor, const Skip&); }
+void BaseProgramVisitor::Visit(const Break& /*object*/) { COMPLAIN(BaseProgramVisitor, const Break&); }
+void BaseProgramVisitor::Visit(const Return& /*object*/) { COMPLAIN(BaseProgramVisitor, const Return&); }
+void BaseProgramVisitor::Visit(const Assume& /*object*/) { COMPLAIN(BaseProgramVisitor, const Assume&); }
+void BaseProgramVisitor::Visit(const Fail& /*object*/) { COMPLAIN(BaseProgramVisitor, const Fail&); }
+void BaseProgramVisitor::Visit(const Malloc& /*object*/) { COMPLAIN(BaseProgramVisitor, const Malloc&); }
+void BaseProgramVisitor::Visit(const Macro& /*object*/) { COMPLAIN(BaseProgramVisitor, const Macro&); }
+void BaseProgramVisitor::Visit(const VariableAssignment& /*object*/) { COMPLAIN(BaseProgramVisitor, const VariableAssignment&); }
+void BaseProgramVisitor::Visit(const MemoryWrite& /*object*/) { COMPLAIN(BaseProgramVisitor, const MemoryWrite&); }
+void BaseProgramVisitor::Visit(const Scope& /*object*/) { COMPLAIN(BaseProgramVisitor, const Scope&); }
+void BaseProgramVisitor::Visit(const Atomic& /*object*/) { COMPLAIN(BaseProgramVisitor, const Atomic&); }
+void BaseProgramVisitor::Visit(const Sequence& /*object*/) { COMPLAIN(BaseProgramVisitor, const Sequence&); }
+void BaseProgramVisitor::Visit(const UnconditionalLoop& /*object*/) { COMPLAIN(BaseProgramVisitor, const UnconditionalLoop&); }
+void BaseProgramVisitor::Visit(const Choice& /*object*/) { COMPLAIN(BaseProgramVisitor, const Choice&); }
+void BaseProgramVisitor::Visit(const Function& /*object*/) { COMPLAIN(BaseProgramVisitor, const Function&); }
+void BaseProgramVisitor::Visit(const Program& /*object*/) { COMPLAIN(BaseProgramVisitor, const Program&); }
 
 void MutableBaseProgramVisitor::Visit(VariableExpression& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, VariableExpression&); }
 void MutableBaseProgramVisitor::Visit(TrueValue& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, TrueValue&); }
@@ -51,9 +51,9 @@ void MutableBaseProgramVisitor::Visit(Skip& /*object*/) { COMPLAIN(MutableBasePr
 void MutableBaseProgramVisitor::Visit(Break& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Break&); }
 void MutableBaseProgramVisitor::Visit(Return& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Return&); }
 void MutableBaseProgramVisitor::Visit(Assume& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Assume&); }
-void MutableBaseProgramVisitor::Visit(Fail& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Assert&); }
-void MutableBaseProgramVisitor::Visit(Malloc& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Assert&); }
-void MutableBaseProgramVisitor::Visit(Macro& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Assert&); }
+void MutableBaseProgramVisitor::Visit(Fail& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Fail&); }
+void MutableBaseProgramVisitor::Visit(Malloc& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Malloc&); }
+void MutableBaseProgramVisitor::Visit(Macro& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Macro&); }
 void MutableBaseProgramVisitor::Visit(VariableAssignment& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, VariableAssignment&); }
 void MutableBaseProgramVisitor::Visit(MemoryWrite& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, MemoryWrite&); }
 void MutableBaseProgramVisitor::Visit(Scope& /*object*/) { COMPLAIN(MutableBaseProgramVisitor, Scope&); }

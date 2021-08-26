@@ -20,25 +20,22 @@ std::unique_ptr<ValueExpression> AstBuilder::MakeExpression(PlanktonParser::Expr
 std::unique_ptr<Dereference> AstBuilder::MakeExpression(PlanktonParser::DerefContext& context) {
     auto var = std::make_unique<VariableExpression>(VariableByName(context.name->getText()));
     auto fieldName = context.field->getText();
-    if (var->Type().fields.count(fieldName) != 0) {
+    if (var->Type().GetField(fieldName).has_value()) {
         return std::make_unique<Dereference>(std::move(var), fieldName);
     }
     throw std::logic_error("Parser error: variable of type '" + var->Type().name + "' has no member named '" + fieldName + "'."); // TODO: better error handling
 }
 
 struct ValueBuilder : public PlanktonBaseVisitor {
-    std::unique_ptr<SimpleExpression> result;
+    std::unique_ptr<SimpleExpression> result = nullptr;
 
     template<typename T>
-    inline antlrcpp::Any Handle() { result = std::unique_ptr<T>(); return nullptr; }
+    inline antlrcpp::Any Handle() { result = std::make_unique<T>(); return nullptr; }
     antlrcpp::Any visitValueTrue(PlanktonParser::ValueTrueContext*) override { return Handle<TrueValue>(); }
     antlrcpp::Any visitValueFalse(PlanktonParser::ValueFalseContext*) override { return Handle<FalseValue>(); }
     antlrcpp::Any visitValueMax(PlanktonParser::ValueMaxContext*) override { return Handle<MaxValue>(); }
     antlrcpp::Any visitValueMin(PlanktonParser::ValueMinContext*) override { return Handle<MinValue>(); }
-    antlrcpp::Any visitValueNull(PlanktonParser::ValueNullContext*) override {
-        result = std::make_unique<NullValue>(AstBuilder::GetDummyNullType());
-        return nullptr;
-    }
+    antlrcpp::Any visitValueNull(PlanktonParser::ValueNullContext*) override { return Handle<NullValue>(); }
 };
 
 std::unique_ptr<SimpleExpression> AstBuilder::MakeExpression(PlanktonParser::ValueContext& context) {
@@ -50,7 +47,7 @@ std::unique_ptr<SimpleExpression> AstBuilder::MakeExpression(PlanktonParser::Val
 
 struct SimpleExpressionBuilder : public PlanktonBaseVisitor {
     AstBuilder& builder;
-    std::unique_ptr<SimpleExpression> result;
+    std::unique_ptr<SimpleExpression> result = nullptr;
     
     explicit SimpleExpressionBuilder(AstBuilder& builder) : builder(builder) {}
     
@@ -119,14 +116,14 @@ inline bool IsOperatorCompatible(BinaryOperator op, const Type& lhs, const Type&
 
 struct BinaryConditionBuilder : public PlanktonBaseVisitor {
     AstBuilder& builder;
-    std::unique_ptr<BinaryExpression> result;
+    std::unique_ptr<BinaryExpression> result = nullptr;
     
     explicit BinaryConditionBuilder(AstBuilder& builder) : builder(builder) {}
     
     antlrcpp::Any visitCondBinarySimple(PlanktonParser::CondBinarySimpleContext* ctx) override {
         auto [expr, negated] = builder.MakeExpression(*ctx->simpleCondition());
         if (expr->Type() == Type::Bool()) {
-            result = std::make_unique<BinaryExpression>(BinaryOperator::EQ, std::move(expr), MakeBool(negated));
+            result = std::make_unique<BinaryExpression>(BinaryOperator::EQ, std::move(expr), MakeBool(!negated));
             return nullptr;
         }
         

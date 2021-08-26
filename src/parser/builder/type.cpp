@@ -14,8 +14,3 @@ std::string AstBuilder::MakeBaseTypeName(PlanktonParser::TypeContext& context) {
     } visitor;
     return context.accept(&visitor);
 }
-
-const Type& AstBuilder::GetDummyNullType() {
-    static Type dummy("__AstBuilder::DummyPtrType__", Sort::PTR);
-    return dummy;
-}

@@ -36,6 +36,11 @@ const Type& Type::Data() {
     return type;
 }
 
+const Type& Type::Null() {
+    static const Type type = Type("nullptr_t", Sort::PTR);
+    return type;
+}
+
 std::optional<std::reference_wrapper<const Type>> Type::GetField(const std::string& fieldName) const {
     auto find = fields.find(fieldName);
     if (find == fields.end()) return std::nullopt;
@@ -44,7 +49,7 @@ std::optional<std::reference_wrapper<const Type>> Type::GetField(const std::stri
 
 bool Type::AssignableTo(const Type& other) const {
     if (sort != Sort::PTR) return sort == other.sort;
-    else return *this == other;
+    else return *this == other || *this == Null();
 }
 
 VariableDeclaration::VariableDeclaration(std::string name, const Type& type, bool shared)
@@ -86,14 +91,10 @@ const Type& MinValue::Type() const { return plankton::Type::Data(); }
 
 const Type& MaxValue::Type() const { return plankton::Type::Data(); }
 
-NullValue::NullValue(const plankton::Type& type) : type(type) {
-    assert(type.sort == Sort::PTR); // TODO: throw
-}
+const Type& NullValue::Type() const { return plankton::Type::Null(); }
 
-const Type& NullValue::Type() const { return type; }
-
-Dereference::Dereference(std::unique_ptr<VariableExpression> var, std::string fieldName)
-        : variable(std::move(var)), fieldName(std::move(fieldName)) {
+Dereference::Dereference(std::unique_ptr<VariableExpression> var, std::string fieldName_)
+        : variable(std::move(var)), fieldName(std::move(fieldName_)) {
     assert(variable->Sort() == Sort::PTR); // TODO: throw
     assert(variable->Type().GetField(fieldName).has_value()); // TODO: throw
 }
@@ -210,6 +211,9 @@ Assignment<L,R>::Assignment(std::unique_ptr<L> left, std::unique_ptr<R> right) {
     rhs.push_back(std::move(right));
 }
 
+template struct plankton::Assignment<VariableExpression, ValueExpression>;
+template struct plankton::Assignment<Dereference, SimpleExpression>;
+
 
 //
 // Output
@@ -255,6 +259,8 @@ std::ostream& plankton::operator<<(std::ostream& stream, const AstNode& object) 
 }
 
 std::ostream& plankton::operator<<(std::ostream& stream, const VariableDeclaration& object) {
-    stream << object.type.name << " " << object.name << ";";
+    stream << object.type.name;
+    if (object.type.sort == Sort::PTR) stream << "*";
+    stream << " " << object.name << ";";
     return stream;
 }

@@ -17,15 +17,11 @@ struct CopyVisitor : public BaseProgramVisitor {
         assert(visitor.result);
         return std::move(visitor.result);
     }
-    
+
     template<typename U>
-    void Handle(const U& /*object*/) {
-        throw std::logic_error("Internal error: 'Copy' failed."); // TODO: better error handling
-    }
-    
-    template<typename U, EnableIfBaseOf<T, U>>
     void Handle(const U& object) {
-        result = plankton::Copy(object);
+        if constexpr (std::is_base_of_v<T, U>) result = plankton::Copy(object);
+        else throw std::logic_error("Internal error: 'Copy' failed."); // TODO: better error handling
     }
     
     void Visit(const VariableExpression& object) override { Handle(object); }
@@ -95,8 +91,8 @@ std::unique_ptr<MaxValue> plankton::Copy<MaxValue>(const MaxValue& /*object*/) {
 }
 
 template<>
-std::unique_ptr<NullValue> plankton::Copy<NullValue>(const NullValue& object) {
-    return std::make_unique<NullValue>(object.type);
+std::unique_ptr<NullValue> plankton::Copy<NullValue>(const NullValue& /*object*/) {
+    return std::make_unique<NullValue>();
 }
 
 template<>

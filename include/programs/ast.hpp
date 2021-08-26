@@ -55,6 +55,7 @@ namespace plankton {
         
         static const Type& Bool();
         static const Type& Data();
+        static const Type& Null();
     };
 
     struct VariableDeclaration final {
@@ -148,9 +149,7 @@ namespace plankton {
     };
 
     struct NullValue final : public SimpleExpression {
-        const plankton::Type& type;
-        
-        explicit NullValue(const plankton::Type& type);
+        explicit NullValue() = default;
         [[nodiscard]] const plankton::Type& Type() const override;
         ACCEPT_PROGRAM_VISITOR
     };

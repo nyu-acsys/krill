@@ -71,10 +71,9 @@ struct ExpressionPrinter : public BaseProgramVisitor {
     }
 };
 
-struct CommandPrinter : public BaseProgramVisitor {
-    std::ostream& stream;
-    ExpressionPrinter expressionPrinter;
-    explicit CommandPrinter(std::ostream& stream) : stream(stream), expressionPrinter(stream) {}
+struct CommandPrinter : public ExpressionPrinter {
+    using ExpressionPrinter::ExpressionPrinter;
+    using ExpressionPrinter::Visit;
 
     template<typename T>
     void PrintSequence(const T& sequence) {
@@ -96,7 +95,7 @@ struct CommandPrinter : public BaseProgramVisitor {
     }
     void Visit(const Assume& object) override {
         stream << CMD_ASSUME << "(";
-        object.condition->Accept(expressionPrinter);
+        object.condition->Accept(*this);
         stream << ");" << LB;
     }
     void Visit(const Fail& /*object*/) override {
@@ -120,7 +119,7 @@ struct CommandPrinter : public BaseProgramVisitor {
         PrintSequence(object.lhs);
         stream << SYMBOL_ASSIGN;
         PrintSequence(object.rhs);
-        stream << LB;
+        stream << ";" << LB;
     }
     void Visit(const VariableAssignment& object) override { HandleAssignment(object); }
     void Visit(const MemoryWrite& object) override { HandleAssignment(object); }
@@ -128,8 +127,8 @@ struct CommandPrinter : public BaseProgramVisitor {
 
 struct Indent {
     std::size_t depth = 0;
-    inline Indent& operator++() { depth++; return *this; }
-    inline Indent& operator--() { depth--; return *this; }
+    inline Indent& operator++() { ++depth; return *this; }
+    inline Indent& operator--() { --depth; return *this; }
 };
 
 inline std::ostream& operator<<(std::ostream& stream, const Indent& indent) {
@@ -137,17 +136,11 @@ inline std::ostream& operator<<(std::ostream& stream, const Indent& indent) {
     return stream;
 }
 
-inline std::string GetPrintableTypeName(const Type& type) {
-    std::string name = type.name;
-    if (type.sort == Sort::PTR) name.pop_back(); // remove trailing * for pointer types
-    return name;
-}
-
-struct ProgramPrinter : public BaseProgramVisitor {
-    std::ostream& stream;
+#include <iostream>
+struct ProgramPrinter : public CommandPrinter {
+    using CommandPrinter::CommandPrinter;
+    using CommandPrinter::Visit;
     Indent indent;
-    CommandPrinter commandPrinter;
-    explicit ProgramPrinter(std::ostream& stream) : stream(stream), commandPrinter(stream) {}
     
     template<typename T, typename F>
     void PrintSequence(const T& sequence, const F& printElem, const std::string& emptyString="") {
@@ -163,28 +156,31 @@ struct ProgramPrinter : public BaseProgramVisitor {
         }
     }
     
-    void PrintScope(const Scope& scope) {
-        stream << "{" << LB << ++indent;
+    void PrintScope(const Scope& scope, bool breakLine = true) {
+        stream << "{" << LB;
+        ++indent;
         for (const auto& decl : scope.variables) stream << indent << *decl << LB;
         if (!scope.variables.empty()) stream << LB;
         stream << indent;
-        scope.body->Accept(commandPrinter);
-        stream << --indent << "}" << LB;
+        scope.body->Accept(*this);
+        --indent;
+        stream << indent << "}";
+        if (breakLine) stream << LB;
     }
     void Visit(const Scope& object) override {
-        stream << indent;
         PrintScope(object);
     }
     void Visit(const Atomic& object) override {
-        stream << indent << STMT_ATOMIC << " ";
+        stream << STMT_ATOMIC << " ";
         PrintScope(*object.body);
     }
     void Visit(const Sequence& object) override {
         object.first->Accept(*this);
+        stream << indent;
         object.second->Accept(*this);
     }
     void Visit(const UnconditionalLoop& object) override {
-        stream << indent << STMT_LOOP << " ";
+        stream << STMT_LOOP << " ";
         PrintScope(*object.body);
     }
     void Visit(const Choice& object) override {
@@ -194,8 +190,9 @@ struct ProgramPrinter : public BaseProgramVisitor {
             return;
         }
         for (const auto& branch : object.branches) {
-            PrintScope(*branch);
+            PrintScope(*branch, false);
         }
+        stream << LB;
     }
     void Visit(const Function& object) override {
         stream << indent;
@@ -209,10 +206,12 @@ struct ProgramPrinter : public BaseProgramVisitor {
         PrintScope(*object.body);
     }
     void PrintType(const Type& type) {
-        stream << indent << "struct " << GetPrintableTypeName(type) << " {" << LB;
+        stream << indent << "struct " << type.name << " {" << LB;
         ++indent;
         for (const auto& [fieldName, fieldType] : type) {
-            stream << indent << GetPrintableTypeName(fieldType) << " " << fieldName << ";" << LB;
+            VariableDeclaration dummy(fieldName, fieldType, false);
+            stream << indent << dummy << LB;
+            // stream << indent << fieldType.get().name << "* " << fieldName << ";" << LB;
         }
         stream << --indent << "}" << LB;
     }
@@ -233,7 +232,7 @@ struct ProgramPrinter : public BaseProgramVisitor {
             func->Accept(*this);
             stream << LB;
         }
-        stream << "//" << LB << "// END " << LB << "//" << LB;
+        stream << "//" << LB << "// END" << LB << "//" << LB;
     }
 };
 

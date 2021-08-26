@@ -15,8 +15,11 @@ namespace plankton {
         std::unique_ptr<SolverConfig> config;
     };
     
-    ParsingResult ParseProgram(const std::string& filename);
-    ParsingResult ParseProgram(std::istream& input);
+    ParsingResult Parse(const std::string& filename, bool spuriousCasFails = true);
+    ParsingResult Parse(std::istream& input, bool spuriousCasFails = true);
+    
+    std::unique_ptr<Program> ParseProgram(const std::string& filename, bool spuriousCasFails = true);
+    std::unique_ptr<Program> ParseProgram(std::istream& input, bool spuriousCasFails = true);
     
 } // namespace plankton
 

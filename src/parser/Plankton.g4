@@ -82,7 +82,8 @@ command : 'skip'                                            #cmdSkip
         | (lhs=varList '=')? name=Identifier args=argList   #cmdCall
         | 'break'                                           #cmdBreak
         | 'return'                                          #cmdReturnVoid
-        | 'return' varList                                  #cmdReturnExpr
+        | 'return' simpleExprList                           #cmdReturnList
+        | 'return' logicCondition                           #cmdReturnExpr
         ;
 
 cas : 'CAS' '(' dst=varList ',' cmp=simpleExprList ',' src=simpleExprList ')'    #casStack

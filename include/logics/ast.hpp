@@ -87,9 +87,7 @@ namespace plankton {
     };
 
     struct SymbolicNull final : public SymbolicExpression {
-        const plankton::Type& type;
-        
-        explicit SymbolicNull(const plankton::Type& type);
+        explicit SymbolicNull();
         [[nodiscard]] plankton::Order Order() const override;
         [[nodiscard]] const plankton::Type& Type() const override;
         ACCEPT_LOGIC_VISITOR

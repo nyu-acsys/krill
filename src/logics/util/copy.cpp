@@ -88,8 +88,8 @@ std::unique_ptr<SymbolicBool> plankton::Copy<SymbolicBool>(const SymbolicBool& o
 }
 
 template<>
-std::unique_ptr<SymbolicNull> plankton::Copy<SymbolicNull>(const SymbolicNull& object) {
-    return std::make_unique<SymbolicNull>(object.Type());
+std::unique_ptr<SymbolicNull> plankton::Copy<SymbolicNull>(const SymbolicNull& /*object*/) {
+    return std::make_unique<SymbolicNull>();
 }
 
 template<>

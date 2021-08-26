@@ -53,23 +53,6 @@ void SymbolFactory::Avoid(const LogicObject& avoid) {
     plankton::InsertInto(std::move(symbols), inUse);
 }
 
-//        struct Comparator {
-//            inline bool operator()(std::unique_ptr<SymbolDeclaration> symbol, std::unique_ptr<SymbolDeclaration> other) {
-//                return symbol.get() < other.get();
-//            }
-//        };
-//        // use: std::set<std::unique_ptr<SymbolDeclaration>, Comparator> symbols;
-//        assert(inUse.size() <= symbols.size());
-//        auto symbolIter = symbols.begin();
-//        auto symbolEnd = symbols.end();
-//        auto useIter = inUse.begin();
-//        while (symbolIter != symbolEnd && symbolIter->get() == *useIter) {
-//            ++symbolIter;
-//            ++useIter;
-//        }
-//        if (symbolIter == symbolEnd) return nullptr;
-//        else return symbolIter->get();
-
 const SymbolDeclaration& SymbolFactory::GetFresh(const Type& type, Order order) {
     static std::deque<std::unique_ptr<SymbolDeclaration>> symbols;
     
@@ -101,11 +84,11 @@ Order SymbolicBool::Order() const { return plankton::Order::FIRST; }
 
 const Type& SymbolicBool::Type() const { return Type::Bool(); }
 
-SymbolicNull::SymbolicNull(const plankton::Type& type) : type(type) {}
+SymbolicNull::SymbolicNull() = default;
 
 Order SymbolicNull::Order() const { return plankton::Order::FIRST; }
 
-const Type& SymbolicNull::Type() const { return type; }
+const Type& SymbolicNull::Type() const { return Type::Null(); }
 
 SymbolicMin::SymbolicMin() = default;
 

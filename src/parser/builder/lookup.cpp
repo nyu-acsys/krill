@@ -1,6 +1,7 @@
 #include "parser/builder.hpp"
 
 #include "util/shortcuts.hpp"
+#include "util/log.hpp"
 
 using namespace plankton;
 
@@ -12,21 +13,21 @@ inline const T* GetOrNull(const std::deque<std::unique_ptr<T>>& container, const
 }
 
 template<typename T>
-inline const T& CheckResult(const T* object, const std::string& name) {
+inline const T& CheckResult(const T* object, const std::string& name, const std::string& symbolClass) {
     if (object) return *object;
-    throw std::logic_error("Parse error: undefined symbol '" + name + "'."); //  TODO: better error handling
+    throw std::logic_error("Parse error: undefined " + symbolClass + " '" + name + "'."); //  TODO: better error handling
 }
 
 const Type& AstBuilder::TypeByName(const std::string& name) {
-    return CheckResult(TypeByNameOrNull(name), name);
+    return CheckResult(TypeByNameOrNull(name), name, "type");
 }
 
 const VariableDeclaration& AstBuilder::VariableByName(const std::string& name) {
-    return CheckResult(VariableByNameOrNull(name), name);
+    return CheckResult(VariableByNameOrNull(name), name, "symbol");
 }
 
 const Function& AstBuilder::FunctionByName(const std::string& name) {
-    return CheckResult(FunctionByNameOrNull(name), name);
+    return CheckResult(FunctionByNameOrNull(name), name, "function symbol");
 }
 
 const Type* AstBuilder::TypeByNameOrNull(const std::string& name) {
@@ -48,16 +49,46 @@ const VariableDeclaration* AstBuilder::VariableByNameOrNull(const std::string& n
     return nullptr;
 }
 
+inline void CheckExistence(AstBuilder& builder, const std::string& name) {
+    auto exists = builder.TypeByNameOrNull(name) ||
+                  builder.VariableByNameOrNull(name) ||
+                  builder.FunctionByNameOrNull(name);
+    if (!exists) return;
+    throw std::logic_error("Parse error: redefinition of symbol '" + name + "'."); // TODO: better error handling
+}
+
 void AstBuilder::AddDecl(std::unique_ptr<Type> type)  {
+    assert(type);
+    CheckExistence(*this, type->name);
     _types.push_back(std::move(type));
 }
 
 void AstBuilder::AddDecl(std::unique_ptr<VariableDeclaration> variable) {
+    assert(variable);
+    CheckExistence(*this, variable->name);
     assert(!_variables.empty());
     _variables.back().push_back(std::move(variable));
 }
 
+void AstBuilder::AddDecl(PlanktonParser::VarDeclContext& context, bool shared) {
+    auto name = context.name->getText();
+    auto typeName = MakeBaseTypeName(*context.type());
+    auto& type = TypeByName(typeName);
+    AddDecl(std::make_unique<VariableDeclaration>(name, type, shared));
+}
+
+void AstBuilder::AddDecl(PlanktonParser::VarDeclListContext& context, bool shared) {
+    auto typeName = MakeBaseTypeName(*context.type());
+    for (auto* nameToken : context.names) {
+        auto name = nameToken->getText();
+        auto& type = TypeByName(typeName);
+        AddDecl(std::make_unique<VariableDeclaration>(name, type, shared));
+    }
+}
+
 void AstBuilder::AddDecl(std::unique_ptr<Function> function) {
+    assert(function);
+    CheckExistence(*this, function->name);
     _functions.push_back(std::move(function));
 }
 

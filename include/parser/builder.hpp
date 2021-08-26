@@ -12,7 +12,7 @@
 namespace plankton {
     
     struct AstBuilder {
-        static ParsingResult BuildFrom(std::istream& input);
+        static ParsingResult BuildFrom(std::istream& input, bool spuriousCasFails); // may return NULL config
         
         // declarations (lookup / creation)
         const Type& TypeByName(const std::string& name);
@@ -26,7 +26,6 @@ namespace plankton {
         void AddDecl(std::unique_ptr<Function> function);
         void AddDecl(PlanktonParser::VarDeclContext& context, bool shared);
         void AddDecl(PlanktonParser::VarDeclListContext& context, bool shared);
-        static const Type& GetDummyNullType();
         
         // program
         std::unique_ptr<Program> MakeProgram(PlanktonParser::ProgramContext& context);
@@ -54,8 +53,8 @@ namespace plankton {
         std::unique_ptr<Scope> MakeScope(PlanktonParser::BlockContext& context);
         std::unique_ptr<Statement> MakeStatement(PlanktonParser::StatementContext& context);
         std::unique_ptr<Statement> MakeCommand(PlanktonParser::CommandContext& context);
-        std::unique_ptr<Choice> MakeChoice(PlanktonParser::StmtChooseContext& context);
-        std::unique_ptr<Choice> MakeChoice(PlanktonParser::StmtIfContext& context);
+        std::unique_ptr<Statement> MakeChoice(PlanktonParser::StmtChooseContext& context);
+        std::unique_ptr<Statement> MakeChoice(PlanktonParser::StmtIfContext& context);
         std::unique_ptr<UnconditionalLoop> MakeLoop(PlanktonParser::StmtLoopContext& context);
         std::unique_ptr<UnconditionalLoop> MakeLoop(PlanktonParser::StmtWhileContext& context);
         std::unique_ptr<UnconditionalLoop> MakeLoop(PlanktonParser::StmtDoContext& context);
@@ -67,14 +66,20 @@ namespace plankton {
         std::unique_ptr<Statement> MakeAssume(PlanktonParser::LogicConditionContext& context);
         std::unique_ptr<Statement> MakeAssert(PlanktonParser::LogicConditionContext& context);
         std::unique_ptr<Statement> MakeCall(PlanktonParser::CmdCallContext& context);
+        std::unique_ptr<Statement> MakeReturn(PlanktonParser::CmdReturnListContext& context);
         std::unique_ptr<Statement> MakeReturn(PlanktonParser::CmdReturnExprContext& context);
         std::unique_ptr<Statement> MakeCas(PlanktonParser::CmdCasContext& context);
+        
+        // parsing configuration
+        bool SpuriousCasFail() const;
 
         private:
+            bool spuriousCasFails;
             std::deque<std::unique_ptr<Type>> _types;
             std::deque<std::unique_ptr<Function>> _functions;
             std::deque<std::deque<std::unique_ptr<VariableDeclaration>>> _variables;
             
+            explicit AstBuilder(bool spuriousCasFails);
             void PushScope();
             std::vector<std::unique_ptr<VariableDeclaration>> PopScope();
     };
