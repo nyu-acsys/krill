@@ -10,9 +10,14 @@
 
 namespace plankton {
     
+    struct ParsedSolverConfig : public SolverConfig {
+        [[nodiscard]] const Type& GetFlowValueType() const override { return Type::Data(); }
+        [[nodiscard]] std::size_t GetMaxFootprintDepth(const std::string&) const override { return 1; }
+    };
+    
     struct ParsingResult {
         std::unique_ptr<Program> program;
-        std::unique_ptr<SolverConfig> config;
+        std::unique_ptr<ParsedSolverConfig> config;
     };
     
     ParsingResult Parse(const std::string& filename, bool spuriousCasFails = true);

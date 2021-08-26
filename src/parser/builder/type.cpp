@@ -5,7 +5,7 @@
 using namespace plankton;
 
 
-std::string AstBuilder::MakeBaseTypeName(PlanktonParser::TypeContext& context) {
+std::string AstBuilder::MakeBaseTypeName(PlanktonParser::TypeContext& context) const {
     struct : public PlanktonBaseVisitor {
         antlrcpp::Any visitTypeBool(PlanktonParser::TypeBoolContext*) override { return Type::Bool().name; }
         antlrcpp::Any visitTypeInt(PlanktonParser::TypeIntContext*) override { return Type::Data().name; }

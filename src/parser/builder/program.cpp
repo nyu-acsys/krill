@@ -6,36 +6,8 @@
 using namespace plankton;
 
 
-template<typename T>
-struct ContextCollector : public PlanktonBaseVisitor {
-    std::vector<T*> result;
-    
-    template<typename U>
-    antlrcpp::Any Handle(U* /*context*/) { /* do nothing */ return nullptr; }
-    template<>
-    antlrcpp::Any Handle<T>(T* context) { if (context) result.push_back(context); return nullptr; }
-    
-    antlrcpp::Any visitStructDecl(PlanktonParser::StructDeclContext* ctx) override { return Handle(ctx); }
-    antlrcpp::Any visitProgramVariable(PlanktonParser::ProgramVariableContext* ctx) override { return Handle(ctx); }
-    antlrcpp::Any visitFunctionInterface(PlanktonParser::FunctionInterfaceContext* ctx) override { return Handle(ctx); }
-    antlrcpp::Any visitFunctionMacro(PlanktonParser::FunctionMacroContext* ctx) override { return Handle(ctx); }
-    antlrcpp::Any visitFunctionInit(PlanktonParser::FunctionInitContext* ctx) override { return Handle(ctx); }
-    antlrcpp::Any visitProgramContains(PlanktonParser::ProgramContainsContext* ctx) override { return Handle(ctx); }
-    antlrcpp::Any visitProgramOutflow(PlanktonParser::ProgramOutflowContext* ctx) override { return Handle(ctx); }
-    antlrcpp::Any visitProgramInvariantVariable(PlanktonParser::ProgramInvariantVariableContext* ctx) override { return Handle(ctx); }
-    antlrcpp::Any visitProgramInvariantNode(PlanktonParser::ProgramInvariantNodeContext* ctx) override { return Handle(ctx); }
-    antlrcpp::Any visitOption(PlanktonParser::OptionContext* ctx) override { return Handle(ctx); }
-};
-
-template<typename T>
-inline std::vector<T*> Elements(PlanktonParser::ProgramContext& context) {
-    ContextCollector<T> collector;
-    context.accept(&collector);
-    return std::move(collector.result);
-}
-
 inline void HandleTypes(PlanktonParser::ProgramContext& context, AstBuilder& builder) {
-    auto typeContexts = Elements<PlanktonParser::StructDeclContext>(context);
+    auto typeContexts = context.structs;
 
     // initialize types without fields
     std::vector<Type*> types;
@@ -66,20 +38,41 @@ inline void HandleTypes(PlanktonParser::ProgramContext& context, AstBuilder& bui
 }
 
 inline void HandleSharedVariables(PlanktonParser::ProgramContext& context, AstBuilder& builder) {
-    for (auto* variable : Elements<PlanktonParser::ProgramVariableContext>(context)) {
-        builder.AddDecl(*variable->varDeclList(), true);
+    for (auto* varDeclList : context.vars) {
+        builder.AddDecl(*varDeclList, true);
     }
 }
 
 template<typename T>
+struct FunctionContextCollector : public PlanktonBaseVisitor {
+    std::vector<T*> result;
+
+    template<typename U>
+    antlrcpp::Any Handle(U* /*context*/) { /* do nothing */ return nullptr; }
+    template<>
+    antlrcpp::Any Handle<T>(T* context) { if (context) result.push_back(context); return nullptr; }
+    
+    antlrcpp::Any visitFunctionInterface(PlanktonParser::FunctionInterfaceContext* ctx) override { return Handle(ctx); }
+    antlrcpp::Any visitFunctionMacro(PlanktonParser::FunctionMacroContext* ctx) override { return Handle(ctx); }
+    antlrcpp::Any visitFunctionInit(PlanktonParser::FunctionInitContext* ctx) override { return Handle(ctx); }
+};
+
+template<typename T>
+inline std::vector<T*> GetFunctions(PlanktonParser::ProgramContext& context) {
+    FunctionContextCollector<T> collector;
+    for (auto* functionContext : context.funcs) functionContext->accept(&collector);
+    return std::move(collector.result);
+}
+
+template<typename T>
 inline void HandleFunctions(PlanktonParser::ProgramContext& context, AstBuilder& builder) {
-    for (auto* function : Elements<T>(context)) {
+    for (auto* function : GetFunctions<T>(context)) {
         builder.AddDecl(builder.MakeFunction(*function));
     }
 }
 
 std::unique_ptr<Function> MakeInitFunction(PlanktonParser::ProgramContext& context, AstBuilder& builder) {
-    auto functionContexts = Elements<PlanktonParser::FunctionInitContext>(context);
+    auto functionContexts = GetFunctions<PlanktonParser::FunctionInitContext>(context);
     if (functionContexts.empty())
         throw std::logic_error("Parse error: missing '__init__' function."); // TODO: better error handling
     if (functionContexts.size() != 1)
@@ -88,7 +81,7 @@ std::unique_ptr<Function> MakeInitFunction(PlanktonParser::ProgramContext& conte
 }
 
 std::string MakeName(PlanktonParser::ProgramContext& context, AstBuilder& /*builder*/) {
-    for (auto* optionContext : Elements<PlanktonParser::OptionContext>(context)) {
+    for (auto* optionContext : context.option()) {
         if (optionContext->ident->getText() == "name") return optionContext->str->getText();
     }
     return "Untitled Program";

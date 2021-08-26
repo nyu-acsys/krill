@@ -18,31 +18,31 @@ inline const T& CheckResult(const T* object, const std::string& name, const std:
     throw std::logic_error("Parse error: undefined " + symbolClass + " '" + name + "'."); //  TODO: better error handling
 }
 
-const Type& AstBuilder::TypeByName(const std::string& name) {
+const Type& AstBuilder::TypeByName(const std::string& name) const {
     return CheckResult(TypeByNameOrNull(name), name, "type");
 }
 
-const VariableDeclaration& AstBuilder::VariableByName(const std::string& name) {
+const VariableDeclaration& AstBuilder::VariableByName(const std::string& name) const {
     return CheckResult(VariableByNameOrNull(name), name, "symbol");
 }
 
-const Function& AstBuilder::FunctionByName(const std::string& name) {
+const Function& AstBuilder::FunctionByName(const std::string& name) const {
     return CheckResult(FunctionByNameOrNull(name), name, "function symbol");
 }
 
-const Type* AstBuilder::TypeByNameOrNull(const std::string& name) {
+const Type* AstBuilder::TypeByNameOrNull(const std::string& name) const {
     if (name == "void") throw std::logic_error("Internal error: 'void' not allowed here."); // TODO: better error handling
     if (name == Type::Bool().name) return &Type::Bool();
     if (name == Type::Data().name) return &Type::Data();
     return GetOrNull(_types, name);
 }
 
-const Function* AstBuilder::FunctionByNameOrNull(const std::string& name) {
+const Function* AstBuilder::FunctionByNameOrNull(const std::string& name) const {
     if (name == "__init__") throw std::logic_error("Internal error: '__init__' not allowed here."); // TODO: better error handling
     return GetOrNull(_functions, name);
 }
 
-const VariableDeclaration* AstBuilder::VariableByNameOrNull(const std::string& name) {
+const VariableDeclaration* AstBuilder::VariableByNameOrNull(const std::string& name) const {
     for (const auto& level : _variables) {
         if (auto find = GetOrNull(level, name)) return find;
     }

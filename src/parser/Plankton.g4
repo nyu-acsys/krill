@@ -5,16 +5,24 @@ grammar Plankton;
 /************ Parser rules: programs ***********/
 /***********************************************/
 
-program : option* programElement* EOF ;
+program : option* (
+            structs+=structDecl
+          | vars+=varDeclList ';'
+          | funcs+=function
+          | ctns+=containsPredicate
+          | outf+=outflowPredicate
+          | vinv+=variableInvariant
+          | ninv+=nodeInvariant
+        )* EOF ;
 
-programElement : structDecl         #programStruct
-               | varDeclList ';'    #programVariable
-               | function           #programFunction
-               | containsPredicate  #programContains
-               | outflowPredicate   #programOutflow
-               | variableInvariant  #programInvariantVariable
-               | nodeInvariant      #programInvariantNode
-               ;
+//programElement : structDecl         #programStruct
+//               | varDeclList ';'    #programVariable
+//               | function           #programFunction
+//               | containsPredicate  #programContains
+//               | outflowPredicate   #programOutflow
+//               | variableInvariant  #programInvariantVariable
+//               | nodeInvariant      #programInvariantNode
+//               ;
 
 //
 // Options
@@ -157,20 +165,19 @@ logicCondition : binaryCondition                                       #condLogi
 containsPredicate : 'def' Contains
                     '(' nodeType=type nodeName=Identifier ',' valueType=type valueName=Identifier ')'
                     '{' formula '}'
-                    #predContains
                   ;
 
 outflowPredicate : 'def' Outflow '[' field=Identifier ']'
                    '(' nodeType=type nodeName=Identifier ',' valueType=type valueName=Identifier ')'
                    '{' formula '}'
-                   #predOutflow
                  ;
 
-variableInvariant : 'def' Invariant '[' name=Identifier ']' '(' ')' '{' invariant '}'  #invVariable
+variableInvariant : 'def' Invariant '[' name=Identifier ']' '(' ')' '{' invariant '}'
                   ;
 
-nodeInvariant : 'def' Invariant '[' Shared ']' '(' nodeType=type nodeName=Identifier ')' '{' invariant '}' #invShared
-              | 'def' Invariant '[' Local  ']' '(' nodeType=type nodeName=Identifier ')' '{' invariant '}' #invLocal
+nodeInvariant : 'def' Invariant '[' isShared=Shared | isLocal=Local ']'
+                '(' nodeType=type nodeName=Identifier ')'
+                '{' invariant '}'
               ;
 
 

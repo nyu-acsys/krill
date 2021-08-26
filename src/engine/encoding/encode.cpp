@@ -28,9 +28,17 @@ z3::expr_vector Encoding::AsVector(const std::vector<EExpr>& vector) {
     return result;
 }
 
-EExpr Encoding::MakeDistinct(const std::vector<EExpr>& vec) { return EExpr(z3::distinct(AsVector(vec))); }
-EExpr Encoding::MakeAnd(const std::vector<EExpr>& vec) { return EExpr(z3::mk_and(AsVector(vec))); }
-EExpr Encoding::MakeOr(const std::vector<EExpr>& vec) { return EExpr(z3::mk_or(AsVector(vec))); }
+EExpr Encoding::MakeDistinct(const std::vector<EExpr>& vec) {
+    return EExpr(z3::distinct(AsVector(vec)));
+}
+EExpr Encoding::MakeAnd(const std::vector<EExpr>& vec) {
+    if (vec.empty()) return Bool(true);
+    return EExpr(z3::mk_and(AsVector(vec)));
+}
+EExpr Encoding::MakeOr(const std::vector<EExpr>& vec) {
+    if (vec.empty()) return Bool(false);
+    return EExpr(z3::mk_or(AsVector(vec)));
+}
 EExpr Encoding::MakeAtMost(const std::vector<EExpr>& vec, unsigned int count) {
     return EExpr(z3::atmost(AsVector(vec), count));
 }

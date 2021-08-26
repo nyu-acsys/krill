@@ -15,30 +15,29 @@ namespace plankton {
         static ParsingResult BuildFrom(std::istream& input, bool spuriousCasFails); // may return NULL config
         
         // declarations (lookup / creation)
-        const Type& TypeByName(const std::string& name);
-        const Type* TypeByNameOrNull(const std::string& name);
-        const VariableDeclaration& VariableByName(const std::string& name);
-        const VariableDeclaration* VariableByNameOrNull(const std::string& name);
-        const Function& FunctionByName(const std::string& name);
-        const Function* FunctionByNameOrNull(const std::string& name);
+        const Type& TypeByName(const std::string& name) const;
+        const Type* TypeByNameOrNull(const std::string& name) const;
+        const VariableDeclaration& VariableByName(const std::string& name) const;
+        const VariableDeclaration* VariableByNameOrNull(const std::string& name) const;
+        const Function& FunctionByName(const std::string& name) const;
+        const Function* FunctionByNameOrNull(const std::string& name) const;
         void AddDecl(std::unique_ptr<Type> type);
         void AddDecl(std::unique_ptr<VariableDeclaration> variable);
         void AddDecl(std::unique_ptr<Function> function);
         void AddDecl(PlanktonParser::VarDeclContext& context, bool shared);
         void AddDecl(PlanktonParser::VarDeclListContext& context, bool shared);
+        void PushScope();
+        std::vector<std::unique_ptr<VariableDeclaration>> PopScope();
         
         // program
         std::unique_ptr<Program> MakeProgram(PlanktonParser::ProgramContext& context);
         std::unique_ptr<Function> MakeFunction(PlanktonParser::FunctionContext& context);
-        std::string MakeBaseTypeName(PlanktonParser::TypeContext& context);
+        std::string MakeBaseTypeName(PlanktonParser::TypeContext& context) const;
         
         // config
-        std::unique_ptr<SolverConfig> MakeConfig(PlanktonParser::ProgramContext& context);
-        // std::unique_ptr<Formula> MakeContains(PlanktonParser::ContainsPredicateContext& context);
-        // std::unique_ptr<Formula> MakeOutflow(PlanktonParser::OutflowPredicateContext& context);
-        // VariableInvariantGenerator MakeInvariant(PlanktonParser::VariableInvariantContext& context);
-        // LocalInvariantGenerator MakeInvariant(PlanktonParser::InvLocalContext& context);
-        // SharedInvariantGenerator MakeInvariant(PlanktonParser::InvSharedContext& context);
+        std::unique_ptr<ParsedSolverConfig> MakeConfig(PlanktonParser::ProgramContext& context);
+        std::unique_ptr<Formula> MakeFormula(PlanktonParser::FormulaContext& context, const Formula& eval);
+        std::unique_ptr<Invariant> MakeInvariant(PlanktonParser::InvariantContext& context, const Formula& eval);
         
         // expressions
         std::unique_ptr<ValueExpression> MakeExpression(PlanktonParser::ExpressionContext& context);
@@ -80,8 +79,6 @@ namespace plankton {
             std::deque<std::deque<std::unique_ptr<VariableDeclaration>>> _variables;
             
             explicit AstBuilder(bool spuriousCasFails);
-            void PushScope();
-            std::vector<std::unique_ptr<VariableDeclaration>> PopScope();
     };
     
 }
