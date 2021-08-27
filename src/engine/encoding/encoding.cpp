@@ -30,6 +30,10 @@ EExpr::EExpr(std::unique_ptr<InternalExpr> repr_) : repr(std::move(repr_)) {
 EExpr::EExpr(const EExpr& other) : EExpr(other.repr->Copy()) {
 }
 
+EExpr& EExpr::operator=(const EExpr& other) {
+    repr = other.repr->Copy();
+    return *this;
+}
 
 //
 // Encoding

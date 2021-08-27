@@ -185,21 +185,21 @@ nodeInvariant : 'def' Invariant '[' isShared=Shared | isLocal=Local ']'
 /************* Parser rules: logic *************/
 /***********************************************/
 
-formula : axiom                                           #formulaAxiom
-        | conjuncts+=formula ( And conjuncts+=formula )+  #formulaSepCon
+formula : conjuncts+=axiom
+        | '(' conjuncts+=axiom ')'
+        | conjuncts+=axiom ( And conjuncts+=axiom )+
+        | '(' conjuncts+=axiom ( And conjuncts+=axiom )+ ')'
         ;
 
-axiom : binaryCondition                                                               #axiomCondition
-      | name=Identifier '->' '_flow' Eq '0'                                           #axiomFlowEmpy
-      | name=Identifier '->' '_flow' Neq '0'                                          #axiomFlowNonEmpty
-      | member=Identifier In name=Identifier '->' FlowField                           #axiomFlowValue
-      | '[' low=Identifier ',' high=Identifier ']' In name=Identifier '->' FlowField  #axiomFlowRange
+axiom : binaryCondition                                                                           #axiomCondition
+      | name=Identifier '->' FlowField Eq '0'                                                     #axiomFlowEmpty
+      | name=Identifier '->' FlowField Neq '0'                                                    #axiomFlowNonEmpty
+      | member=Identifier In name=Identifier '->' FlowField                                       #axiomFlowValue
+      | '[' low=simpleExpression ',' high=simpleExpression ']' In name=Identifier '->' FlowField  #axiomFlowRange
       ;
 
-wrappedFormula : formula | '(' formula ')' ;
-
-separatingImplication : lhs=wrappedFormula Imp lhs=wrappedFormula
-                      | '(' lhs=wrappedFormula Imp lhs=wrappedFormula ')'
+separatingImplication : lhs=formula Imp rhs=formula
+                      | '(' lhs=formula Imp rhs=formula ')'
                       ;
 
 invariant : separatingImplication ( And separatingImplication )* ;

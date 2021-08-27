@@ -11,7 +11,7 @@
 
 namespace plankton {
     
-    struct InternalExpr { // TODO: remove
+    struct InternalExpr {
         virtual ~InternalExpr() = default;
         [[nodiscard]] virtual std::unique_ptr<InternalExpr> Negate() const = 0;
         [[nodiscard]] virtual std::unique_ptr<InternalExpr> And(const InternalExpr& other) const = 0;
@@ -47,6 +47,7 @@ namespace plankton {
         [[nodiscard]] const InternalExpr& Repr() const;
         explicit EExpr(std::unique_ptr<InternalExpr> repr);
         EExpr(const EExpr& other);
+        EExpr& operator=(const EExpr& other);
     
         private:
             std::unique_ptr<InternalExpr> repr;

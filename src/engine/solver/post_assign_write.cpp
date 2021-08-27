@@ -319,8 +319,8 @@ inline std::vector<std::function<std::unique_ptr<Axiom>()>> GetContextGenerators
                     [&symbol]() { return MakeBinary<BinaryOperator::LT>(symbol, std::make_unique<SymbolicMax>()); }
                 };
                 case Sort::PTR: return { // NULL or not
-                    [&symbol]() { return MakeBinary<BinaryOperator::EQ>(symbol, std::make_unique<SymbolicNull>(symbol.type)); },
-                    [&symbol]() { return MakeBinary<BinaryOperator::NEQ>(symbol, std::make_unique<SymbolicNull>(symbol.type)); }
+                    [&symbol]() { return MakeBinary<BinaryOperator::EQ>(symbol, std::make_unique<SymbolicNull>()); },
+                    [&symbol]() { return MakeBinary<BinaryOperator::NEQ>(symbol, std::make_unique<SymbolicNull>()); }
                 };
             }
         case Order::SECOND:

@@ -21,7 +21,7 @@ struct UpdateMap {
         for (std::size_t index = 0; index < command.lhs.size(); ++index) {
             auto dereference = command.lhs.at(index).get();
             auto variable = &dereference->variable->Decl();
-            auto value = command.rhs.at(index).get();
+            auto rhs = command.rhs.at(index).get();
             lookup[variable].emplace_back(dereference, value);
         }
     }
@@ -71,14 +71,15 @@ inline FlowGraphNode MakeNodeFromResource(const MemoryAxiom& axiom, SymbolFactor
 }
 
 struct FlowGraphGenerator {
-    const UpdateMap& updates;
+    const MemoryWrite& command;
     FlowGraph& graph;
     SeparatingConjunction& state;
     SymbolFactory factory;
     Encoding encoding;
+    UpdateMap updates;
     
-    explicit FlowGraphGenerator(FlowGraph& empty, const UpdateMap& updates)
-            : updates(updates), graph(empty), state(*empty.pre->now) {
+    explicit FlowGraphGenerator(FlowGraph& empty, const MemoryWrite& command)
+            : command(command), graph(empty), state(*empty.pre->now) {
     }
     
     inline bool IsDistinct(const SymbolDeclaration& address) {
@@ -97,7 +98,6 @@ struct FlowGraphGenerator {
             throw std::logic_error("Unsupported assignment: updates field '" + field + "' twice."); // TODO: better error handling
         };
         
-        // TODO: syntactic check sufficient?
         auto isSameAsNode = [&node](auto& var){ return var.Value() == node.address; };
         auto variables = plankton::Collect<EqualsToAxiom>(state, isSameAsNode);
         for (const auto& variable : variables) {
@@ -205,7 +205,7 @@ struct FlowGraphGenerator {
         std::set<const SymbolDeclaration*> frontier;
         while (true) {
             encoding.Push();
-            encoding.AddPremise(state); // TODO: encoding.AddPremise(graph) for more precision (trades in runtime)?
+            encoding.AddPremise(graph); // TODO: state vs graph
             encoding.AddPremise(encoding.EncodeInvariants(state, graph.config));
             encoding.AddPremise(encoding.EncodeAcyclicity(state));
             encoding.AddPremise(encoding.EncodeOwnership(state));
@@ -230,7 +230,8 @@ FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const Mem
     for (const auto& lhs : command.lhs)
         depth = std::max(depth, config.GetMaxFootprintDepth(lhs->fieldName));
     
-    // update map must create symbolic variables for immediate values
+    // TODO: update map must create symbolic variables for immediate values ~~> isSameAsNode is a syntactic check
+    // TODO: ensure that distinct variables in command are either eq or neq, add knowledge syntactically
     throw std::logic_error("not yet implemented: plankton::MakeFlowFootprint");
     UpdateMap updateMap(command);
     FlowGraph graph(std::move(pre), config);
@@ -241,7 +242,7 @@ FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const Mem
         auto target = graph.GetNodeOrNull(plankton::Evaluate(*dereference->variable, *graph.pre->now));
         if (target) continue;
         throw std::logic_error("Footprint construction failed: update to '"
-                               + plankton::ToString(*dereference) + "' not covered.");
+                               + plankton::ToString(*dereference) + "' not covered."); // TODO: better error handling
     }
     
     DEBUG("Footprint: " << std::endl)
