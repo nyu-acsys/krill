@@ -24,7 +24,7 @@ namespace plankton {
         void Visit(const Skip& object) override;
         void Visit(const Break& object) override;
         void Visit(const Assume& object) override;
-        void Visit(const Assert& object) override;
+        void Visit(const Fail& object) override;
         void Visit(const Return& object) override;
         void Visit(const Malloc& object) override;
         void Visit(const Macro& object) override;

@@ -35,6 +35,7 @@ set(SOURCES
         solver/scope.cpp
         solver/solver.cpp
         solver/stability.cpp
+        solver/unsat.cpp
 
         proof/common.cpp
         proof/api.cpp

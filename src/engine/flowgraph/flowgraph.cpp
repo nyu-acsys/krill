@@ -22,6 +22,10 @@ Field::Field(std::string name, const Type& type, const SymbolDeclaration& value)
     assert(value.order == Order::FIRST);
 }
 
+bool Field::HasUpdated() const {
+    return Value(EMode::PRE) != Value(EMode::POST);
+}
+
 const SymbolDeclaration& Field::Value(EMode mode) const {
     return Switch(mode, preValue, postValue);
 }
@@ -52,6 +56,15 @@ FlowGraphNode::FlowGraphNode(const FlowGraph& parent, const SymbolDeclaration& a
           postAllInflow(MkFlow(parent, factory)), postGraphInflow(MkFlow(parent, factory)),
           postKeyset(MkFlow(parent, factory)), frameInflow(MkFlow(parent, factory)) {
     assert(address.order == Order::FIRST);
+}
+
+bool FlowGraphNode::HasUpdatedFlow() const {
+    return AllInflow(EMode::PRE) != AllInflow(EMode::POST);
+}
+
+bool FlowGraphNode::HasUpdated() const {
+    auto hasUp = [](auto& field) { return field.HasUpdated(); };
+    return HasUpdatedFlow() || plankton::Any(dataFields, hasUp) || plankton::Any(pointerFields, hasUp);
 }
 
 bool FlowGraphNode::IsLocal(EMode mode) const {

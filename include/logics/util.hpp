@@ -35,7 +35,6 @@ namespace plankton {
     void RenameSymbols(LogicObject& object, const SymbolRenaming& renaming);
     void RenameSymbols(LogicObject& object, SymbolFactory& factory);
     void RenameSymbols(LogicObject& object, const LogicObject& avoidSymbolsFrom);
-//    void RenameSymbolicSymbols(const std::vector<LogicObject*>& objects, SymbolFactory& factory);
     
     std::unique_ptr<SharedMemoryCore> MakeSharedMemory(const SymbolDeclaration& address, const Type& flowType, SymbolFactory& factory);
     std::unique_ptr<LocalMemoryResource> MakeLocalMemory(const SymbolDeclaration& address, const Type& flowType, SymbolFactory& factory);

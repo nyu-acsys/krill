@@ -47,7 +47,8 @@ namespace plankton {
         
         [[nodiscard]] std::unique_ptr<Annotation> Join(std::deque<std::unique_ptr<Annotation>> annotations) const;
         [[nodiscard]] std::unique_ptr<Annotation> TryAddFulfillment(std::unique_ptr<Annotation> annotation) const;
-
+        [[nodiscard]] bool IsUnsatisfiable(const Annotation& annotation) const;
+    
         [[nodiscard]] std::unique_ptr<Annotation> MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const;
         bool AddInterference(std::deque<std::unique_ptr<HeapEffect>> interference);
         

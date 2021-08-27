@@ -171,6 +171,13 @@ std::unique_ptr<SeparatingImplication> plankton::Copy<SeparatingImplication>(con
 }
 
 template<>
+std::unique_ptr<Invariant> plankton::Copy<Invariant>(const Invariant& object) {
+    auto result = std::make_unique<Invariant>();
+    for (const auto& elem : object.conjuncts) result->conjuncts.push_back(plankton::Copy(*elem));
+    return result;
+}
+
+template<>
 std::unique_ptr<PastPredicate> plankton::Copy<PastPredicate>(const PastPredicate& object) {
     return std::make_unique<PastPredicate>(plankton::Copy(*object.formula));
 }

@@ -22,7 +22,7 @@ MakeFreshCell(const Type& type, const Annotation& frame, const SolverConfig& con
     
     // address is not NULL
     context->Conjoin(std::make_unique<StackAxiom>(
-            BinaryOperator::NEQ, plankton::Copy(*address), std::make_unique<SymbolicNull>(type)
+            BinaryOperator::NEQ, plankton::Copy(*address), std::make_unique<SymbolicNull>()
     ));
     
     // address has no inflow
@@ -32,7 +32,7 @@ MakeFreshCell(const Type& type, const Annotation& frame, const SolverConfig& con
     for (const auto&[field, value] : memory->fieldToValue) {
         if (value->Sort() != Sort::PTR) continue;
         context->Conjoin(std::make_unique<StackAxiom>(
-                BinaryOperator::EQ, plankton::Copy(*value), std::make_unique<SymbolicNull>(type)
+                BinaryOperator::EQ, plankton::Copy(*value), std::make_unique<SymbolicNull>()
         ));
     }
     

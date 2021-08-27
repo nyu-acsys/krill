@@ -22,8 +22,12 @@ void ProofGenerator::Visit(const Break& /*cmd*/) {
     current.clear();
 }
 
-void ProofGenerator::Visit(const Assert& /*cmd*/) {
-    throw std::logic_error("unsupported: 'assert'"); // TODO: better error handling
+void ProofGenerator::Visit(const Fail& /*cmd*/) {
+    for (const auto& annotation : current) {
+        if (solver.IsUnsatisfiable(*annotation)) continue;
+        throw std::logic_error("Program potentially fails / violates an assertion.");
+    }
+    current.clear();
 }
 
 void ProofGenerator::Visit(const Assume& cmd) {

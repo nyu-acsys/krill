@@ -10,25 +10,46 @@ using namespace plankton;
 
 constexpr std::array<EMode, 2> AllEMode = {EMode::PRE, EMode::POST };
 
+//struct UpdateMap {
+//    using update_t = std::pair<const Dereference*, const VariableExpression*>;
+//    using update_list_t = std::vector<update_t>;
+//    using update_map_t = std::map<const VariableDeclaration*, update_list_t>;
+//    update_map_t lookup;
+//
+//    explicit UpdateMap(const MemoryWrite& command) {
+//        assert(command.lhs.size() == command.rhs.size());
+//        for (std::size_t index = 0; index < command.lhs.size(); ++index) {
+//            auto dereference = command.lhs.at(index).get();
+//            auto variable = &dereference->variable->Decl();
+//            auto rhs = command.rhs.at(index).get();
+//            lookup[variable].emplace_back(dereference, value);
+//        }
+//    }
+//
+//    [[nodiscard]] const update_list_t& GetUpdates(const VariableDeclaration& decl) const {
+//        static update_list_t empty = {};
+//        auto find = lookup.find(&decl);
+//        if (find != lookup.end()) return find->second;
+//        else return empty;
+//    }
+//};
+
 struct UpdateMap {
-    using update_t = std::pair<const Dereference*, const VariableExpression*>;
-    using update_list_t = std::vector<update_t>;
-    using update_map_t = std::map<const VariableDeclaration*, update_list_t>;
-    update_map_t lookup;
+    using update_list_t = std::vector<std::pair<std::string, const SymbolDeclaration*>>;
+    std::map<const SymbolDeclaration*, update_list_t> lookup;
     
-    explicit UpdateMap(const MemoryWrite& command) {
-        assert(command.lhs.size() == command.rhs.size());
-        for (std::size_t index = 0; index < command.lhs.size(); ++index) {
-            auto dereference = command.lhs.at(index).get();
-            auto variable = &dereference->variable->Decl();
-            auto rhs = command.rhs.at(index).get();
-            lookup[variable].emplace_back(dereference, value);
-        }
+    inline void Reset() {
+        lookup.clear();
     }
     
-    [[nodiscard]] const update_list_t& GetUpdates(const VariableDeclaration& decl) const {
+    inline void Add(const SymbolDeclaration& address, const std::string& field, const SymbolDeclaration& value) {
+        lookup[&address].emplace_back(field, &value);
+    }
+    
+    [[nodiscard]] inline const update_list_t& GetUpdates(const SymbolDeclaration& address) const {
+        assert(address.type.sort == Sort::PTR);
         static update_list_t empty = {};
-        auto find = lookup.find(&decl);
+        auto find = lookup.find(&address);
         if (find != lookup.end()) return find->second;
         else return empty;
     }
@@ -59,7 +80,7 @@ inline FlowGraphNode MakeNodeFromResource(const MemoryAxiom& axiom, SymbolFactor
     auto& flowType = axiom.flow->Type();
     result.dataFields.reserve(axiom.fieldToValue.size());
     result.pointerFields.reserve(axiom.fieldToValue.size());
-    for (const auto&[name, value] : axiom.fieldToValue) {
+    for (const auto& [name, value] : axiom.fieldToValue) {
         if (value->Sort() == Sort::PTR) {
             result.pointerFields.emplace_back(name, value->Type(), value->Decl(), factory, flowType);
         } else {
@@ -70,16 +91,69 @@ inline FlowGraphNode MakeNodeFromResource(const MemoryAxiom& axiom, SymbolFactor
     return result;
 }
 
+inline std::unique_ptr<StackAxiom> MakeEquality(const SymbolDeclaration& lhs, std::unique_ptr<SymbolicExpression> rhs) {
+    return std::make_unique<StackAxiom>(BinaryOperator::EQ, std::make_unique<SymbolicVariable>(lhs), std::move(rhs));
+}
+
+struct UpdateHelper {
+    const SymbolDeclaration &trueValue, &falseValue, &minValue, &maxValue, &nullValue;
+    SeparatingConjunction valuation;
+    
+    explicit UpdateHelper(SymbolFactory& factory)
+            : trueValue(factory.GetFreshFO(Type::Bool())), falseValue(factory.GetFreshFO(Type::Bool())),
+              minValue(factory.GetFreshFO(Type::Data())), maxValue(factory.GetFreshFO(Type::Data())),
+              nullValue(factory.GetFreshFO(Type::Null())) {
+        valuation.Conjoin(MakeEquality(trueValue, std::make_unique<SymbolicBool>(true)));
+        valuation.Conjoin(MakeEquality(falseValue, std::make_unique<SymbolicBool>(false)));
+        valuation.Conjoin(MakeEquality(minValue, std::make_unique<SymbolicMin>()));
+        valuation.Conjoin(MakeEquality(maxValue, std::make_unique<SymbolicMax>()));
+        valuation.Conjoin(MakeEquality(nullValue, std::make_unique<SymbolicNull>()));
+    }
+};
+
+struct SymbolMaker : public BaseProgramVisitor {
+    const Formula& state;
+    const UpdateHelper& helper;
+    const SymbolDeclaration* result = nullptr;
+    explicit SymbolMaker(const Formula& state, const UpdateHelper& helper) : state(state), helper(helper) {}
+    void Visit(const TrueValue& /*object*/) override { result = &helper.trueValue; }
+    void Visit(const FalseValue& /*object*/) override { result = &helper.falseValue; }
+    void Visit(const MinValue& /*object*/) override { result = &helper.minValue; }
+    void Visit(const MaxValue& /*object*/) override { result = &helper.maxValue; }
+    void Visit(const NullValue& /*object*/) override { result = &helper.nullValue; }
+    void Visit(const VariableExpression& object) override { result = &plankton::Evaluate(object, state); }
+    inline const SymbolDeclaration& AsSymbol(const SimpleExpression& expr) {
+        result = nullptr;
+        expr.Accept(*this);
+        if (result) return *result;
+        throw std::logic_error("Internal error: could not create logic representation for memory update.");
+    }
+};
+
 struct FlowGraphGenerator {
     const MemoryWrite& command;
     FlowGraph& graph;
     SeparatingConjunction& state;
     SymbolFactory factory;
     Encoding encoding;
+    UpdateHelper helper;
     UpdateMap updates;
     
     explicit FlowGraphGenerator(FlowGraph& empty, const MemoryWrite& command)
-            : command(command), graph(empty), state(*empty.pre->now) {
+            : command(command), graph(empty), state(*empty.pre->now), factory(*graph.pre), helper(factory) {
+        assert(command.lhs.size() == command.rhs.size());
+    }
+    
+    void MakeUpdates() {
+        updates.Reset();
+        state.Conjoin(plankton::Copy(helper.valuation));
+        SymbolMaker symbolMaker(state, helper);
+        for (std::size_t index = 0; index < command.lhs.size(); ++index) {
+            auto& dereference = *command.lhs.at(index);
+            auto& address = symbolMaker.AsSymbol(*dereference.variable);
+            auto& value = symbolMaker.AsSymbol(*command.rhs.at(index));
+            updates.Add(address, dereference.fieldName, value);
+        }
     }
     
     inline bool IsDistinct(const SymbolDeclaration& address) {
@@ -90,24 +164,18 @@ struct FlowGraphGenerator {
         return encoding.Implies(encoding.MakeAnd(vector));
     }
     
-    inline void ApplyUpdates(FlowGraphNode& node) {
+    inline void ApplyUpdates(FlowGraphNode& node) const {
         std::set<std::string> updatedFields;
         auto checkUpdate = [&updatedFields](const std::string& field) {
             auto insertion = updatedFields.insert(field);
             if (insertion.second) return;
             throw std::logic_error("Unsupported assignment: updates field '" + field + "' twice."); // TODO: better error handling
         };
-        
-        auto isSameAsNode = [&node](auto& var){ return var.Value() == node.address; };
-        auto variables = plankton::Collect<EqualsToAxiom>(state, isSameAsNode);
-        for (const auto& variable : variables) {
-            for (const auto& [lhs, rhs] : updates.GetUpdates(variable->Variable())) {
-                assert(node.address == plankton::Evaluate(*lhs->variable, state));
-                checkUpdate(lhs->fieldName);
-                auto& field = node.GetField(lhs->fieldName);
-                auto& newValue = plankton::Evaluate(*rhs, state);
-                field.postValue = newValue;
-            }
+
+        for (const auto& [fieldName, newValue] : updates.GetUpdates(node.address)) {
+            checkUpdate(fieldName);
+            auto& field = node.GetField(fieldName);
+            field.postValue = *newValue;
         }
     }
     
@@ -140,14 +208,23 @@ struct FlowGraphGenerator {
         }
     };
     
-    std::set<const SymbolDeclaration*> ExpandGraph(std::size_t maxDepth) {
-        if (maxDepth == 0) return { };
-        Worklist worklist(maxDepth, graph.nodes.front());
+    inline std::size_t GetExpansionDepth(const FlowGraphNode& node, std::size_t remainingDepth) {
+        auto handle = [this,&remainingDepth](auto& field){
+            remainingDepth = std::max(remainingDepth, graph.config.GetMaxFootprintDepth(field.name));
+        };
+        for (const auto& field : node.dataFields) handle(field);
+        for (const auto& field : node.pointerFields) handle(field);
+        return remainingDepth;
+    }
+    
+    std::set<const SymbolDeclaration*> ExpandGraph(std::size_t initialDepth) {
+        Worklist worklist(initialDepth, graph.nodes.front());
         std::set<const SymbolDeclaration*> missingFrontier;
 
         // expand until maxDepth is reached
         while (!worklist.Empty()) {
             auto [depth, node] = worklist.Take();
+            depth = GetExpansionDepth(*node, depth);
             InlineAliases(*node);
             if (depth == 0) continue;
 
@@ -202,10 +279,15 @@ struct FlowGraphGenerator {
     }
     
     void Construct(const VariableDeclaration& root, std::size_t depth) {
+        plankton::ExtendStack(*graph.pre, encoding, ExtensionPolicy::POINTERS);
+        plankton::InlineAndSimplify(*graph.pre);
+        
         std::set<const SymbolDeclaration*> frontier;
         while (true) {
+            MakeUpdates();
+
             encoding.Push();
-            encoding.AddPremise(graph); // TODO: state vs graph
+            encoding.AddPremise(state);
             encoding.AddPremise(encoding.EncodeInvariants(state, graph.config));
             encoding.AddPremise(encoding.EncodeAcyclicity(state));
             encoding.AddPremise(encoding.EncodeOwnership(state));
@@ -225,24 +307,20 @@ struct FlowGraphGenerator {
 
 FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const MemoryWrite& command, const SolverConfig& config) {
     assert(!command.lhs.empty());
-    auto& root = command.lhs.front()->variable->Decl();
-    std::size_t depth = 0;
-    for (const auto& lhs : command.lhs)
-        depth = std::max(depth, config.GetMaxFootprintDepth(lhs->fieldName));
+    auto& lhs = *command.lhs.front();
+    auto& root = lhs.variable->Decl();
+    auto depth = config.GetMaxFootprintDepth(lhs.fieldName);
     
-    // TODO: update map must create symbolic variables for immediate values ~~> isSameAsNode is a syntactic check
-    // TODO: ensure that distinct variables in command are either eq or neq, add knowledge syntactically
-    throw std::logic_error("not yet implemented: plankton::MakeFlowFootprint");
-    UpdateMap updateMap(command);
     FlowGraph graph(std::move(pre), config);
-    FlowGraphGenerator generator(graph, updateMap);
+    FlowGraphGenerator generator(graph, command);
     generator.Construct(root, depth);
     
+    // ensure that all updates are covered by the footprint
+    // Note: this guarantees that FlowGraphGenerator.updates are non-overlapping since graph.nodes are non-overlapping
     for (const auto& dereference : command.lhs) {
         auto target = graph.GetNodeOrNull(plankton::Evaluate(*dereference->variable, *graph.pre->now));
         if (target) continue;
-        throw std::logic_error("Footprint construction failed: update to '"
-                               + plankton::ToString(*dereference) + "' not covered."); // TODO: better error handling
+        throw std::logic_error("Footprint construction failed: update to '" + plankton::ToString(*dereference) + "' not covered."); // TODO: better error handling
     }
     
     DEBUG("Footprint: " << std::endl)

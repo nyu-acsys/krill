@@ -53,19 +53,6 @@ inline std::unique_ptr<StackAxiom> MakeBinary(const SymbolDeclaration& lhs, std:
     return std::make_unique<StackAxiom>(Op, std::make_unique<SymbolicVariable>(lhs), std::move(rhs));
 }
 
-inline bool HasUpdatedFlow(const FlowGraphNode& node) {
-    return node.AllInflow(EMode::PRE) != node.AllInflow(EMode::POST);
-}
-
-inline bool HasUpdatedField(const Field& field) {
-    return field.Value(EMode::PRE) != field.Value(EMode::PRE);
-}
-
-inline bool HasUpdates(const FlowGraphNode& node) {
-    auto hasUp = [](const auto& field) { return HasUpdatedField(field); };
-    return HasUpdatedFlow(node) || plankton::Any(node.dataFields, hasUp) || plankton::Any(node.pointerFields, hasUp);
-}
-
 
 //
 // Checks
@@ -254,9 +241,9 @@ inline std::unique_ptr<SharedMemoryCore> HandleSharedOutside(PostImageInfo& info
     
     for (const auto& inside : info.footprint.nodes) {
         if (plankton::Membership(info.outsideInsideDistinct[&outsideAdr], &inside.address)) continue;
-        if (HasUpdatedFlow(inside)) updateFlow();
-        for (const auto& field : inside.dataFields) if (HasUpdatedField(field)) updateField(field);
-        for (const auto& field : inside.pointerFields) if (HasUpdatedField(field)) updateField(field);
+        if (inside.HasUpdatedFlow()) updateFlow();
+        for (const auto& field : inside.dataFields) if (field.HasUpdated()) updateField(field);
+        for (const auto& field : inside.pointerFields) if (field.HasUpdated()) updateField(field);
     }
 
     return result;
@@ -373,7 +360,7 @@ inline std::unique_ptr<SharedMemoryCore> ToSharedMemoryCore(const FlowGraphNode&
 inline std::unique_ptr<HeapEffect> ExtractEffect(PostImageInfo& info, const FlowGraphNode& node) {
     // ignore local nodes; after minimization, all remaining footprint nodes contain changes
     if (node.preLocal) return nullptr;
-    if (!HasUpdates(node)) return nullptr;
+    if (!node.HasUpdated()) return nullptr;
     auto pre = ToSharedMemoryCore(node, EMode::PRE);
     auto post = ToSharedMemoryCore(node, EMode::POST);
     auto context = GetNodeUpdateContext(info, *pre);

@@ -3,7 +3,7 @@
 using namespace plankton;
 
 
-SymbolRenaming MakeDefaultRenaming(SymbolFactory& factory) {
+SymbolRenaming plankton::MakeDefaultRenaming(SymbolFactory& factory) {
     std::map<const SymbolDeclaration*, const SymbolDeclaration*> map;
     auto renaming = [map=std::move(map),&factory](const SymbolDeclaration& symbol) mutable -> const SymbolDeclaration& {
         auto find = map.find(&symbol);

@@ -37,9 +37,7 @@ set(SOURCES
 )
 
 add_library(Parser ${SOURCES} ${ANTLR_PlanktonParser_CXX_OUTPUTS})
-target_link_libraries(Parser Programs Logics antlr4_static)
-#add_dependencies(Parser antlr4_static)
-#target_link_libraries(Parser PRIVATE antlr4_static)
+target_link_libraries(Parser Programs Logics Engine antlr4_static)
 
 add_executable(ParserTest test.cpp)
 target_link_libraries(ParserTest Parser)

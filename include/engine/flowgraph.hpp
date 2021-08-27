@@ -14,11 +14,12 @@ namespace plankton {
         const Type& type;
         std::reference_wrapper<const SymbolDeclaration> preValue;
         std::reference_wrapper<const SymbolDeclaration> postValue;
-
+    
         Field(Field&& other) = default;
         Field(const Field& other) = delete;
         Field(std::string name, const Type& type, const SymbolDeclaration& value);
-        
+    
+        [[nodiscard]] bool HasUpdated() const;
         [[nodiscard]] const SymbolDeclaration& Value(EMode mode) const;
     };
     
@@ -57,7 +58,9 @@ namespace plankton {
         FlowGraphNode(const FlowGraphNode& other) = delete;
         FlowGraphNode(const FlowGraph& parent, const SymbolDeclaration& address, bool local,
                       const SymbolDeclaration& preFlow, SymbolFactory& factory);
-        
+    
+        [[nodiscard]] bool HasUpdated() const;
+        [[nodiscard]] bool HasUpdatedFlow() const;
         [[nodiscard]] bool IsLocal(EMode mode) const;
         [[nodiscard]] const SymbolDeclaration& AllInflow(EMode mode) const;
         [[nodiscard]] const SymbolDeclaration& GraphInflow(EMode mode) const;

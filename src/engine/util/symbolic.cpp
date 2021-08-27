@@ -20,7 +20,7 @@ struct ExpressionConverter : public BaseProgramVisitor {
     void Visit(const FalseValue& /*object*/) override { result = std::make_unique<SymbolicBool>(false); }
     void Visit(const MinValue& /*object*/) override { result = std::make_unique<SymbolicMin>(); }
     void Visit(const MaxValue& /*object*/) override { result = std::make_unique<SymbolicMax>(); }
-    void Visit(const NullValue& object) override { result = std::make_unique<SymbolicNull>(object.Type()); }
+    void Visit(const NullValue& /*object*/) override { result = std::make_unique<SymbolicNull>(); }
 };
 
 void foo(){}
