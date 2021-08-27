@@ -1,5 +1,6 @@
 #include "engine/encoding.hpp"
 
+#include "internal.hpp"
 #include "logics/util.hpp"
 #include "engine/util.hpp"
 
@@ -10,49 +11,52 @@ static constexpr int NULL_VALUE = 0;
 static constexpr int MIN_VALUE = -65536;
 static constexpr int MAX_VALUE = 65536;
 
-EExpr Encoding::Min() { return EExpr(context.int_val(MIN_VALUE)); }
-EExpr Encoding::Max() { return EExpr(context.int_val(MAX_VALUE)); }
-EExpr Encoding::Null() { return EExpr(context.int_val(NULL_VALUE)); }
-EExpr Encoding::Bool(bool val) { return EExpr(context.bool_val(val)); }
+#define CTX AsContext(internal)
+#define SOL AsSolver(internal)
 
-z3::expr Encoding::Replace(const EExpr& expression, const EExpr& replace, const EExpr& with) {
-    z3::expr_vector replaceVec(context), withVec(context);
-    replaceVec.push_back(replace.AsExpr());
-    withVec.push_back(with.AsExpr());
-    return expression.AsExpr().substitute(replaceVec, withVec);
+EExpr Encoding::Min() { return AsEExpr(CTX.int_val(MIN_VALUE)); }
+EExpr Encoding::Max() { return AsEExpr(CTX.int_val(MAX_VALUE)); }
+EExpr Encoding::Null() { return AsEExpr(CTX.int_val(NULL_VALUE)); }
+EExpr Encoding::Bool(bool val) { return AsEExpr(CTX.bool_val(val)); }
+
+EExpr Encoding::Replace(const EExpr& expression, const EExpr& replace, const EExpr& with) {
+    z3::expr_vector replaceVec(CTX), withVec(CTX);
+    replaceVec.push_back(AsExpr(replace));
+    withVec.push_back(AsExpr(with));
+    return AsEExpr(AsExpr(expression).substitute(replaceVec, withVec));
 }
 
-z3::expr_vector Encoding::AsVector(const std::vector<EExpr>& vector) {
+inline z3::expr_vector AsVector(const std::vector<EExpr>& vector, z3::context& context) {
     z3::expr_vector result(context);
-    for (const auto& elem : vector) result.push_back(elem.AsExpr());
+    for (const auto& elem : vector) result.push_back(AsExpr(elem));
     return result;
 }
 
 EExpr Encoding::MakeDistinct(const std::vector<EExpr>& vec) {
-    return EExpr(z3::distinct(AsVector(vec)));
+    return AsEExpr(z3::distinct(AsVector(vec, CTX)));
 }
 EExpr Encoding::MakeAnd(const std::vector<EExpr>& vec) {
     if (vec.empty()) return Bool(true);
-    return EExpr(z3::mk_and(AsVector(vec)));
+    return AsEExpr(z3::mk_and(AsVector(vec, CTX)));
 }
 EExpr Encoding::MakeOr(const std::vector<EExpr>& vec) {
     if (vec.empty()) return Bool(false);
-    return EExpr(z3::mk_or(AsVector(vec)));
+    return AsEExpr(z3::mk_or(AsVector(vec, CTX)));
 }
 EExpr Encoding::MakeAtMost(const std::vector<EExpr>& vec, unsigned int count) {
-    return EExpr(z3::atmost(AsVector(vec), count));
+    return AsEExpr(z3::atmost(AsVector(vec, CTX), count));
 }
 
 
-z3::sort Encoding::EncodeSort(Sort sort) {
+inline z3::sort EncodeSort(Sort sort, z3::context& context) {
     switch (sort) {
         case Sort::BOOL: return context.bool_sort();
         default: return context.int_sort();
     }
 }
 
-z3::expr Encoding::MakeQuantifiedVariable(Sort sort) {
-    return context.constant("__qv", EncodeSort(sort));
+EExpr Encoding::MakeQuantifiedVariable(Sort sort) {
+    return AsEExpr(CTX.constant("__qv", EncodeSort(sort, CTX)));
 }
 
 
@@ -68,8 +72,8 @@ inline V GetOrCreate(std::map<K, V>& map, K key, F create) {
 EExpr Encoding::Encode(const VariableDeclaration& decl) {
     return GetOrCreate(variableEncoding, &decl, [this,&decl](){
         auto name = "__" + decl.name;
-        auto expr = context.constant(name.c_str(), EncodeSort(decl.type.sort));
-        return EExpr(expr);
+        auto expr = CTX.constant(name.c_str(), EncodeSort(decl.type.sort, CTX));
+        return AsEExpr(expr);
     });
 }
 
@@ -79,27 +83,27 @@ EExpr Encoding::Encode(const SymbolDeclaration& decl) {
             return GetOrCreate(symbolEncoding, &decl, [this, &decl]() {
                 // create symbol
                 auto name = "_v" + decl.name;
-                auto expr = context.constant(name.c_str(), EncodeSort(decl.type.sort));
+                auto expr = CTX.constant(name.c_str(), EncodeSort(decl.type.sort, CTX));
                 // add implicit bounds on first order data values
                 if (decl.type.sort == Sort::DATA) {
-                    solver.add(Min().AsExpr() <= expr);
-                    solver.add(expr <= Max().AsExpr());
+                    SOL.add(AsExpr(Min()) <= expr);
+                    SOL.add(expr <= AsExpr(Max()));
                 }
                 // add implicit bounds on second order data values
-                return EExpr(expr);
+                return AsEExpr(expr);
             });
     
         case Order::SECOND:
             return GetOrCreate(symbolEncoding, &decl, [this, &decl]() {
                 // create symbol
                 auto name = "_V" + decl.name;
-                auto expr = context.function(name.c_str(), EncodeSort(decl.type.sort), context.bool_sort());
+                auto expr = CTX.function(name.c_str(), EncodeSort(decl.type.sort, CTX), CTX.bool_sort());
                 // add implicit bounds on data values
                 assert(decl.type.sort == Sort::DATA);
-                auto qv = MakeQuantifiedVariable(decl.type.sort);
-                solver.add(z3::forall(qv, z3::implies(qv < Min().AsExpr(), !expr(qv))));
-                solver.add(z3::forall(qv, z3::implies(qv > Max().AsExpr(), !expr(qv))));
-                return EExpr(expr);
+                auto qv = AsExpr(MakeQuantifiedVariable(decl.type.sort));
+                SOL.add(z3::forall(qv, z3::implies(qv < AsExpr(Min()), !expr(qv))));
+                SOL.add(z3::forall(qv, z3::implies(qv > AsExpr(Max()), !expr(qv))));
+                return AsEExpr(expr);
             });
     }
 }
@@ -107,13 +111,13 @@ EExpr Encoding::Encode(const SymbolDeclaration& decl) {
 EExpr Encoding::EncodeExists(Sort sort, const std::function<EExpr(EExpr)>& makeInner) {
     auto qv = MakeQuantifiedVariable(sort);
     auto inner = makeInner(EExpr(qv));
-    return EExpr(z3::exists(qv, inner.AsExpr()));
+    return AsEExpr(z3::exists(AsExpr(qv), AsExpr(inner)));
 }
 
 EExpr Encoding::EncodeForAll(Sort sort, const std::function<EExpr(EExpr)>& makeInner) {
     auto qv = MakeQuantifiedVariable(sort);
     auto inner = makeInner(EExpr(qv));
-    return EExpr(z3::forall(qv, inner.AsExpr()));
+    return AsEExpr(z3::forall(AsExpr(qv), AsExpr(inner)));
 }
 
 EExpr Encoding::EncodeFlowContains(const SymbolDeclaration& flow, const EExpr& expr) {
@@ -145,14 +149,14 @@ EExpr Encoding::EncodeIsNull(const VariableDeclaration& decl) {
 }
 
 EExpr Encoding::EncodeMemoryEquality(const MemoryAxiom& memory, const MemoryAxiom& other) {
-    z3::expr_vector result(context);
-    result.push_back(Encode(memory.node->Decl()).AsExpr() == Encode(other.node->Decl()).AsExpr());
-    result.push_back(Encode(memory.flow->Decl()).AsExpr() == Encode(other.flow->Decl()).AsExpr());
+    z3::expr_vector result(CTX);
+    result.push_back(AsExpr(Encode(memory.node->Decl()) == Encode(other.node->Decl())));
+    result.push_back(AsExpr(Encode(memory.flow->Decl()) == Encode(other.flow->Decl())));
     assert(memory.node->Type() == other.node->Type());
     for (const auto& [field, value] : memory.fieldToValue) {
-        result.push_back(Encode(value->Decl()).AsExpr() == Encode(other.fieldToValue.at(field)->Decl()).AsExpr());
+        result.push_back(AsExpr(Encode(value->Decl()) == Encode(other.fieldToValue.at(field)->Decl())));
     }
-    return EExpr(z3::mk_and(result));
+    return AsEExpr(z3::mk_and(result));
 }
 
 struct FormulaEncoder : public BaseLogicVisitor {

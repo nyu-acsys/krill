@@ -1,8 +1,12 @@
 #include "engine/encoding.hpp"
 
+#include "internal.hpp"
 #include "logics/util.hpp"
 
 using namespace plankton;
+
+#define CTX AsContext(internal)
+#define SOL AsSolver(internal)
 
 
 inline std::vector<const SymbolDeclaration*> GetGraphInflow(const FlowGraph& graph,
@@ -13,19 +17,18 @@ inline std::vector<const SymbolDeclaration*> GetGraphInflow(const FlowGraph& gra
     return result;
 }
 
-z3::expr
-Encoding::EncodeOutflow(const FlowGraphNode& node, const PointerField& field, EMode mode) {
+EExpr Encoding::EncodeOutflow(const FlowGraphNode& node, const PointerField& field, EMode mode) {
     /* Remark:
      * Laminar flow may suggest that the keyset due to frame flow needs not be considered.
      * However, we need to check that the node inflow remains unique after update. Ignoring inflow that is due to
      * the frame flow on a predecessor might result in erroneous conclusions. Hence, we track root and all outflow.
      * // TODO: check whether this is strictly necessary
      */
-    z3::expr_vector result(context);
+    z3::expr_vector result(CTX);
     auto& graph = node.parent;
     auto flowSort = graph.config.GetFlowValueType().sort;
     auto addRule = [this,&result,flowSort](const auto& func){
-        result.push_back(EncodeForAll(flowSort, func).AsExpr());
+        result.push_back(AsExpr(EncodeForAll(flowSort, func)));
     };
     auto elemOfOutflow = [&](const EExpr& value) -> EExpr {
         return EExpr(EncodeOutflowContains(node, field.name, value, mode));
@@ -48,30 +51,30 @@ Encoding::EncodeOutflow(const FlowGraphNode& node, const PointerField& field, EM
         addRule([&](auto qv){ return allOut(qv) >> nextAllIn(qv); });
     }
 
-    return z3::mk_and(result);
+    return AsEExpr(z3::mk_and(result));
 }
 
-z3::expr Encoding::EncodeFlowRules(const FlowGraphNode& node) {
-    z3::expr_vector result(context);
+EExpr Encoding::EncodeFlowRules(const FlowGraphNode& node) {
+    z3::expr_vector result(CTX);
     auto qv = EExpr(MakeQuantifiedVariable(node.parent.config.GetFlowValueType().sort));
     auto addRule = [&qv, &result](const z3::expr& pre, const z3::expr& imp) {
-        result.push_back(z3::forall(qv.AsExpr(), z3::implies(pre, imp)));
+        result.push_back(z3::forall(AsExpr(qv), z3::implies(pre, imp)));
     };
 
-    z3::expr_vector preOuts(context);
-    z3::expr_vector postOuts(context);
+    z3::expr_vector preOuts(CTX);
+    z3::expr_vector postOuts(CTX);
     for (const auto& field : node.pointerFields) {
-        preOuts.push_back(Encode(field.preAllOutflow)(qv).AsExpr());
-        postOuts.push_back(Encode(field.postAllOutflow)(qv).AsExpr());
+        preOuts.push_back(AsExpr(Encode(field.preAllOutflow)(qv)));
+        postOuts.push_back(AsExpr(Encode(field.postAllOutflow)(qv)));
     }
 
-    auto preGraph = Encode(node.preGraphInflow)(qv).AsExpr();
-    auto postGraph = Encode(node.postGraphInflow)(qv).AsExpr();
-    auto preAll = Encode(node.preAllInflow)(qv).AsExpr();
-    auto postAll = Encode(node.postAllInflow)(qv).AsExpr();
-    auto preKey = Encode(node.preKeyset)(qv).AsExpr();
-    auto postKey = Encode(node.postKeyset)(qv).AsExpr();
-    auto frame = Encode(node.frameInflow)(qv).AsExpr();
+    auto preGraph = AsExpr(Encode(node.preGraphInflow)(qv));
+    auto postGraph = AsExpr(Encode(node.postGraphInflow)(qv));
+    auto preAll = AsExpr(Encode(node.preAllInflow)(qv));
+    auto postAll = AsExpr(Encode(node.postAllInflow)(qv));
+    auto preKey = AsExpr(Encode(node.preKeyset)(qv));
+    auto postKey = AsExpr(Encode(node.postKeyset)(qv));
+    auto frame = AsExpr(Encode(node.frameInflow)(qv));
     auto preOut = z3::mk_or(preOuts);
     auto postOut = z3::mk_or(postOuts);
 
@@ -103,15 +106,15 @@ z3::expr Encoding::EncodeFlowRules(const FlowGraphNode& node) {
         &node.postAllInflow.get() != &node.postGraphInflow.get()) {
         auto makeInflow = [&,this](EMode mode){
             auto graphInflow = GetGraphInflow(node.parent, node, mode);
-            z3::expr_vector inflow(context);
-            for (auto* edge : graphInflow) inflow.push_back(Encode(*edge)(qv).AsExpr());
+            z3::expr_vector inflow(CTX);
+            for (auto* edge : graphInflow) inflow.push_back(AsExpr(Encode(*edge)(qv)));
             return z3::mk_or(inflow);
         };
         addRule(preGraph, makeInflow(EMode::PRE));
         addRule(postGraph, makeInflow(EMode::POST));
     }
 
-    return z3::mk_and(result);
+    return AsEExpr(z3::mk_and(result));
 }
 
 EExpr Encoding::EncodeKeysetDisjointness(const FlowGraph& graph, EMode mode) {

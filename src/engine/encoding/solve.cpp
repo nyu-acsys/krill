@@ -1,5 +1,6 @@
 #include "engine/encoding.hpp"
 
+#include "internal.hpp"
 #include "util/shortcuts.hpp"
 
 using namespace plankton;
@@ -27,16 +28,16 @@ inline bool IsImplied(z3::solver& solver, const z3::expr& expr) {
     }
 }
 
-inline std::vector<bool> ComputeImpliedOneAtATime(z3::solver& solver, const std::deque<z3::expr>& expressions) {
+inline std::vector<bool> ComputeImpliedOneAtATime(z3::solver& solver, const std::deque<EExpr>& expressions) {
     std::vector<bool> result;
     result.reserve(expressions.size());
     for (const auto& check : expressions) {
-        result.push_back(IsImplied(solver, check));
+        result.push_back(IsImplied(solver, AsExpr(check)));
     }
     return result;
 }
 
-inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::deque<z3::expr>& expressions) {
+inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::deque<EExpr>& expressions) {
     // prepare required vectors
     solver.push();
     auto& context = solver.ctx();
@@ -49,7 +50,7 @@ inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::
         std::string name = "__chk__" + std::to_string(index);
         auto var = context.bool_const(name.c_str());
         variables.push_back(var);
-        solver.add(var == expressions.at(index));
+        solver.add(var == AsExpr(expressions.at(index)));
     }
 
     // check
@@ -90,7 +91,7 @@ struct MethodChooser {
     // return method(encoding);
     bool fallback = false;
 
-    inline std::vector<bool> operator()(z3::solver& solver, const std::deque<z3::expr>& expressions) {
+    inline std::vector<bool> operator()(z3::solver& solver, const std::deque<EExpr>& expressions) {
         if (fallback) return ComputeImpliedOneAtATime(solver, expressions);
         try {
             return ComputeImpliedInOneShot(solver, expressions);
@@ -112,7 +113,7 @@ struct MethodChooser {
 void Encoding::Check() {
     assert(checks_premise.size() == checks_callback.size());
     if (checks_premise.empty()) return;
-    auto implied = solvingMethod(solver, checks_premise);
+    auto implied = solvingMethod(AsSolver(internal), checks_premise);
     for (std::size_t index = 0; index < implied.size(); ++index) {
         checks_callback.at(index)(implied.at(index));
     }
@@ -121,31 +122,31 @@ void Encoding::Check() {
 }
 
 bool Encoding::ImpliesFalse() {
-    return IsImplied(solver, context.bool_val(false));
+    return Implies(Bool(false));
 }
 
 bool Encoding::Implies(const EExpr& expr) {
-    return IsImplied(solver, expr.AsExpr());
+    return IsImplied(AsSolver(internal), AsExpr(expr));
 }
 
 bool Encoding::Implies(const Formula& formula) {
-    return IsImplied(solver, Encode(formula).AsExpr());
+    return Implies(Encode(formula));
 }
 
 bool Encoding::Implies(const SeparatingImplication& formula) {
-    return IsImplied(solver, Encode(formula).AsExpr());
+    return Implies(Encode(formula));
 }
 
 bool Encoding::Implies(const Invariant& formula) {
-    return IsImplied(solver, Encode(formula).AsExpr());
+    return Implies(Encode(formula));
 }
 
 std::set<const SymbolDeclaration*> Encoding::ComputeNonNull(std::set<const SymbolDeclaration*> symbols) {
     plankton::DiscardIf(symbols, [](auto* decl){ return decl->type.sort != Sort::PTR; });
     
-    std::deque<z3::expr> expressions;
-    for (const auto* elem : symbols) expressions.push_back(EncodeIsNonNull(*elem).AsExpr());
-    auto implied = solvingMethod(solver, expressions);
+    std::deque<EExpr> expressions;
+    for (const auto* elem : symbols) expressions.push_back(EncodeIsNonNull(*elem));
+    auto implied = solvingMethod(AsSolver(internal), expressions);
     
     auto sym = symbols.begin();
     for (bool isNonNull : implied) {

@@ -1,5 +1,7 @@
 #include "engine/encoding.hpp"
 
+#include "internal.hpp"
+
 using namespace plankton;
 
 
@@ -7,63 +9,25 @@ using namespace plankton;
 // EExpr
 //
 
-z3::expr Err(const z3::ast&) {
-    throw std::logic_error("Internal error: cannot convert to z3 representation."); // better error handling
-}
-z3::expr Error(const z3::ast&, const z3::ast&) {
-    throw std::logic_error("Internal error: cannot convert to z3 representation."); // better error handling
-}
+EExpr EExpr::operator!() const { return EExpr(repr->Negate()); }
+EExpr EExpr::operator&&(const EExpr& other) const { return EExpr(repr->And(*other.repr)); }
+EExpr EExpr::operator||(const EExpr& other) const { return EExpr(repr->Or(*other.repr)); }
+EExpr EExpr::operator==(const EExpr& other) const { return EExpr(repr->Eq(*other.repr)); }
+EExpr EExpr::operator!=(const EExpr& other) const { return EExpr(repr->Neq(*other.repr)); }
+EExpr EExpr::operator<(const EExpr& other) const { return EExpr(repr->Lt(*other.repr)); }
+EExpr EExpr::operator<=(const EExpr& other) const { return EExpr(repr->Leq(*other.repr)); }
+EExpr EExpr::operator>(const EExpr& other) const { return EExpr(repr->Gt(*other.repr)); }
+EExpr EExpr::operator>=(const EExpr& other) const { return EExpr(repr->Geq(*other.repr)); }
+EExpr EExpr::operator>>(const EExpr& other) const { return EExpr(repr->Implies(*other.repr)); }
+EExpr EExpr::operator()(const EExpr& other) const { return EExpr(repr->Contains(*other.repr)); }
 
-z3::expr And(const z3::expr& lhs, const z3::expr& rhs) { return lhs && rhs; }
-z3::expr Or(const z3::expr& lhs, const z3::expr& rhs) { return lhs || rhs; }
-z3::expr Less(const z3::expr& lhs, const z3::expr& rhs) { return lhs < rhs; }
-z3::expr LessEq(const z3::expr& lhs, const z3::expr& rhs) { return lhs <= rhs; }
-z3::expr Greater(const z3::expr& lhs, const z3::expr& rhs) { return lhs > rhs; }
-z3::expr GreaterEq(const z3::expr& lhs, const z3::expr& rhs) { return lhs >= rhs; }
-z3::expr Implies(const z3::expr& lhs, const z3::expr& rhs) { return z3::implies(lhs, rhs); }
-z3::expr Eq1(const z3::expr& lhs, const z3::expr& rhs) { return lhs == rhs; }
-z3::expr Neq1(const z3::expr& lhs, const z3::expr& rhs) { return lhs != rhs; }
-z3::expr Member(const z3::func_decl& lhs, const z3::expr& rhs) { return lhs(rhs); }
-z3::expr Eq2(const z3::func_decl& lhs, const z3::func_decl& rhs) {
-    // TODO: is this too much of a hack?
-    assert(lhs.arity() == 1);
-    assert(rhs.arity() == 1);
-    assert(z3::eq(lhs.domain(0), rhs.domain(0)));
-    auto qv = lhs.ctx().constant("__op-qv", lhs.domain(0));
-    return z3::forall(qv, lhs(qv) == rhs(qv));
-}
-z3::expr Neq2(const z3::func_decl& lhs, const z3::func_decl& rhs) { return !Eq2(lhs, rhs); }
+const InternalExpr& EExpr::Repr() const { return *repr; }
 
-template<auto A, auto B, auto C, auto D, typename T>
-z3::expr DispatchVisitor(const T& variant, const T& other) {
-    static struct VariantVisitor {
-        z3::expr operator()(const z3::expr& lhs, const z3::expr& rhs) { return A(lhs, rhs); }
-        z3::expr operator()(const z3::expr& lhs, const z3::func_decl& rhs) { return B(lhs, rhs); }
-        z3::expr operator()(const z3::func_decl& lhs, const z3::expr& rhs) { return C(lhs, rhs); }
-        z3::expr operator()(const z3::func_decl& lhs, const z3::func_decl& rhs) { return D(lhs, rhs); }
-    } visitor;
-    return std::visit(visitor, variant, other);
+EExpr::EExpr(std::unique_ptr<InternalExpr> repr_) : repr(std::move(repr_)) {
+    assert(repr);
 }
 
-#define Handle(A, B, C, D) return EExpr(DispatchVisitor<A, B, C, D>(repr, other.repr));
-
-EExpr EExpr::operator&&(const EExpr& other) const { Handle(And, Error, Error, Error) }
-EExpr EExpr::operator||(const EExpr& other) const { Handle(Or, Error, Error, Error) }
-EExpr EExpr::operator<(const EExpr& other) const { Handle(Less, Error, Error, Error) }
-EExpr EExpr::operator<=(const EExpr& other) const { Handle(LessEq, Error, Error, Error) }
-EExpr EExpr::operator>(const EExpr& other) const { Handle(Greater, Error, Error, Error) }
-EExpr EExpr::operator>=(const EExpr& other) const { Handle(GreaterEq, Error, Error, Error) }
-EExpr EExpr::operator>>(const EExpr& other) const { Handle(Implies, Error, Error, Error) }
-EExpr EExpr::operator==(const EExpr& other) const { Handle(Eq1, Error, Error, Eq2) }
-EExpr EExpr::operator!=(const EExpr& other) const { Handle(Neq1, Error, Error, Neq2) }
-EExpr EExpr::operator()(const EExpr& other) const { Handle(Error, Error, Member, Error) }
-
-EExpr EExpr::operator!() const {
-    static struct VariantVisitor {
-        z3::expr operator()(const z3::expr& expr) { return !expr; }
-        z3::expr operator()(const z3::func_decl& decl) { return Err(decl); }
-    } visitor;
-    return EExpr(std::visit(visitor, repr));
+EExpr::EExpr(const EExpr& other) : EExpr(other.repr->Copy()) {
 }
 
 
@@ -71,7 +35,7 @@ EExpr EExpr::operator!() const {
 // Encoding
 //
 
-Encoding::Encoding() : context(), solver(context) {}
+Encoding::Encoding() : internal(std::make_unique<Z3InternalStorage>()) {}
 
 Encoding::Encoding(const Formula& premise) : Encoding() {
     AddPremise(premise);
@@ -82,34 +46,34 @@ Encoding::Encoding(const FlowGraph& graph) : Encoding() {
 }
 
 void Encoding::AddPremise(const EExpr& expr) {
-    solver.add(expr.AsExpr());
+    AsSolver(internal).add(AsExpr(expr));
 }
 
 void Encoding::AddPremise(const Formula& formula) {
-    solver.add(Encode(formula).AsExpr());
+    AddPremise(Encode(formula));
 }
 
 void Encoding::AddPremise(const SeparatingImplication& formula) {
-    solver.add(Encode(formula).AsExpr());
+    AddPremise(Encode(formula));
 }
 
 void Encoding::AddPremise(const Invariant& formula) {
-    solver.add(Encode(formula).AsExpr());
+    AddPremise(Encode(formula));
 }
 
 void Encoding::AddPremise(const FlowGraph& graph) {
-    solver.add(Encode(graph).AsExpr());
+    AddPremise(Encode(graph));
 }
 
 void Encoding::AddCheck(const EExpr& expr, std::function<void(bool)> callback) {
-    checks_premise.push_back(expr.AsExpr());
+    checks_premise.push_back(expr);
     checks_callback.push_back(std::move(callback));
 }
 
 void Encoding::Push() {
-    solver.push();
+    AsSolver(internal).push();
 }
 
 void Encoding::Pop() {
-    solver.pop();
+    AsSolver(internal).pop();
 }

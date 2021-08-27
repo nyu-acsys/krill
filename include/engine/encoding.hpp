@@ -2,7 +2,6 @@
 #ifndef PLANKTON_ENGINE_ENCODING_HPP
 #define PLANKTON_ENGINE_ENCODING_HPP
 
-#include <z3++.h>
 #include <map>
 #include <variant>
 #include "logics/ast.hpp"
@@ -11,6 +10,26 @@
 
 
 namespace plankton {
+    
+    struct InternalExpr { // TODO: remove
+        virtual ~InternalExpr() = default;
+        [[nodiscard]] virtual std::unique_ptr<InternalExpr> Negate() const = 0;
+        [[nodiscard]] virtual std::unique_ptr<InternalExpr> And(const InternalExpr& other) const = 0;
+        [[nodiscard]] virtual std::unique_ptr<InternalExpr> Or(const InternalExpr& other) const = 0;
+        [[nodiscard]] virtual std::unique_ptr<InternalExpr> Eq(const InternalExpr& other) const = 0;
+        [[nodiscard]] virtual std::unique_ptr<InternalExpr> Neq(const InternalExpr& other) const = 0;
+        [[nodiscard]] virtual std::unique_ptr<InternalExpr> Lt(const InternalExpr& other) const = 0;
+        [[nodiscard]] virtual std::unique_ptr<InternalExpr> Leq(const InternalExpr& other) const = 0;
+        [[nodiscard]] virtual std::unique_ptr<InternalExpr> Gt(const InternalExpr& other) const = 0;
+        [[nodiscard]] virtual std::unique_ptr<InternalExpr> Geq(const InternalExpr& other) const = 0;
+        [[nodiscard]] virtual std::unique_ptr<InternalExpr> Implies(const InternalExpr& other) const = 0;
+        [[nodiscard]] virtual std::unique_ptr<InternalExpr> Contains(const InternalExpr& other) const = 0;
+        [[nodiscard]] virtual std::unique_ptr<InternalExpr> Copy() const = 0;
+    };
+    
+    struct InternalStorage {
+        virtual ~InternalStorage() = default;
+    };
     
     struct EExpr {
         EExpr operator!() const;
@@ -24,17 +43,13 @@ namespace plankton {
         EExpr operator>=(const EExpr& other) const;
         EExpr operator>>(const EExpr& other) const;
         EExpr operator()(const EExpr& other) const;
-        
+    
+        [[nodiscard]] const InternalExpr& Repr() const;
+        explicit EExpr(std::unique_ptr<InternalExpr> repr);
+        EExpr(const EExpr& other);
+    
         private:
-            std::variant<z3::expr, z3::func_decl> repr;
-            explicit EExpr(const z3::expr& repr) : repr(repr) {}
-            explicit EExpr(const z3::func_decl& repr) : repr(repr) {}
-            
-            // TODO: error handling?
-            [[nodiscard]] inline z3::expr AsExpr() const { return std::get<z3::expr>(repr); }
-//            [[nodiscard]] inline z3::func_decl AsFunc() const { return std::get<z3::func_decl>(repr); }
-            
-            friend struct Encoding;
+            std::unique_ptr<InternalExpr> repr;
     };
     
     struct Encoding { // TODO: rename to 'StackEncoding' ?
@@ -99,21 +114,19 @@ namespace plankton {
         EExpr MakeAnd(const std::vector<EExpr>& expressions);
         EExpr MakeOr(const std::vector<EExpr>& expressions);
         EExpr MakeAtMost(const std::vector<EExpr>& expressions, unsigned int count);
-
+        
         private:
-            z3::context context;
-            z3::solver solver;
-            std::deque<z3::expr> checks_premise;
+            std::unique_ptr<InternalStorage> internal;
+            std::deque<EExpr> checks_premise;
             std::deque<std::function<void(bool)>> checks_callback;
             std::map<const VariableDeclaration*, EExpr> variableEncoding;
             std::map<const SymbolDeclaration*, EExpr> symbolEncoding;
             
-            z3::sort EncodeSort(Sort sort);
-            z3::expr MakeQuantifiedVariable(Sort sort);
-            z3::expr EncodeFlowRules(const FlowGraphNode& node);
-            z3::expr EncodeOutflow(const FlowGraphNode& node, const PointerField& field, EMode mode);
-            z3::expr_vector AsVector(const std::vector<EExpr>& vector);
-            z3::expr Replace(const EExpr& expression, const EExpr& replace, const EExpr& with);
+//            EExpr EncodeSort(Sort sort);
+            EExpr MakeQuantifiedVariable(Sort sort);
+            EExpr EncodeFlowRules(const FlowGraphNode& node);
+            EExpr EncodeOutflow(const FlowGraphNode& node, const PointerField& field, EMode mode);
+            EExpr Replace(const EExpr& expression, const EExpr& replace, const EExpr& with);
     };
     
 } // plankton
