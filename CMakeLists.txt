@@ -17,6 +17,8 @@ endif(NOT CMAKE_BUILD_TYPE)
 # set(CMAKE_BUILD_TYPE RelWithDebInfo)
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DENABLE_DEBUG_PRINTING")
+
 # configure compiler
 add_definitions(-fno-strict-aliasing)
 add_definitions(-Wall -Wextra)

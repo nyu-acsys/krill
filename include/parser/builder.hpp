@@ -15,12 +15,12 @@ namespace plankton {
         static ParsingResult BuildFrom(std::istream& input, bool spuriousCasFails); // may return NULL config
         
         // declarations (lookup / creation)
-        const Type& TypeByName(const std::string& name) const;
-        const Type* TypeByNameOrNull(const std::string& name) const;
-        const VariableDeclaration& VariableByName(const std::string& name) const;
-        const VariableDeclaration* VariableByNameOrNull(const std::string& name) const;
-        const Function& FunctionByName(const std::string& name) const;
-        const Function* FunctionByNameOrNull(const std::string& name) const;
+        [[nodiscard]] const Type& TypeByName(const std::string& name) const;
+        [[nodiscard]] const Type* TypeByNameOrNull(const std::string& name) const;
+        [[nodiscard]] const VariableDeclaration& VariableByName(const std::string& name) const;
+        [[nodiscard]] const VariableDeclaration* VariableByNameOrNull(const std::string& name) const;
+        [[nodiscard]] const Function& FunctionByName(const std::string& name) const;
+        [[nodiscard]] const Function* FunctionByNameOrNull(const std::string& name) const;
         void AddDecl(std::unique_ptr<Type> type);
         void AddDecl(std::unique_ptr<VariableDeclaration> variable);
         void AddDecl(std::unique_ptr<Function> function);
@@ -70,7 +70,7 @@ namespace plankton {
         std::unique_ptr<Statement> MakeCas(PlanktonParser::CmdCasContext& context);
         
         // parsing configuration
-        bool SpuriousCasFail() const;
+        [[nodiscard]] bool SpuriousCasFail() const;
 
         private:
             bool spuriousCasFails;

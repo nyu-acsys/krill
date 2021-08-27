@@ -100,14 +100,16 @@ bool remove(data_t key) {
 }
 )";
 
+#include "util/log.hpp"
+
 int main(int /*argc*/, char** /*argv*/) {
     std::stringstream stream;
     stream << CODE;
-    
-    std::cout << std::endl << "Parsing file... " << std::flush;
+
+    INFO(std::endl << "Parsing file... " << std::flush)
     auto program = plankton::ParseProgram(stream);
-    std::cout << "done" << std::endl;
-    std::cout << *program << std::endl;
+    INFO("done" << std::endl)
+    INFO(*program << std::endl)
     
     return 0;
 }
