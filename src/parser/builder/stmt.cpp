@@ -66,14 +66,6 @@ inline std::vector<std::unique_ptr<T>> As(U& context, AstBuilder& builder) {
     return result;
 }
 
-template<typename T, typename U>
-inline const T& As(const U& object) {
-    if (auto cast = dynamic_cast<const T*>(&object)) {
-        return *cast;
-    }
-    throw std::logic_error("Parse error: unexpected expression '" + plankton::ToString(object) + "'."); // TODO: better error handling
-}
-
 
 //
 // Static eval

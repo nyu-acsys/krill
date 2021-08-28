@@ -10,7 +10,7 @@ using namespace plankton;
 
 AstBuilder::AstBuilder(bool spuriousCasFails) : spuriousCasFails(spuriousCasFails) {}
 
-bool AstBuilder::SpuriousCasFail() const { return spuriousCasFails; };
+bool AstBuilder::SpuriousCasFail() const { return spuriousCasFails; }
 
 struct ParseErrorListener : public antlr4::BaseErrorListener {
     void syntaxError(antlr4::Recognizer* /*recognizer*/, antlr4::Token* /*offendingSymbol*/, size_t line,

@@ -6,12 +6,6 @@
 
 using namespace plankton;
 
-// simplification:
-//  1. flatten
-//  2. dupletten entferenen
-//  3. gleichheiten inlinen
-//  4. trivally true formeln entfernen
-
 
 struct SymbolRenamingListener : public MutableLogicListener {
     const SymbolDeclaration& search;

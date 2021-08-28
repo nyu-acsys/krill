@@ -23,8 +23,6 @@ struct ExpressionConverter : public BaseProgramVisitor {
     void Visit(const NullValue& /*object*/) override { result = std::make_unique<SymbolicNull>(); }
 };
 
-void foo(){}
-
 std::unique_ptr<SymbolicExpression> plankton::MakeSymbolic(const ValueExpression& expression, const Formula& context) {
     // TODO: ensure/assert that the necessary resources are present in context
     ExpressionConverter converter(context);

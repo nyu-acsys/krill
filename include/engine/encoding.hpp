@@ -123,7 +123,6 @@ namespace plankton {
             std::map<const VariableDeclaration*, EExpr> variableEncoding;
             std::map<const SymbolDeclaration*, EExpr> symbolEncoding;
             
-//            EExpr EncodeSort(Sort sort);
             EExpr MakeQuantifiedVariable(Sort sort);
             EExpr EncodeFlowRules(const FlowGraphNode& node);
             EExpr EncodeOutflow(const FlowGraphNode& node, const PointerField& field, EMode mode);

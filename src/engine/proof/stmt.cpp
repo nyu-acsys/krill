@@ -1,8 +1,6 @@
 #include "engine/proof.hpp"
 
-#include <set>
 #include <sstream>
-#include "util/timer.hpp"
 #include "logics/util.hpp"
 #include "util/shortcuts.hpp"
 #include "util/log.hpp"

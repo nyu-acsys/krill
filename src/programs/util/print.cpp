@@ -136,7 +136,6 @@ inline std::ostream& operator<<(std::ostream& stream, const Indent& indent) {
     return stream;
 }
 
-#include <iostream>
 struct ProgramPrinter : public CommandPrinter {
     using CommandPrinter::CommandPrinter;
     using CommandPrinter::Visit;
