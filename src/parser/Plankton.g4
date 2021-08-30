@@ -15,15 +15,6 @@ program : option* (
           | ninv+=nodeInvariant
         )* EOF ;
 
-//programElement : structDecl         #programStruct
-//               | varDeclList ';'    #programVariable
-//               | function           #programFunction
-//               | containsPredicate  #programContains
-//               | outflowPredicate   #programOutflow
-//               | variableInvariant  #programInvariantVariable
-//               | nodeInvariant      #programInvariantNode
-//               ;
-
 //
 // Options
 //
@@ -156,7 +147,6 @@ logicCondition : binaryCondition                                       #condLogi
                | elems+=binaryCondition (And elems+=binaryCondition)+  #condLogicAnd
                | elems+=binaryCondition (Or elems+=binaryCondition)+   #condLogicOr
                ;
-
 
 //
 // Flows, invariants

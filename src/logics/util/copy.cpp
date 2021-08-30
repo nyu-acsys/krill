@@ -63,6 +63,11 @@ std::unique_ptr<Formula> plankton::Copy<Formula>(const Formula& object) {
 }
 
 template<>
+std::unique_ptr<Axiom> plankton::Copy<Axiom>(const Axiom& object) {
+    return CopyVisitor<Axiom>::Copy(object);
+}
+
+template<>
 std::unique_ptr<SymbolicExpression> plankton::Copy<SymbolicExpression>(const SymbolicExpression& object) {
     return CopyVisitor<SymbolicExpression>::Copy(object);
 }

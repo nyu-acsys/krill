@@ -1,5 +1,7 @@
 #include "logics/util.hpp"
 
+#include "util/log.hpp"
+
 using namespace plankton;
 
 
@@ -9,17 +11,18 @@ struct Collector : public LogicListener {
     const std::function<bool(const T&)>& pickPredicate;
     
     explicit Collector(const std::function<bool(const T&)>& filter) : pickPredicate(filter) {}
-    
-    template<typename U>
-    void Handle(const U& /*object*/) {
-        throw std::logic_error("Internal error: 'Collect' failed."); // TODO: better error handling // TODO: this should be removed!?
+
+    void CollectObject(const T* object) {
+        if constexpr (std::is_const_v<T>) result.insert(object);
+        else result.insert(const_cast<T*>(object));
     }
-    
-    template<typename U, EnableIfBaseOf<T, U>>
+
+    template<typename U>
     void Handle(const U& object) {
-        if (!pickPredicate(object)) return;
-        // result.insert(&object);
-        result.insert(const_cast<T*>(&object));
+        if constexpr (std::is_base_of_v<T,U>) {
+            if (!pickPredicate(object)) return;
+            CollectObject(&object);
+        }
     }
     
     void HandleAnnotation(const Annotation& object) {
@@ -55,7 +58,6 @@ struct Collector : public LogicListener {
     void Visit(const Annotation& object) override { HandleAnnotation(object); }
 };
 
-
 template<typename T>
 std::set<const T*> plankton::Collect(const LogicObject& object, const std::function<bool(const T&)>& filter) {
     Collector<const T> collector(filter);
@@ -74,7 +76,7 @@ std::set<T*> plankton::CollectMutable(LogicObject& object, const std::function<b
 #define CONST_INSTANCE(X) \
     template \
     std::set<const X*> plankton::Collect<X>(const LogicObject& object, const std::function<bool(const X&)>& filter);
-
+    
 CONST_INSTANCE(VariableDeclaration)
 CONST_INSTANCE(SymbolDeclaration)
 CONST_INSTANCE(SymbolicExpression)
@@ -107,8 +109,8 @@ CONST_INSTANCE(Annotation)
     template \
     std::set<X*> plankton::CollectMutable<X>(LogicObject& object, const std::function<bool(const X&)>& filter);
 
-MUTABLE_INSTANCE(VariableDeclaration)
-MUTABLE_INSTANCE(SymbolDeclaration)
+//MUTABLE_INSTANCE(VariableDeclaration)
+//MUTABLE_INSTANCE(SymbolDeclaration)
 MUTABLE_INSTANCE(SymbolicExpression)
 MUTABLE_INSTANCE(SymbolicVariable)
 MUTABLE_INSTANCE(SymbolicBool)

@@ -16,8 +16,10 @@ namespace plankton {
     #endif
     
     #define INFO(X) { std::cout << X; }
-    
+
     #define WARNING(X) { std::cerr << "WARNING: " << X; }
+    
+    #define ERROR(X) { std::cerr << "ERROR: " << X; }
 
 } // namespace plankton
 

@@ -1,5 +1,4 @@
 # -*- mode:cmake -*-
-# adapted from https://github.com/antlr/antlr4/blob/master/runtime/Cpp/cmake/ExternalAntlr4Cpp.cmake
 
 set(TCLAP_LOCAL_ROOT ${CMAKE_BINARY_DIR}/locals/tclap)
 

@@ -87,11 +87,16 @@ std::string MakeName(PlanktonParser::ProgramContext& context, AstBuilder& /*buil
     return "Untitled Program";
 }
 
-std::unique_ptr<Program> AstBuilder::MakeProgram(PlanktonParser::ProgramContext& context) {
+void AstBuilder::PrepareMake(PlanktonParser::ProgramContext& context) {
     PushScope();
-    
     HandleTypes(context, *this);
     HandleSharedVariables(context, *this);
+    prepared = true;
+}
+
+std::unique_ptr<Program> AstBuilder::MakeProgram(PlanktonParser::ProgramContext& context) {
+    if (!prepared) throw std::logic_error("Parse error: 'AstBuilder::PrepareMake' must be called first."); // TODO: better error handling
+
     HandleFunctions<PlanktonParser::FunctionMacroContext>(context, *this);
     HandleFunctions<PlanktonParser::FunctionInterfaceContext>(context, *this);
     

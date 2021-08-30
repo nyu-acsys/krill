@@ -6,13 +6,6 @@
 using namespace plankton;
 
 template<typename T>
-inline const T* GetOrNull(const std::deque<std::unique_ptr<T>>& container, const std::string& name) {
-    auto find = plankton::FindIf(container, [&name](auto& elem){ return elem->name == name; });
-    if (find != container.end()) return find->get();
-    return nullptr;
-}
-
-template<typename T>
 inline const T& CheckResult(const T* object, const std::string& name, const std::string& symbolClass) {
     if (object) return *object;
     throw std::logic_error("Parse error: undefined " + symbolClass + " '" + name + "'."); //  TODO: better error handling
@@ -28,6 +21,13 @@ const VariableDeclaration& AstBuilder::VariableByName(const std::string& name) c
 
 const Function& AstBuilder::FunctionByName(const std::string& name) const {
     return CheckResult(FunctionByNameOrNull(name), name, "function symbol");
+}
+
+template<typename T>
+inline const T* GetOrNull(const std::deque<std::unique_ptr<T>>& container, const std::string& name) {
+    auto find = plankton::FindIf(container, [&name](auto& elem){ return elem->name == name; });
+    if (find != container.end()) return find->get();
+    return nullptr;
 }
 
 const Type* AstBuilder::TypeByNameOrNull(const std::string& name) const {

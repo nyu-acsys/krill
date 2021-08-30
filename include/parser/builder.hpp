@@ -30,6 +30,7 @@ namespace plankton {
         std::vector<std::unique_ptr<VariableDeclaration>> PopScope();
         
         // program
+        void PrepareMake(PlanktonParser::ProgramContext& context);
         std::unique_ptr<Program> MakeProgram(PlanktonParser::ProgramContext& context);
         std::unique_ptr<Function> MakeFunction(PlanktonParser::FunctionContext& context);
         std::string MakeBaseTypeName(PlanktonParser::TypeContext& context) const;
@@ -73,6 +74,7 @@ namespace plankton {
         [[nodiscard]] bool SpuriousCasFail() const;
 
         private:
+            bool prepared = false;
             bool spuriousCasFails;
             std::deque<std::unique_ptr<Type>> _types;
             std::deque<std::unique_ptr<Function>> _functions;

@@ -32,9 +32,9 @@ inline constexpr std::string_view MakeNamePrefix(Sort sort, Order order) {
     }
 }
 
-inline std::string MakeName(const Type& type, Order order) {
+inline std::string MakeName(const Type& type, Order order, std::size_t counter) {
     std::string result(MakeNamePrefix(type.sort, order));
-    result += "";
+    result += std::to_string(counter);
     return result;
 }
 
@@ -55,15 +55,18 @@ void SymbolFactory::Avoid(const LogicObject& avoid) {
 
 const SymbolDeclaration& SymbolFactory::GetFresh(const Type& type, Order order) {
     static std::deque<std::unique_ptr<SymbolDeclaration>> symbols;
-    
+
     // try to find existing symbol
     // TODO: implement more efficiently
-    auto find = FindIf(symbols, [this](const auto& elem) { return inUse.count(elem.get()) == 0; });
+    auto find = FindIf(symbols, [this, &type, order](const auto& elem) {
+        assert(elem);
+        return elem->type == type && elem->order == order && inUse.count(elem.get()) == 0;
+    });
     if (find != symbols.end()) return **find;
     
     // make new symbol
     assert(order == Order::FIRST || type == Type::Data());
-    symbols.emplace_back(new SymbolDeclaration(MakeName(type, order), type, order));
+    symbols.emplace_back(new SymbolDeclaration(MakeName(type, order, symbols.size()), type, order));
     return *symbols.back();
 }
 
@@ -126,7 +129,7 @@ MemoryAxiom::MemoryAxiom(std::unique_ptr<SymbolicVariable> adr, std::unique_ptr<
     assert(node->Order() == Order::FIRST);
     assert(flow);
     assert(flow->Order() == Order::SECOND);
-    for (const auto& field : adr->Type()) {
+    for (const auto& field : node->Type()) {
         assert(fieldToValue.count(field.first) != 0);
         assert(fieldToValue[field.first]->Order() == Order::FIRST);
         assert(fieldToValue[field.first]->Type() == field.second);

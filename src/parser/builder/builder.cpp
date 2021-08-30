@@ -37,7 +37,11 @@ ParsingResult AstBuilder::BuildFrom(std::istream& input, bool spuriousCasFail) {
         assert(parser.getNumberOfSyntaxErrors() == 0);
         assert(context);
         AstBuilder builder(spuriousCasFail);
-        return { builder.MakeProgram(*context), builder.MakeConfig(*context) };
+        ParsingResult result;
+        builder.PrepareMake(*context);
+        result.config = builder.MakeConfig(*context);
+        result.program = builder.MakeProgram(*context);
+        return result;
 
     } catch (antlr4::ParseCancellationException& e) {
         // TODO: get better error message from AntLR?

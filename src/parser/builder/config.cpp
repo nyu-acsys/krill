@@ -14,11 +14,10 @@ inline bool NoConfig(PlanktonParser::ProgramContext& context) {
     return context.ctns.empty() && context.outf.empty() && context.vinv.empty() && context.ninv.empty();
 }
 
-inline void CheckConfig(PlanktonParser::ProgramContext& context) {
+inline void CheckConfig(PlanktonParser::ProgramContext& context, bool prepared) {
+    if (!prepared) throw std::logic_error("Parse error: 'AstBuilder::PrepareMake' must be called first."); // TODO: better error handling
     if (context.ctns.empty()) throw std::logic_error("Parse error: incomplete flow definition, contains predicate missing."); // TODO: better error handling
     if (context.outf.empty()) throw std::logic_error("Parse error: incomplete flow definition, outflow predicate missing."); // TODO: better error handling
-    if (context.vinv.empty()) WARNING("no variable invariants found.")
-    if (context.ninv.empty()) WARNING("no node invariants found.")
 }
 
 inline const Type& GetType(const AstBuilder& builder, PlanktonParser::TypeContext& context) {
@@ -63,7 +62,7 @@ struct FlowConstructionInfo {
         }
         memory = std::make_unique<SharedMemoryCore>(node->Value(), factory.GetFreshSO(Type::Data()), std::move(fields));
     }
-    
+
     void AddVal(const Type& type, const std::string& name) {
         valueVar = std::make_unique<VariableDeclaration>(name, type, false);
         value = std::make_unique<EqualsToAxiom>(*valueVar, factory.GetFreshFO(type));
@@ -269,7 +268,7 @@ struct ParsedSolverConfigImpl : public ParsedSolverConfig {
 
 std::unique_ptr<ParsedSolverConfig> AstBuilder::MakeConfig(PlanktonParser::ProgramContext& context) {
     if (NoConfig(context)) return nullptr;
-    CheckConfig(context);
+    CheckConfig(context, prepared);
     auto result = std::make_unique<ParsedSolverConfigImpl>();
     
     for (auto* containsContext : context.ctns) {
@@ -302,8 +301,8 @@ std::unique_ptr<ParsedSolverConfig> AstBuilder::MakeConfig(PlanktonParser::Progr
         else MergeIntoInvariantStore<true, false>(find->second, store);
     }
     for (const auto& type : _types) {
-        if (result->sharedInv.count(type.get()) == 0) WARNING("no shared invariant for type " << type->name << ".")
-        if (result->localInv.count(type.get()) == 0) WARNING("no local invariant for type " << type->name << ".")
+        if (result->sharedInv.count(type.get()) == 0) WARNING("no shared invariant for type " << type->name << "." << std::endl)
+        if (result->localInv.count(type.get()) == 0) WARNING("no local invariant for type " << type->name << "." << std::endl)
     }
     
     for (auto* invariantContext : context.vinv) {
@@ -317,7 +316,7 @@ std::unique_ptr<ParsedSolverConfig> AstBuilder::MakeConfig(PlanktonParser::Progr
     assert(!_variables.empty());
     for (const auto& var : _variables.front()) {
         if (result->variableInv.count(var.get()) != 0) continue;
-        WARNING("no invariant for shared variable '" << var->name << "'.")
+        WARNING("no invariant for shared variable '" << var->name << "'." << std::endl)
     }
     
     return result;
