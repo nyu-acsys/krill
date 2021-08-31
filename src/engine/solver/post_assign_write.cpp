@@ -388,8 +388,7 @@ inline std::deque<std::unique_ptr<HeapEffect>> ExtractEffects(PostImageInfo& inf
 //
 
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd) const {
-    DEBUG(std::endl << std::endl << std::endl << "====================" << std::endl)
-    DEBUG("== Command: " << cmd << "== Pre: " << std::endl << *pre << std::endl)
+    DEBUG("POST for " << *pre << " " << cmd << std::endl)
 
     // TODO: use futures
     PrepareAccess(*pre, cmd);

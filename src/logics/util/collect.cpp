@@ -26,7 +26,7 @@ struct Collector : public LogicListener {
     }
     
     void HandleAnnotation(const Annotation& object) {
-        if constexpr (std::is_same_v<T, SymbolDeclaration>) {
+        if constexpr (std::is_same_v<T, const SymbolDeclaration>) {
             Walk(object);
         } else {
             throw std::logic_error("Cautiously refusing to 'Collect' from 'Annotation'."); // TODO: better error handling

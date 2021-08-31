@@ -2,11 +2,14 @@
 
 #include "logics/util.hpp"
 #include "engine/util.hpp"
+#include "util/log.hpp"
 
 using namespace plankton;
 
 
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const VariableAssignment& cmd) const {
+    DEBUG("POST for " << *pre << " " << cmd << std::endl)
+
     assert(cmd.lhs.size() == cmd.rhs.size());
     PrepareAccess(*pre, cmd); // TODO: ensure no shared variable is updated
     plankton::InlineAndSimplify(*pre);

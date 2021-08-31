@@ -89,7 +89,7 @@ struct LogicPrinter : public LogicVisitor {
     void Visit(const LocalMemoryResource& formula) override { PrintMemory(formula, SYMBOL_LOCAL_POINTS_TO); }
     void Visit(const SharedMemoryCore& formula) override { PrintMemory(formula, SYMBOL_SHARED_POINTS_TO); }
     void Visit(const EqualsToAxiom& formula) override {
-        stream << formula.Variable() << SYMBOL_EQUALS_TO;
+        stream << formula.Variable().name << SYMBOL_EQUALS_TO;
         formula.value->Accept(*this);
     }
     void Visit(const StackAxiom& formula) override {

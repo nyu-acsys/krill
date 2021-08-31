@@ -7,12 +7,12 @@
 using namespace plankton;
 
 
-struct SymbolRenamingListener : public MutableLogicListener {
+struct SymbolReplacementListener : public MutableLogicListener {
     const SymbolDeclaration& search;
     const SymbolDeclaration& replace;
     
-    explicit SymbolRenamingListener(const SymbolDeclaration& search, const SymbolDeclaration& replace)
-    : search(search), replace(replace) {}
+    explicit SymbolReplacementListener(const SymbolDeclaration& search, const SymbolDeclaration& replace)
+            : search(search), replace(replace) {}
     
     void Enter(SymbolicVariable& object) override {
         if (&object.Decl() != &search) return;
@@ -21,7 +21,7 @@ struct SymbolRenamingListener : public MutableLogicListener {
 };
 
 inline void ApplyRenaming(LogicObject& object, const SymbolDeclaration& search, const SymbolDeclaration& replace) {
-    SymbolRenamingListener replacer(search, replace);
+    SymbolReplacementListener replacer(search, replace);
     object.Accept(replacer);
 }
 

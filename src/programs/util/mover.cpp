@@ -30,6 +30,7 @@ struct RightMoveVisitor : public BaseProgramVisitor {
         for (const auto& elem : node.lhs) elem->Accept(*this);
         for (const auto& elem : node.rhs) elem->Accept(*this);
     }
+    void Visit(const VariableAssignment& node) override { HandleAssignment(node); }
     void Visit(const MemoryWrite& node) override { HandleAssignment(node); }
     void Visit(const Function& /*node*/) override { isRightMover = false; }
 };

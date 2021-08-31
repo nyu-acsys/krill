@@ -7,9 +7,9 @@ using namespace plankton;
 
 inline std::unique_ptr<Annotation>
 AddScope(std::unique_ptr<Annotation> pre, const std::vector<std::unique_ptr<VariableDeclaration>>& scope) {
-    auto inScope = plankton::Collect<EqualsToAxiom>(*pre);
+    auto inScope = plankton::Collect<EqualsToAxiom>(*pre->now);
     auto clash = Any(scope, [&inScope](const auto& elem){
-        return ContainsIf(inScope, [&elem](auto* other){ return other->Variable() == *elem; });
+        return ContainsIf(inScope, [&elem](auto* other){ return other->Variable().name == elem->name; });
     });
     if (clash) throw std::logic_error("Variable hiding is not supported."); // TODO: better error handling
     
