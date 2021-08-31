@@ -276,7 +276,7 @@ void MutableProgramListener::Visit(BinaryExpression& object) {
 }
 void MutableProgramListener::Visit(Return& object) {
     Enter(object);
-    for (const auto& elem : object.expressions) elem->Accept(*this);
+    for (auto& elem : object.expressions) elem->Accept(*this);
 }
 void MutableProgramListener::Visit(Assume& object) {
     Enter(object);
@@ -296,17 +296,17 @@ void MutableProgramListener::Visit(Macro& object) {
 }
 void MutableProgramListener::Visit(VariableAssignment& object) {
     Enter(object);
-    for (const auto& elem : object.lhs) elem->Accept(*this);
-    for (const auto& elem : object.rhs) elem->Accept(*this);
+    for (auto& elem : object.lhs) elem->Accept(*this);
+    for (auto& elem : object.rhs) elem->Accept(*this);
 }
 void MutableProgramListener::Visit(MemoryWrite& object) {
     Enter(object);
-    for (const auto& elem : object.lhs) elem->Accept(*this);
-    for (const auto& elem : object.rhs) elem->Accept(*this);
+    for (auto& elem : object.lhs) elem->Accept(*this);
+    for (auto& elem : object.rhs) elem->Accept(*this);
 }
 void MutableProgramListener::Visit(Scope& object) {
     Enter(object);
-    for (const auto& elem : object.variables) Enter(*elem);
+    for (auto& elem : object.variables) Enter(*elem);
     object.body->Accept(*this);
 }
 void MutableProgramListener::Visit(Atomic& object) {
@@ -324,17 +324,17 @@ void MutableProgramListener::Visit(UnconditionalLoop& object) {
 }
 void MutableProgramListener::Visit(Choice& object) {
     Enter(object);
-    for (const auto& elem : object.branches) elem->Accept(*this);
+    for (auto& elem : object.branches) elem->Accept(*this);
 }
 void MutableProgramListener::Visit(Function& object) {
     Enter(object);
-    for (const auto& elem : object.parameters) Enter(*elem);
+    for (auto& elem : object.parameters) Enter(*elem);
     object.body->Accept(*this);
 }
 void MutableProgramListener::Visit(Program& object) {
     Enter(object);
-    for (const auto& elem : object.variables) Enter(*elem);
+    for (auto& elem : object.variables) Enter(*elem);
     object.initializer->Accept(*this);
-    for (const auto& elem : object.macroFunctions) elem->Accept(*this);
-    for (const auto& elem : object.apiFunctions) elem->Accept(*this);
+    for (auto& elem : object.macroFunctions) elem->Accept(*this);
+    for (auto& elem : object.apiFunctions) elem->Accept(*this);
 }

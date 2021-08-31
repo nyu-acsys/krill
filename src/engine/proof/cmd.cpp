@@ -108,6 +108,8 @@ void ProofGenerator::Visit(const Macro& cmd) {
     auto returningOuter = std::move(returning);
     
     // invoke callee
+    // TODO: frame non-shared 'EqualsTo' predicates
+    // TODO: frame 'LocalMemoryResource' predicates that are guaranteed to be inaccessible in macro
     HandleMacroProlog(cmd);
     cmd.Func().Accept(*this);
     HandleMacroEpilog(cmd);

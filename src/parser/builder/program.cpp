@@ -1,3 +1,5 @@
+#include <utility>
+
 #include "parser/builder.hpp"
 
 #include "PlanktonBaseVisitor.h"
@@ -94,6 +96,23 @@ void AstBuilder::PrepareMake(PlanktonParser::ProgramContext& context) {
     prepared = true;
 }
 
+struct VariableRenameVisitor : public MutableProgramListener {
+    std::string suffix;
+    explicit VariableRenameVisitor(std::string suffix) : suffix(std::move(suffix)) {}
+    void Enter(VariableDeclaration& object) override { object.name += suffix; }
+};
+
+inline void PostProcess(Program& program) {
+    // TODO: remove skips
+    // TODO: apply left movers
+    
+    // rename macro variables to not clash with other functions
+    for (std::size_t index = 0; index < program.macroFunctions.size(); ++index) {
+        VariableRenameVisitor renaming("_" + std::to_string(index + 1));
+        program.macroFunctions.at(index)->Accept(renaming);
+    }
+}
+
 std::unique_ptr<Program> AstBuilder::MakeProgram(PlanktonParser::ProgramContext& context) {
     if (!prepared) throw std::logic_error("Parse error: 'AstBuilder::PrepareMake' must be called first."); // TODO: better error handling
 
@@ -103,8 +122,6 @@ std::unique_ptr<Program> AstBuilder::MakeProgram(PlanktonParser::ProgramContext&
     auto init = MakeInitFunction(context, *this);
     auto name = MakeName(context, *this);
     auto program = std::make_unique<Program>(name, std::move(init));
-    // TODO: remove skips
-    // TODO: apply left movers
     
     program->variables = PopScope();
     plankton::MoveInto(std::move(_types), program->types);
@@ -116,5 +133,6 @@ std::unique_ptr<Program> AstBuilder::MakeProgram(PlanktonParser::ProgramContext&
         }
     }
     
+    PostProcess(*program);
     return program;
 }
