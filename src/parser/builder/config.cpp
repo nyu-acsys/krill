@@ -1,9 +1,19 @@
 #include "parser/builder.hpp"
 
+#include "PlanktonBaseVisitor.h"
 #include "logics/util.hpp"
 #include "util/log.hpp"
 
 using namespace plankton;
+
+/* TODO: enforce the following properties
+ *        - NodeInvariants must not access shared variables
+ *        - Predicates must not access shared variables
+ *        - SharedInvariant must not access *other* shared variables
+ *        - SharedInvariant must target pointer variable
+ * TODO: implement ExtractVariableInvariant
+ */
+
 
 
 //
@@ -11,7 +21,7 @@ using namespace plankton;
 //
 
 inline bool NoConfig(PlanktonParser::ProgramContext& context) {
-    return context.ctns.empty() && context.outf.empty() && context.vinv.empty() && context.ninv.empty();
+    return context.ctns.empty() && context.outf.empty() && context.sinv.empty() && context.ninv.empty();
 }
 
 inline void CheckConfig(PlanktonParser::ProgramContext& context, bool prepared) {
@@ -55,21 +65,18 @@ struct FlowConstructionInfo {
     void AddPtr(const Type& type, const std::string& name) {
         assert(type.sort == Sort::PTR);
         nodeVar = std::make_unique<VariableDeclaration>(name, type, false);
-        node = std::make_unique<EqualsToAxiom>(*nodeVar, factory.GetFreshFO(type));
-        std::map<std::string, std::reference_wrapper<const SymbolDeclaration>> fields;
-        for (const auto& [fieldName, fieldType] : type.fields) {
-            fields.emplace(fieldName, factory.GetFreshFO(fieldType));
-        }
-        memory = std::make_unique<SharedMemoryCore>(node->Value(), factory.GetFreshSO(Type::Data()), std::move(fields));
+        AddPtr(*nodeVar);
     }
-
+    
+    void AddPtr(const VariableDeclaration& decl) {
+        assert(decl.type.sort == Sort::PTR);
+        node = std::make_unique<EqualsToAxiom>(decl, factory.GetFreshFO(decl.type));
+        memory = plankton::MakeSharedMemory(node->Value(), Type::Data(), factory);
+    }
+    
     void AddVal(const Type& type, const std::string& name) {
         valueVar = std::make_unique<VariableDeclaration>(name, type, false);
         value = std::make_unique<EqualsToAxiom>(*valueVar, factory.GetFreshFO(type));
-    }
-    
-    void AddVal(const VariableDeclaration& decl) {
-        value = std::make_unique<EqualsToAxiom>(decl, factory.GetFreshFO(decl.type));
     }
 };
 
@@ -210,10 +217,42 @@ FlowStore MakeNodeInvariant(AstBuilder& builder, PlanktonParser::NodeInvariantCo
     return MakeFlowDef(builder, std::move(info), nullptr, context.invariant());
 }
 
-FlowStore MakeVariableInvariant(AstBuilder& builder, PlanktonParser::VariableInvariantContext& context) {
+inline FlowStore ExtractVariableInvariant(const FlowStore& invariant) {
+    FlowStore result;
+    result.value = invariant.node;
+    result.invariant = plankton::Copy(*invariant.invariant);
+    assert(result.value);
+    assert(result.invariant);
+    
+    std::set<const SymbolDeclaration*> forbidden;
+    forbidden.insert(invariant.nodeFlow);
+    for (const auto& pair : invariant.fields) forbidden.insert(&pair.second.get());
+    
+    plankton::RemoveIf(result.invariant->conjuncts, [&forbidden](const auto& elem) {
+        auto symbols = plankton::Collect<SymbolDeclaration>(*elem);
+        return plankton::NonEmptyIntersection(forbidden, symbols);
+    });
+    
+    return result;
+}
+
+std::pair<FlowStore, FlowStore>
+MakeSharedInvariant(AstBuilder& builder, PlanktonParser::SharedInvariantContext& context) {
     FlowConstructionInfo info;
-    info.AddVal(builder.VariableByName(context.Identifier()->getText()));
-    return MakeFlowDef(builder, std::move(info), nullptr, context.invariant());
+    auto& var = builder.VariableByName(context.name->getText());
+    assert(var.isShared);
+    assert(var.type.sort == Sort::PTR);
+    info.AddPtr(var);
+    auto nodeInv = MakeFlowDef(builder, std::move(info), nullptr, context.invariant());
+    
+    auto varInv = ExtractVariableInvariant(std::as_const(nodeInv));
+    for (auto& conjunct : nodeInv.invariant->conjuncts) {
+        assert(nodeInv.node);
+        auto varValue = std::make_unique<EqualsToAxiom>(var, std::make_unique<SymbolicVariable>(*nodeInv.node));
+        conjunct->premise->conjuncts.push_front(std::move(varValue));
+    }
+    
+    return { std::move(nodeInv), std::move(varInv) };
 }
 
 
@@ -301,22 +340,31 @@ std::unique_ptr<ParsedSolverConfig> AstBuilder::MakeConfig(PlanktonParser::Progr
         else MergeIntoInvariantStore<true, false>(find->second, store);
     }
     for (const auto& type : _types) {
-        if (result->sharedInv.count(type.get()) == 0) WARNING("no shared invariant for type " << type->name << "." << std::endl)
-        if (result->localInv.count(type.get()) == 0) WARNING("no local invariant for type " << type->name << "." << std::endl)
+        if (result->sharedInv.count(type.get()) == 0)
+            WARNING("no shared invariant for type " << type->name << "." << std::endl)
+        if (result->localInv.count(type.get()) == 0)
+            WARNING("no local invariant for type " << type->name << "." << std::endl)
     }
     
-    for (auto* invariantContext : context.vinv) {
-        auto store = MakeVariableInvariant(*this, *invariantContext);
-        assert(store.node || store.value);
+    std::set<const VariableDeclaration*> sharedVariablesWithInvariant;
+    for (auto* invariantContext : context.sinv) {
+        auto [nodeInv, varInv] = MakeSharedInvariant(*this, *invariantContext);
         auto& var = VariableByName(invariantContext->Identifier()->getText());
-        auto find = result->variableInv.find(&var);
-        if (find == result->variableInv.end()) result->variableInv.emplace(&var, std::move(store));
-        else MergeIntoInvariantStore<false, true>(find->second, store);
+        sharedVariablesWithInvariant.insert(&var);
+    
+        auto nodeFind = result->sharedInv.find(&var.type);
+        if (nodeFind == result->sharedInv.end()) result->sharedInv.emplace(&var.type, std::move(nodeInv));
+        else MergeIntoInvariantStore<true, false>(nodeFind->second, nodeInv);
+    
+        auto varFind = result->variableInv.find(&var);
+        if (varFind == result->variableInv.end()) result->variableInv.emplace(&var, std::move(varInv));
+        else MergeIntoInvariantStore<false, true>(varFind->second, varInv);
     }
     assert(!_variables.empty());
     for (const auto& var : _variables.front()) {
-        if (result->variableInv.count(var.get()) != 0) continue;
-        WARNING("no invariant for shared variable '" << var->name << "'." << std::endl)
+        if (var->type.sort != Sort::PTR) continue;
+        if (plankton::Membership(sharedVariablesWithInvariant, var.get())) continue;
+        WARNING("no invariant for '" << var->name << "'." << std::endl)
     }
     
     return result;

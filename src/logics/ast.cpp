@@ -62,12 +62,20 @@ const SymbolDeclaration& SymbolFactory::GetFresh(const Type& type, Order order) 
         assert(elem);
         return elem->type == type && elem->order == order && inUse.count(elem.get()) == 0;
     });
-    if (find != symbols.end()) return **find;
     
-    // make new symbol
-    assert(order == Order::FIRST || type == Type::Data());
-    symbols.emplace_back(new SymbolDeclaration(MakeName(type, order, symbols.size()), type, order));
-    return *symbols.back();
+    const SymbolDeclaration* result;
+    if (find != symbols.end()) {
+        result = find->get();
+    } else {
+        // make new symbol
+        assert(order == Order::FIRST || type == Type::Data());
+        symbols.emplace_back(new SymbolDeclaration(MakeName(type, order, symbols.size()), type, order));
+        result = symbols.back().get();
+    }
+    
+    assert(result);
+    inUse.insert(result);
+    return *result;
 }
 
 
@@ -162,7 +170,7 @@ StackAxiom::StackAxiom(BinaryOperator op, std::unique_ptr<SymbolicExpression> le
         : op(op), lhs(std::move(left)), rhs(std::move(right)) {
     assert(lhs);
     assert(rhs);
-    assert(rhs->Type() == lhs->Type());
+    assert(rhs->Type().Comparable(lhs->Type()));
     assert(rhs->Order() == lhs->Order());
 }
 
@@ -226,10 +234,18 @@ FulfillmentAxiom::FulfillmentAxiom(bool returnValue) : returnValue(returnValue) 
 // Invariants
 //
 
+SeparatingImplication::SeparatingImplication()
+        : premise(std::make_unique<SeparatingConjunction>()), conclusion(std::make_unique<SeparatingConjunction>()) {
+}
+
 SeparatingImplication::SeparatingImplication(std::unique_ptr<Formula> pre, std::unique_ptr<Formula> post)
-: premise(std::move(pre)), conclusion(std::move(post)) {
-    assert(premise);
-    assert(conclusion);
+        : premise(std::make_unique<SeparatingConjunction>()), conclusion(std::make_unique<SeparatingConjunction>()) {
+    assert(pre);
+    assert(post);
+    premise->Conjoin(std::move(pre));
+    conclusion->Conjoin(std::move(post));
+    plankton::Simplify(*premise);
+    plankton::Simplify(*conclusion);
 }
 
 Invariant::Invariant() = default;

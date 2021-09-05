@@ -126,6 +126,11 @@ struct LogicPrinter : public LogicVisitor {
     }
 
     void Visit(const SeparatingImplication& formula) override {
+        if (formula.premise->conjuncts.empty()) {
+            formula.conclusion->Accept(*this);
+            return;
+        }
+
         stream << "[";
         formula.premise->Accept(*this);
         stream << "]" << SYMBOL_IMPLICATION << "[";

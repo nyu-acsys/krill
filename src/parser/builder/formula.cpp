@@ -1,6 +1,7 @@
 #include "parser/builder.hpp"
 
 #include "PlanktonBaseVisitor.h"
+#include "logics//util.hpp"
 #include "engine/util.hpp"
 
 using namespace plankton;
@@ -84,9 +85,10 @@ std::unique_ptr<Formula> AstBuilder::MakeFormula(PlanktonParser::FormulaContext&
 
 inline std::unique_ptr<SeparatingImplication>
 MakeImplication(AstBuilder& builder, PlanktonParser::SeparatingImplicationContext& context, const Formula& eval) {
-    auto lhs = builder.MakeFormula(*context.lhs, eval);
-    auto rhs = builder.MakeFormula(*context.lhs, eval);
-    return std::make_unique<SeparatingImplication>(std::move(lhs), std::move(rhs));
+    auto result = std::make_unique<SeparatingImplication>();
+    if (context.lhs) result->premise->Conjoin(builder.MakeFormula(*context.lhs, eval));
+    result->conclusion->Conjoin(builder.MakeFormula(*context.rhs, eval));
+    return result;
 }
 
 std::unique_ptr<Invariant> AstBuilder::MakeInvariant(PlanktonParser::InvariantContext& context, const Formula& eval) {

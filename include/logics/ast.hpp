@@ -225,9 +225,10 @@ namespace plankton {
     //
     
     struct SeparatingImplication : public LogicObject {
-        std::unique_ptr<Formula> premise;
-        std::unique_ptr<Formula> conclusion;
+        std::unique_ptr<SeparatingConjunction> premise;
+        std::unique_ptr<SeparatingConjunction> conclusion;
 
+        explicit SeparatingImplication();
         explicit SeparatingImplication(std::unique_ptr<Formula> premise, std::unique_ptr<Formula> conclusion);
         ACCEPT_LOGIC_VISITOR
     };

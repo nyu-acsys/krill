@@ -17,17 +17,14 @@ struct CopyVisitor : public LogicVisitor {
         CopyVisitor<T> visitor;
         object.Accept(visitor);
         assert(visitor.result);
-        return std::move(visitor.result);
-    }
-    
-    template<typename U>
-    void Handle(const U& /*object*/) {
+        if (visitor.result) return std::move(visitor.result);
         throw std::logic_error("Internal error: 'Copy' failed."); // TODO: better error handling
     }
     
-    template<typename U, EnableIfBaseOf<T, U>>
+    template<typename U>
     void Handle(const U& object) {
-        result = plankton::Copy(object);
+        if constexpr (std::is_base_of_v<T, U>) result = plankton::Copy(object);
+        else throw std::logic_error("Internal error: 'Copy' failed."); // TODO: better error handling
     }
     
     void Visit(const SymbolicVariable& object) override { Handle(object); }
@@ -172,7 +169,10 @@ std::unique_ptr<FulfillmentAxiom> plankton::Copy<FulfillmentAxiom>(const Fulfill
 
 template<>
 std::unique_ptr<SeparatingImplication> plankton::Copy<SeparatingImplication>(const SeparatingImplication& object) {
-    return std::make_unique<SeparatingImplication>(plankton::Copy(*object.premise), plankton::Copy(*object.conclusion));
+    auto result = std::make_unique<SeparatingImplication>();
+    result->premise = plankton::Copy(*object.premise);
+    result->conclusion = plankton::Copy(*object.conclusion);
+    return result;
 }
 
 template<>

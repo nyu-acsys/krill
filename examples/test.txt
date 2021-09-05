@@ -19,6 +19,9 @@ def @outflow[next](Node* node, data_t key) {
     node->val < key
 }
 
+def @invariant[Head]() { Head != NULL }
+def @invariant[Tail]() { Tail != NULL }
+
 
 void __init__() {
 	Tail = malloc;

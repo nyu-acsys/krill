@@ -11,7 +11,7 @@ program : option* (
           | funcs+=function
           | ctns+=containsPredicate
           | outf+=outflowPredicate
-          | vinv+=variableInvariant
+          | sinv+=sharedInvariant
           | ninv+=nodeInvariant
         )* EOF ;
 
@@ -162,7 +162,7 @@ outflowPredicate : 'def' Outflow '[' field=Identifier ']'
                    '{' formula '}'
                  ;
 
-variableInvariant : 'def' Invariant '[' name=Identifier ']' '(' ')' '{' invariant '}'
+sharedInvariant : 'def' Invariant '[' name=Identifier ']' '(' ')' '{' invariant '}'
                   ;
 
 nodeInvariant : 'def' Invariant '[' isShared=Shared | isLocal=Local ']'
@@ -188,7 +188,8 @@ axiom : binaryCondition                                                         
       | '[' low=simpleExpression ',' high=simpleExpression ']' In name=Identifier '->' FlowField  #axiomFlowRange
       ;
 
-separatingImplication : lhs=formula Imp rhs=formula
+separatingImplication : rhs=formula
+                      | lhs=formula Imp rhs=formula
                       | '(' lhs=formula Imp rhs=formula ')'
                       ;
 

@@ -110,6 +110,7 @@ int main(int argc, char** argv) {
         auto cmd = Interact(argc, argv);
         auto input = Parse(cmd);
         PrintInput(input);
+        throw std::logic_error("breakpoint");
         auto result = Verify(input);
         PrintResult(cmd, input, result);
         return 0;
