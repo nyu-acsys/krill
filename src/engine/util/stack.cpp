@@ -133,19 +133,15 @@ std::deque<std::unique_ptr<Axiom>> plankton::MakeStackCandidates(const std::set<
 }
 
 void plankton::ExtendStack(Annotation& annotation, Encoding& encoding, ExtensionPolicy policy) {
-    Generator candidates(policy);
-    candidates.AddSymbolsFrom(annotation);
+    Generator generator(policy);
+    generator.AddSymbolsFrom(annotation);
+    auto candidates = generator.Generate();
     
-    for (auto& candidate : candidates.Generate()) {
+    for (auto& candidate : candidates) {
         encoding.AddCheck(encoding.Encode(*candidate), [&candidate,&annotation](bool holds){
+            assert(candidate);
             if (holds) annotation.Conjoin(std::move(candidate));
         });
     }
     encoding.Check();
-}
-
-void plankton::ExtendStack(Annotation& annotation, ExtensionPolicy policy) {
-    Encoding encoding;
-    encoding.AddPremise(encoding.Encode(*annotation.now));
-    plankton::ExtendStack(annotation, encoding, policy);
 }

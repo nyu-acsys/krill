@@ -4,7 +4,7 @@
 
 using namespace plankton;
 
-constexpr std::size_t MAX_NUM_ITERATIONS = 6;
+constexpr std::size_t MAX_NUM_ITERATIONS = 12; // 6
 
 
 //
@@ -40,61 +40,93 @@ inline std::size_t GetIncidence(const LogicObject& object) {
 // Ordering non-virtual expressions/axioms
 //
 
-bool LLessLogic(const LogicObject& object, const LogicObject& other);
+inline bool LLessLogic(const LogicObject& object, const LogicObject& other);
 
-bool LLess(const SymbolicVariable& object, const SymbolicVariable& other) {
-    return &object < &other;
+inline bool LNeq(const VariableDeclaration& decl, const VariableDeclaration& other) {
+    return &decl != &other;
 }
 
-bool LLess(const SymbolicBool& object, const SymbolicBool& other) {
+inline bool LNeq(const SymbolDeclaration& decl, const SymbolDeclaration& other) {
+    return &decl != &other;
+}
+
+inline bool LNeq(const SymbolicVariable& object, const SymbolicVariable& other) {
+    return LNeq(object.Decl(), other.Decl());
+}
+
+inline bool LLess(const VariableDeclaration& decl, const VariableDeclaration& other) {
+    return &decl < &other;
+}
+
+inline bool LLess(const SymbolDeclaration& decl, const SymbolDeclaration& other) {
+    return &decl < &other;
+}
+
+inline bool LLess(const SymbolicVariable& object, const SymbolicVariable& other) {
+    return LLess(object.Decl(), other.Decl());
+}
+
+inline bool LLess(const SymbolicBool& object, const SymbolicBool& other) {
     return object.value < other.value;
 }
 
-bool LLess(const SymbolicNull& /*object*/, const SymbolicNull& /*other*/) {
+inline bool LLess(const SymbolicNull& /*object*/, const SymbolicNull& /*other*/) {
     return false;
 }
 
-bool LLess(const SymbolicMin& /*object*/, const SymbolicMin& /*other*/) {
+inline bool LLess(const SymbolicMin& /*object*/, const SymbolicMin& /*other*/) {
     return false;
 }
 
-bool LLess(const SymbolicMax& /*object*/, const SymbolicMax& /*other*/) {
+inline bool LLess(const SymbolicMax& /*object*/, const SymbolicMax& /*other*/) {
     return false;
 }
 
-bool LLess(const MemoryAxiom& object, const MemoryAxiom& other) {
-    return LLess(*object.node, *other.node) && LLess(*object.flow, *other.flow) &&
-           plankton::All(object.fieldToValue, [&other](auto& pair) {
-               return LLess(*pair.second, *other.fieldToValue.at(pair.first));
-           });
+inline bool LLess(const MemoryAxiom& object, const MemoryAxiom& other) {
+    if (LNeq(*object.node, *other.node)) return LLess(*object.node, *other.node);
+    if (LNeq(*object.flow, *other.flow)) return LLess(*object.flow, *other.flow);
+    for (const auto& [field, value] : object.fieldToValue) {
+        auto& otherValue = *other.fieldToValue.at(field);
+        if (LNeq(*value, otherValue)) return LLess(*value, otherValue);
+    }
+    return false;
 }
 
-bool LLess(const EqualsToAxiom& object, const EqualsToAxiom& other) {
-    return &object.Variable() < & other.Variable() && LLess(*object.value, *other.value);
+inline bool LLess(const EqualsToAxiom& object, const EqualsToAxiom& other) {
+    if (LNeq(object.Variable(), other.Variable())) return LLess(object.Variable(), other.Variable());
+    return LLess(*object.value, *other.value);
 }
 
-bool LLess(const StackAxiom& object, const StackAxiom& other) {
-    return object.op < other.op && LLessLogic(*object.lhs, *other.lhs) && LLessLogic(*object.rhs, *other.rhs);
+inline bool LLess(const StackAxiom& object, const StackAxiom& other) {
+    if (object.op != other.op) return object.op < other.op;
+    if (LLessLogic(*object.lhs, *other.lhs)) return true;
+    if (LLessLogic(*other.lhs, *object.lhs)) return false;
+    return LLessLogic(*object.rhs, *other.rhs);
 }
 
-bool LLess(const InflowEmptinessAxiom& object, const InflowEmptinessAxiom& other) {
-    return object.isEmpty < other.isEmpty && LLess(*object.flow, *other.flow);
+inline bool LLess(const InflowEmptinessAxiom& object, const InflowEmptinessAxiom& other) {
+    if (object.isEmpty == other.isEmpty) return LLess(*object.flow, *other.flow);
+    return object.isEmpty < other.isEmpty;
 }
 
-bool LLess(const InflowContainsValueAxiom& object, const InflowContainsValueAxiom& other) {
-    return LLess(*object.flow, *other.flow) && LLess(*object.value, *other.value);
+inline bool LLess(const InflowContainsValueAxiom& object, const InflowContainsValueAxiom& other) {
+    if (LNeq(*object.flow, *other.flow)) return LLess(*object.flow, *other.flow);
+    return LLess(*object.value, *other.value);
 }
 
-bool LLess(const InflowContainsRangeAxiom& object, const InflowContainsRangeAxiom& other) {
-    return LLess(*object.flow, *other.flow) &&
-           LLessLogic(*object.valueLow, *other.valueLow) && LLessLogic(*object.valueHigh, *other.valueHigh);
+inline bool LLess(const InflowContainsRangeAxiom& object, const InflowContainsRangeAxiom& other) {
+    if (LNeq(*object.flow, *other.flow)) return LLess(*object.flow, *other.flow);
+    if (LLessLogic(*object.valueLow, *other.valueLow)) return true;
+    if (LLessLogic(*other.valueLow, *object.valueLow)) return false;
+    return LLessLogic(*object.valueHigh, *other.valueHigh);
 }
 
-bool LLess(const ObligationAxiom& object, const ObligationAxiom& other) {
-    return object.spec < other.spec && LLess(*object.key, *other.key);
+inline bool LLess(const ObligationAxiom& object, const ObligationAxiom& other) {
+    if (object.spec == other.spec) return LLess(*object.key, *other.key);
+    return object.spec < other.spec;
 }
 
-bool LLess(const FulfillmentAxiom& object, const FulfillmentAxiom& other) {
+inline bool LLess(const FulfillmentAxiom& object, const FulfillmentAxiom& other) {
     return object.returnValue < other.returnValue;
 }
 
@@ -219,11 +251,11 @@ inline bool IsLSorted(const Annotation& annotation) {
 
 std::unique_ptr<Annotation> plankton::Normalize(std::unique_ptr<Annotation> annotation) {
     plankton::Simplify(*annotation);
-    LSort(*annotation);
-    for (std::size_t index = 0; !IsLSorted(*annotation) && index < MAX_NUM_ITERATIONS; ++index) {
+    std::size_t index = 0;
+    do {
+        LSort(*annotation);
         SymbolFactory factory;
         plankton::RenameSymbols(*annotation, factory);
-        LSort(*annotation);
-    }
+    } while (!IsLSorted(*annotation) && index++ < MAX_NUM_ITERATIONS);
     return annotation;
 }

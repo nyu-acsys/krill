@@ -276,7 +276,7 @@ FuturePredicate::FuturePredicate(const MemoryWrite& cmd, std::unique_ptr<Formula
 Annotation::Annotation() : now(std::make_unique<SeparatingConjunction>()) {}
 
 Annotation::Annotation(std::unique_ptr<SeparatingConjunction> nw) : now(std::move(nw)) {
-    assert(nw);
+    assert(now);
 }
 
 Annotation::Annotation(std::unique_ptr<SeparatingConjunction> nw, std::deque<std::unique_ptr<PastPredicate>> pst,

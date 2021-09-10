@@ -176,7 +176,7 @@ struct FormulaEncoder : public BaseLogicVisitor {
     void Visit(const ObligationAxiom& /*object*/) override { result = encoding.Bool(true); }
     void Visit(const FulfillmentAxiom& /*object*/) override { result = encoding.Bool(true); }
     
-    void Visit(const SymbolicVariable& object) override { result = encoding.Encode(object); }
+    void Visit(const SymbolicVariable& object) override { result = encoding.Encode(object.Decl()); }
     void Visit(const SymbolicBool& object) override { result = encoding.Bool(object.value); }
     void Visit(const SymbolicNull& /*object*/) override { result = encoding.Null(); }
     void Visit(const SymbolicMin& /*object*/) override { result = encoding.Min(); }

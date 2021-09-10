@@ -138,8 +138,8 @@ struct AnnotationJoiner {
         
         Preprocess();
         
-        DEBUG("preprocessed, now joining: ")
-        for (const auto& elem : annotations) DEBUG(*elem; std::cout << std::endl)
+        // DEBUG("preprocessed, now joining: ")
+        // for (const auto& elem : annotations) DEBUG(*elem; std::cout << std::endl)
 
         CreateVariableResources();
         CreateMemoryResources();
@@ -257,9 +257,9 @@ struct AnnotationJoiner {
         }
         
         // ensure no local memories have been dropped
-        auto localCount = plankton::Collect<LocalMemoryResource>(*result).size();
+        auto localCount = plankton::Collect<LocalMemoryResource>(*result->now).size();
         for (const auto& annotation : annotations) {
-            auto otherCount = plankton::Collect<LocalMemoryResource>(*annotation).size();
+            auto otherCount = plankton::Collect<LocalMemoryResource>(*annotation->now).size();
             if (localCount == otherCount) continue;
             throw std::logic_error("Unsupported join: loses local resource."); // TODO: better error handling
         }
@@ -345,9 +345,9 @@ struct AnnotationJoiner {
         for (const auto&[variable, resource] : varToCommonRes) {
             auto powerSet = MakePastPowerSet(lookup, *variable);
             for (const auto& vector : powerSet) {
-                DEBUG(" join past combination:  ")
-                for (const auto* elem : vector) DEBUG(*elem << ",  ")
-                DEBUG(std::endl)
+                // DEBUG(" join past combination:  ")
+                // for (const auto* elem : vector) DEBUG(*elem << ",  ")
+                // DEBUG(std::endl)
                 
                 auto& address = resource->Value();
                 auto pastMem = plankton::MakeSharedMemory(address, config.GetFlowValueType(), factory);
@@ -376,15 +376,16 @@ struct AnnotationJoiner {
 
 
 std::unique_ptr<Annotation> Solver::Join(std::deque<std::unique_ptr<Annotation>> annotations) const {
-    DEBUG(std::endl << std::endl << "========= joining " << annotations.size() << std::endl)
-    for (const auto& elem : annotations) DEBUG(*elem)
-    DEBUG(std::endl)
+    DEBUG(std::endl << std::endl << "=== joining " << annotations.size() << std::endl)
+    // for (const auto& elem : annotations) DEBUG(*elem)
+    // DEBUG(std::endl)
     
     if (annotations.empty()) throw std::logic_error("Cannot join empty set"); // TODO: better error handling
     for (auto& elem : annotations) ImprovePast(*elem);
     auto result = AnnotationJoiner(std::move(annotations), config).GetResult();
     plankton::InlineAndSimplify(*result);
-    DEBUG("** join result: " << *result << std::endl << std::endl << std::endl)
+    // DEBUG("** join result: " << *result << std::endl << std::endl << std::endl)
+    DEBUG(*result << std::endl << std::endl)
     
     return result;
 }

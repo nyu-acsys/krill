@@ -42,6 +42,8 @@ void ProofGenerator::Visit(const Choice& stmt) {
         branch->Accept(*this);
         MoveInto(std::move(current), post);
     }
+    
+    current = std::move(post);
 }
 
 void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
@@ -63,7 +65,6 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
     if (!current.empty()) {
         auto joinCurrent = [this]() {
             auto join = solver.Join(std::move(current));
-            join = plankton::Normalize(std::move(join));
             current.clear();
             return join;
         };
@@ -83,8 +84,8 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
             stmt.body->Accept(*this);
             current.push_back(plankton::Copy(*join)); // TODO: is this needed??
             auto newJoin = joinCurrent();
-
-            if (plankton::SyntacticalEqual(*newJoin, *join)) break;
+            
+            if (solver.Implies(*newJoin, *join)) break;
             join = std::move(newJoin);
         }
     }

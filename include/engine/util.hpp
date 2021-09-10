@@ -37,7 +37,6 @@ namespace plankton {
     std::deque<std::unique_ptr<Axiom>> MakeStackCandidates(const std::set<const SymbolDeclaration*>& symbols,
                                                            ExtensionPolicy policy);
     void ExtendStack(Annotation& annotation, Encoding& encoding, ExtensionPolicy policy);
-    void ExtendStack(Annotation& annotation, ExtensionPolicy policy);
     
     struct ReachSet {
         std::map<const SymbolDeclaration*, std::set<const SymbolDeclaration*>> container;

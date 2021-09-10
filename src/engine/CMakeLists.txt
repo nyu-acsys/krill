@@ -25,6 +25,7 @@ set(SOURCES
 
         solver/access.cpp
         solver/ful.cpp
+        solver/implication.cpp
         solver/interference.cpp
         solver/join.cpp
         solver/past.cpp

@@ -20,7 +20,7 @@ struct Interpolator {
     explicit Interpolator(Annotation& annotation, const std::deque<std::unique_ptr<HeapEffect>>& interference,
                           const SolverConfig& config)
             : interference(interference), config(config), annotation(annotation) {
-        AvoidEffectSymbols(factory, interference);
+        plankton::AvoidEffectSymbols(factory, interference);
         plankton::RenameSymbols(annotation, factory);
         encoding.AddPremise(*annotation.now);
         encoding.AddPremise(encoding.EncodeInvariants(*annotation.now, config));
@@ -64,7 +64,7 @@ private:
             auto graph = plankton::MakePureHeapGraph(std::move(past), factory, config);
             encoding.AddPremise(graph);
             plankton::ExtendStack(*graph.pre, encoding, POLICY);
-            encoding.Push();
+            encoding.Pop();
             
             // TODO: improve this
             for (auto& conjunct : graph.pre->now->conjuncts) {
