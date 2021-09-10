@@ -228,10 +228,10 @@ struct FormulaEncoder : public BaseLogicVisitor {
             return ((low <= qv) && (qv <= high)) >> flow(qv);
         });
     }
-    void Visit(const SeparatingImplication& object) override {
+    void Visit(const NonSeparatingImplication& object) override {
         result = Encode(*object.premise) >> Encode(*object.conclusion);
     }
-    void Visit(const Invariant& object) override {
+    void Visit(const ImplicationSet& object) override {
         auto conjuncts = plankton::MakeVector<EExpr>(object.conjuncts.size());
         for (const auto& conjunct : object.conjuncts) conjuncts.push_back(Encode(*conjunct));
         result = encoding.MakeAnd(conjuncts);

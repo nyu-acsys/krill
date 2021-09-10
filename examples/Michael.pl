@@ -1,4 +1,5 @@
-#name "Vechev&Yahav CAS Set"
+#name "Michael Set"
+
 
 struct Node {
 	data_t val;
@@ -11,11 +12,15 @@ Node* Tail;
 
 
 def @contains(Node* node, data_t key) {
-    node->val == key
+    !node->marked && node->val == key
 }
 
 def @outflow[next](Node* node, data_t key) {
     node->val < key
+}
+
+def @invariant[local](Node* x) {
+    x->_flow == 0
 }
 
 def @invariant[shared](Node* x) {
@@ -34,14 +39,11 @@ def @invariant[shared](Node* x) {
  && Tail->_flow != 0
  && x->val == MAX ==> x == Tail
  && x->next == NULL ==> x == Tail
+ && x->next != NULL ==> x->val != MAX
 
  && !x->marked ==> [x->val, MAX] in x->_flow
  && x->_flow == 0 ==> x->marked
- && x->_flow != 0 ==>  [x->val, MAX] in x->_flow
-}
-
-def @invariant[local](Node* x) {
-    x->_flow == 0
+ && x->_flow != 0 ==> [x->val, MAX] in x->_flow
 }
 
 
@@ -49,38 +51,51 @@ void __init__() {
 	Tail = malloc;
 	Tail->next = NULL;
 	Tail->marked = false;
-	Tail->val = MAX;
+	Tail->val = MAX_VAL;
 	Head = malloc;
 	Head->next = Tail;
 	Head->marked = false;
-	Head->val = MIN;
+	Head->val = MIN_VAL;
 }
 
 
 inline <Node*, Node*, data_t> locate(data_t key) {
-	Node* pred, curr;
+	Node* curr, pred, next;
 	data_t k;
 
 	curr = Head;
 	do {
 		pred = curr;
 		curr = pred->next;
-        k = curr->val;
+        if (pred->marked == false && pred->next == curr) {
+			k = curr->val;
+			if (curr->marked == true) {
+			    next = curr->next;
+			    CAS(<pred->marked, pred->next>, <false, curr>, <false, next>);
+			    // retry // TODO: only retry if CAS successful?
+			    curr = Head;
+			    k = MIN_VAL;
+			}
+		} else {
+            // retry
+			curr = Head;
+			k = MIN_VAL;
+		}
 	} while (k < key);
     return <pred, curr, k>;
 }
 
 
 bool contains(data_t key) {
-	Node* pred, curr;
+	Node* curr, pred;
 	data_t k;
 
 	<pred, curr, k> = locate(key);
-    return k == key;
+	return k == key;
 }
 
 bool add(data_t key) {
-	Node* entry, pred, curr;
+	Node* curr, pred, entry;
 	data_t k;
 
 	entry = malloc;
@@ -102,8 +117,9 @@ bool add(data_t key) {
 	}
 }
 
+
 bool remove(data_t key) {
-	Node* pred, curr, next;
+	Node* curr, pred, next;
 	data_t k;
 
 	while (true) {
@@ -113,12 +129,11 @@ bool remove(data_t key) {
 			return false;
 
 		} else {
-            // TODO: support any curr->marked, not just unmarked
             next = curr->next;
 			if (CAS(<curr->marked, curr->next>, <false, next>, <true, next>)) {
-                if (CAS(<pred->marked, pred->next>, <false, curr>, <false, next>)) {
-                    return true;
-                }
+                CAS(<pred->marked, pred->next>, <false, curr>, <false, next>);
+                // TODO: <pred, curr, k> = locate(key);
+                return true;
 			}
 		}
 	}

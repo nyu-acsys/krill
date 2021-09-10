@@ -209,8 +209,9 @@ struct FlowGraphGenerator {
     };
     
     inline std::size_t GetExpansionDepth(const FlowGraphNode& node, std::size_t remainingDepth) {
-        auto handle = [this,&remainingDepth](auto& field){
-            remainingDepth = std::max(remainingDepth, graph.config.GetMaxFootprintDepth(field.name));
+        auto handle = [this,&remainingDepth,&node](auto& field){
+            auto depth = graph.config.GetMaxFootprintDepth(node.address.type, field.name);
+            remainingDepth = std::max(remainingDepth, depth);
         };
         for (const auto& field : node.dataFields) handle(field);
         for (const auto& field : node.pointerFields) handle(field);
@@ -309,7 +310,7 @@ FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const Mem
     assert(!command.lhs.empty());
     auto& lhs = *command.lhs.front();
     auto& root = lhs.variable->Decl();
-    auto depth = config.GetMaxFootprintDepth(lhs.fieldName);
+    auto depth = config.GetMaxFootprintDepth(lhs.variable->Type(), lhs.fieldName);
     
     FlowGraph graph(std::move(pre), config);
     FlowGraphGenerator generator(graph, command);

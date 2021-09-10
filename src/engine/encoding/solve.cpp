@@ -133,11 +133,11 @@ bool Encoding::Implies(const Formula& formula) {
     return Implies(Encode(formula));
 }
 
-bool Encoding::Implies(const SeparatingImplication& formula) {
+bool Encoding::Implies(const NonSeparatingImplication& formula) {
     return Implies(Encode(formula));
 }
 
-bool Encoding::Implies(const Invariant& formula) {
+bool Encoding::Implies(const ImplicationSet& formula) {
     return Implies(Encode(formula));
 }
 

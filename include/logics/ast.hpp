@@ -224,23 +224,23 @@ namespace plankton {
     // Invariants
     //
     
-    struct SeparatingImplication : public LogicObject {
+    struct NonSeparatingImplication : public LogicObject { // may not handle resources in an SL way
         std::unique_ptr<SeparatingConjunction> premise;
         std::unique_ptr<SeparatingConjunction> conclusion;
 
-        explicit SeparatingImplication();
-        explicit SeparatingImplication(std::unique_ptr<Formula> premise, std::unique_ptr<Formula> conclusion);
+        explicit NonSeparatingImplication();
+        explicit NonSeparatingImplication(std::unique_ptr<Formula> premise, std::unique_ptr<Formula> conclusion);
         ACCEPT_LOGIC_VISITOR
     };
     
-    struct Invariant : public LogicObject {
-        std::deque<std::unique_ptr<SeparatingImplication>> conjuncts;
+    struct ImplicationSet : public LogicObject {
+        std::deque<std::unique_ptr<NonSeparatingImplication>> conjuncts;
         
-        explicit Invariant();
-        void Conjoin(std::unique_ptr<SeparatingImplication> implication);
+        explicit ImplicationSet();
+        void Conjoin(std::unique_ptr<NonSeparatingImplication> implication);
         ACCEPT_LOGIC_VISITOR
     };
-
+    
     //
     // Predicates
     //

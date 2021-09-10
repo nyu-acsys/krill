@@ -65,10 +65,10 @@ inline bool AreConjunctsEqual(const T& object, const T& other) {
 inline bool IsEqual(const SeparatingConjunction& object, const SeparatingConjunction& other) {
     return AreConjunctsEqual(object, other);
 }
-inline bool IsEqual(const Invariant& object, const Invariant& other) {
+inline bool IsEqual(const ImplicationSet& object, const ImplicationSet& other) {
     return AreConjunctsEqual(object, other);
 }
-inline bool IsEqual(const SeparatingImplication& object, const SeparatingImplication& other) {
+inline bool IsEqual(const NonSeparatingImplication& object, const NonSeparatingImplication& other) {
     return plankton::SyntacticalEqual(*object.premise, *other.premise) &&
            plankton::SyntacticalEqual(*object.conclusion, *other.conclusion);
 }
@@ -123,8 +123,8 @@ struct Comparator : public LogicVisitor {
     void Visit(const InflowContainsRangeAxiom& object) override { Compare(object); }
     void Visit(const ObligationAxiom& object) override { Compare(object); }
     void Visit(const FulfillmentAxiom& object) override { Compare(object); }
-    void Visit(const SeparatingImplication& object) override { Compare(object); }
-    void Visit(const Invariant& object) override { Compare(object); }
+    void Visit(const NonSeparatingImplication& object) override { Compare(object); }
+    void Visit(const ImplicationSet& object) override { Compare(object); }
     void Visit(const PastPredicate& object) override { Compare(object); }
     void Visit(const FuturePredicate& object) override { Compare(object); }
     void Visit(const Annotation& object) override { Compare(object); }

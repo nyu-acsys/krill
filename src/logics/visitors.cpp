@@ -51,11 +51,11 @@ void LogicVisitor::Walk(const ObligationAxiom& object) {
     object.key->Accept(*this);
 }
 void LogicVisitor::Walk(const FulfillmentAxiom& /*object*/) { /* do nothing */ }
-void LogicVisitor::Walk(const SeparatingImplication& object) {
+void LogicVisitor::Walk(const NonSeparatingImplication& object) {
     object.premise->Accept(*this);
     object.conclusion->Accept(*this);
 }
-void LogicVisitor::Walk(const Invariant& object) {
+void LogicVisitor::Walk(const ImplicationSet& object) {
     for (const auto& elem : object.conjuncts) elem->Accept(*this);
 }
 void LogicVisitor::Walk(const PastPredicate& object) {
@@ -104,11 +104,11 @@ void MutableLogicVisitor::Walk(ObligationAxiom& object) {
     object.key->Accept(*this);
 }
 void MutableLogicVisitor::Walk(FulfillmentAxiom& /*object*/) { /* do nothing */ }
-void MutableLogicVisitor::Walk(SeparatingImplication& object) {
+void MutableLogicVisitor::Walk(NonSeparatingImplication& object) {
     object.premise->Accept(*this);
     object.conclusion->Accept(*this);
 }
-void MutableLogicVisitor::Walk(Invariant& object) {
+void MutableLogicVisitor::Walk(ImplicationSet& object) {
     for (auto& elem : object.conjuncts) elem->Accept(*this);
 }
 void MutableLogicVisitor::Walk(PastPredicate& object) {
@@ -152,8 +152,8 @@ void BaseLogicVisitor::Visit(const InflowContainsValueAxiom& /*object*/) { COMPL
 void BaseLogicVisitor::Visit(const InflowContainsRangeAxiom& /*object*/) { COMPLAIN(BaseLogicVisitor, const InflowContainsRangeAxiom&); }
 void BaseLogicVisitor::Visit(const ObligationAxiom& /*object*/) { COMPLAIN(BaseLogicVisitor, const ObligationAxiom&); }
 void BaseLogicVisitor::Visit(const FulfillmentAxiom& /*object*/) { COMPLAIN(BaseLogicVisitor, const FulfillmentAxiom&); }
-void BaseLogicVisitor::Visit(const SeparatingImplication& /*object*/) { COMPLAIN(BaseLogicVisitor, const SeparatingImplication&); }
-void BaseLogicVisitor::Visit(const Invariant& /*object*/) { COMPLAIN(BaseLogicVisitor, const Invariant&); }
+void BaseLogicVisitor::Visit(const NonSeparatingImplication& /*object*/) { COMPLAIN(BaseLogicVisitor, const NonSeparatingImplication&); }
+void BaseLogicVisitor::Visit(const ImplicationSet& /*object*/) { COMPLAIN(BaseLogicVisitor, const ImplicationSet&); }
 void BaseLogicVisitor::Visit(const PastPredicate& /*object*/) { COMPLAIN(BaseLogicVisitor, const PastPredicate&); }
 void BaseLogicVisitor::Visit(const FuturePredicate& /*object*/) { COMPLAIN(BaseLogicVisitor, const FuturePredicate&); }
 void BaseLogicVisitor::Visit(const Annotation& /*object*/) { COMPLAIN(BaseLogicVisitor, const Annotation&); }
@@ -173,8 +173,8 @@ void MutableBaseLogicVisitor::Visit(InflowContainsValueAxiom& /*object*/) { COMP
 void MutableBaseLogicVisitor::Visit(InflowContainsRangeAxiom& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, InflowContainsRangeAxiom&); }
 void MutableBaseLogicVisitor::Visit(ObligationAxiom& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, ObligationAxiom&); }
 void MutableBaseLogicVisitor::Visit(FulfillmentAxiom& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, FulfillmentAxiom&); }
-void MutableBaseLogicVisitor::Visit(SeparatingImplication& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, SeparatingImplication&); }
-void MutableBaseLogicVisitor::Visit(Invariant& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, Invariant&); }
+void MutableBaseLogicVisitor::Visit(NonSeparatingImplication& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, SeparatingImplication &); }
+void MutableBaseLogicVisitor::Visit(ImplicationSet& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, Invariant &); }
 void MutableBaseLogicVisitor::Visit(PastPredicate& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, PastPredicate&); }
 void MutableBaseLogicVisitor::Visit(FuturePredicate& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, FuturePredicate&); }
 void MutableBaseLogicVisitor::Visit(Annotation& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, Annotation&); }
@@ -195,8 +195,8 @@ void DefaultLogicVisitor::Visit(const InflowContainsValueAxiom& /*object*/) { /*
 void DefaultLogicVisitor::Visit(const InflowContainsRangeAxiom& /*object*/) { /* do nothing */ }
 void DefaultLogicVisitor::Visit(const ObligationAxiom& /*object*/) { /* do nothing */ }
 void DefaultLogicVisitor::Visit(const FulfillmentAxiom& /*object*/) { /* do nothing */ }
-void DefaultLogicVisitor::Visit(const SeparatingImplication& /*object*/) { /* do nothing */ }
-void DefaultLogicVisitor::Visit(const Invariant& /*object*/) { /* do nothing */ }
+void DefaultLogicVisitor::Visit(const NonSeparatingImplication& /*object*/) { /* do nothing */ }
+void DefaultLogicVisitor::Visit(const ImplicationSet& /*object*/) { /* do nothing */ }
 void DefaultLogicVisitor::Visit(const PastPredicate& /*object*/) { /* do nothing */ }
 void DefaultLogicVisitor::Visit(const FuturePredicate& /*object*/) { /* do nothing */ }
 void DefaultLogicVisitor::Visit(const Annotation& /*object*/) { /* do nothing */ }
@@ -216,8 +216,8 @@ void MutableDefaultLogicVisitor::Visit(InflowContainsValueAxiom& /*object*/) { /
 void MutableDefaultLogicVisitor::Visit(InflowContainsRangeAxiom& /*object*/) { /* do nothing */ }
 void MutableDefaultLogicVisitor::Visit(ObligationAxiom& /*object*/) { /* do nothing */ }
 void MutableDefaultLogicVisitor::Visit(FulfillmentAxiom& /*object*/) { /* do nothing */ }
-void MutableDefaultLogicVisitor::Visit(SeparatingImplication& /*object*/) { /* do nothing */ }
-void MutableDefaultLogicVisitor::Visit(Invariant& /*object*/) { /* do nothing */ }
+void MutableDefaultLogicVisitor::Visit(NonSeparatingImplication& /*object*/) { /* do nothing */ }
+void MutableDefaultLogicVisitor::Visit(ImplicationSet& /*object*/) { /* do nothing */ }
 void MutableDefaultLogicVisitor::Visit(PastPredicate& /*object*/) { /* do nothing */ }
 void MutableDefaultLogicVisitor::Visit(FuturePredicate& /*object*/) { /* do nothing */ }
 void MutableDefaultLogicVisitor::Visit(Annotation& /*object*/) { /* do nothing */ }
@@ -238,8 +238,8 @@ void LogicListener::Visit(const InflowContainsValueAxiom& object) { Enter(object
 void LogicListener::Visit(const InflowContainsRangeAxiom& object) { Enter(object); Walk(object); }
 void LogicListener::Visit(const ObligationAxiom& object) { Enter(object); Walk(object); }
 void LogicListener::Visit(const FulfillmentAxiom& object) { Enter(object); Walk(object); }
-void LogicListener::Visit(const SeparatingImplication& object) { Enter(object); Walk(object); }
-void LogicListener::Visit(const Invariant& object) { Enter(object); Walk(object); }
+void LogicListener::Visit(const NonSeparatingImplication& object) { Enter(object); Walk(object); }
+void LogicListener::Visit(const ImplicationSet& object) { Enter(object); Walk(object); }
 void LogicListener::Visit(const PastPredicate& object) { Enter(object); Walk(object); }
 void LogicListener::Visit(const FuturePredicate& object) { Enter(object); Walk(object); }
 void LogicListener::Visit(const Annotation& object) { Enter(object); Walk(object); }
@@ -259,8 +259,8 @@ void MutableLogicListener::Visit(InflowContainsValueAxiom& object) { Enter(objec
 void MutableLogicListener::Visit(InflowContainsRangeAxiom& object) { Enter(object); Walk(object); }
 void MutableLogicListener::Visit(ObligationAxiom& object) { Enter(object); Walk(object); }
 void MutableLogicListener::Visit(FulfillmentAxiom& object) { Enter(object); Walk(object); }
-void MutableLogicListener::Visit(SeparatingImplication& object) { Enter(object); Walk(object); }
-void MutableLogicListener::Visit(Invariant& object) { Enter(object); Walk(object); }
+void MutableLogicListener::Visit(NonSeparatingImplication& object) { Enter(object); Walk(object); }
+void MutableLogicListener::Visit(ImplicationSet& object) { Enter(object); Walk(object); }
 void MutableLogicListener::Visit(PastPredicate& object) { Enter(object); Walk(object); }
 void MutableLogicListener::Visit(FuturePredicate& object) { Enter(object); Walk(object); }
 void MutableLogicListener::Visit(Annotation& object) { Enter(object); Walk(object); }
@@ -282,8 +282,8 @@ void LogicListener::Enter(const InflowContainsValueAxiom& /*object*/) { /* do no
 void LogicListener::Enter(const InflowContainsRangeAxiom& /*object*/) { /* do nothing */ }
 void LogicListener::Enter(const ObligationAxiom& /*object*/) { /* do nothing */ }
 void LogicListener::Enter(const FulfillmentAxiom& /*object*/) { /* do nothing */ }
-void LogicListener::Enter(const SeparatingImplication& /*object*/) { /* do nothing */ }
-void LogicListener::Enter(const Invariant& /*object*/) { /* do nothing */ }
+void LogicListener::Enter(const NonSeparatingImplication& /*object*/) { /* do nothing */ }
+void LogicListener::Enter(const ImplicationSet& /*object*/) { /* do nothing */ }
 void LogicListener::Enter(const PastPredicate& /*object*/) { /* do nothing */ }
 void LogicListener::Enter(const FuturePredicate& /*object*/) { /* do nothing */ }
 void LogicListener::Enter(const Annotation& /*object*/) { /* do nothing */ }
@@ -305,8 +305,8 @@ void MutableLogicListener::Enter(InflowContainsValueAxiom& /*object*/) { /* do n
 void MutableLogicListener::Enter(InflowContainsRangeAxiom& /*object*/) { /* do nothing */ }
 void MutableLogicListener::Enter(ObligationAxiom& /*object*/) { /* do nothing */ }
 void MutableLogicListener::Enter(FulfillmentAxiom& /*object*/) { /* do nothing */ }
-void MutableLogicListener::Enter(SeparatingImplication& /*object*/) { /* do nothing */ }
-void MutableLogicListener::Enter(Invariant& /*object*/) { /* do nothing */ }
+void MutableLogicListener::Enter(NonSeparatingImplication& /*object*/) { /* do nothing */ }
+void MutableLogicListener::Enter(ImplicationSet& /*object*/) { /* do nothing */ }
 void MutableLogicListener::Enter(PastPredicate& /*object*/) { /* do nothing */ }
 void MutableLogicListener::Enter(FuturePredicate& /*object*/) { /* do nothing */ }
 void MutableLogicListener::Enter(Annotation& /*object*/) { /* do nothing */ }

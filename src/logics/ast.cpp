@@ -234,11 +234,11 @@ FulfillmentAxiom::FulfillmentAxiom(bool returnValue) : returnValue(returnValue) 
 // Invariants
 //
 
-SeparatingImplication::SeparatingImplication()
+NonSeparatingImplication::NonSeparatingImplication()
         : premise(std::make_unique<SeparatingConjunction>()), conclusion(std::make_unique<SeparatingConjunction>()) {
 }
 
-SeparatingImplication::SeparatingImplication(std::unique_ptr<Formula> pre, std::unique_ptr<Formula> post)
+NonSeparatingImplication::NonSeparatingImplication(std::unique_ptr<Formula> pre, std::unique_ptr<Formula> post)
         : premise(std::make_unique<SeparatingConjunction>()), conclusion(std::make_unique<SeparatingConjunction>()) {
     assert(pre);
     assert(post);
@@ -248,9 +248,9 @@ SeparatingImplication::SeparatingImplication(std::unique_ptr<Formula> pre, std::
     plankton::Simplify(*conclusion);
 }
 
-Invariant::Invariant() = default;
+ImplicationSet::ImplicationSet() = default;
 
-void Invariant::Conjoin(std::unique_ptr<SeparatingImplication> implication) {
+void ImplicationSet::Conjoin(std::unique_ptr<NonSeparatingImplication> implication) {
     conjuncts.push_back(std::move(implication));
 }
 

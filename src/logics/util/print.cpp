@@ -22,7 +22,9 @@ constexpr std::string_view SYMBOL_OP_SPACE = " ";
 constexpr std::string_view SYMBOL_EMPTY_SET = "∅";
 constexpr std::string_view LITERAL_OBLIGATION = "@OBL";
 constexpr std::string_view LITERAL_FULFILLMENT = "@FUL";
-constexpr std::string_view SYMBOL_IMPLICATION = " --* ";
+constexpr std::string_view SYMBOL_IMPLICATION = "==>";
+constexpr std::string_view SYMBOL_IMPLICATION_OPEN = "{ ";
+constexpr std::string_view SYMBOL_IMPLICATION_CLOSE = " }";
 constexpr std::string_view SYMBOL_PAST = "PAST";
 constexpr std::string_view SYMBOL_FUTURE = "FUT";
 constexpr std::string_view SYMBOL_TIME_LEFT = "<< ";
@@ -125,19 +127,17 @@ struct LogicPrinter : public LogicVisitor {
         stream << LITERAL_FULFILLMENT << "(" << (formula.returnValue ? LITERAL_TRUE : LITERAL_FALSE) << ")";
     }
 
-    void Visit(const SeparatingImplication& formula) override {
-        if (formula.premise->conjuncts.empty()) {
-            formula.conclusion->Accept(*this);
-            return;
+    void Visit(const NonSeparatingImplication& formula) override {
+        if (!formula.premise->conjuncts.empty()) {
+            stream << SYMBOL_IMPLICATION_OPEN;
+            formula.premise->Accept(*this);
+            stream << SYMBOL_IMPLICATION_CLOSE << SYMBOL_IMPLICATION;
         }
-
-        stream << "[";
-        formula.premise->Accept(*this);
-        stream << "]" << SYMBOL_IMPLICATION << "[";
+        stream << SYMBOL_IMPLICATION_OPEN;
         formula.conclusion->Accept(*this);
-        stream << "]";
+        stream << SYMBOL_IMPLICATION_CLOSE;
     }
-    void Visit(const Invariant& formula) override {
+    void Visit(const ImplicationSet& formula) override {
         HandleSeparatedConjuncts(formula);
     }
 

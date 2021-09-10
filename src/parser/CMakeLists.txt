@@ -28,8 +28,8 @@ set(SOURCES
         builder/builder.cpp
         builder/config.cpp
         builder/expr.cpp
-        builder/formula.cpp
         builder/function.cpp
+        builder/invariant.cpp
         builder/lookup.cpp
         builder/program.cpp
         builder/stmt.cpp

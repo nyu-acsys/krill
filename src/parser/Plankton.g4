@@ -11,7 +11,7 @@ program : option* (
           | funcs+=function
           | ctns+=containsPredicate
           | outf+=outflowPredicate
-          | sinv+=sharedInvariant
+//          | sinv+=sharedInvariant
           | ninv+=nodeInvariant
         )* EOF ;
 
@@ -118,13 +118,13 @@ value : Null    #valueNull
       | Minval  #valueMin
       ;
 
-simpleExpression : name=Identifier  #exprSimpleIdentifier
-                 | value            #exprSimpleValue
-                 ;
-
 deref : name=Identifier '->' field=Identifier;
 
-expression : simpleExpression | deref ;
+simpleExpression : value            #exprSimpleValue
+                 | name=Identifier  #exprSimpleIdentifier
+                 ;
+
+expression : deref | simpleExpression ;
 
 condition : logicCondition  #condLogic
           | cas             #condCas
@@ -154,18 +154,18 @@ logicCondition : binaryCondition                                       #condLogi
 
 containsPredicate : 'def' Contains
                     '(' nodeType=type nodeName=Identifier ',' valueType=type valueName=Identifier ')'
-                    '{' formula '}'
+                    '{' invariant '}'
                   ;
 
 outflowPredicate : 'def' Outflow '[' field=Identifier ']'
                    '(' nodeType=type nodeName=Identifier ',' valueType=type valueName=Identifier ')'
-                   '{' formula '}'
+                   '{' invariant '}'
                  ;
 
-sharedInvariant : 'def' Invariant '[' name=Identifier ']' '(' ')' '{' invariant '}'
-                  ;
+//sharedInvariant : 'def' ImplicationSet '[' name=Identifier ']' '(' ')' '{' invariant '}'
+//                  ;
 
-nodeInvariant : 'def' Invariant '[' isShared=Shared | isLocal=Local ']'
+nodeInvariant : 'def' Invariant '[' (isShared=Shared | isLocal=Local) ']'
                 '(' nodeType=type nodeName=Identifier ')'
                 '{' invariant '}'
               ;
@@ -175,25 +175,25 @@ nodeInvariant : 'def' Invariant '[' isShared=Shared | isLocal=Local ']'
 /************* Parser rules: logic *************/
 /***********************************************/
 
+axiom : binaryCondition                                                               #axiomCondition
+      | name=Identifier '->' FlowField Eq '0'                                         #axiomFlowEmpty
+      | name=Identifier '->' FlowField Neq '0'                                        #axiomFlowNonEmpty
+      | member=Identifier In name=Identifier '->' FlowField                           #axiomFlowValue
+      | '[' low=expression ',' high=expression ']' In name=Identifier '->' FlowField  #axiomFlowRange
+      ;
+
 formula : conjuncts+=axiom
         | '(' conjuncts+=axiom ')'
         | conjuncts+=axiom ( And conjuncts+=axiom )+
         | '(' conjuncts+=axiom ( And conjuncts+=axiom )+ ')'
         ;
 
-axiom : binaryCondition                                                                           #axiomCondition
-      | name=Identifier '->' FlowField Eq '0'                                                     #axiomFlowEmpty
-      | name=Identifier '->' FlowField Neq '0'                                                    #axiomFlowNonEmpty
-      | member=Identifier In name=Identifier '->' FlowField                                       #axiomFlowValue
-      | '[' low=simpleExpression ',' high=simpleExpression ']' In name=Identifier '->' FlowField  #axiomFlowRange
-      ;
+implication : rhs=formula
+            | lhs=formula Imp rhs=formula
+            | '(' lhs=formula Imp rhs=formula ')'
+            ;
 
-separatingImplication : rhs=formula
-                      | lhs=formula Imp rhs=formula
-                      | '(' lhs=formula Imp rhs=formula ')'
-                      ;
-
-invariant : separatingImplication ( And separatingImplication )* ;
+invariant : implication ( And implication )* ;
 
 
 /***********************************************/
@@ -208,13 +208,11 @@ DataType : 'data_t' ;
 BoolType : 'bool' ;
 IntType  : 'int' ;
 
-Null   : 'NULL' ;
-//Empty  : 'EMPTY' ;
+Null   : 'NULL' | 'nullptr' ;
 True   : 'true' ;
 False  : 'false' ;
-//Ndet   : '*' ;
-Maxval : 'MAX_VAL' ;
-Minval : 'MIN_VAL' ;
+Maxval : 'MAX' ;
+Minval : 'MIN' ;
 
 Eq  : '==' ;
 Neq : '!=' ;
@@ -224,7 +222,7 @@ Gt  : '>' ;
 Gte : '>=' ;
 And : '&&' ;
 Or  : '||' ;
-Imp : '=>' ;
+Imp : '=>' | '==>' ;
 Neg : '!' ;
 
 Contains : '@contains';

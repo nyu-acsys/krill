@@ -42,8 +42,8 @@ struct CopyVisitor : public LogicVisitor {
     void Visit(const InflowContainsRangeAxiom& object) override { Handle(object); }
     void Visit(const ObligationAxiom& object) override { Handle(object); }
     void Visit(const FulfillmentAxiom& object) override { Handle(object); }
-    void Visit(const SeparatingImplication& object) override { Handle(object); }
-    void Visit(const Invariant& object) override { Handle(object); }
+    void Visit(const NonSeparatingImplication& object) override { Handle(object); }
+    void Visit(const ImplicationSet& object) override { Handle(object); }
     void Visit(const PastPredicate& object) override { Handle(object); }
     void Visit(const FuturePredicate& object) override { Handle(object); }
     void Visit(const Annotation& object) override { Handle(object); }
@@ -168,16 +168,16 @@ std::unique_ptr<FulfillmentAxiom> plankton::Copy<FulfillmentAxiom>(const Fulfill
 }
 
 template<>
-std::unique_ptr<SeparatingImplication> plankton::Copy<SeparatingImplication>(const SeparatingImplication& object) {
-    auto result = std::make_unique<SeparatingImplication>();
+std::unique_ptr<NonSeparatingImplication> plankton::Copy<NonSeparatingImplication>(const NonSeparatingImplication& object) {
+    auto result = std::make_unique<NonSeparatingImplication>();
     result->premise = plankton::Copy(*object.premise);
     result->conclusion = plankton::Copy(*object.conclusion);
     return result;
 }
 
 template<>
-std::unique_ptr<Invariant> plankton::Copy<Invariant>(const Invariant& object) {
-    auto result = std::make_unique<Invariant>();
+std::unique_ptr<ImplicationSet> plankton::Copy<ImplicationSet>(const ImplicationSet& object) {
+    auto result = std::make_unique<ImplicationSet>();
     for (const auto& elem : object.conjuncts) result->conjuncts.push_back(plankton::Copy(*elem));
     return result;
 }

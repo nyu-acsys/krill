@@ -57,11 +57,11 @@ void Encoding::AddPremise(const Formula& formula) {
     AddPremise(Encode(formula));
 }
 
-void Encoding::AddPremise(const SeparatingImplication& formula) {
+void Encoding::AddPremise(const NonSeparatingImplication& formula) {
     AddPremise(Encode(formula));
 }
 
-void Encoding::AddPremise(const Invariant& formula) {
+void Encoding::AddPremise(const ImplicationSet& formula) {
     AddPremise(Encode(formula));
 }
 

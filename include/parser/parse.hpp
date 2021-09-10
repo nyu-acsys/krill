@@ -12,7 +12,7 @@ namespace plankton {
     
     struct ParsedSolverConfig : public SolverConfig {
         [[nodiscard]] const Type& GetFlowValueType() const override { return Type::Data(); }
-        [[nodiscard]] std::size_t GetMaxFootprintDepth(const std::string&) const override { return 1; }
+        [[nodiscard]] std::size_t GetMaxFootprintDepth(const Type&, const std::string&) const override { return 1; }
     };
     
     struct ParsingResult {

@@ -30,28 +30,25 @@ inline void ApplyRenaming(LogicObject& object, const SymbolDeclaration& search, 
 //
 
 struct FlattenVisitor final : public MutableDefaultLogicVisitor {
-    std::unique_ptr<SeparatingConjunction>* nested = nullptr;
     
     void Visit(SeparatingConjunction& object) override {
-        assert(!nested);
-        
         // find all nested separating conjunctions
-        std::deque<std::unique_ptr<SeparatingConjunction>> pulledUp;
+        std::set<SeparatingConjunction*> pullUp;
         for (auto& conjunct : object.conjuncts) {
             conjunct->Accept(*this);
-            if (!nested) continue;
-            assert(conjunct.get() == nested->get());
-            pulledUp.push_back(std::move(*nested));
-            nested->reset(nullptr);
+    
+            if (auto conjunction = dynamic_cast<SeparatingConjunction*>(conjunct.get())) {
+                pullUp.insert(conjunction);
+            }
         }
         
         // flatten
-        RemoveIf(object.conjuncts, [](const auto& elem){ return elem.get() == nullptr; });
-        for (auto& conjunction : pulledUp) MoveInto(std::move(conjunction->conjuncts), object.conjuncts);
+        for (auto& conjunction : pullUp) MoveInto(std::move(conjunction->conjuncts), object.conjuncts);
+        RemoveIf(object.conjuncts, [&pullUp](const auto& elem) { return plankton::Membership(pullUp, elem.get()); });
     }
     
-    void Visit(SeparatingImplication& object) override { Walk(object); }
-    void Visit(Invariant& object) override { Walk(object); }
+    void Visit(NonSeparatingImplication& object) override { Walk(object); }
+    void Visit(ImplicationSet& object) override { Walk(object); }
     void Visit(PastPredicate& object) override { Walk(object); }
     void Visit(FuturePredicate& object) override { Walk(object); }
     void Visit(Annotation& object) override { Walk(object); }
@@ -115,7 +112,7 @@ inline void InlineMemories(LogicObject& object) {
         inline static void Raise(const std::string& typeName) {
             throw std::logic_error("Cannot simplify '" + typeName + "'");// TODO: better error handling
         }
-        void Visit(SeparatingImplication& /*object*/) override { Raise("SeparatingImplication"); }
+        void Visit(NonSeparatingImplication& /*object*/) override { Raise("SeparatingImplication"); }
         void Visit(FuturePredicate& /*object*/) override { Raise("FuturePredicate"); }
     } dispatcher;
     object.Accept(dispatcher);
@@ -151,7 +148,7 @@ struct SyntacticEqualityInliningListener final : public MutableLogicListener {
         toVisit.Accept(*this);
         target = oldTarget;
     }
-    void Visit(SeparatingImplication& object) override {
+    void Visit(NonSeparatingImplication& object) override {
         VisitWithinNewContext(object, *object.premise);
         VisitWithinNewContext(*object.conclusion, *object.conclusion);
     }
@@ -202,8 +199,8 @@ struct CleanUpVisitor final : public MutableDefaultLogicVisitor {
         RemoveIf(object.conjuncts, [](const auto& elem){ return elem.get() == nullptr; });
     }
     
-    void Visit(SeparatingImplication& object) override { Walk(object); }
-    void Visit(Invariant& object) override { Walk(object); }
+    void Visit(NonSeparatingImplication& object) override { Walk(object); }
+    void Visit(ImplicationSet& object) override { Walk(object); }
     void Visit(PastPredicate& object) override { Walk(object); }
     void Visit(FuturePredicate& object) override { Walk(object); }
     void Visit(Annotation& object) override { Walk(object); }

@@ -37,8 +37,7 @@ namespace plankton {
         
         // config
         std::unique_ptr<ParsedSolverConfig> MakeConfig(PlanktonParser::ProgramContext& context);
-        std::unique_ptr<Formula> MakeFormula(PlanktonParser::FormulaContext& context, const Formula& eval);
-        std::unique_ptr<Invariant> MakeInvariant(PlanktonParser::InvariantContext& context, const Formula& eval);
+        std::unique_ptr<ImplicationSet> MakeInvariant(PlanktonParser::InvariantContext& context, const Formula& eval);
         
         // expressions
         std::unique_ptr<ValueExpression> MakeExpression(PlanktonParser::ExpressionContext& context);

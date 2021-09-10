@@ -18,6 +18,10 @@ def @outflow[next](Node* node, data_t key) {
     node->val < key
 }
 
+def @invariant[local](Node* x) {
+    x->_flow == 0
+}
+
 def @invariant[shared](Node* x) {
     Head != NULL
  && Head->next != NULL
@@ -37,11 +41,7 @@ def @invariant[shared](Node* x) {
 
  && !x->marked ==> [x->val, MAX] in x->_flow
  && x->_flow == 0 ==> x->marked
- && x->_flow != 0 ==>  [x->val, MAX] in x->_flow
-}
-
-def @invariant[local](Node* x) {
-    x->_flow == 0
+ && x->_flow != 0 ==> [x->val, MAX] in x->_flow
 }
 
 

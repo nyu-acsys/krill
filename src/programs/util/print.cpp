@@ -215,7 +215,7 @@ struct ProgramPrinter : public CommandPrinter {
         stream << --indent << "}" << LB;
     }
     void Visit(const Program& object) override {
-        stream << "//" << LB << "// BEGIN " << object.name << LB << "//" << LB << LB;
+        stream << "//" << LB << "// BEGIN program " << object.name << LB << "//" << LB << LB;
         for (const auto& type : object.types) PrintType(*type);
         stream << LB << LB;
         for (const auto& decl : object.variables) stream << indent << *decl << LB;
@@ -231,7 +231,7 @@ struct ProgramPrinter : public CommandPrinter {
             func->Accept(*this);
             stream << LB;
         }
-        stream << "//" << LB << "// END" << LB << "//" << LB;
+        stream << "//" << LB << "// END program " << LB << "//" << LB;
     }
 };
 

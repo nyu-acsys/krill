@@ -60,8 +60,8 @@ namespace plankton {
         
         void AddPremise(const EExpr& expr);
         void AddPremise(const Formula& premise);
-        void AddPremise(const SeparatingImplication& premise);
-        void AddPremise(const Invariant& premise);
+        void AddPremise(const NonSeparatingImplication& premise);
+        void AddPremise(const ImplicationSet& premise);
         void AddPremise(const FlowGraph& graph);
         void Push();
         void Pop();
@@ -72,8 +72,8 @@ namespace plankton {
         bool ImpliesFalse();
         bool Implies(const EExpr& expr);
         bool Implies(const Formula& formula);
-        bool Implies(const SeparatingImplication& formula);
-        bool Implies(const Invariant& formula);
+        bool Implies(const NonSeparatingImplication& formula);
+        bool Implies(const ImplicationSet& formula);
         std::set<const SymbolDeclaration*> ComputeNonNull(std::set<const SymbolDeclaration*> symbols);
         
         EExpr Encode(const LogicObject& object);

@@ -1,6 +1,6 @@
 #include <chrono>
 #include "tclap/CmdLine.h"
-#include "programs/util.hpp"
+#include "cfg2string.hpp"
 #include "engine/linearizability.hpp"
 #include "parser/parse.hpp"
 #include "util/log.hpp"
@@ -44,6 +44,14 @@ inline CommandLineInput Interact(int argc, char** argv) {
     input.pathToInput = programArg.getValue();
     input.spuriousCasFail = !casSwitch.getValue();
     input.printGist = gistSwitch.getValue();
+    
+//    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/test.txt";
+//    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/VechevYahavDCas.pl";
+//    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/VechevYahavCas.pl";
+//    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/ORVYY1.pl";
+    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/ORVYY2.pl";
+//    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/Michael.pl";
+    
     return input;
 }
 
@@ -83,8 +91,10 @@ inline VerificationResult Verify(const ParsingResult& input) {
 //
 
 inline void PrintInput(const ParsingResult& input) {
-    INFO("[input program]" << std::endl << plankton::ToString(*input.program) << std::endl)
-    // TODO: print input.config
+    assert(input.program);
+    assert(input.config);
+    INFO("[input program]" << std::endl << *input.program << std::endl)
+    INFO("[input flow & invariants]" << std::endl << ConfigToString(*input.config, *input.program) << std::endl)
 }
 
 inline void PrintResult(const CommandLineInput& cmd, const ParsingResult& input, const VerificationResult& result) {
