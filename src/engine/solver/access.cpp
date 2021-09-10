@@ -47,14 +47,14 @@ inline void MakeAccessible(Annotation& annotation, const Command& command, const
     for (const auto* variable : collector.result) {
         if (variable->type.sort != Sort::PTR) continue;
         // TODO: more involved shared reachability check?
-        if (dataFlow.AlwaysPointsToShared(*variable)) continue;
+        if (!dataFlow.AlwaysPointsToShared(*variable)) continue;
         
         auto& resource = plankton::GetResource(*variable, *annotation.now);
         symbols.insert(&resource.Value());
     }
     
     // make accessible
-    plankton::MakeMemoryAccessible(annotation, symbols, config.GetFlowValueType());
+    plankton::MakeMemoryAccessible(annotation, symbols, config);
 }
 
 void Solver::PrepareAccess(Annotation& annotation, const Command& command) const {

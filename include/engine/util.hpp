@@ -31,7 +31,7 @@ namespace plankton {
     void MakeMemoryAccessible(SeparatingConjunction& formula, std::set<const SymbolDeclaration*> addresses,
                               const Type& flowType, SymbolFactory& factory, Encoding& encoding);
     void MakeMemoryAccessible(Annotation& annotation, std::set<const SymbolDeclaration*> addresses,
-                              const Type& flowType);
+                              const SolverConfig& config);
     
     enum struct ExtensionPolicy { POINTERS, FAST, FULL };
     std::deque<std::unique_ptr<Axiom>> MakeStackCandidates(const std::set<const SymbolDeclaration*>& symbols,

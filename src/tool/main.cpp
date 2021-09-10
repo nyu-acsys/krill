@@ -47,9 +47,9 @@ inline CommandLineInput Interact(int argc, char** argv) {
     
 //    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/test.txt";
 //    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/VechevYahavDCas.pl";
-//    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/VechevYahavCas.pl";
+    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/VechevYahavCas.pl";
 //    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/ORVYY1.pl";
-    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/ORVYY2.pl";
+//    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/ORVYY2.pl";
 //    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/Michael.pl";
     
     return input;
@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
         auto cmd = Interact(argc, argv);
         auto input = Parse(cmd);
         PrintInput(input);
-        throw std::logic_error("breakpoint");
+//        throw std::logic_error("breakpoint");
         auto result = Verify(input);
         PrintResult(cmd, input, result);
         return 0;

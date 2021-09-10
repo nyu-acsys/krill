@@ -170,7 +170,7 @@ struct AnnotationJoiner {
             }
             
             // more memory
-            plankton::MakeMemoryAccessible(*annotation, std::move(used), config.GetFlowValueType());
+            plankton::MakeMemoryAccessible(*annotation, std::move(used), config);
             
             // make info
             lookup.emplace_back(*annotation);

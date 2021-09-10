@@ -66,28 +66,36 @@ struct AlwaysShared : public ProgramListener {
     void HandleAssignment(const Assignment<L,R>& object) {
         for (std::size_t index = 0; index < object.lhs.size(); ++index) {
             if (object.lhs.at(index)->Sort() != Sort::PTR) continue;
-            if (ContainsNonShared(*object.rhs.at(index)))
-                sharedPointers.erase(&object.lhs.at(index)->Decl());
+            if (!ContainsNonShared(*object.rhs.at(index))) continue;
+            sharedPointers.erase(&object.lhs.at(index)->Decl());
         }
     }
     void Enter(const VariableAssignment& object) override { HandleAssignment(object); }
     void Enter(const MemoryWrite& /*object*/) override { /* do nothing */ }
-    void Enter(const Malloc& object) override { sharedPointers.erase(&object.lhs->Decl()); }
+    void Enter(const Malloc& object) override {
+        sharedPointers.erase(&object.lhs->Decl());
+    }
     
     void Enter(const Return& object) override {
         auto function = returnMap[&object];
         if (!function) return;
         assert(function->kind == Function::MACRO);
         for (const auto& elem : object.expressions) {
-            if (ContainsNonShared(*elem))
-                sharedMacros.erase(function);
+            if (!ContainsNonShared(*elem)) continue;
+            sharedMacros.erase(function);
         }
     }
     void Enter(const Macro& object) override {
         assert(object.function.get().kind == Function::MACRO);
-        if (sharedMacros.count(&object.function.get()) != 0) return;
-        for (const auto& elem : object.lhs)
+        if (plankton::Membership(sharedMacros, &object.function.get())) return;
+        for (const auto& elem : object.lhs) {
             sharedPointers.erase(&elem->Decl());
+        }
+    }
+    
+    void Visit(const Function& object) override {
+        if (object.kind == Function::INIT) return;
+        ProgramListener::Visit(object);
     }
 };
 
@@ -101,7 +109,8 @@ inline std::set<const VariableDeclaration*> ComputeFixedPoint(const Program& pro
     }
 }
 
-DataFlowAnalysis::DataFlowAnalysis(const Program& program) : alwaysShared(ComputeFixedPoint(program)) {}
+DataFlowAnalysis::DataFlowAnalysis(const Program& program) : alwaysShared(ComputeFixedPoint(program)) {
+}
 
 bool DataFlowAnalysis::AlwaysPointsToShared(const VariableDeclaration& decl) const {
     return alwaysShared.count(&decl) != 0;

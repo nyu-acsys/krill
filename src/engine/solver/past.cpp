@@ -23,6 +23,7 @@ struct Interpolator {
         AvoidEffectSymbols(factory, interference);
         plankton::RenameSymbols(annotation, factory);
         encoding.AddPremise(*annotation.now);
+        encoding.AddPremise(encoding.EncodeInvariants(*annotation.now, config));
     }
     
     void Interpolate() {

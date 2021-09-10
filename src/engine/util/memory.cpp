@@ -1,7 +1,6 @@
-#include "engine/solver.hpp"
+#include "engine/util.hpp"
 
 #include "logics/util.hpp"
-#include "engine/util.hpp"
 #include "engine/encoding.hpp"
 
 using namespace plankton;
@@ -23,9 +22,11 @@ void plankton::MakeMemoryAccessible(SeparatingConjunction& formula, std::set<con
 }
 
 void plankton::MakeMemoryAccessible(Annotation& annotation, std::set<const SymbolDeclaration*> symbols,
-                                    const Type& flowType) {
+                                    const SolverConfig& config) {
     if (symbols.empty()) return;
     SymbolFactory factory(annotation);
     Encoding encoding(*annotation.now);
-    return plankton::MakeMemoryAccessible(*annotation.now, std::move(symbols), flowType, factory, encoding);
+    encoding.AddPremise(encoding.EncodeInvariants(*annotation.now, config));
+    return plankton::MakeMemoryAccessible(*annotation.now, std::move(symbols), config.GetFlowValueType(),
+                                          factory, encoding);
 }
