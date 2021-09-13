@@ -118,7 +118,7 @@ void ProofGenerator::Visit(const Macro& cmd) {
     breaking = std::move(breakingOuter);
     returning = std::move(returningOuter);
 
-    DEBUG(std::endl << "________" << std::endl << "Post annotation for macro '" << cmd.Func().name << "':" << std::endl)
-    for (const auto& elem : current) DEBUG("  ~~> " << *elem << std::endl)
-    DEBUG(std::endl << std::endl << std::endl)
+    DEBUG(std::endl << "=== post annotations for macro '" << cmd.Func().name << "':" << std::endl)
+    for (const auto& elem : current) DEBUG("  -- " << *elem << std::endl)
+    DEBUG(std::endl << std::endl)
 }

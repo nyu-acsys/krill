@@ -47,6 +47,8 @@ namespace plankton {
     struct SymbolFactory final {
         explicit SymbolFactory();
         explicit SymbolFactory(const LogicObject& avoid);
+        SymbolFactory(SymbolFactory&& other) = default;
+        SymbolFactory(const SymbolFactory& other) = delete;
         
         void Avoid(const LogicObject& avoid);
         const SymbolDeclaration& GetFresh(const Type& type, Order order);

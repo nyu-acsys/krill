@@ -7,7 +7,7 @@ using namespace plankton;
 struct EncodingHelper {
     Encoding& encoding;
     const FlowGraph& graph;
-    const EExpr& key;
+    const EExpr key;
     
     EncodingHelper(Encoding& encoding, const FlowGraph& graph, const EExpr& key)
             : encoding(encoding), graph(graph), key(key) {}

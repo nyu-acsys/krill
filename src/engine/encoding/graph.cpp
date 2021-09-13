@@ -31,7 +31,7 @@ EExpr Encoding::EncodeOutflow(const FlowGraphNode& node, const PointerField& fie
         result.push_back(AsExpr(EncodeForAll(flowSort, func)));
     };
     auto elemOfOutflow = [&](const EExpr& value) -> EExpr {
-        return EExpr(EncodeOutflowContains(node, field.name, value, mode));
+        return EncodeOutflowContains(node, field.name, value, mode);
     };
     
     // outflow
@@ -98,8 +98,12 @@ EExpr Encoding::EncodeFlowRules(const FlowGraphNode& node) {
     addRule(postKey, postAll && !postOut);
 
     // keyset is inflow minus outflow
-    addRule(preAll && !preOut, preKey);
+    addRule(preAll, preOut || preKey);
+//    addRule(preAll && !preOut, preKey);
+//    addRule(preAll && !preKey, preOut);
     addRule(postAll && !postOut, postKey);
+//    addRule(postAll && !postOut, postKey);
+//    addRule(postAll && !postKey, postOut);
 
     // graphInflow is due to predecessors (skip if graph flow is equal to all flow)
     if (&node.preAllInflow.get() != &node.preGraphInflow.get() &&
@@ -132,12 +136,13 @@ EExpr Encoding::EncodeInflowUniqueness(const FlowGraph& graph, EMode mode) {
 
     auto result = plankton::MakeVector<EExpr>(graph.nodes.size());
     for (const auto& node : graph.nodes) {
+        auto nodeInflow = GetGraphInflow(graph, node, mode);
+        if (nodeInflow.empty()) continue;
         auto inflow = plankton::MakeVector<EExpr>(graph.nodes.size() + 1);
-        for (const auto* edge : GetGraphInflow(graph, node, mode)) {
-            inflow.push_back(isNonEmpty(*edge));
-        }
-        result.push_back(MakeAtMost(result, 1));
+        for (const auto* edge : nodeInflow) inflow.push_back(isNonEmpty(*edge));
+        result.push_back(MakeAtMost(inflow, 1));
     }
+    if (result.empty()) return Bool(true);
     return MakeAnd(result);
 }
 
@@ -152,11 +157,10 @@ EExpr Encoding::Encode(const FlowGraph& graph) {
     result.push_back(EncodeKeysetDisjointness(graph, EMode::PRE));
     result.push_back(EncodeInflowUniqueness(graph, EMode::PRE));
     
-    auto qv = MakeQuantifiedVariable(graph.config.GetFlowValueType().sort);
     for (const auto& node : graph.nodes) {
         result.push_back(EExpr(EncodeFlowRules(node)));
         for (const auto& field : node.pointerFields) {
-            result.push_back(EExpr(EncodeOutflow(node, field, EMode::PRE)));
+            result.push_back(EncodeOutflow(node, field, EMode::PRE));
             result.push_back(EExpr(EncodeOutflow(node, field, EMode::POST)));
         }
     }
@@ -179,7 +183,7 @@ EExpr Encoding::EncodeLogicallyContains(const FlowGraphNode& node, const EExpr& 
 EExpr Encoding::EncodeOutflowContains(const FlowGraphNode& node, const std::string& field, const EExpr& value, EMode mode) {
     auto [axiom, dummy] = MakeDummy(node, mode);
     auto predicate = node.parent.config.GetOutflowContains(*axiom, field, dummy);
-    return EExpr(Replace(Encode(*predicate), Encode(dummy), value));
+    return Replace(Encode(*predicate), Encode(dummy), value);
 }
 
 struct InvariantCreator : public BaseLogicVisitor {

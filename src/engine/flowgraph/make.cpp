@@ -74,7 +74,7 @@ struct Worklist {
     }
 };
 
-inline FlowGraphNode MakeNodeFromResource(const MemoryAxiom& axiom, SymbolFactory factory, const FlowGraph& graph) {
+inline FlowGraphNode MakeNodeFromResource(const MemoryAxiom& axiom, SymbolFactory& factory, const FlowGraph& graph) {
     FlowGraphNode result(graph, axiom.node->Decl(), plankton::IsLocal(axiom), axiom.flow->Decl(), factory);
     
     auto& flowType = axiom.flow->Type();

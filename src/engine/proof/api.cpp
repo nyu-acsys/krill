@@ -91,7 +91,7 @@ inline std::unique_ptr<Annotation> MakeInterfaceAnnotation(const Program& progra
 
 inline bool IsFulfilled(const Annotation& annotation, const Return& command) {
     assert(command.expressions.size() == 1); // TODO: throw?
-    auto returnExpression = command.expressions.at(1).get();
+    auto returnExpression = command.expressions.front().get();
     bool returnValue;
     if (dynamic_cast<const TrueValue*>(returnExpression)) returnValue = true;
     else if (dynamic_cast<const FalseValue*>(returnExpression)) returnValue = false;
@@ -125,10 +125,13 @@ void ProofGenerator::HandleInterfaceFunction(const Function& function) {
     // check post annotations
     DEBUG(std::endl << std::endl << " CHECKING POST ANNOTATION OF " << function.name << "  " << returning.size() << std::endl)
     for (auto& [annotation, command] : returning) {
+        DEBUG(std::endl << "chk lin: " << *annotation << std::endl)
         assert(command);
         if (IsFulfilled(*annotation, *command)) continue;
+        DEBUG("   ~> deeper check" << std::endl)
         annotation = solver.TryAddFulfillment(std::move(annotation));
         if (IsFulfilled(*annotation, *command)) continue;
         throw std::logic_error("Could not establish linearizability for function '" + function.name + "'."); // TODO: better error handling
     }
+    throw std::logic_error("--- breakpoint ---");
 }
