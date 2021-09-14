@@ -135,22 +135,6 @@ inline void AddFlowCoverageChecks(PostImageInfo& info) {
 }
 
 inline void AddFlowUniquenessChecks(PostImageInfo& info) {
-    // TODO: remove debug
-    for (auto it = info.footprint.nodes.begin(); it != info.footprint.nodes.end(); ++it) {
-        for (auto ot = std::next(it); ot != info.footprint.nodes.end(); ++ot) {
-            auto e = info.encoding.EncodeExists(info.config.GetFlowValueType().sort, [&info,it,ot](auto qv){
-                auto itKeys = info.encoding.Encode(it->postKeyset);
-                auto itFrame = info.encoding.Encode(it->frameInflow);
-                auto otKeys = info.encoding.Encode(ot->postKeyset);
-                auto otFrame = info.encoding.Encode(ot->frameInflow);
-                return itKeys(qv) && otKeys(qv) && !itFrame(qv) && !otFrame(qv);
-            });
-            info.encoding.AddCheck(!e, [it,ot](bool holds){
-                DEBUG("Keyset of " << it->address.name << " and " << ot->address.name << " disjoint = " << holds << std::endl)
-            });
-        }
-    }
-    
     auto disjointness = info.encoding.EncodeKeysetDisjointness(info.footprint, EMode::POST);
     info.encoding.AddCheck(disjointness, [](bool holds){
         DEBUG("Checking keyset disjointness: holds=" << holds << std::endl)
