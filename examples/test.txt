@@ -1,4 +1,4 @@
-#name "Vechev&Yahav CAS Set"
+#name "[TEST] Vechev&Yahav CAS Set"
 
 struct Node {
 	data_t val;
@@ -16,6 +16,10 @@ def @contains(Node* node, data_t key) {
 
 def @outflow[next](Node* node, data_t key) {
     node->val < key
+}
+
+def @invariant[local](Node* x) {
+    x->_flow == 0
 }
 
 def @invariant[shared](Node* x) {
@@ -37,11 +41,7 @@ def @invariant[shared](Node* x) {
 
  && !x->marked ==> [x->val, MAX] in x->_flow
  && x->_flow == 0 ==> x->marked
- && x->_flow != 0 ==>  [x->val, MAX] in x->_flow
-}
-
-def @invariant[local](Node* x) {
-    x->_flow == 0
+ && x->_flow != 0 ==> [x->val, MAX] in x->_flow
 }
 
 
@@ -71,14 +71,6 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 }
 
 
-bool contains(data_t key) {
-	Node* pred, curr;
-	data_t k;
-
-	<pred, curr, k> = locate(key);
-    return k == key;
-}
-
 bool add(data_t key) {
 	Node* entry, pred, curr;
 	data_t k;
@@ -100,6 +92,14 @@ bool add(data_t key) {
 			}
 		}
 	}
+}
+
+bool contains(data_t key) {
+	Node* pred, curr;
+	data_t k;
+
+	<pred, curr, k> = locate(key);
+    return k == key;
 }
 
 bool remove(data_t key) {

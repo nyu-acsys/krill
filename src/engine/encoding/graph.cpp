@@ -39,12 +39,8 @@ EExpr Encoding::EncodeOutflow(const FlowGraphNode& node, const PointerField& fie
     auto graphOut = Encode(field.GraphOutflow(mode));
     auto allIn = Encode(node.AllInflow(mode));
     auto allOut = Encode(field.AllOutflow(mode));
-//    addRule([&](auto qv){ return (graphIn(qv) && elemOfOutflow(qv)) == graphOut(qv); });
-//    addRule([&](auto qv){ return (allIn(qv) && elemOfOutflow(qv)) == allOut(qv); });
-    addRule([&](auto qv){ return (graphIn(qv) && elemOfOutflow(qv)) >> graphOut(qv); });
-    addRule([&](auto qv){ return graphOut(qv) >> (graphIn(qv) && elemOfOutflow(qv)); });
-    addRule([&](auto qv){ return (allIn(qv) && elemOfOutflow(qv)) >> allOut(qv); });
-    addRule([&](auto qv){ return allOut(qv) >> (allIn(qv) && elemOfOutflow(qv)); });
+    addRule([&](auto qv){ return (graphIn(qv) && elemOfOutflow(qv)) == graphOut(qv); });
+    addRule([&](auto qv){ return (allIn(qv) && elemOfOutflow(qv)) == allOut(qv); });
 
     // outflow received by successor
     auto* successor = graph.GetNodeOrNull(field.Value(mode));
@@ -138,13 +134,14 @@ EExpr Encoding::EncodeInflowUniqueness(const FlowGraph& graph, EMode mode) {
         return Encode(InflowEmptinessAxiom(flow, false));
     };
 
-    auto result = plankton::MakeVector<EExpr>(graph.nodes.size());
+    auto result = plankton::MakeVector<EExpr>(2 * graph.nodes.size());
     for (const auto& node : graph.nodes) {
         auto nodeInflow = GetGraphInflow(graph, node, mode);
         if (nodeInflow.empty()) continue;
         auto inflow = plankton::MakeVector<EExpr>(graph.nodes.size() + 1);
         for (const auto* edge : nodeInflow) inflow.push_back(isNonEmpty(*edge));
         result.push_back(MakeAtMost(inflow, 1));
+        result.push_back(MakeOr(inflow) >> !isNonEmpty(node.FrameInflow()));
     }
     if (result.empty()) return Bool(true);
     return MakeAnd(result);
@@ -162,10 +159,10 @@ EExpr Encoding::Encode(const FlowGraph& graph) {
     result.push_back(EncodeInflowUniqueness(graph, EMode::PRE));
     
     for (const auto& node : graph.nodes) {
-        result.push_back(EExpr(EncodeFlowRules(node)));
+        result.push_back(EncodeFlowRules(node));
         for (const auto& field : node.pointerFields) {
             result.push_back(EncodeOutflow(node, field, EMode::PRE));
-            result.push_back(EExpr(EncodeOutflow(node, field, EMode::POST)));
+            result.push_back(EncodeOutflow(node, field, EMode::POST));
         }
     }
     

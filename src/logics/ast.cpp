@@ -140,7 +140,7 @@ MemoryAxiom::MemoryAxiom(std::unique_ptr<SymbolicVariable> adr, std::unique_ptr<
     for (const auto& field : node->Type()) {
         assert(fieldToValue.count(field.first) != 0);
         assert(fieldToValue[field.first]->Order() == Order::FIRST);
-        assert(fieldToValue[field.first]->Type() == field.second);
+        assert(fieldToValue[field.first]->Type().AssignableTo(field.second));
     }
 }
 

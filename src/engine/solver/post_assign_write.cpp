@@ -23,6 +23,7 @@ struct PostImageInfo {
     Annotation& pre;
     std::set<const ObligationAxiom*> preObligations;
     std::deque<std::unique_ptr<Axiom>> postSpecifications;
+    std::optional<bool> isPureUpdate = std::nullopt;
     
     std::map<const SymbolDeclaration*, const SymbolDeclaration*> outsideInsideAlias;
     std::map<const SymbolDeclaration*, std::set<const SymbolDeclaration*>> outsideInsideDistinct;
@@ -81,15 +82,27 @@ inline void CheckReachability(PostImageInfo& info) {
     }
     
     // ensure that no nodes outside the footprint are reachable after the update that were unreachable before
+    auto notUpdatedOrShared = [&info](const auto& field) {
+        if (!field.HasUpdated()) return true;
+        if (auto node = info.footprint.GetNodeOrNull(field.postValue)) return !node->preLocal;
+        return false;
+    };
     for (const auto& node : info.footprint.nodes) {
-        if (node.preLocal) continue; // local nodes do not introduce cycles // TODO: correct?
+        if (!node.HasUpdatedPointers()) continue;
+        if (node.preLocal && plankton::All(node.pointerFields, notUpdatedOrShared)) continue;
+        
         for (const auto* reach : postReach.GetReachable(node.address)) {
             if (preReach.IsReachable(node.address, *reach)) continue;
-            // if (info.footprint.GetNodeOrNull(*reach)) continue; // unsound to add this?
-            auto isNull = info.encoding.EncodeIsNull(*reach);
-            info.encoding.AddCheck(isNull, [reach](bool holds){
+            if (node.preLocal)
+                if (auto reachNode = info.footprint.GetNodeOrNull(*reach))
+                    if (!reachNode->preLocal) continue;
+            
+            if (plankton::Subset(preReach.GetReachable(*reach), preReach.GetReachable(node.address)))
+                continue;
+
+            info.encoding.AddCheck(info.encoding.EncodeIsNull(*reach), [reach](bool holds){
                 if (holds) return;
-                throw std::logic_error("Update failed: cannot guarantee acyclicity via potentially non-null non-footprint address" + reach->name + "."); // TODO: better error handling
+                throw std::logic_error("Update failed: cannot guarantee acyclicity via potentially non-null non-footprint address " + reach->name + "."); // TODO: better error handling
             });
         }
     }
@@ -122,6 +135,22 @@ inline void AddFlowCoverageChecks(PostImageInfo& info) {
 }
 
 inline void AddFlowUniquenessChecks(PostImageInfo& info) {
+    // TODO: remove debug
+    for (auto it = info.footprint.nodes.begin(); it != info.footprint.nodes.end(); ++it) {
+        for (auto ot = std::next(it); ot != info.footprint.nodes.end(); ++ot) {
+            auto e = info.encoding.EncodeExists(info.config.GetFlowValueType().sort, [&info,it,ot](auto qv){
+                auto itKeys = info.encoding.Encode(it->postKeyset);
+                auto itFrame = info.encoding.Encode(it->frameInflow);
+                auto otKeys = info.encoding.Encode(ot->postKeyset);
+                auto otFrame = info.encoding.Encode(ot->frameInflow);
+                return itKeys(qv) && otKeys(qv) && !itFrame(qv) && !otFrame(qv);
+            });
+            info.encoding.AddCheck(!e, [it,ot](bool holds){
+                DEBUG("Keyset of " << it->address.name << " and " << ot->address.name << " disjoint = " << holds << std::endl)
+            });
+        }
+    }
+    
     auto disjointness = info.encoding.EncodeKeysetDisjointness(info.footprint, EMode::POST);
     info.encoding.AddCheck(disjointness, [](bool holds){
         DEBUG("Checking keyset disjointness: holds=" << holds << std::endl)
@@ -141,6 +170,7 @@ inline void AddSpecificationChecks(PostImageInfo& info) {
     // check purity
     plankton::AddPureCheck(info.footprint, info.encoding, [&info](bool isPure) {
         DEBUG(" ** is pure=" << isPure << std::endl)
+        info.isPureUpdate = isPure;
         if (isPure) {
             for (const auto* obl : info.preObligations) info.postSpecifications.push_back(plankton::Copy(*obl));
             return;
@@ -160,6 +190,8 @@ inline void AddSpecificationChecks(PostImageInfo& info) {
                 info.postSpecifications.push_back(std::make_unique<FulfillmentAxiom>(ful.value()));
                 return;
             }
+            assert(info.isPureUpdate.has_value());
+            if (info.isPureUpdate.value_or(false)) return;
             throw std::logic_error("Unsafe update: impure update that does not satisfy the specification");
         });
     }

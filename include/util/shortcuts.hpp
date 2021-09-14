@@ -96,6 +96,13 @@ namespace plankton {
         return !plankton::NonEmptyIntersection(container, other);
     }
     
+    template<typename T, typename U>
+    static inline bool Subset(const T& subset, const U& superset) {
+        return plankton::All(subset, [&superset](const auto& elem){
+            return superset.count(elem) != 0;
+        });
+    }
+    
     struct ExceptionWithMessage : public std::exception {
         std::string message;
         explicit ExceptionWithMessage(std::string message) : message(std::move(message)) {}

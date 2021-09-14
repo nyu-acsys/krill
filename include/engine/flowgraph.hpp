@@ -61,6 +61,7 @@ namespace plankton {
     
         [[nodiscard]] bool HasUpdated() const;
         [[nodiscard]] bool HasUpdatedFlow() const;
+        [[nodiscard]] bool HasUpdatedPointers() const;
         [[nodiscard]] bool IsLocal(EMode mode) const;
         [[nodiscard]] const SymbolDeclaration& AllInflow(EMode mode) const;
         [[nodiscard]] const SymbolDeclaration& GraphInflow(EMode mode) const;
