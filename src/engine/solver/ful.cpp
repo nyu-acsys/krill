@@ -43,6 +43,7 @@ struct FulfillmentFinder {
     }
 };
 
+#include "util/log.hpp"
 [[nodiscard]] std::unique_ptr<Annotation> Solver::TryAddFulfillment(std::unique_ptr<Annotation> annotation) const {
     assert(!Encoding(*annotation->now).ImpliesFalse());
     FulfillmentFinder finder(*annotation, config);

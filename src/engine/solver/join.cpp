@@ -7,6 +7,8 @@
 
 using namespace plankton;
 
+constexpr const bool DERIVE_FROM_HEAP_GRAPH = false;
+
 
 inline std::unique_ptr<StackAxiom> MakeEq(const SymbolDeclaration& decl, const SymbolDeclaration& other) {
     return std::make_unique<StackAxiom>(BinaryOperator::EQ, std::make_unique<SymbolicVariable>(decl),
@@ -138,8 +140,8 @@ struct AnnotationJoiner {
         
         Preprocess();
         
-        // DEBUG("preprocessed, now joining: ")
-        // for (const auto& elem : annotations) DEBUG(*elem; std::cout << std::endl)
+         DEBUG("preprocessed, now joining: ")
+         for (const auto& elem : annotations) DEBUG(*elem; std::cout << std::endl)
 
         CreateVariableResources();
         CreateMemoryResources();
@@ -153,28 +155,47 @@ struct AnnotationJoiner {
     }
 
     inline void Preprocess() {
+        DEBUG("[join] starting preprocessing..." << std::flush)
         lookup.reserve(annotations.size());
         for (auto& annotation : annotations) {
             // distinct symbols across annotations
             plankton::RenameSymbols(*annotation, factory);
+    
+            // more memory
+            std::set<const SymbolDeclaration*> expand;
+            for (const auto* var : plankton::Collect<EqualsToAxiom>(*annotation->now))
+                expand.insert(&var->Value());
+            plankton::MakeMemoryAccessible(*annotation, std::move(expand), config);
+    
+            if constexpr (!DERIVE_FROM_HEAP_GRAPH) {
+                // more flow
+                auto graph = plankton::MakePureHeapGraph(std::move(annotation), factory, config);
+                Encoding enc(graph);
+                annotation = std::move(graph.pre);
+                plankton::ExtendStack(*annotation, enc, ExtensionPolicy::FAST);
+            }
             
             // distinct values across variables
             auto resources = plankton::CollectMutable<EqualsToAxiom>(*annotation->now);
             std::set<const SymbolDeclaration*> used;
             for (auto* variable : resources) {
+                if (variable->Variable().type.sort != Sort::PTR) continue;
                 auto insertion = used.insert(&variable->Value());
                 if (insertion.second) continue; // not yet in use
                 auto& newValue = factory.GetFreshFO(variable->value->Type());
                 annotation->Conjoin(MakeEq(variable->Value(), newValue));
+                if (auto mem = plankton::TryGetResource(variable->Value(), *annotation->now)) {
+                    auto newMem = plankton::Copy(*mem);
+                    newMem->node->decl = newValue;
+                    annotation->Conjoin(std::move(newMem));
+                }
                 variable->value->decl = newValue;
             }
-            
-            // more memory
-            plankton::MakeMemoryAccessible(*annotation, std::move(used), config);
             
             // make info
             lookup.emplace_back(*annotation);
         }
+        DEBUG(" done" << std::endl)
     }
 
     inline void CreateVariableResources() {
@@ -318,11 +339,16 @@ struct AnnotationJoiner {
 
         for (auto& info : lookup) {
             std::vector<EExpr> encoded;
-            encoded.reserve(10);
+            encoded.reserve(16);
 
             // encode annotation + invariants
-            encoded.push_back(encoding.Encode(*info.annotation.now));
-            encoded.push_back(encoding.EncodeInvariants(*info.annotation.now, config));
+            if constexpr (!DERIVE_FROM_HEAP_GRAPH) {
+                encoded.push_back(encoding.Encode(*info.annotation.now));
+                encoded.push_back(encoding.EncodeInvariants(*info.annotation.now, config));
+            } else {
+                auto graph = plankton::MakePureHeapGraph(plankton::Copy(info.annotation), factory, config);
+                encoded.push_back(encoding.Encode(graph));
+            }
 
             // force common variables to agree
             for (const auto& [var, resource] : varToCommonRes) {
@@ -370,7 +396,9 @@ struct AnnotationJoiner {
     }
 
     inline void DeriveJoinedStack() {
+        DEBUG("[join] starting stack extension..." << std::flush)
         plankton::ExtendStack(*result, encoding, ExtensionPolicy::FAST);
+        DEBUG(" done" << std::endl)
     }
 };
 
@@ -381,11 +409,12 @@ std::unique_ptr<Annotation> Solver::Join(std::deque<std::unique_ptr<Annotation>>
     // DEBUG(std::endl)
     
     if (annotations.empty()) throw std::logic_error("Cannot join empty set"); // TODO: better error handling
+    if (annotations.size() == 1) return std::move(annotations.front());
     for (auto& elem : annotations) ImprovePast(*elem);
     auto result = AnnotationJoiner(std::move(annotations), config).GetResult();
     plankton::InlineAndSimplify(*result);
     // DEBUG("** join result: " << *result << std::endl << std::endl << std::endl)
     DEBUG(*result << std::endl << std::endl)
-    
+ 
     return result;
 }

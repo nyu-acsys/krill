@@ -39,8 +39,12 @@ EExpr Encoding::EncodeOutflow(const FlowGraphNode& node, const PointerField& fie
     auto graphOut = Encode(field.GraphOutflow(mode));
     auto allIn = Encode(node.AllInflow(mode));
     auto allOut = Encode(field.AllOutflow(mode));
-    addRule([&](auto qv){ return (graphIn(qv) && elemOfOutflow(qv)) == graphOut(qv); });
-    addRule([&](auto qv){ return (allIn(qv) && elemOfOutflow(qv)) == allOut(qv); });
+//    addRule([&](auto qv){ return (graphIn(qv) && elemOfOutflow(qv)) == graphOut(qv); });
+//    addRule([&](auto qv){ return (allIn(qv) && elemOfOutflow(qv)) == allOut(qv); });
+    addRule([&](auto qv){ return (graphIn(qv) && elemOfOutflow(qv)) >> graphOut(qv); });
+    addRule([&](auto qv){ return graphOut(qv) >> (graphIn(qv) && elemOfOutflow(qv)); });
+    addRule([&](auto qv){ return (allIn(qv) && elemOfOutflow(qv)) >> allOut(qv); });
+    addRule([&](auto qv){ return allOut(qv) >> (allIn(qv) && elemOfOutflow(qv)); });
 
     // outflow received by successor
     auto* successor = graph.GetNodeOrNull(field.Value(mode));
@@ -99,11 +103,11 @@ EExpr Encoding::EncodeFlowRules(const FlowGraphNode& node) {
 
     // keyset is inflow minus outflow
     addRule(preAll, preOut || preKey);
-//    addRule(preAll && !preOut, preKey);
-//    addRule(preAll && !preKey, preOut);
+    addRule(preAll && !preOut, preKey);
+    addRule(preAll && !preKey, preOut);
+    addRule(postAll, postOut || postKey);
     addRule(postAll && !postOut, postKey);
-//    addRule(postAll && !postOut, postKey);
-//    addRule(postAll && !postKey, postOut);
+    addRule(postAll && !postKey, postOut);
 
     // graphInflow is due to predecessors (skip if graph flow is equal to all flow)
     if (&node.preAllInflow.get() != &node.preGraphInflow.get() &&
@@ -148,7 +152,7 @@ EExpr Encoding::EncodeInflowUniqueness(const FlowGraph& graph, EMode mode) {
 
 EExpr Encoding::Encode(const FlowGraph& graph) {
     if (graph.nodes.empty()) return Bool(true);
-    auto result = plankton::MakeVector<EExpr>(8 + graph.nodes.size() * graph.nodes.front().pointerFields.size());
+    auto result = plankton::MakeVector<EExpr>(8);
     
     result.push_back(Encode(*graph.pre->now));
     result.push_back(EncodeInvariants(*graph.pre->now, graph.config));
@@ -164,6 +168,8 @@ EExpr Encoding::Encode(const FlowGraph& graph) {
             result.push_back(EExpr(EncodeOutflow(node, field, EMode::POST)));
         }
     }
+    
+    // TODO: if two nodes are equal ==> same flows and values
     
     return MakeAnd(result);
 }

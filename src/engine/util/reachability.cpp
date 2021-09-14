@@ -17,6 +17,7 @@ const std::set<const SymbolDeclaration*>& ReachSet::GetReachable(const SymbolDec
     return empty;
 }
 
+#include "util/log.hpp"
 inline ReachSet ComputeReach(ReachSet initial) {
     ReachSet reachability = std::move(initial);
     bool changed;
@@ -32,7 +33,7 @@ inline ReachSet ComputeReach(ReachSet initial) {
             }
             changed |= size != nodeReach.size();
         }
-    } while (!changed);
+    } while (changed);
     return reachability;
 }
 

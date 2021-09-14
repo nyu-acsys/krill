@@ -50,8 +50,8 @@ private:
     void ExpandPastMemory() {
         auto& flowType = config.GetFlowValueType();
         auto nowSymbols = plankton::Collect<SymbolDeclaration>(*annotation.now);
-        plankton::MakeMemoryAccessible(*annotation.now, nowSymbols, flowType, factory, encoding);
-        plankton::ExtendStack(annotation, encoding, POLICY);
+        // plankton::MakeMemoryAccessible(*annotation.now, nowSymbols, flowType, factory, encoding); // TODO: needed?
+        // plankton::ExtendStack(annotation, encoding, POLICY); // TODO: needed?
 
         std::deque<std::unique_ptr<PastPredicate>> newPast;
         for (const auto& elem : annotation.past) {
@@ -219,5 +219,6 @@ private:
 };
 
 void Solver::ImprovePast(Annotation& annotation) const {
+    // TODO: if (annotation.past.empty()) return; ?
     Interpolator(annotation, interference, config).Interpolate();
 }
