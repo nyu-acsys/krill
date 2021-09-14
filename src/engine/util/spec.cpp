@@ -21,7 +21,7 @@ void plankton::AddPureSpecificationCheck(const FlowGraph& graph, Encoding& encod
     auto isNotContained = isPure && isKeyNotContained && !isKeyContained;
     
     encoding.AddCheck(isContained, [spec = obligation.spec, callback = acceptFulfillment](bool holds) {
-        DEBUG(" ** isContained=" << holds << std::endl)
+        // DEBUG(" ** isContained=" << holds << std::endl)
         if (!holds) { callback(std::nullopt); return; }
         switch (spec) {
             case Specification::CONTAINS: callback(true); break;
@@ -30,7 +30,7 @@ void plankton::AddPureSpecificationCheck(const FlowGraph& graph, Encoding& encod
         }
     });
     encoding.AddCheck(isNotContained, [spec = obligation.spec, callback = acceptFulfillment](bool holds) {
-        DEBUG(" ** isNotContained=" << holds << std::endl)
+        // DEBUG(" ** isNotContained=" << holds << std::endl)
         if (!holds) { callback(std::nullopt); return; }
         switch (spec) {
             case Specification::CONTAINS: callback(false); break;

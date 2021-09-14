@@ -32,7 +32,6 @@ struct FulfillmentFinder {
         auto graph = plankton::MakePureHeapGraph(std::move(dummy), factory, config);
         encoding.Push();
         encoding.AddPremise(graph);
-        assert(!encoding.ImpliesFalse()); // TODO: remove
         for (const auto* obligation : obligations) {
             plankton::AddPureSpecificationCheck(graph, encoding, *obligation, [this](auto ful){
                 if (ful.has_value()) fulfillments.push_back(std::make_unique<FulfillmentAxiom>(ful.value()));
@@ -43,9 +42,7 @@ struct FulfillmentFinder {
     }
 };
 
-#include "util/log.hpp"
 [[nodiscard]] std::unique_ptr<Annotation> Solver::TryAddFulfillment(std::unique_ptr<Annotation> annotation) const {
-    assert(!Encoding(*annotation->now).ImpliesFalse());
     FulfillmentFinder finder(*annotation, config);
     finder.Handle(*annotation->now);
     for (const auto& past : annotation->past) finder.Handle(*past->formula);

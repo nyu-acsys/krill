@@ -81,11 +81,24 @@ inline std::unique_ptr<ObligationAxiom> MakeObligation(const Annotation& annotat
     return std::make_unique<ObligationAxiom>(kind, std::move(key));
 }
 
+inline std::unique_ptr<Formula> MakeKeyBounds(const SymbolDeclaration& key) {
+    static auto mkLt = [](auto lhs, auto rhs){
+        return std::make_unique<StackAxiom>(BinaryOperator::LT, std::move(lhs), std::move(rhs));
+    };
+    auto result = std::make_unique<SeparatingConjunction>();
+    result->Conjoin(mkLt(std::make_unique<SymbolicMin>(), std::make_unique<SymbolicVariable>(key)));
+    result->Conjoin(mkLt(std::make_unique<SymbolicVariable>(key), std::make_unique<SymbolicMax>()));
+    return result;
+}
+
 inline std::unique_ptr<Annotation> MakeInterfaceAnnotation(const Program& program, const Function& function, const Solver& solver) {
     auto result = std::make_unique<Annotation>();
     result = solver.PostEnter(std::move(result), program);
     result = solver.PostEnter(std::move(result), function);
-    result->now->conjuncts.push_back(MakeObligation(*result, function));
+    auto obligation = MakeObligation(*result, function);
+    result->Conjoin(MakeKeyBounds(obligation->key->Decl()));
+    result->Conjoin(std::move(obligation));
+    plankton::Simplify(*result);
     return result;
 }
 
@@ -125,13 +138,10 @@ void ProofGenerator::HandleInterfaceFunction(const Function& function) {
     // check post annotations
     DEBUG(std::endl << std::endl << " CHECKING POST ANNOTATION OF " << function.name << "  " << returning.size() << std::endl)
     for (auto& [annotation, command] : returning) {
-        DEBUG(std::endl << "chk lin: " << *annotation << std::endl)
         assert(command);
         if (IsFulfilled(*annotation, *command)) continue;
-        DEBUG("   ~> deeper check" << std::endl)
         annotation = solver.TryAddFulfillment(std::move(annotation));
         if (IsFulfilled(*annotation, *command)) continue;
         throw std::logic_error("Could not establish linearizability for function '" + function.name + "'."); // TODO: better error handling
     }
-    throw std::logic_error("--- breakpoint ---");
 }
