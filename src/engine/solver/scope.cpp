@@ -7,9 +7,6 @@ using namespace plankton;
 
 inline std::unique_ptr<Annotation>
 AddScope(std::unique_ptr<Annotation> pre, const std::vector<std::unique_ptr<VariableDeclaration>>& scope) {
-    // Note: avoiding clashes is not strictly necessary as the tool won't confuse the different variable
-    //       declaration with the same name, however, the user will...
-    // TODO: really check for clashes?
     auto inScope = plankton::Collect<EqualsToAxiom>(*pre->now);
     auto clash = Any(scope, [&inScope](const auto& elem){
         return ContainsIf(inScope, [&elem](auto* other){ return other->Variable().name == elem->name; });

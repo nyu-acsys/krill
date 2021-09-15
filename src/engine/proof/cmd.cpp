@@ -98,6 +98,7 @@ void ProofGenerator::HandleMacroEpilog(const Macro& macro) {
     current = std::move(newCurrent);
 
     ApplyTransformer([this,&macro](auto annotation){
+        annotation = solver.PostLeave(std::move(annotation), *macro.function.get().body);
         return solver.PostLeave(std::move(annotation), macro.Func());
     });
 }

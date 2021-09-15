@@ -91,6 +91,7 @@ namespace plankton {
         EExpr EncodeIsNull(const VariableDeclaration& decl);
         EExpr EncodeMemoryEquality(const MemoryAxiom& memory, const MemoryAxiom& other);
         EExpr EncodeInvariants(const Formula& formula, const SolverConfig& config);
+        EExpr EncodeSimpleFlowRules(const Formula& formula, const SolverConfig& config);
         EExpr EncodeAcyclicity(const Formula& formula);
         EExpr EncodeOwnership(const Formula& formula);
         

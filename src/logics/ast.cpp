@@ -127,7 +127,7 @@ void SeparatingConjunction::Conjoin(std::unique_ptr<Formula> formula) {
 
 void SeparatingConjunction::RemoveConjunctsIf(const std::function<bool(const Formula&)>& predicate) {
     Simplify(*this);
-    RemoveIf(conjuncts, [&predicate](const auto& elem){ return predicate(*elem); });
+    plankton::RemoveIf(conjuncts, [&predicate](const auto& elem){ return predicate(*elem); });
 }
 
 MemoryAxiom::MemoryAxiom(std::unique_ptr<SymbolicVariable> adr, std::unique_ptr<SymbolicVariable> flw,

@@ -291,3 +291,84 @@ EExpr Encoding::EncodeOwnership(const Formula& formula) {
     }
     return MakeAnd(result);
 }
+
+EExpr Encoding::EncodeSimpleFlowRules(const Formula& formula, const SolverConfig& config) {
+    auto memories = plankton::Collect<MemoryAxiom>(formula);
+    auto& flowType = config.GetFlowValueType();
+    auto symbols = plankton::Collect<SymbolDeclaration>(formula, [&flowType](const auto& decl){
+        return decl.order == Order::FIRST && decl.type.sort == flowType.sort;
+    });
+
+    auto result = plankton::MakeVector<EExpr>(16);
+    for (const auto* memory : memories) {
+        auto inflowMemory = Encode(*memory->flow);
+        for (const auto& [name, value]: memory->fieldToValue) {
+            if (value->Sort() != Sort::PTR) continue;
+            for (const auto* other : memories) {
+                if (memory == other) continue;
+                if (value->Decl() != other->node->Decl()) continue;
+                auto inflowOther = Encode(*other->flow);
+                for (const auto* symbol : symbols) {
+                    auto flowsOut = Encode(*config.GetOutflowContains(*memory, name, *symbol));
+                    auto encSym = Encode(*symbol);
+                    auto rule = (inflowMemory(encSym) && flowsOut) >> inflowOther(encSym);
+                    result.push_back(rule);
+                }
+            }
+        }
+    }
+
+    return MakeAnd(result);
+}
+
+//EExpr Encoding::EncodeSimpleFlowRules(const Formula& formula, const SolverConfig& config) {
+//    auto memories = plankton::Collect<MemoryAxiom>(formula);
+//
+//    auto result = plankton::MakeVector<EExpr>(16);
+//    for (const auto* memory : memories) {
+//        for (const auto& field : memory->fieldToValue) {
+//            if (field.second->Sort() != Sort::PTR) continue;
+//            auto hasOutflow = EncodeExists(memory->flow->Sort(), [&,this](auto qv) -> EExpr {
+//                auto& symbol = SymbolFactory(*memory).GetFreshFO(memory->flow->Type());
+//                auto predicate = config.GetOutflowContains(*memory, field.first, symbol);
+//                return Encode(*memory->flow)(qv) && Replace(Encode(*predicate), Encode(symbol), qv);
+//            });
+//
+//            for (const auto* other : memories) {
+//                if (memory == other) continue;
+//                auto linked = Encode(*field.second) == Encode(*other->node);
+//                auto hasInflow = Encode(*std::make_unique<InflowEmptinessAxiom>(other->flow->Decl(), false));
+//                result.push_back((linked && hasOutflow) >> hasInflow);
+//            }
+//        }
+//    }
+//
+//    return MakeAnd(result);
+//}
+
+//EExpr Encoding::EncodeSimpleFlowRules(const Formula& formula, const SolverConfig& config) {
+//    auto memories = plankton::Collect<MemoryAxiom>(formula);
+//
+//    auto result = plankton::MakeVector<EExpr>(16);
+//    for (const auto* memory : memories) {
+//        for (const auto& field : memory->fieldToValue) {
+//            if (field.second->Sort() != Sort::PTR) continue;
+//            for (const auto* other : memories) {
+//                if (memory == other) continue;
+//                auto linked = Encode(*field.second) == Encode(*other->node);
+//                auto rule = EncodeForAll(memory->flow->Sort(), [&,this](auto qv) -> EExpr {
+//                    auto& symbol = SymbolFactory(*memory).GetFreshFO(memory->flow->Type());
+//                    auto predicate = config.GetOutflowContains(*memory, field.first, symbol);
+//
+//                    auto hasFlow = Encode(*memory->flow)(qv);
+//                    auto hasOutflow = Replace(Encode(*predicate), Encode(symbol), qv);
+//                    auto hasInflow = Encode(*other->flow)(qv);
+//                    return (hasFlow && hasOutflow) >> hasInflow;
+//                });
+//                result.push_back(linked >> rule);
+//            }
+//        }
+//    }
+//
+//    return MakeAnd(result);
+//}

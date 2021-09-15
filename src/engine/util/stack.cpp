@@ -53,6 +53,7 @@ private:
             for (auto symbol = symbols.begin(); symbol != symbols.end(); ++symbol) {
                 AddBinaryFlowCandidates(*flow, **symbol);
                 if (!AtLeast(ExtensionPolicy::FULL)) continue;
+                AddMoreBinaryFlowCandidates(*flow, **symbol);
                 for (auto other = std::next(symbol); other != symbols.end(); ++other) {
                     AddTernaryFlowCandidates(*flow, **symbol, **other);
                 }
@@ -108,10 +109,14 @@ private:
             result.push_back(std::make_unique<InflowEmptinessAxiom>(flow, value));
         }
     }
-
+    
     inline void AddBinaryFlowCandidates(const SymbolDeclaration& flow, const SymbolDeclaration& symbol) {
         if (flow.type != symbol.type) return;
         result.push_back(std::make_unique<InflowContainsValueAxiom>(flow, symbol));
+    }
+    
+    inline void AddMoreBinaryFlowCandidates(const SymbolDeclaration& flow, const SymbolDeclaration& symbol) {
+        if (flow.type != symbol.type) return;
         result.push_back(std::make_unique<InflowContainsRangeAxiom>(MkVar(flow), MkVar(symbol), std::make_unique<SymbolicMax>()));
         result.push_back(std::make_unique<InflowContainsRangeAxiom>(MkVar(flow), std::make_unique<SymbolicMin>(), MkVar(symbol)));
     }

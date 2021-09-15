@@ -119,7 +119,7 @@ struct LogicPrinter : public LogicVisitor {
     }
     void Visit(const ObligationAxiom& formula) override {
         stream << LITERAL_OBLIGATION;
-        stream << formula.spec << "(";
+        stream << "(" << formula.spec << " ";
         formula.key->Accept(*this);
         stream << ")";
     }

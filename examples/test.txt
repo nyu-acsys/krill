@@ -71,36 +71,6 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 }
 
 
-bool add(data_t key) {
-	Node* entry, pred, curr;
-	data_t k;
-
-	entry = malloc;
-	entry->val = key;
-	entry->marked = false;
-
-	while (true) {
-		<pred, curr, k> = locate(key);
-
-		if (k == key) {
-            return false;
-
-		} else {
-			entry->next = curr;
-            if (CAS(<pred->marked, pred->next>, <false, curr>, <false, entry>)) {
-				return true;
-			}
-		}
-	}
-}
-
-bool contains(data_t key) {
-	Node* pred, curr;
-	data_t k;
-
-	<pred, curr, k> = locate(key);
-    return k == key;
-}
 
 bool remove(data_t key) {
 	Node* pred, curr, next;
@@ -119,6 +89,36 @@ bool remove(data_t key) {
                 if (CAS(<pred->marked, pred->next>, <false, curr>, <false, next>)) {
                     return true;
                 }
+			}
+		}
+	}
+}
+bool contains(data_t key) {
+	Node* pred, curr;
+	data_t k;
+
+	<pred, curr, k> = locate(key);
+    return k == key;
+}
+
+bool add(data_t key) {
+	Node* entry, pred, curr;
+	data_t k;
+
+	entry = malloc;
+	entry->val = key;
+	entry->marked = false;
+
+	while (true) {
+		<pred, curr, k> = locate(key);
+
+		if (k == key) {
+            return false;
+
+		} else {
+			entry->next = curr;
+            if (CAS(<pred->marked, pred->next>, <false, curr>, <false, entry>)) {
+				return true;
 			}
 		}
 	}

@@ -92,6 +92,7 @@ EExpr Encoding::EncodeFlowRules(const FlowGraphNode& node) {
 
     // redundant
     addRule(preGraph == postGraph, preAll == postAll);
+    addRule(preAll == postAll, preGraph == postGraph);
 
     // keyset is subset of all flow and not outflow
     addRule(preKey, preAll && !preOut);
@@ -133,17 +134,14 @@ EExpr Encoding::EncodeInflowUniqueness(const FlowGraph& graph, EMode mode) {
     auto isNonEmpty = [&](const SymbolDeclaration& flow) {
         return Encode(InflowEmptinessAxiom(flow, false));
     };
-
-    auto result = plankton::MakeVector<EExpr>(2 * graph.nodes.size());
+    auto result = plankton::MakeVector<EExpr>(16);
     for (const auto& node : graph.nodes) {
-        auto nodeInflow = GetGraphInflow(graph, node, mode);
-        if (nodeInflow.empty()) continue;
         auto inflow = plankton::MakeVector<EExpr>(graph.nodes.size() + 1);
-        for (const auto* edge : nodeInflow) inflow.push_back(isNonEmpty(*edge));
+        inflow.push_back(isNonEmpty(node.FrameInflow()));
+        for (const auto* edge : GetGraphInflow(graph, node, mode))
+            inflow.push_back(isNonEmpty(*edge));
         result.push_back(MakeAtMost(inflow, 1));
-        result.push_back(MakeOr(inflow) >> !isNonEmpty(node.FrameInflow()));
     }
-    if (result.empty()) return Bool(true);
     return MakeAnd(result);
 }
 
@@ -153,20 +151,20 @@ EExpr Encoding::Encode(const FlowGraph& graph) {
     
     result.push_back(Encode(*graph.pre->now));
     result.push_back(EncodeInvariants(*graph.pre->now, graph.config));
+    result.push_back(EncodeSimpleFlowRules(*graph.pre->now, graph.config));
     result.push_back(EncodeAcyclicity(*graph.pre->now));
     result.push_back(EncodeOwnership(*graph.pre->now));
     result.push_back(EncodeKeysetDisjointness(graph, EMode::PRE));
     result.push_back(EncodeInflowUniqueness(graph, EMode::PRE));
     
     for (const auto& node : graph.nodes) {
+        result.push_back(EncodeNodeInvariant(node, EMode::PRE));
         result.push_back(EncodeFlowRules(node));
         for (const auto& field : node.pointerFields) {
             result.push_back(EncodeOutflow(node, field, EMode::PRE));
             result.push_back(EncodeOutflow(node, field, EMode::POST));
         }
     }
-    
-    // TODO: if two nodes are equal ==> same flows and values
     
     return MakeAnd(result);
 }

@@ -4,10 +4,12 @@
 #include "engine/util.hpp"
 #include "engine/encoding.hpp"
 #include "util/log.hpp"
+#include "util/timer.hpp"
 
 using namespace plankton;
 
-constexpr const bool DERIVE_FROM_HEAP_GRAPH = false;
+constexpr const bool DEEP_PREPROCESSING = false;
+constexpr const ExtensionPolicy EXTENSION = ExtensionPolicy::FAST;
 
 
 inline std::unique_ptr<StackAxiom> MakeEq(const SymbolDeclaration& decl, const SymbolDeclaration& other) {
@@ -120,7 +122,6 @@ struct AnnotationJoiner {
     SymbolFactory factory;
     const SolverConfig& config;
     std::vector<AnnotationInfo> lookup;
-//    std::map<const VariableDeclaration*, bool> commonMemory;
     std::map<const VariableDeclaration*, EqualsToAxiom*> varToCommonRes;
     std::map<const VariableDeclaration*, MemoryAxiom*> varToCommonMem;
     Encoding encoding;
@@ -140,8 +141,8 @@ struct AnnotationJoiner {
         
         Preprocess();
         
-         DEBUG("preprocessed, now joining: ")
-         for (const auto& elem : annotations) DEBUG(*elem; std::cout << std::endl)
+//         DEBUG("preprocessed, now joining: ")
+//         for (const auto& elem : annotations) DEBUG(*elem; std::cout << std::endl)
 
         CreateVariableResources();
         CreateMemoryResources();
@@ -166,13 +167,14 @@ struct AnnotationJoiner {
             for (const auto* var : plankton::Collect<EqualsToAxiom>(*annotation->now))
                 expand.insert(&var->Value());
             plankton::MakeMemoryAccessible(*annotation, std::move(expand), config);
-    
-            if constexpr (!DERIVE_FROM_HEAP_GRAPH) {
-                // more flow
-                auto graph = plankton::MakePureHeapGraph(std::move(annotation), factory, config);
-                Encoding enc(graph);
-                annotation = std::move(graph.pre);
-                plankton::ExtendStack(*annotation, enc, ExtensionPolicy::FAST);
+
+            // more flow
+            if constexpr (DEEP_PREPROCESSING) {
+                Encoding enc;
+                enc.AddPremise(*annotation->now);
+                enc.AddPremise(enc.EncodeInvariants(*annotation->now, config));
+                enc.AddPremise(enc.EncodeSimpleFlowRules(*annotation->now, config));
+                plankton::ExtendStack(*annotation, enc, EXTENSION);
             }
             
             // distinct values across variables
@@ -342,12 +344,10 @@ struct AnnotationJoiner {
             encoded.reserve(16);
 
             // encode annotation + invariants
-            if constexpr (!DERIVE_FROM_HEAP_GRAPH) {
-                encoded.push_back(encoding.Encode(*info.annotation.now));
+            encoded.push_back(encoding.Encode(*info.annotation.now));
+            if constexpr (!DEEP_PREPROCESSING) {
                 encoded.push_back(encoding.EncodeInvariants(*info.annotation.now, config));
-            } else {
-                auto graph = plankton::MakePureHeapGraph(plankton::Copy(info.annotation), factory, config);
-                encoded.push_back(encoding.Encode(graph));
+                encoded.push_back(encoding.EncodeSimpleFlowRules(*info.annotation.now, config));
             }
 
             // force common variables to agree
@@ -396,14 +396,18 @@ struct AnnotationJoiner {
     }
 
     inline void DeriveJoinedStack() {
+        static Timer timer("Solver::Join -- DeriveJoinedStack()");
+        auto measure = timer.Measure();
         DEBUG("[join] starting stack extension..." << std::flush)
-        plankton::ExtendStack(*result, encoding, ExtensionPolicy::FAST);
+        plankton::ExtendStack(*result, encoding, EXTENSION);
         DEBUG(" done" << std::endl)
     }
 };
 
-
 std::unique_ptr<Annotation> Solver::Join(std::deque<std::unique_ptr<Annotation>> annotations) const {
+    static Timer timer("Solver::Join -- overall");
+    auto measure = timer.Measure();
+    
     DEBUG(std::endl << std::endl << "=== joining " << annotations.size() << std::endl)
     // for (const auto& elem : annotations) DEBUG(*elem)
     // DEBUG(std::endl)
@@ -415,6 +419,6 @@ std::unique_ptr<Annotation> Solver::Join(std::deque<std::unique_ptr<Annotation>>
     plankton::InlineAndSimplify(*result);
     // DEBUG("** join result: " << *result << std::endl << std::endl << std::endl)
     DEBUG(*result << std::endl << std::endl)
- 
+    
     return result;
 }
