@@ -32,10 +32,8 @@ struct PostImageInfo {
     explicit PostImageInfo(std::unique_ptr<Annotation> pre_, const MemoryWrite& cmd, const SolverConfig& config)
             : config(config), command(cmd), footprint(plankton::MakeFlowFootprint(std::move(pre_), cmd, config)),
               encoding(footprint), pre(*footprint.pre), preObligations(plankton::Collect<ObligationAxiom>(*pre.now)) {
-        DEBUG("** pre after footprint creation: " << *footprint.pre << std::endl)
-        plankton::ExtendStack(*footprint.pre, encoding, ExtensionPolicy::FAST); // TODO: remove debug
-        DEBUG("** pre after stack extension: " << *footprint.pre << std::endl)
         assert(&pre == footprint.pre.get());
+        DEBUG("** pre after footprint creation: " << pre << std::endl)
     }
     
     template<typename T, typename = plankton::EnableIfBaseOf<MemoryAxiom, T>>
@@ -186,65 +184,6 @@ inline void AddSpecificationChecks(PostImageInfo& info) {
 
 inline void AddInvariantChecks(PostImageInfo& info) {
     for (const auto& node : info.footprint.nodes) {
-        // BEGIN DEBUG // TODO: remove
-        auto asLogic = node.ToLogic(EMode::POST);
-        std::unique_ptr<ImplicationSet> inv;
-        if (auto local = dynamic_cast<const LocalMemoryResource*>(asLogic.get())) {
-            inv = info.config.GetLocalNodeInvariant(*local);
-        } else if (auto shared = dynamic_cast<const SharedMemoryCore*>(asLogic.get())) {
-            inv = info.config.GetSharedNodeInvariant(*shared);
-        }
-        auto asLogicPre = node.ToLogic(EMode::PRE);
-        std::unique_ptr<ImplicationSet> invPre;
-        if (auto local = dynamic_cast<const LocalMemoryResource*>(asLogicPre.get())) {
-            invPre = info.config.GetLocalNodeInvariant(*local);
-        } else if (auto shared = dynamic_cast<const SharedMemoryCore*>(asLogicPre.get())) {
-            invPre = info.config.GetSharedNodeInvariant(*shared);
-        }
-        assert(inv);
-        DEBUG("@@ pre node " << node.address.name << " as logic: " << *asLogicPre << "   inv: " << *invPre << std::endl)
-        DEBUG("@@ post node " << node.address.name << " as logic: " << *asLogic << "   inv: " << *inv << std::endl)
-//        auto unchangedFlow = info.encoding.Encode(node.AllInflow(EMode::PRE))
-//                             == info.encoding.Encode(node.AllInflow(EMode::POST));
-        auto unchangedFlow = info.encoding.EncodeForAll(Sort::DATA, [&](auto qv) {
-            return info.encoding.Encode(node.AllInflow(EMode::PRE))(qv)
-                   == info.encoding.Encode(node.AllInflow(EMode::POST))(qv);
-        });
-        info.encoding.AddCheck(unchangedFlow, [&node](bool holds){
-            DEBUG("~~ " << node.address.name << " unchanged=" << holds << std::endl)
-        });
-        InflowEmptinessAxiom emp(node.AllInflow(EMode::PRE), false);
-        info.encoding.AddCheck(info.encoding.Encode(emp), [&node](bool holds){
-            DEBUG("~~ " << node.address.name << " pre flow non empty=" << holds << std::endl)
-        });
-        for (const auto& conjunct : inv->conjuncts) {
-            auto premise = info.encoding.Encode(*conjunct->premise);
-            for (const auto& elem : conjunct->conclusion->conjuncts) {
-                auto conclusion = info.encoding.Encode(*elem);
-                auto chk = premise >> conclusion;
-                auto str = plankton::ToString(*conjunct->premise) + " ==> " + plankton::ToString(*elem);
-                info.encoding.AddCheck(chk, [str](bool holds){
-                    DEBUG("!! inv=" << holds << "  " << str << std::endl)
-                });
-                auto chkHelp = (premise && unchangedFlow) >> conclusion;
-                info.encoding.AddCheck(chkHelp, [str](bool holds){
-                    DEBUG("!! invH=" << holds << "  " << str << std::endl)
-                });
-            }
-        }
-        for (const auto& conjunct : invPre->conjuncts) {
-            auto premise = info.encoding.Encode(*conjunct->premise);
-            for (const auto& elem : conjunct->conclusion->conjuncts) {
-                auto conclusion = info.encoding.Encode(*elem);
-                auto chk = premise >> conclusion;
-                auto str = plankton::ToString(*conjunct->premise) + " ==> " + plankton::ToString(*elem);
-                info.encoding.AddCheck(chk, [str](bool holds){
-                    DEBUG("!! preInv=" << holds << "  " << str << std::endl)
-                });
-            }
-        }
-        // END DEBUG
-        
         auto nodeInvariant = info.encoding.EncodeNodeInvariant(node, EMode::POST);
         info.encoding.AddCheck(nodeInvariant, [&node](bool holds){
             DEBUG("Checking invariant for " << node.address.name << ": holds=" << holds << std::endl)
@@ -475,13 +414,12 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd) 
 
     CheckPublishing(info);
     CheckReachability(info);
-    AddInvariantChecks(info);
     AddFlowCoverageChecks(info);
     AddFlowUniquenessChecks(info);
+    AddInvariantChecks(info);
     AddSpecificationChecks(info);
     AddAffectedOutsideChecks(info);
     AddEffectContextGenerators(info);
-    // TODO: extend post stack?
     PerformChecks(info);
 
     MinimizeFootprint(info);

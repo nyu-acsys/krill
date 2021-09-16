@@ -306,6 +306,31 @@ struct FlowGraphGenerator {
     }
 };
 
+inline void PostProcessFootprint(FlowGraph& footprint) {
+    Encoding encoding(footprint);
+    auto handle = [&encoding](auto& pre, auto& post, const auto& info) {
+        if (pre.get() == post.get()) return;
+        auto equal = encoding.Encode(pre) == encoding.Encode(post);
+        encoding.AddCheck(equal, [&pre,&post,info](bool holds){
+            DEBUG("~~ equals=" << holds << "  [" << info << "]: " << pre.get().name << " == " << post.get().name << std::endl)
+            if (!holds) return;
+            post = pre.get();
+        });
+    };
+    
+    for (auto& node : footprint.nodes) {
+        handle(node.preAllInflow, node.postAllInflow, "allInflow@" + node.address.name);
+        handle(node.preGraphInflow, node.postGraphInflow, "graphInflow@" + node.address.name);
+        handle(node.preKeyset, node.postKeyset, "keyset@" + node.address.name);
+        for (auto& field : node.pointerFields) {
+            handle(field.preAllOutflow, field.postAllOutflow, "allOutflow@" + node.address.name + "::" + field.name);
+            handle(field.preGraphOutflow, field.postGraphOutflow, "graphOutflow@" + node.address.name + "::" + field.name);
+        }
+    }
+    
+    encoding.Check();
+}
+
 FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const MemoryWrite& command, const SolverConfig& config) {
     assert(!command.lhs.empty());
     auto& lhs = *command.lhs.front();
@@ -332,7 +357,8 @@ FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const Mem
                              << next.postValue.get().name << std::endl)
         }
     }
-
+    
+    PostProcessFootprint(graph);
     return graph;
 }
 
