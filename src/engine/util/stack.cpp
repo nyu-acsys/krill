@@ -6,6 +6,16 @@
 using namespace plankton;
 
 
+struct GeneratorCollector : public LogicListener {
+    void Visit(const StackAxiom&) override { /* do nothing */ }
+    void Visit(const InflowEmptinessAxiom&) override { /* do nothing */ }
+    void Visit(const InflowContainsValueAxiom&) override { /* do nothing */ }
+    void Visit(const InflowContainsRangeAxiom&) override { /* do nothing */ }
+    
+    std::set<const SymbolDeclaration*> result;
+    void Enter(const SymbolDeclaration& object) override { result.insert(&object); }
+};
+
 struct Generator {
     ExtensionPolicy policy;
     std::set<const SymbolDeclaration*> symbols;
@@ -14,18 +24,16 @@ struct Generator {
     
     explicit Generator(ExtensionPolicy policy) : policy(policy) {}
     
-    inline void AddSymbolsFrom(const std::set<const SymbolDeclaration*>& newSymbols) {
-        for (const auto* elem : newSymbols) {
+    inline void AddSymbolsFrom(const LogicObject& object) {
+        GeneratorCollector collector;
+        object.Accept(collector);
+    
+        for (const auto* elem : collector.result) {
             switch (elem->order) {
                 case Order::FIRST: symbols.insert(elem); break;
                 case Order::SECOND: flows.insert(elem); break;
             }
         }
-    }
-    
-    inline void AddSymbolsFrom(const LogicObject& object) {
-        auto newSymbols = plankton::Collect<SymbolDeclaration>(object);
-        AddSymbolsFrom(newSymbols);
     }
     
     inline std::deque<std::unique_ptr<Axiom>> Generate() {
@@ -130,10 +138,9 @@ private:
 };
 
 
-std::deque<std::unique_ptr<Axiom>> plankton::MakeStackCandidates(const std::set<const SymbolDeclaration*>& symbols,
-                                                                 ExtensionPolicy policy) {
+std::deque<std::unique_ptr<Axiom>> plankton::MakeStackCandidates(const Annotation& annotation, ExtensionPolicy policy) {
     Generator candidates(policy);
-    candidates.AddSymbolsFrom(symbols);
+    candidates.AddSymbolsFrom(annotation);
     return candidates.Generate();
 }
 
@@ -149,4 +156,11 @@ void plankton::ExtendStack(Annotation& annotation, Encoding& encoding, Extension
         });
     }
     encoding.Check();
+}
+
+void plankton::ExtendStack(Annotation& annotation, const SolverConfig& config, ExtensionPolicy policy) {
+    Encoding encoding(*annotation.now);
+    encoding.AddPremise(encoding.EncodeInvariants(*annotation.now, config));
+    encoding.AddPremise(encoding.EncodeSimpleFlowRules(*annotation.now, config));
+    plankton::ExtendStack(annotation, encoding, policy);
 }

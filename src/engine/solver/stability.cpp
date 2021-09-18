@@ -19,8 +19,8 @@ struct InterferenceInfo {
     explicit InterferenceInfo(std::unique_ptr<Annotation> annotation_,
                               const std::deque<std::unique_ptr<HeapEffect>>& interference)
             : annotation(std::move(annotation_)), interference(interference) {
-        DEBUG("<<INTERFERENCE>>" << std::endl)
         assert(annotation);
+        DEBUG("<<INTERFERENCE>>" << std::endl)
         Preprocess();
         Compute();
         Apply();
@@ -77,7 +77,6 @@ struct InterferenceInfo {
         }
         
         // save old memory state as history
-        // TODO: save as one big state rather than individual nodes?
         for (auto& memory : oldMemory) {
             annotation->Conjoin(std::make_unique<PastPredicate>(std::move(memory)));
         }
@@ -98,9 +97,13 @@ struct InterferenceInfo {
 std::unique_ptr<Annotation> Solver::MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const {
     // TODO: should this take a list of annotations?
     if (interference.empty()) return annotation;
-    ImprovePast(*annotation);
+    if (plankton::Collect<SharedMemoryCore>(*annotation->now).empty()) return annotation;
+    plankton::ExtendStack(*annotation, config, ExtensionPolicy::FAST); // TODO: needed?
+
+    ImprovePast(*annotation); // TODO: needed?
     InterferenceInfo info(std::move(annotation), interference);
     auto result = info.GetResult();
+    PrunePast(*result); // TODO: needed?
 //    result = PerformInterpolation(std::move(result), interference);
     return result;
 }

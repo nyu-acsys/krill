@@ -141,8 +141,8 @@ struct AnnotationJoiner {
         
         Preprocess();
         
-//         DEBUG("preprocessed, now joining: ")
-//         for (const auto& elem : annotations) DEBUG(*elem; std::cout << std::endl)
+        DEBUG("preprocessed, now joining: ")
+        for (const auto& elem : annotations) DEBUG(*elem; std::cout << std::endl)
 
         CreateVariableResources();
         CreateMemoryResources();
@@ -409,16 +409,18 @@ std::unique_ptr<Annotation> Solver::Join(std::deque<std::unique_ptr<Annotation>>
     auto measure = timer.Measure();
     
     DEBUG(std::endl << std::endl << "=== joining " << annotations.size() << std::endl)
-    // for (const auto& elem : annotations) DEBUG(*elem)
-    // DEBUG(std::endl)
+     for (const auto& elem : annotations) DEBUG(*elem)
+     DEBUG(std::endl)
     
     if (annotations.empty()) throw std::logic_error("Cannot join empty set"); // TODO: better error handling
     if (annotations.size() == 1) return std::move(annotations.front());
     for (auto& elem : annotations) ImprovePast(*elem);
     auto result = AnnotationJoiner(std::move(annotations), config).GetResult();
     plankton::InlineAndSimplify(*result);
-    // DEBUG("** join result: " << *result << std::endl << std::endl << std::endl)
-    DEBUG(*result << std::endl << std::endl)
+    PrunePast(*result);
+     DEBUG("** join result: " << *result << std::endl << std::endl << std::endl)
+//    DEBUG(*result << std::endl << std::endl)
     
+    // if (!result->past.empty()) throw std::logic_error("--- breakpoint ---");
     return result;
 }

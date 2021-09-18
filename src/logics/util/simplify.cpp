@@ -15,7 +15,7 @@ struct SymbolReplacementListener : public MutableLogicListener {
             : search(search), replace(replace) {}
     
     void Enter(SymbolicVariable& object) override {
-        if (&object.Decl() != &search) return;
+        if (object.Decl() != search) return;
         object.decl = replace;
     }
 };
@@ -85,40 +85,20 @@ struct EqualityCollection {
     }
 };
 
-inline std::set<SharedMemoryCore*> GetMemories(LogicObject& object) {
-    // TODO: how to avoid this?
-    if (auto annotation = dynamic_cast<Annotation*>(&object))
-        return plankton::CollectMutable<SharedMemoryCore>(*annotation->now);
-    return plankton::CollectMutable<SharedMemoryCore>(object);
-}
-
-inline void ExtractEqualities(SeparatingConjunction& object, EqualityCollection& equalities) {
-    auto memories = GetMemories(object);
+inline EqualityCollection ExtractEqualities(SeparatingConjunction& object) {
+    EqualityCollection equalities;
+    auto memories = plankton::CollectMutable<SharedMemoryCore>(object);
     for (auto it = memories.begin(); it != memories.end(); ++it) {
         for (auto ot = std::next(it); ot != memories.end(); ++ot) {
             equalities.Handle(**it, **ot);
         }
     }
+    return equalities;
 }
 
-inline void InlineMemories(LogicObject& object) {
-    // find equalities
-    struct : public MutableDefaultLogicVisitor {
-        EqualityCollection equalities;
-        
-        void Visit(SeparatingConjunction& object) override { ExtractEqualities(object, equalities); }
-        void Visit(Annotation& object) override { Walk(object); }
-        
-        inline static void Raise(const std::string& typeName) {
-            throw std::logic_error("Cannot simplify '" + typeName + "'");// TODO: better error handling
-        }
-        void Visit(NonSeparatingImplication& /*object*/) override { Raise("SeparatingImplication"); }
-        void Visit(FuturePredicate& /*object*/) override { Raise("FuturePredicate"); }
-    } dispatcher;
-    object.Accept(dispatcher);
-    
-    // inline equalities
-    for (const auto& [symbol, other] : dispatcher.equalities.set) {
+inline void InlineMemories(SeparatingConjunction& object) {
+    auto equalities = ExtractEqualities(object);
+    for (const auto& [symbol, other] : equalities.set) {
         ApplyRenaming(object, *symbol, *other);
     }
 }
@@ -220,10 +200,26 @@ void plankton::Simplify(LogicObject& object) {
     Flatten(object);
 }
 
-void plankton::InlineAndSimplify(LogicObject& object) {
+void plankton::InlineAndSimplify(Annotation& object) {
     // TODO: should this be done for annotations only?
     Flatten(object);
-    InlineMemories(object);
+    InlineMemories(*object.now);
     InlineEqualities(object);
     RemoveNoise(object);
+}
+
+
+
+inline std::set<const SymbolDeclaration*> CollectUsefulSymbols(const Annotation& annotation) {
+    struct : public LogicListener {
+        void Visit(const StackAxiom&) override { /* do nothing */ }
+        void Visit(const InflowEmptinessAxiom&) override { /* do nothing */ }
+        void Visit(const InflowContainsValueAxiom&) override { /* do nothing */ }
+        void Visit(const InflowContainsRangeAxiom&) override { /* do nothing */ }
+        
+        std::set<const SymbolDeclaration*> result;
+        void Enter(const SymbolDeclaration& object) override { result.insert(&object); }
+    } collector;
+    annotation.Accept(collector);
+    return std::move(collector.result);
 }

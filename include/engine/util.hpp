@@ -34,9 +34,9 @@ namespace plankton {
                               const SolverConfig& config);
     
     enum struct ExtensionPolicy { POINTERS, FAST, FULL };
-    std::deque<std::unique_ptr<Axiom>> MakeStackCandidates(const std::set<const SymbolDeclaration*>& symbols,
-                                                           ExtensionPolicy policy);
+    std::deque<std::unique_ptr<Axiom>> MakeStackCandidates(const Annotation& annotation, ExtensionPolicy policy);
     void ExtendStack(Annotation& annotation, Encoding& encoding, ExtensionPolicy policy);
+    void ExtendStack(Annotation& annotation, const SolverConfig& config, ExtensionPolicy policy);
     
     struct ReachSet {
         std::map<const SymbolDeclaration*, std::set<const SymbolDeclaration*>> container;

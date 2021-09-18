@@ -61,8 +61,8 @@ bool Solver::Implies(const Annotation& premise, const Annotation& conclusion) co
     if (plankton::SyntacticalEqual(*normalizedPremise, *normalizedConclusion)) return true;
     
     TryAvoidResourceMismatch(*normalizedPremise, *normalizedConclusion, config);
-    plankton::InlineAndSimplify(*normalizedPremise->now);
-    plankton::InlineAndSimplify(*normalizedConclusion->now);
+    plankton::InlineAndSimplify(*normalizedPremise);
+    plankton::InlineAndSimplify(*normalizedConclusion);
     normalizedPremise = plankton::Normalize(std::move(normalizedPremise));
     normalizedConclusion = plankton::Normalize(std::move(normalizedConclusion));
 

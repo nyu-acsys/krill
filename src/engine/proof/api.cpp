@@ -21,12 +21,11 @@ void ProofGenerator::GenerateProof() {
     // check API functions
     for (std::size_t counter = 0; counter < PROOF_ABORT_AFTER; ++counter) {
         program.Accept(*this);
-        if (ConsolidateNewInterference()) return;
+        if (!ConsolidateNewInterference()) return;
     }
     throw std::logic_error("Aborting: proof does not seem to stabilize."); // TODO: remove / better error handling
 }
 
-#include <chrono>
 void ProofGenerator::Visit(const Program& object) {
     assert(&object == &program);
     for (const auto& function : program.apiFunctions) {
@@ -126,7 +125,6 @@ void ProofGenerator::HandleInterfaceFunction(const Function& function) {
 	DEBUG("############################################################" << std::endl)
 	DEBUG("############################################################" << std::endl)
 	DEBUG(std::endl)
-    auto start = std::chrono::steady_clock::now();
  
 	// reset
     insideAtomic = false;
@@ -137,11 +135,6 @@ void ProofGenerator::HandleInterfaceFunction(const Function& function) {
     // descent into function
     current.push_back(MakeInterfaceAnnotation(program, function, solver));
     function.Accept(*this);
-    
-    auto end = std::chrono::steady_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    std::cerr << "[" << (duration.count()/100.0)/10 << "s]" << std::flush;
-    exit(0);
     
     // check post annotations
     DEBUG(std::endl << std::endl << "=== CHECKING POST ANNOTATION OF " << function.name << "  " << returning.size() << std::endl)

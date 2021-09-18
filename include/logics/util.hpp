@@ -28,7 +28,7 @@ namespace plankton {
     std::unique_ptr<Annotation> Normalize(std::unique_ptr<Annotation> annotation);
 
     void Simplify(LogicObject& object);
-    void InlineAndSimplify(LogicObject& object);
+    void InlineAndSimplify(Annotation& object);
     
     using SymbolRenaming = std::function<const SymbolDeclaration&(const SymbolDeclaration&)>;
     SymbolRenaming MakeDefaultRenaming(SymbolFactory& factory);

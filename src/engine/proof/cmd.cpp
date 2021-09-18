@@ -1,6 +1,7 @@
 #include "engine/proof.hpp"
 
 #include "programs/util.hpp"
+#include "engine/util.hpp"
 #include "util/shortcuts.hpp"
 #include "util/log.hpp"
 
@@ -81,7 +82,15 @@ void ProofGenerator::HandleMacroProlog(const Macro& macro) {
     returning.clear();
 
     ApplyTransformer([this,&macro](auto annotation){
-        return solver.PostEnter(std::move(annotation), macro.Func());
+        auto result = solver.PostEnter(std::move(annotation), macro.Func());
+
+        // TODO: simplified framing hack
+        SymbolFactory factory(*result);
+        for (const auto& lhs : macro.lhs) {
+            auto& resource = plankton::GetResource(lhs->Decl(), *result->now);
+            resource.value->decl = factory.GetFreshFO(lhs->Type());
+        }
+        return result;
     });
 
     MakeMacroAssignment(AsExpr(macro.Func().parameters), macro.arguments)->Accept(*this);

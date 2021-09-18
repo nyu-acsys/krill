@@ -10,30 +10,6 @@ using namespace plankton;
 
 constexpr std::array<EMode, 2> AllEMode = {EMode::PRE, EMode::POST };
 
-//struct UpdateMap {
-//    using update_t = std::pair<const Dereference*, const VariableExpression*>;
-//    using update_list_t = std::vector<update_t>;
-//    using update_map_t = std::map<const VariableDeclaration*, update_list_t>;
-//    update_map_t lookup;
-//
-//    explicit UpdateMap(const MemoryWrite& command) {
-//        assert(command.lhs.size() == command.rhs.size());
-//        for (std::size_t index = 0; index < command.lhs.size(); ++index) {
-//            auto dereference = command.lhs.at(index).get();
-//            auto variable = &dereference->variable->Decl();
-//            auto rhs = command.rhs.at(index).get();
-//            lookup[variable].emplace_back(dereference, value);
-//        }
-//    }
-//
-//    [[nodiscard]] const update_list_t& GetUpdates(const VariableDeclaration& decl) const {
-//        static update_list_t empty = {};
-//        auto find = lookup.find(&decl);
-//        if (find != lookup.end()) return find->second;
-//        else return empty;
-//    }
-//};
-
 struct UpdateMap {
     using update_list_t = std::vector<std::pair<std::string, const SymbolDeclaration*>>;
     std::map<const SymbolDeclaration*, update_list_t> lookup;
@@ -307,14 +283,14 @@ struct FlowGraphGenerator {
 };
 
 inline void PostProcessFootprint(FlowGraph& footprint) {
+    // TODO: really do this?
+
     Encoding encoding(footprint);
     auto handle = [&encoding](auto& pre, auto& post, const auto& info) {
         if (pre.get() == post.get()) return;
         auto equal = encoding.Encode(pre) == encoding.Encode(post);
         encoding.AddCheck(equal, [&pre,&post,info](bool holds){
-            DEBUG("~~ equals=" << holds << "  [" << info << "]: " << pre.get().name << " == " << post.get().name << std::endl)
-            if (!holds) return;
-            post = pre.get();
+            if (holds) post = pre.get();
         });
     };
     

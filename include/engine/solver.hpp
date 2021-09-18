@@ -52,7 +52,7 @@ namespace plankton {
         [[nodiscard]] std::unique_ptr<Annotation> MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const;
         bool AddInterference(std::deque<std::unique_ptr<HeapEffect>> interference);
         
-        bool Implies(const Annotation& premise, const Annotation& conclusion) const;
+        [[nodiscard]] bool Implies(const Annotation& premise, const Annotation& conclusion) const;
         
         private:
             const SolverConfig& config;
@@ -61,6 +61,7 @@ namespace plankton {
             
             void PrepareAccess(Annotation& annotation, const Command& command) const;
             void ImprovePast(Annotation& annotation) const;
+            void PrunePast(Annotation& annotation) const;
     };
     
     

@@ -37,7 +37,7 @@ inline bool UpdateSubset(const HeapEffect& premise, const HeapEffect& conclusion
 }
 
 inline void AddEffectImplicationCheck(Encoding& encoding, const HeapEffect& premise, const HeapEffect& conclusion,
-                                      const std::function<void()>& eureka) {
+                                      std::function<void()>&& eureka) {
     // give up if context contains resources
     if (!CheckContext(*premise.context) || !CheckContext(*conclusion.context)) return;
     
@@ -55,7 +55,7 @@ inline void AddEffectImplicationCheck(Encoding& encoding, const HeapEffect& prem
     // check
     auto isImplied = ((samePre && samePost && conclusionPre) >> premisePre)
                   && ((samePre && samePost && conclusionPost) >> premisePost); // TODO: correct?
-    encoding.AddCheck(isImplied, [&eureka](bool holds) { if (holds) eureka(); });
+    encoding.AddCheck(isImplied, [eureka=std::move(eureka)](bool holds) { if (holds) eureka(); });
 }
 
 
@@ -64,7 +64,7 @@ inline EffectPairDeque ComputeEffectImplications(const EffectPairDeque& effectPa
     Encoding encoding;
     for (const auto& pair : effectPairs) {
         auto eureka = [&result, pair]() { result.push_back(pair); };
-        AddEffectImplicationCheck(encoding, *pair.first, *pair.second, eureka);
+        AddEffectImplicationCheck(encoding, *pair.first, *pair.second, std::move(eureka));
     }
     encoding.Check();
     return result;

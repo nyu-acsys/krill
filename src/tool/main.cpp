@@ -81,7 +81,7 @@ inline VerificationResult Verify(const ParsingResult& input) {
     auto begin = std::chrono::steady_clock::now();
     result.linearizable = plankton::IsLinearizable(*input.program, *input.config);
     auto end = std::chrono::steady_clock::now();
-    result.timeTaken = std::chrono::duration_cast<milliseconds_t>(begin - end);
+    result.timeTaken = std::chrono::duration_cast<milliseconds_t>(end - begin);
     return result;
 }
 

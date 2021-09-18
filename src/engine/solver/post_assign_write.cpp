@@ -111,7 +111,6 @@ inline void CheckReachability(PostImageInfo& info) {
 
 inline void AddFlowCoverageChecks(PostImageInfo& info) {
     auto ensureContains = [&info](const SymbolDeclaration& address){
-        // TODO: if address == NULL, then ignore
         auto mustHaveNode = info.footprint.GetNodeOrNull(address);
         if (!mustHaveNode) throw std::logic_error("Update failed: footprint does not cover addresses " + address.name +
                                                   " the inflow of which changed."); // TODO: better error handling
@@ -411,7 +410,9 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd) 
     PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
     PostImageInfo info(std::move(pre), cmd, config);
-
+    
+    // TODO: there seems to be an issue with Z3::consequences giving inconsistent results
+    //       ==> directly check AddFlowCoverageChecks, AddFlowUniquenessChecks, AddInvariantChecks, AddSpecificationChecks?
     CheckPublishing(info);
     CheckReachability(info);
     AddFlowCoverageChecks(info);
