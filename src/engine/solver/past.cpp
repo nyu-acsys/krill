@@ -151,7 +151,7 @@ struct Interpolator {
     void Interpolate() {
         FilterPasts(annotation, config);
         ExpandHistoryMemory();
-        // FilterPasts(annotation, config);
+        FilterPasts(annotation, config);
         InterpolatePastToNow();
         FilterPasts(annotation, config);
         PostProcess();
@@ -181,6 +181,12 @@ struct Interpolator {
             return dynamic_cast<const SharedMemoryCore*>(conjunct.get());
         });
         return result;
+    }
+
+    [[nodiscard]] inline std::set<const SymbolDeclaration*> GetPointerFields(const SharedMemoryCore& memory) const {
+        return plankton::Collect<SymbolDeclaration>(memory, [this](auto& obj){
+            return obj.type.sort == Sort::PTR && plankton::TryGetResource(obj, *annotation.now);
+        });
     }
 
     void ExpandHistoryMemory() {
@@ -214,12 +220,6 @@ struct Interpolator {
             // AddDerivedCandidates(encoding, plankton::MakeStackCandidates(*past, POLICY));
             AddDerivedCandidates(encoding, std::move(candidates));
         }
-    }
-
-    [[nodiscard]] inline std::set<const SymbolDeclaration*> GetPointerFields(const SharedMemoryCore& memory) const {
-        return plankton::Collect<SymbolDeclaration>(memory, [this](auto& obj){
-            return obj.type.sort == Sort::PTR && plankton::TryGetResource(obj, *annotation.now);
-        });
     }
 
     [[nodiscard]] inline std::deque<std::unique_ptr<Axiom>> MakeInterpolationCandidates(const SharedMemoryCore& memory) const {

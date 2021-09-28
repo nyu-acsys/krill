@@ -71,28 +71,6 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 }
 
 
-
-bool remove(data_t key) {
-	Node* pred, curr, next;
-	data_t k;
-
-	while (true) {
-		<pred, curr, k> = locate(key);
-
-		if (k > key) {
-			return false;
-
-		} else {
-            // TODO: support any curr->marked, not just unmarked
-            next = curr->next;
-			if (CAS(<curr->marked, curr->next>, <false, next>, <true, next>)) {
-                if (CAS(<pred->marked, pred->next>, <false, curr>, <false, next>)) {
-                    return true;
-                }
-			}
-		}
-	}
-}
 bool contains(data_t key) {
 	Node* pred, curr;
 	data_t k;
@@ -119,6 +97,28 @@ bool add(data_t key) {
 			entry->next = curr;
             if (CAS(<pred->marked, pred->next>, <false, curr>, <false, entry>)) {
 				return true;
+			}
+		}
+	}
+}
+
+bool remove(data_t key) {
+	Node* pred, curr, next;
+	data_t k;
+
+	while (true) {
+		<pred, curr, k> = locate(key);
+
+		if (k > key) {
+			return false;
+
+		} else {
+            // TODO: support any curr->marked, not just unmarked
+            next = curr->next;
+			if (CAS(<curr->marked, curr->next>, <false, next>, <true, next>)) {
+                if (CAS(<pred->marked, pred->next>, <false, curr>, <false, next>)) {
+                    return true;
+                }
 			}
 		}
 	}

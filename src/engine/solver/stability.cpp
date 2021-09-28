@@ -100,7 +100,7 @@ std::unique_ptr<Annotation> Solver::MakeInterferenceStable(std::unique_ptr<Annot
     if (plankton::Collect<SharedMemoryCore>(*annotation->now).empty()) return annotation;
     plankton::ExtendStack(*annotation, config, ExtensionPolicy::FAST); // TODO: needed?
 
-    ImprovePast(*annotation); // TODO: needed?
+    // ImprovePast(*annotation); // TODO: needed?
     InterferenceInfo info(std::move(annotation), interference);
     auto result = info.GetResult();
     // PrunePast(*result); // TODO: needed?
