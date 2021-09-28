@@ -7,7 +7,6 @@
 
 using namespace plankton;
 
-
 constexpr std::size_t PROOF_ABORT_AFTER = 7;
 
 
@@ -85,20 +84,10 @@ void ProofGenerator::GenerateProof() {
     throw std::logic_error("Aborting: proof does not seem to stabilize."); // TODO: remove / better error handling
 }
 
-#include "util/timer.hpp"
 void ProofGenerator::Visit(const Program& object) {
     assert(&object == &program);
     for (const auto& function : program.apiFunctions) {
-        {
-            Timer timer("ProofGenerator::Visit for '" + function->name + "'");
-            auto measurement = timer.Measure();
-            HandleInterfaceFunction(*function);
-        }
-
-        // DEBUG
-        DEBUG(std::endl << std::endl << std::endl << "@@@ DEBUG EXIT @@@" << std::endl << std::endl << std::endl);
-        exit(0);
-        throw std::logic_error("--- point du break ---");
+        HandleInterfaceFunction(*function);
     }
 }
 

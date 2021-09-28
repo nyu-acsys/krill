@@ -55,12 +55,12 @@ inline void TryAvoidResourceMismatch(Annotation& annotation, Annotation& other, 
 
 #include "util/log.hpp"
 bool Solver::Implies(const Annotation& premise, const Annotation& conclusion) const {
-    DEBUG("== CHK IMP " << premise << " ==> " << conclusion << std::endl)
+    // DEBUG("== CHK IMP " << premise << " ==> " << conclusion << std::endl)
 
     auto normalizedPremise = plankton::Normalize(plankton::Copy(premise));
     auto normalizedConclusion = plankton::Normalize(plankton::Copy(conclusion));
     if (plankton::SyntacticalEqual(*normalizedPremise, *normalizedConclusion)) return true;
-    DEBUG("== CHK IMP deep " << *normalizedPremise << " ==> " << *normalizedConclusion << std::endl)
+    // DEBUG("== CHK IMP deep " << *normalizedPremise << " ==> " << *normalizedConclusion << std::endl)
     
     TryAvoidResourceMismatch(*normalizedPremise, *normalizedConclusion, config);
     normalizedPremise = plankton::Normalize(std::move(normalizedPremise));
