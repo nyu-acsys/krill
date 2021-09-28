@@ -12,7 +12,10 @@ using namespace plankton;
 /* TODO:
  *   1) solve memory expansion immediately, then filter before interpolating
  *   2) solve more candidates, if it does not affect runtime
- *   3) faster filter
+ *   3) solve interpolated histories separately?
+ *   *) faster filter
+ *
+ *   Apparently a fresh encoding helps at times...
  */
 
 
@@ -257,9 +260,43 @@ struct Interpolator {
         return result;
     }
 
+    // void ExpandHistoryMemory() {
+    //     // static Timer timer("ExpandHistoryMemory"); auto measure = timer.Measure();
+    //     // DEBUG("== ExpandHistoryMemory for " << annotation << std::endl)
+    //
+    //     auto& flowType = config.GetFlowValueType();
+    //     auto pasts = std::move(annotation.past);
+    //     annotation.past.clear();
+    //
+    //     for (auto& elem : pasts) {
+    //         auto ptrFields = GetPointerFields(*elem->formula);
+    //         auto expansion = std::make_unique<SeparatingConjunction>();
+    //         expansion->Conjoin(std::move(elem->formula));
+    //         {
+    //             static Timer timer("ExpandHistoryMemory"); auto measure = timer.Measure();
+    //             plankton::MakeMemoryAccessible(*expansion, ptrFields, flowType, factory, encoding);
+    //         }
+    //
+    //         for (const auto& conjunct : expansion->conjuncts) {
+    //             if (auto memory = dynamic_cast<SharedMemoryCore*>(conjunct.get())) {
+    //                 annotation.Conjoin(std::make_unique<PastPredicate>(plankton::Copy(*memory)));
+    //                 auto candidates = plankton::MakeStackCandidates(*annotation.now, *memory, ExtensionPolicy::FAST);
+    //                 AddNewPast(encoding.Bool(true), plankton::Copy(*memory), std::move(candidates));
+    //             } else {
+    //                 // encoding.AddPremise(*conjunct);
+    //                 // annotation.Conjoin(std::move(conjunct));
+    //             }
+    //         }
+    //
+    //         auto past = MakeStackBlueprint();
+    //         plankton::MoveInto(std::move(expansion->conjuncts), past->now->conjuncts);
+    //         encoding.AddPremise(encoding.EncodeInvariants(*past->now, config));
+    //         encoding.AddPremise(encoding.EncodeSimpleFlowRules(*past->now, config));
+    //     }
+    // }
+
     void ExpandHistoryMemory() {
-        // static Timer timer("ExpandHistoryMemory"); auto measure = timer.Measure();
-        // DEBUG("== ExpandHistoryMemory for " << annotation << std::endl)
+        static Timer timer("ExpandHistoryMemory"); auto measure = timer.Measure();
 
         auto& flowType = config.GetFlowValueType();
         auto pasts = std::move(annotation.past);
@@ -267,29 +304,33 @@ struct Interpolator {
 
         for (auto& elem : pasts) {
             auto ptrFields = GetPointerFields(*elem->formula);
-            auto expansion = std::make_unique<SeparatingConjunction>();
-            expansion->Conjoin(std::move(elem->formula));
-            {
-                static Timer timer("ExpandHistoryMemory"); auto measure = timer.Measure();
-                plankton::MakeMemoryAccessible(*expansion, ptrFields, flowType, factory, encoding);
-            }
+            auto past = MakeStackBlueprint();
+            past->Conjoin(std::move(elem->formula));
 
-            for (const auto& conjunct : expansion->conjuncts) {
+            Encoding enc = MakeEncoding(*past, config);
+            plankton::MakeMemoryAccessible(*past->now, ptrFields, flowType, factory, enc);
+            enc.AddPremise(enc.EncodeInvariants(*past->now, config));
+            enc.AddPremise(enc.EncodeSimpleFlowRules(*past->now, config));
+
+            auto candidates = plankton::MakeStackCandidates(*past, ExtensionPolicy::FAST);
+            for (auto& candidate : candidates) {
+                enc.AddCheck(enc.Encode(*candidate), [this,&candidate](bool holds){
+                    if (holds) annotation.Conjoin(std::move(candidate));
+                });
+            }
+            enc.Check();
+
+            for (const auto& conjunct : past->now->conjuncts) {
                 if (auto memory = dynamic_cast<SharedMemoryCore*>(conjunct.get())) {
                     annotation.Conjoin(std::make_unique<PastPredicate>(plankton::Copy(*memory)));
-                    auto candidates = plankton::MakeStackCandidates(*annotation.now, *memory, ExtensionPolicy::FAST);
-                    AddNewPast(encoding.Bool(true), plankton::Copy(*memory), std::move(candidates));
-                } else {
-                    // encoding.AddPremise(*conjunct);
-                    // annotation.Conjoin(std::move(conjunct));
+                    preparation.push_back({ encoding.Bool(true), plankton::Copy(*memory), {} }); // TODO: not nice // TODO: remove
                 }
             }
-
-            auto past = MakeStackBlueprint();
-            plankton::MoveInto(std::move(expansion->conjuncts), past->now->conjuncts);
-            encoding.AddPremise(encoding.EncodeInvariants(*past->now, config));
-            encoding.AddPremise(encoding.EncodeSimpleFlowRules(*past->now, config));
         }
+
+        encoding.AddPremise(encoding.Encode(*annotation.now));
+        // TODO: filter
+        // TODO: initialize encoding with MakeEncoding hereafter
     }
 
     [[nodiscard]] inline std::deque<std::unique_ptr<Axiom>> MakeCandidates(const SharedMemoryCore& memory) const {
