@@ -191,8 +191,10 @@ bool LLessPast(const std::unique_ptr<PastPredicate>& object, const std::unique_p
 }
 
 bool LLessFuture(const std::unique_ptr<FuturePredicate>& object, const std::unique_ptr<FuturePredicate>& other) {
-    return &object->command < &other->command &&
-           LLessLogic(*object->pre, *other->pre) && LLessLogic(*object->post, *other->post);
+    if (&object->command != &other->command) return &object->command < &other->command;
+    if (LLessLogic(*object->pre, *other->pre)) return true;
+    if (LLessLogic(*other->pre, *object->pre)) return false;
+    return LLessLogic(*object->post, *other->post);
 }
 
 
@@ -211,7 +213,7 @@ inline void NormalizeStackAxiom(StackAxiom& axiom) {
     switch (axiom.op) {
         case BinaryOperator::EQ:
         case BinaryOperator::NEQ:
-            if (!LLessLogic(*axiom.lhs, *axiom.rhs))
+            if (LLessLogic(*axiom.rhs, *axiom.lhs))
                 SwitchStackAxiom(axiom);
             break;
         
@@ -249,13 +251,36 @@ inline bool IsLSorted(const Annotation& annotation) {
            std::is_sorted(annotation.future.begin(), annotation.future.end(), LLessFuture);
 }
 
+inline std::deque<const SymbolDeclaration*> GetAppearance(const LogicObject& object) {
+    struct : public LogicListener {
+        std::deque<const SymbolDeclaration*> result;
+        void Enter(const SymbolDeclaration& object) override { result.push_back(&object); }
+    } collector;
+    object.Accept(collector);
+    return std::move(collector.result);
+}
+
+inline void ApplyRenaming(Annotation& annotation) {
+    struct Collector : public LogicListener {
+        SymbolFactory factory;
+        SymbolRenaming renaming;
+        Collector() : renaming(plankton::MakeDefaultRenaming(factory)) {}
+        void Visit(const StackAxiom&) override { /* do nothing */ }
+        void Visit(const InflowEmptinessAxiom&) override { /* do nothing */ }
+        void Visit(const InflowContainsValueAxiom&) override { /* do nothing */ }
+        void Visit(const InflowContainsRangeAxiom&) override { /* do nothing */ }
+        void Enter(const SymbolDeclaration& object) override { (void) renaming(object); }
+    } collector;
+    annotation.Accept(collector);
+    plankton::RenameSymbols(annotation, collector.renaming);
+}
+
 std::unique_ptr<Annotation> plankton::Normalize(std::unique_ptr<Annotation> annotation) {
-    plankton::Simplify(*annotation);
+    plankton::InlineAndSimplify(*annotation);
     std::size_t index = 0;
     do {
         LSort(*annotation);
-        SymbolFactory factory;
-        plankton::RenameSymbols(*annotation, factory);
+        ApplyRenaming(*annotation);
     } while (!IsLSorted(*annotation) && index++ < MAX_NUM_ITERATIONS);
     return annotation;
 }

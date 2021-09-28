@@ -53,20 +53,21 @@ inline void TryAvoidResourceMismatch(Annotation& annotation, Annotation& other, 
     plankton::MakeMemoryAccessible(other, memories, config);
 }
 
+#include "util/log.hpp"
 bool Solver::Implies(const Annotation& premise, const Annotation& conclusion) const {
+    DEBUG("== CHK IMP " << premise << " ==> " << conclusion << std::endl)
+
     auto normalizedPremise = plankton::Normalize(plankton::Copy(premise));
     auto normalizedConclusion = plankton::Normalize(plankton::Copy(conclusion));
-    plankton::Simplify(*normalizedPremise);
-    plankton::Simplify(*normalizedConclusion);
     if (plankton::SyntacticalEqual(*normalizedPremise, *normalizedConclusion)) return true;
+    DEBUG("== CHK IMP deep " << *normalizedPremise << " ==> " << *normalizedConclusion << std::endl)
     
     TryAvoidResourceMismatch(*normalizedPremise, *normalizedConclusion, config);
-    plankton::InlineAndSimplify(*normalizedPremise);
-    plankton::InlineAndSimplify(*normalizedConclusion);
     normalizedPremise = plankton::Normalize(std::move(normalizedPremise));
     normalizedConclusion = plankton::Normalize(std::move(normalizedConclusion));
 
     if (plankton::SyntacticalEqual(*normalizedPremise, *normalizedConclusion)) return true;
+    DEBUG("== CHK IMP sem " << *normalizedPremise << " ==> " << *normalizedConclusion << std::endl)
     return ResourcesMatch(*normalizedPremise, *normalizedConclusion) &&
            StackImplies(*normalizedPremise->now, *normalizedConclusion->now, config);
 }

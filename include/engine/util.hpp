@@ -8,6 +8,8 @@
 #include "engine/encoding.hpp"
 
 namespace plankton {
+
+    std::set<const SymbolDeclaration*> CollectUsefulSymbols(const LogicObject& object);
     
     const EqualsToAxiom* TryGetResource(const VariableDeclaration& variable, const Formula& state);
     const EqualsToAxiom& GetResource(const VariableDeclaration& variable, const Formula& state);
@@ -34,7 +36,8 @@ namespace plankton {
                               const SolverConfig& config);
     
     enum struct ExtensionPolicy { POINTERS, FAST, FULL };
-    std::deque<std::unique_ptr<Axiom>> MakeStackCandidates(const Annotation& annotation, ExtensionPolicy policy);
+    std::deque<std::unique_ptr<Axiom>> MakeStackCandidates(const LogicObject& object, ExtensionPolicy policy);
+    std::deque<std::unique_ptr<Axiom>> MakeStackCandidates(const LogicObject& object, const LogicObject& other, ExtensionPolicy policy);
     void ExtendStack(Annotation& annotation, Encoding& encoding, ExtensionPolicy policy);
     void ExtendStack(Annotation& annotation, const SolverConfig& config, ExtensionPolicy policy);
     

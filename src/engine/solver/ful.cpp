@@ -43,6 +43,7 @@ struct FulfillmentFinder {
 };
 
 [[nodiscard]] std::unique_ptr<Annotation> Solver::TryAddFulfillment(std::unique_ptr<Annotation> annotation) const {
+    ImprovePast(*annotation);
     FulfillmentFinder finder(*annotation, config);
     finder.Handle(*annotation->now);
     for (const auto& past : annotation->past) finder.Handle(*past->formula);

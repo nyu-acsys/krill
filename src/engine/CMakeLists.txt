@@ -43,6 +43,7 @@ set(SOURCES
         proof/cmd.cpp
         proof/stmt.cpp
 
+        util/collect.cpp
         util/effects.cpp
         util/eval.cpp
         util/memory.cpp

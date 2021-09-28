@@ -103,7 +103,7 @@ std::unique_ptr<Annotation> Solver::MakeInterferenceStable(std::unique_ptr<Annot
     ImprovePast(*annotation); // TODO: needed?
     InterferenceInfo info(std::move(annotation), interference);
     auto result = info.GetResult();
-    PrunePast(*result); // TODO: needed?
-//    result = PerformInterpolation(std::move(result), interference);
+    // PrunePast(*result); // TODO: needed?
+    // result = PerformInterpolation(std::move(result), interference);
     return result;
 }

@@ -6,16 +6,6 @@
 using namespace plankton;
 
 
-struct GeneratorCollector : public LogicListener {
-    void Visit(const StackAxiom&) override { /* do nothing */ }
-    void Visit(const InflowEmptinessAxiom&) override { /* do nothing */ }
-    void Visit(const InflowContainsValueAxiom&) override { /* do nothing */ }
-    void Visit(const InflowContainsRangeAxiom&) override { /* do nothing */ }
-    
-    std::set<const SymbolDeclaration*> result;
-    void Enter(const SymbolDeclaration& object) override { result.insert(&object); }
-};
-
 struct Generator {
     ExtensionPolicy policy;
     std::set<const SymbolDeclaration*> symbols;
@@ -25,10 +15,7 @@ struct Generator {
     explicit Generator(ExtensionPolicy policy) : policy(policy) {}
     
     inline void AddSymbolsFrom(const LogicObject& object) {
-        GeneratorCollector collector;
-        object.Accept(collector);
-    
-        for (const auto* elem : collector.result) {
+        for (const auto* elem : plankton::CollectUsefulSymbols(object)) {
             switch (elem->order) {
                 case Order::FIRST: symbols.insert(elem); break;
                 case Order::SECOND: flows.insert(elem); break;
@@ -138,10 +125,30 @@ private:
 };
 
 
-std::deque<std::unique_ptr<Axiom>> plankton::MakeStackCandidates(const Annotation& annotation, ExtensionPolicy policy) {
+std::deque<std::unique_ptr<Axiom>> plankton::MakeStackCandidates(const LogicObject& object, ExtensionPolicy policy) {
     Generator candidates(policy);
-    candidates.AddSymbolsFrom(annotation);
+    candidates.AddSymbolsFrom(object);
     return candidates.Generate();
+}
+
+std::deque<std::unique_ptr<Axiom>> plankton::MakeStackCandidates(const LogicObject& object, const LogicObject& other,
+                                                                 ExtensionPolicy policy) {
+    auto objectSymbols = plankton::Collect<SymbolDeclaration>(object);
+    auto otherSymbols = plankton::Collect<SymbolDeclaration>(other);
+    plankton::DiscardIf(objectSymbols, [&otherSymbols](const auto* elem) { return plankton::Membership(otherSymbols, elem); });
+    plankton::DiscardIf(otherSymbols, [&objectSymbols](const auto* elem) { return plankton::Membership(objectSymbols, elem); });
+
+    Generator candidates(policy);
+    candidates.AddSymbolsFrom(object);
+    candidates.AddSymbolsFrom(other);
+
+    auto result = candidates.Generate();
+    plankton::RemoveIf(result, [&objectSymbols, &otherSymbols](const auto& elem) {
+        auto symbols = plankton::Collect<SymbolDeclaration>(*elem);
+        return plankton::EmptyIntersection(objectSymbols, symbols)
+               || plankton::EmptyIntersection(otherSymbols, symbols);
+    });
+    return result;
 }
 
 void plankton::ExtendStack(Annotation& annotation, Encoding& encoding, ExtensionPolicy policy) {
