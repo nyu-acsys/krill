@@ -98,7 +98,7 @@ inline void PrintInput(const ParsingResult& input) {
 }
 
 inline void PrintResult(const CommandLineInput& cmd, const ParsingResult& input, const VerificationResult& result) {
-    INFO("#" << std::endl << std::endl)
+    INFO("#" << std::endl)
     INFO("# Verdict for '" << input.program->name << "':" << std::endl)
     INFO("#   is linearizable: " << (result.linearizable ? "YES" : "NO") << std::endl)
     INFO("#   time taken (ms): " << result.timeTaken.count() << std::endl)
