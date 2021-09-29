@@ -4,6 +4,7 @@
 #include "engine/encoding.hpp"
 #include "engine/flowgraph.hpp"
 #include "engine/util.hpp"
+#include "util/timer.hpp"
 
 using namespace plankton;
 
@@ -43,7 +44,11 @@ struct FulfillmentFinder {
 };
 
 [[nodiscard]] std::unique_ptr<Annotation> Solver::TryAddFulfillment(std::unique_ptr<Annotation> annotation) const {
-    ImprovePast(*annotation);
+    MEASURE("Solver::TryAddFulfillment")
+    {
+        MEASURE("Solver::TryAddFulfillment ~> ImprovePast")
+        ImprovePast(*annotation);
+    }
     FulfillmentFinder finder(*annotation, config);
     finder.Handle(*annotation->now);
     for (const auto& past : annotation->past) finder.Handle(*past->formula);

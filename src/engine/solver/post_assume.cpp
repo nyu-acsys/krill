@@ -3,6 +3,7 @@
 #include "logics/util.hpp"
 #include "engine/util.hpp"
 #include "engine/encoding.hpp"
+#include "util/timer.hpp"
 
 using namespace plankton;
 
@@ -13,6 +14,7 @@ inline std::unique_ptr<StackAxiom> ConvertToLogic(const BinaryExpression& condit
 }
 
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const {
+    MEASURE("Solver::Post (Assume)")
     PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
     pre->Conjoin(ConvertToLogic(*cmd.condition, *pre->now));

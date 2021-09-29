@@ -396,8 +396,7 @@ struct AnnotationJoiner {
     }
 
     inline void DeriveJoinedStack() {
-        static Timer timer("Solver::Join -- DeriveJoinedStack()");
-        auto measure = timer.Measure();
+        MEASURE("Solver::Join ~> DeriveJoinedStack")
         DEBUG("[join] starting stack extension..." << std::flush)
         plankton::ExtendStack(*result, encoding, EXTENSION);
         DEBUG(" done" << std::endl)
@@ -405,16 +404,17 @@ struct AnnotationJoiner {
 };
 
 std::unique_ptr<Annotation> Solver::Join(std::deque<std::unique_ptr<Annotation>> annotations) const {
-    static Timer timer("Solver::Join -- overall");
-    auto measure = timer.Measure();
-    
+    MEASURE("Solver::Join")
     DEBUG(std::endl << std::endl << "=== joining " << annotations.size() << std::endl)
-     for (const auto& elem : annotations) DEBUG(*elem)
-     DEBUG(std::endl)
+    for (const auto& elem : annotations) DEBUG(*elem)
+    DEBUG(std::endl)
     
     if (annotations.empty()) throw std::logic_error("Cannot join empty set"); // TODO: better error handling
     if (annotations.size() == 1) return std::move(annotations.front());
-    for (auto& elem : annotations) ImprovePast(*elem);
+    {
+        MEASURE("Solver::Join ~> ImprovePast")
+        for (auto& elem : annotations) ImprovePast(*elem);
+    }
     auto result = AnnotationJoiner(std::move(annotations), config).GetResult();
     plankton::InlineAndSimplify(*result);
     PrunePast(*result);

@@ -5,6 +5,7 @@
 #include "engine/util.hpp"
 #include "util/shortcuts.hpp"
 #include "util/log.hpp"
+#include "util/timer.hpp"
 
 using namespace plankton;
 
@@ -98,6 +99,8 @@ inline void RenameEffects(std::deque<std::unique_ptr<HeapEffect>>& effects,
 }
 
 bool Solver::AddInterference(std::deque<std::unique_ptr<HeapEffect>> effects) {
+    MEASURE("Solver::AddInterference")
+
     // prune trivial noop interference
     plankton::RemoveIf(effects, IsEffectEmpty);
     if (effects.empty()) return false;

@@ -5,6 +5,7 @@
 #include "engine/encoding.hpp"
 #include "engine/util.hpp"
 #include "util/log.hpp"
+#include "util/timer.hpp"
 
 using namespace plankton;
 
@@ -20,7 +21,6 @@ struct InterferenceInfo {
                               const std::deque<std::unique_ptr<HeapEffect>>& interference)
             : annotation(std::move(annotation_)), interference(interference) {
         assert(annotation);
-        DEBUG("<<INTERFERENCE>>" << std::endl)
         Preprocess();
         Compute();
         Apply();
@@ -32,6 +32,7 @@ struct InterferenceInfo {
         plankton::AvoidEffectSymbols(factory, interference);
         plankton::RenameSymbols(*annotation, factory);
 
+        DEBUG("<<INTERFERENCE>>" << std::endl)
         for (const auto& effect : interference) DEBUG("  -- effect: " << *effect << std::endl)
         DEBUG(" -- pre: " << *annotation << std::endl;)
     }
@@ -97,10 +98,15 @@ struct InterferenceInfo {
 std::unique_ptr<Annotation> Solver::MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const {
     // TODO: should this take a list of annotations?
     if (interference.empty()) return annotation;
+
+    MEASURE("Solver::MakeInterferenceStable")
     if (plankton::Collect<SharedMemoryCore>(*annotation->now).empty()) return annotation;
     plankton::ExtendStack(*annotation, config, ExtensionPolicy::FAST); // TODO: needed?
 
-    ImprovePast(*annotation); // TODO: needed?
+    {
+        MEASURE("Solver::MakeInterferenceStable ~> ImprovePast")
+        ImprovePast(*annotation); // TODO: needed?
+    }
     InterferenceInfo info(std::move(annotation), interference);
     auto result = info.GetResult();
     // PrunePast(*result); // TODO: needed?

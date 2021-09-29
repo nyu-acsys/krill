@@ -2,6 +2,7 @@
 
 #include "internal.hpp"
 #include "util/shortcuts.hpp"
+#include "util/timer.hpp"
 
 using namespace plankton;
 
@@ -17,6 +18,8 @@ struct PreferredMethodFailed : std::exception {
 };
 
 inline bool IsImplied(z3::solver& solver, const z3::expr& expr) {
+    MEASURE("Z3 ~> z3::solver::check")
+
     solver.push();
     solver.add(!expr);
     auto res = solver.check();
@@ -38,6 +41,8 @@ inline std::vector<bool> ComputeImpliedOneAtATime(z3::solver& solver, const std:
 }
 
 inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::deque<EExpr>& expressions) {
+    MEASURE("Z3 ~> z3::solver::consequences")
+
     // prepare required vectors
     solver.push();
     auto& context = solver.ctx();

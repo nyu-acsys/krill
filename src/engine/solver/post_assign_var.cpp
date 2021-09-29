@@ -3,11 +3,13 @@
 #include "logics/util.hpp"
 #include "engine/util.hpp"
 #include "util/log.hpp"
+#include "util/timer.hpp"
 
 using namespace plankton;
 
 
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const VariableAssignment& cmd) const {
+    MEASURE("Solver::Post (VariableAssignment)")
     DEBUG("POST for " << *pre << " " << cmd << std::endl)
 
     assert(cmd.lhs.size() == cmd.rhs.size());

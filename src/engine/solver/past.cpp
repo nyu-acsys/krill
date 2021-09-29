@@ -53,7 +53,7 @@ MakeCheck(Encoding& encoding, const Formula& formula, const MemoryAxiom& weaker,
 }
 
 void FilterPasts(Annotation& annotation, const SolverConfig& config) {
-    static Timer timer("FilterPasts"); auto measure = timer.Measure();
+    MEASURE("Solver::PrunePast ~> FilterPasts")
     if (annotation.past.empty()) return;
 
     // TODO: is this clever?
@@ -91,6 +91,7 @@ void FilterPasts(Annotation& annotation, const SolverConfig& config) {
 }
 
 void Solver::PrunePast(Annotation& annotation) const {
+    MEASURE("Solver::PrunePast")
     // TODO: should this be available to ImprovePast only?
     FilterPasts(annotation, config);
 }
@@ -190,7 +191,7 @@ struct Interpolator {
     }
 
     void ExpandHistoryMemory() {
-        static Timer timer("ExpandHistoryMemory"); auto measure = timer.Measure();
+        MEASURE("Solver::ImprovePast ~> ExpandHistoryMemory")
 
         auto& flowType = config.GetFlowValueType();
         auto pasts = std::move(annotation.past);
@@ -243,7 +244,6 @@ struct Interpolator {
         auto& nowValue = now.fieldToValue.at(field)->Decl();
         auto& pastValue = past.fieldToValue.at(field)->Decl();
         if (nowValue == pastValue) return;
-        static Timer timer("InterpolatePastToNow"); auto measure = timer.Measure();
 
         auto newHistory = plankton::MakeSharedMemory(now.node->Decl(), config.GetFlowValueType(), factory);
         ApplyImmutability(*newHistory);
@@ -274,6 +274,7 @@ struct Interpolator {
     }
 
     void InterpolatePastToNow() {
+        MEASURE("Solver::ImprovePast ~> InterpolatePastToNow")
         auto referenced = GetActiveReferences(annotation);
         for (const auto* nowMem : plankton::Collect<SharedMemoryCore>(*annotation.now)) {
             if (!plankton::Membership(referenced, &nowMem->node->Decl())) continue;
@@ -293,7 +294,7 @@ struct Interpolator {
 };
 
 void Solver::ImprovePast(Annotation& annotation) const {
-    static Timer timer("ImprovePast"); auto measure = timer.Measure();
+    MEASURE("Solver::ImprovePast")
     if (annotation.past.empty()) return;
     DEBUG("== Improving past..." << std::endl)
     Interpolator(annotation, interference, config).Interpolate();

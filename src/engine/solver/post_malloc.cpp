@@ -3,6 +3,7 @@
 #include "logics/util.hpp"
 #include "engine/util.hpp"
 #include "engine/encoding.hpp"
+#include "util/timer.hpp"
 
 using namespace plankton;
 
@@ -52,6 +53,7 @@ MakeFreshCell(const Type& type, const Annotation& frame, const SolverConfig& con
 
 
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const Malloc& cmd) const {
+    MEASURE("Solver::Post (Malloc)")
     PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
     assert(!cmd.lhs->Decl().isShared);

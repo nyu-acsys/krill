@@ -3,6 +3,8 @@
 #include "logics/util.hpp"
 #include "engine/encoding.hpp"
 #include "engine/util.hpp"
+#include "util/log.hpp"
+#include "util/timer.hpp"
 
 using namespace plankton;
 
@@ -39,9 +41,10 @@ inline bool ResourcesMatch(const Annotation& premise, const Annotation& conclusi
 }
 
 inline bool StackImplies(const Formula& premise, const SeparatingConjunction& conclusion, const SolverConfig& config) {
+    MEASURE("Solver::Implies ~> StackImplies")
     Encoding encoding(premise);
     encoding.AddPremise(encoding.EncodeInvariants(premise, config));
-     return encoding.Implies(conclusion);
+    return encoding.Implies(conclusion);
 }
 
 inline void TryAvoidResourceMismatch(Annotation& annotation, Annotation& other, const SolverConfig& config) {
@@ -53,8 +56,8 @@ inline void TryAvoidResourceMismatch(Annotation& annotation, Annotation& other, 
     plankton::MakeMemoryAccessible(other, memories, config);
 }
 
-#include "util/log.hpp"
 bool Solver::Implies(const Annotation& premise, const Annotation& conclusion) const {
+    MEASURE("Solver::Implies")
     // DEBUG("== CHK IMP " << premise << " ==> " << conclusion << std::endl)
 
     auto normalizedPremise = plankton::Normalize(plankton::Copy(premise));

@@ -4,6 +4,7 @@
 #include "logics/util.hpp"
 #include "engine/util.hpp"
 #include "util/log.hpp"
+#include "util/timer.hpp"
 
 using namespace plankton;
 
@@ -283,6 +284,7 @@ struct FlowGraphGenerator {
 };
 
 inline void PostProcessFootprint(FlowGraph& footprint) {
+    MEASURE("plankton::MakeFlowFootprint ~> PostProcessFootprint")
     // TODO: really do this?
 
     Encoding encoding(footprint);
@@ -308,6 +310,8 @@ inline void PostProcessFootprint(FlowGraph& footprint) {
 }
 
 FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const MemoryWrite& command, const SolverConfig& config) {
+    MEASURE("plankton::MakeFlowFootprint")
+
     assert(!command.lhs.empty());
     auto& lhs = *command.lhs.front();
     auto& root = lhs.variable->Decl();
@@ -339,6 +343,8 @@ FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const Mem
 }
 
 FlowGraph plankton::MakePureHeapGraph(std::unique_ptr<Annotation> state, SymbolFactory& factory, const SolverConfig& config) {
+    MEASURE("plankton::MakePureHeapGraph")
+
     plankton::InlineAndSimplify(*state);
     FlowGraph graph(std::move(state), config);
     factory.Avoid(*graph.pre);

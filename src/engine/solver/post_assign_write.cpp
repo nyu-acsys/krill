@@ -5,6 +5,7 @@
 #include "engine/flowgraph.hpp"
 #include "engine/util.hpp"
 #include "util/log.hpp"
+#include "util/timer.hpp"
 
 using namespace plankton;
 
@@ -220,6 +221,7 @@ inline void AddAffectedOutsideChecks(PostImageInfo& info) {
 //
 
 inline void PerformChecks(PostImageInfo& info) {
+    MEASURE("Solver::Post (MemoryWrite) ~> PerformChecks")
     info.encoding.Check();
 }
 
@@ -404,6 +406,7 @@ inline std::deque<std::unique_ptr<HeapEffect>> ExtractEffects(PostImageInfo& inf
 //
 
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd) const {
+    MEASURE("Solver::Post (MemoryWrite)")
     DEBUG("POST for " << *pre << " " << cmd << std::endl)
 
     // TODO: use futures

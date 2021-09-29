@@ -48,6 +48,13 @@ namespace plankton {
         Measurement Measure() { return Measurement(*this); }
     };
 
+
+    #ifdef ENABLE_TIMER
+        #define MEASURE(X) static Timer timer(X); auto measurement = timer.Measure();
+    #else
+        #define MEASURE(X) {}
+    #endif
+
 } // plankton
 
 #endif //PLANKTON_UTIL_TIMER_HPP

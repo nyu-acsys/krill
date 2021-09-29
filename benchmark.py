@@ -10,11 +10,12 @@ REPETITIONS = 5
 
 EXECUTABLE = "./cmake-build-debug/bin/plankton"
 BENCHMARKS = [
-    "examples/VechevYahavCas.pl",
-    "examples/VechevYahavDCas.pl",
-    "examples/ORVYY1.pl",
-    "examples/ORVYY2.pl",
-    "examples/Michael.pl",
+    "examples/test.txt",
+    # "examples/VechevYahavCas.pl",
+    # "examples/VechevYahavDCas.pl",
+    # "examples/ORVYY1.pl",
+    # "examples/ORVYY2.pl",
+    # "examples/Michael.pl",
 ]
 
 REGEX = r"@gist\[(?P<path>.*?)\]=(?P<result>[01]),(?P<time>[0-9]*);(.*)"
@@ -32,12 +33,12 @@ def extract_info(output):
     if not m:
         return False, "error"
     if m.group("result") != "1":
-        return False, "fail"
+        return False, "failed"
     return True, m.group("time")
 
 
-def run_with_timeout(name):
-    all_args = [EXECUTABLE, "-g", name]
+def run_with_timeout(path):
+    all_args = [EXECUTABLE, "-g", path]
 
     # make sure to properly kill subprocesses after timeout
     # see: https://stackoverflow.com/questions/36952245/subprocess-timeout-failure
@@ -67,7 +68,6 @@ def finalize():
     print()
     for path in BENCHMARKS:
         times = [x for x in RESULT.get(path, []) if x]
-        print("times: ", times)
         avg = int(sum(times) / len(times)) if len(times) > 0 else -1
         avg = str(avg) + "ms" if avg >= 0 else "--"
         print("==avg== {:>15}  for  {:<20}".format(avg, path), flush=True)
