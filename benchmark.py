@@ -66,7 +66,8 @@ def run_test(path, i):
 def finalize():
     print()
     for path in BENCHMARKS:
-        times = [x for x in RESULT.get(path, []) if not None]
+        times = [x for x in RESULT.get(path, []) if x]
+        print("times: ", times)
         avg = int(sum(times) / len(times)) if len(times) > 0 else -1
         avg = str(avg) + "ms" if avg >= 0 else "--"
         print("==avg== {:>15}  for  {:<20}".format(avg, path), flush=True)

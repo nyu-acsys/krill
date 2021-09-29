@@ -98,6 +98,7 @@ inline void PrintInput(const ParsingResult& input) {
 }
 
 inline void PrintResult(const CommandLineInput& cmd, const ParsingResult& input, const VerificationResult& result) {
+    INFO(std::endl << std::endl)
     INFO("#" << std::endl)
     INFO("# Verdict for '" << input.program->name << "':" << std::endl)
     INFO("#   is linearizable: " << (result.linearizable ? "YES" : "NO") << std::endl)
@@ -107,7 +108,8 @@ inline void PrintResult(const CommandLineInput& cmd, const ParsingResult& input,
     if (!cmd.printGist) return;
     INFO("@gist[" << cmd.pathToInput << "]=")
     INFO("" << (result.linearizable ? "1" : "0"))
-    INFO("," << result.timeTaken.count() << ";" << std::endl)
+    INFO("," << result.timeTaken.count() << ";")
+    INFO(std::endl << std::endl)
 }
 
 

@@ -217,7 +217,7 @@ struct Interpolator {
             encoding.AddPremise(*past->now);
             encoding.AddPremise(encoding.EncodeInvariants(*past->now, config));
             encoding.AddPremise(encoding.EncodeSimpleFlowRules(*past->now, config));
-            // AddDerivedCandidates(encoding, plankton::MakeStackCandidates(*past, POLICY));
+            // AddDerivedCandidates(encoding, plankton::MakeStackCandidates(*past, ExtensionPolicy::FAST));
             AddDerivedCandidates(encoding, std::move(candidates));
         }
     }
@@ -269,7 +269,7 @@ struct Interpolator {
         encoding.AddPremise(encoding.MakeOr(vector));
 
         AddDerivedCandidates(encoding, MakeInterpolationCandidates(*newHistory));
-        // AddDerivedCandidates(encoding, plankton::MakeStackCandidates(*annotation.now, *newHistory, POLICY));
+        // AddDerivedCandidates(encoding, plankton::MakeStackCandidates(*annotation.now, *newHistory, ExtensionPolicy::FAST));
         annotation.Conjoin(std::make_unique<PastPredicate>(std::move(newHistory)));
     }
 
