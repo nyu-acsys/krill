@@ -245,8 +245,10 @@ struct FlowGraphGenerator {
     inline void DeriveFrontierKnowledge(const std::set<const SymbolDeclaration*>& frontier) {
         // get new memory
         auto& flowType = graph.config.GetFlowValueType();
+        for (auto elem : frontier) DEBUG("  missing " << elem->name << ": nonnull=" << encoding.Implies(encoding.EncodeIsNonNull(*elem)) << std::endl)
         plankton::MakeMemoryAccessible(state, frontier, flowType, factory, encoding);
         encoding.AddPremise(encoding.EncodeInvariants(state, graph.config)); // for newly added memory
+        encoding.AddPremise(encoding.EncodeSimpleFlowRules(state, graph.config)); // for newly added memory
         encoding.AddPremise(encoding.EncodeAcyclicity(state)); // for newly added memory
         
         // nodes with same address => same fields
@@ -267,6 +269,7 @@ struct FlowGraphGenerator {
             encoding.Push();
             encoding.AddPremise(state);
             encoding.AddPremise(encoding.EncodeInvariants(state, graph.config));
+            encoding.AddPremise(encoding.EncodeSimpleFlowRules(state, graph.config));
             encoding.AddPremise(encoding.EncodeAcyclicity(state));
             encoding.AddPremise(encoding.EncodeOwnership(state));
     
