@@ -9,7 +9,7 @@ template<typename T, typename U>
 const T* GetResourceOrNull(const Formula& state, const U& filter) {
     auto collect = plankton::Collect<T>(state, filter);
     if (collect.empty()) return nullptr;
-    assert(collect.size() == 1);
+    assert(collect.size() == 1); // TODO: this is wrong ~> there may be multiple SharedMemoryCores for one address
     return *collect.begin();
 }
 

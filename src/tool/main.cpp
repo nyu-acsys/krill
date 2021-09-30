@@ -45,12 +45,12 @@ inline CommandLineInput Interact(int argc, char** argv) {
     input.spuriousCasFail = !casSwitch.getValue();
     input.printGist = gistSwitch.getValue();
     
-    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/test.txt";
-//    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/VechevYahavDCas.pl";
-//    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/VechevYahavCas.pl";
-//    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/ORVYY1.pl";
-//    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/ORVYY2.pl";
-//    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/Michael.pl";
+    // input.pathToInput = "/Users/wolff/Desktop/plankton/examples/test.txt";
+    input.pathToInput = "/Users/wolff/Desktop/plankton/examples/VechevYahavDCas.pl";
+    // input.pathToInput = "/Users/wolff/Desktop/plankton/examples/VechevYahavCas.pl";
+    // input.pathToInput = "/Users/wolff/Desktop/plankton/examples/ORVYY1.pl";
+    // input.pathToInput = "/Users/wolff/Desktop/plankton/examples/ORVYY2.pl";
+    // input.pathToInput = "/Users/wolff/Desktop/plankton/examples/Michael.pl";
     
     return input;
 }

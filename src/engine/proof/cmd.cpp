@@ -116,6 +116,9 @@ void ProofGenerator::Visit(const Macro& cmd) {
     // save caller context
     auto breakingOuter = std::move(breaking);
     auto returningOuter = std::move(returning);
+
+    DEBUG(std::endl << "=== pre annotations for macro '" << cmd.Func().name << "':" << std::endl)
+    for (const auto& elem : current) DEBUG("  -- " << *elem << std::endl)
     
     // invoke callee
     // TODO: frame non-shared 'EqualsTo' predicates

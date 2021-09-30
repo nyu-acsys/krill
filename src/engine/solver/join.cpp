@@ -159,8 +159,7 @@ struct AnnotationJoiner {
         DEBUG("[join] starting preprocessing..." << std::flush)
         lookup.reserve(annotations.size());
         for (auto& annotation : annotations) {
-            // distinct symbols across annotations
-            plankton::RenameSymbols(*annotation, factory);
+            // plankton::InlineAndSimplify(*annotation);
     
             // more memory
             std::set<const SymbolDeclaration*> expand;
@@ -176,6 +175,9 @@ struct AnnotationJoiner {
                 enc.AddPremise(enc.EncodeSimpleFlowRules(*annotation->now, config));
                 plankton::ExtendStack(*annotation, enc, EXTENSION);
             }
+
+            // distinct symbols across annotations
+            plankton::RenameSymbols(*annotation, factory);
             
             // distinct values across variables
             auto resources = plankton::CollectMutable<EqualsToAxiom>(*annotation->now);

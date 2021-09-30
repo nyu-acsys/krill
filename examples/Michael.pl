@@ -51,11 +51,11 @@ void __init__() {
 	Tail = malloc;
 	Tail->next = NULL;
 	Tail->marked = false;
-	Tail->val = MAX_VAL;
+	Tail->val = MAX;
 	Head = malloc;
 	Head->next = Tail;
 	Head->marked = false;
-	Head->val = MIN_VAL;
+	Head->val = MIN;
 }
 
 
@@ -74,12 +74,12 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 			    CAS(<pred->marked, pred->next>, <false, curr>, <false, next>);
 			    // retry // TODO: only retry if CAS successful?
 			    curr = Head;
-			    k = MIN_VAL;
+			    k = MIN;
 			}
 		} else {
             // retry
 			curr = Head;
-			k = MIN_VAL;
+			k = MIN;
 		}
 	} while (k < key);
     return <pred, curr, k>;
@@ -116,7 +116,6 @@ bool add(data_t key) {
 		}
 	}
 }
-
 
 bool remove(data_t key) {
 	Node* curr, pred, next;

@@ -23,6 +23,7 @@ struct PostImageInfo {
     Encoding encoding;
     Annotation& pre;
     std::set<const ObligationAxiom*> preObligations;
+    std::set<const FulfillmentAxiom*> preFulfillments;
     std::deque<std::unique_ptr<Axiom>> postSpecifications;
     std::optional<bool> isPureUpdate = std::nullopt;
     
@@ -32,7 +33,9 @@ struct PostImageInfo {
     
     explicit PostImageInfo(std::unique_ptr<Annotation> pre_, const MemoryWrite& cmd, const SolverConfig& config)
             : config(config), command(cmd), footprint(plankton::MakeFlowFootprint(std::move(pre_), cmd, config)),
-              encoding(footprint), pre(*footprint.pre), preObligations(plankton::Collect<ObligationAxiom>(*pre.now)) {
+              encoding(footprint), pre(*footprint.pre),
+              preObligations(plankton::Collect<ObligationAxiom>(*pre.now)),
+              preFulfillments(plankton::Collect<FulfillmentAxiom>(*pre.now)) {
         assert(&pre == footprint.pre.get());
         DEBUG("** pre after footprint creation: " << pre << std::endl)
     }
@@ -158,6 +161,7 @@ inline void AddSpecificationChecks(PostImageInfo& info) {
         info.isPureUpdate = isPure;
         if (isPure) {
             for (const auto* obl : info.preObligations) info.postSpecifications.push_back(plankton::Copy(*obl));
+            for (const auto* ful : info.preFulfillments) info.postSpecifications.push_back(plankton::Copy(*ful));
             return;
         }
         if (!info.preObligations.empty()) return;
@@ -429,6 +433,7 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd) 
     MinimizeFootprint(info);
     auto effects = ExtractEffects(info);
     auto post = ExtractPost(std::move(info));
-    
+
+    DEBUG("POST result for " << cmd << " " << *post << std::endl)
     return PostImage(std::move(post), std::move(effects));
 }

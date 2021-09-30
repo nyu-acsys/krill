@@ -201,10 +201,9 @@ void plankton::Simplify(LogicObject& object) {
 }
 
 void plankton::InlineAndSimplify(Annotation& object) {
-    // TODO: should this be done for annotations only?
     Flatten(object);
-    InlineMemories(*object.now);
     InlineEqualities(object);
+    InlineMemories(*object.now);
     RemoveNoise(object);
 }
 
