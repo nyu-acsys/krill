@@ -287,7 +287,7 @@ struct FlowGraphGenerator {
 };
 
 inline void PostProcessFootprint(FlowGraph& footprint) {
-    if constexpr (POSTPROCESS_FLOW_GRAPHS) return;
+    if constexpr (!POSTPROCESS_FLOW_GRAPHS) return;
     MEASURE("plankton::MakeFlowFootprint ~> PostProcessFootprint")
 
     Encoding encoding(footprint);
