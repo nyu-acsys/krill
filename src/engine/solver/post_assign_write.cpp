@@ -113,7 +113,7 @@ inline void CheckReachability(PostImageInfo& info) {
     }
 }
 
-inline void AddFlowCoverageChecks(PostImageInfo& info) {
+inline void CheckFlowCoverage(PostImageInfo& info) {
     auto ensureContains = [&info](const SymbolDeclaration& address){
         auto mustHaveNode = info.footprint.GetNodeOrNull(address);
         if (!mustHaveNode) throw std::logic_error("Update failed: footprint does not cover addresses " + address.name +
@@ -126,32 +126,33 @@ inline void AddFlowCoverageChecks(PostImageInfo& info) {
             auto sameFlow = info.encoding.Encode(field.preAllOutflow) == info.encoding.Encode(field.postAllOutflow);
             auto isPreNull = info.encoding.EncodeIsNull(field.preValue);
             auto isPostNull = info.encoding.EncodeIsNull(field.postValue);
-            info.encoding.AddCheck(sameFlow || isPreNull, [ensureContains,&node,&field](bool unchanged){
-                DEBUG("outflow of " << node.address.name << " at " << field.name << " is preUnchangedOrNull=" << unchanged << std::endl)
-                if (!unchanged) ensureContains(field.preValue);
-            });
-            info.encoding.AddCheck(sameFlow || isPostNull, [ensureContains,&node,&field](bool unchanged){
-                DEBUG("outflow of " << node.address.name << " at " << field.name << " is postUnchangedOrNull=" << unchanged << std::endl)
-                if (!unchanged) ensureContains(field.postValue);
-            });
+            if (!info.encoding.Implies(sameFlow || isPreNull)) ensureContains(field.preValue);
+            if (!info.encoding.Implies(sameFlow || isPostNull)) ensureContains(field.postValue);
         }
     }
 }
 
-inline void AddFlowUniquenessChecks(PostImageInfo& info) {
+inline void CheckFlowUniqueness(PostImageInfo& info) {
     auto disjointness = info.encoding.EncodeKeysetDisjointness(info.footprint, EMode::POST);
-    info.encoding.AddCheck(disjointness, [](bool holds){
-        DEBUG("Checking keyset disjointness: holds=" << holds << std::endl)
-        if (holds) return;
+    if (!info.encoding.Implies(disjointness)) {
         throw std::logic_error("Unsafe update: keyset disjointness not guaranteed."); // TODO: better error handling
-    });
+    }
 
     auto uniqueness = info.encoding.EncodeInflowUniqueness(info.footprint, EMode::POST);
-    info.encoding.AddCheck(uniqueness, [](bool holds){
-        DEBUG("Checking inflow uniqueness: holds=" << holds << std::endl)
-        if (holds) return;
+    if (!info.encoding.Implies(uniqueness)) {
         throw std::logic_error("Unsafe update: inflow uniqueness not guaranteed."); // TODO: better error handling
-    });
+    };
+}
+
+inline void CheckInvariant(PostImageInfo& info) {
+    for (const auto& node : info.footprint.nodes) {
+        auto nodeInvariant = info.encoding.EncodeNodeInvariant(node, EMode::POST);
+        info.encoding.AddCheck(nodeInvariant, [&node](bool holds){
+            DEBUG("Checking invariant for " << node.address.name << ": holds=" << holds << std::endl)
+            if (holds) return;
+            throw std::logic_error("Unsafe update: invariant is not maintained."); // TODO: better error handling
+        });
+    }
 }
 
 inline void AddSpecificationChecks(PostImageInfo& info) {
@@ -186,17 +187,6 @@ inline void AddSpecificationChecks(PostImageInfo& info) {
     }
 }
 
-inline void AddInvariantChecks(PostImageInfo& info) {
-    for (const auto& node : info.footprint.nodes) {
-        auto nodeInvariant = info.encoding.EncodeNodeInvariant(node, EMode::POST);
-        info.encoding.AddCheck(nodeInvariant, [&node](bool holds){
-            DEBUG("Checking invariant for " << node.address.name << ": holds=" << holds << std::endl)
-            if (holds) return;
-            throw std::logic_error("Unsafe update: invariant is not maintained."); // TODO: better error handling
-        });
-    }
-}
-
 inline void AddAffectedOutsideChecks(PostImageInfo& info) {
     auto outsideMemory = info.GetOutsideMemory<SharedMemoryCore>();
     for (const auto& inside : info.footprint.nodes) {
@@ -221,13 +211,8 @@ inline void AddAffectedOutsideChecks(PostImageInfo& info) {
 
 
 //
-// Perform Checks
+// Minimization
 //
-
-inline void PerformChecks(PostImageInfo& info) {
-    MEASURE("Solver::Post (MemoryWrite) ~> PerformChecks")
-    info.encoding.Check();
-}
 
 inline void MinimizeFootprint(PostImageInfo& info) {
     // plankton::RemoveIf(info.footprint.nodes, [](const auto& node){ return !node.needed; }); // does not work
@@ -418,17 +403,24 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd) 
     plankton::InlineAndSimplify(*pre);
     PostImageInfo info(std::move(pre), cmd, config);
     
-    // TODO: there seems to be an issue with Z3::consequences giving inconsistent results
-    //       ==> directly check AddFlowCoverageChecks, AddFlowUniquenessChecks, AddInvariantChecks, AddSpecificationChecks?
-    CheckPublishing(info);
-    CheckReachability(info);
-    AddFlowCoverageChecks(info);
-    AddFlowUniquenessChecks(info);
-    AddInvariantChecks(info);
-    AddSpecificationChecks(info);
-    AddAffectedOutsideChecks(info);
-    AddEffectContextGenerators(info);
-    PerformChecks(info);
+    // direct checks (avoids spurious failures due to Z3)
+    {
+        MEASURE("Solver::Post (MemoryWrite) ~> individual checks")
+        CheckPublishing(info);
+        CheckReachability(info);
+        CheckFlowCoverage(info);
+        CheckFlowUniqueness(info);
+        CheckInvariant(info);
+    }
+
+    // bulk checks
+    {
+        MEASURE("Solver::Post (MemoryWrite) ~> bulk checks")
+        AddSpecificationChecks(info);
+        AddAffectedOutsideChecks(info);
+        AddEffectContextGenerators(info);
+        info.encoding.Check();
+    }
 
     MinimizeFootprint(info);
     auto effects = ExtractEffects(info);

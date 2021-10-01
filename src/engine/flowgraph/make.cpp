@@ -8,7 +8,7 @@
 
 using namespace plankton;
 
-
+constexpr bool POSTPROCESS_FLOW_GRAPHS = false;
 constexpr std::array<EMode, 2> AllEMode = {EMode::PRE, EMode::POST };
 
 struct UpdateMap {
@@ -287,8 +287,8 @@ struct FlowGraphGenerator {
 };
 
 inline void PostProcessFootprint(FlowGraph& footprint) {
+    if constexpr (POSTPROCESS_FLOW_GRAPHS) return;
     MEASURE("plankton::MakeFlowFootprint ~> PostProcessFootprint")
-    // TODO: really do this?
 
     Encoding encoding(footprint);
     auto handle = [&encoding](auto& pre, auto& post, const auto& info) {
