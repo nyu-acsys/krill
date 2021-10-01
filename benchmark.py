@@ -5,17 +5,17 @@ import signal
 from subprocess import Popen, PIPE, TimeoutExpired
 import re
 
-TIMEOUT = 60 * 15  # in seconds
+TIMEOUT = 60 * 20  # in seconds
 REPETITIONS = 5
 
 EXECUTABLE = "./cmake-build-debug/bin/plankton"
 BENCHMARKS = [
-    "examples/test.txt",
-    # "examples/VechevYahavCas.pl",
-    # "examples/VechevYahavDCas.pl",
-    # "examples/ORVYY1.pl",
-    # "examples/ORVYY2.pl",
-    # "examples/Michael.pl",
+    # "examples/test.txt",
+    "examples/VechevYahavCas.pl",
+    "examples/VechevYahavDCas.pl",
+    "examples/ORVYY1.pl",
+    "examples/ORVYY2.pl",
+    "examples/Michael.pl",
 ]
 
 REGEX = r"@gist\[(?P<path>.*?)\]=(?P<result>[01]),(?P<time>[0-9]*);(.*)"
@@ -74,6 +74,9 @@ def finalize():
 
 
 def main():
+    print("Settings: iterations={0}, timeout={1}ms".format(REPETITIONS, TIMEOUT*1000))
+    print("Running benchmarks...")
+    print()
     for i in range(REPETITIONS):
         for path in BENCHMARKS:
             time = run_test(path, i)

@@ -41,6 +41,7 @@ set(SOURCES
         proof/common.cpp
         proof/api.cpp
         proof/cmd.cpp
+        proof/macro.cpp
         proof/stmt.cpp
 
         util/collect.cpp

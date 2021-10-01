@@ -80,6 +80,7 @@ void ProofGenerator::GenerateProof() {
     for (std::size_t counter = 0; counter < PROOF_ABORT_AFTER; ++counter) {
         program.Accept(*this);
         if (!ConsolidateNewInterference()) return;
+        macroPostTable.clear();
     }
     throw std::logic_error("Aborting: proof does not seem to stabilize."); // TODO: remove / better error handling
 }

@@ -79,7 +79,7 @@ namespace plankton {
         EExpr Encode(const VariableDeclaration& decl);
         EExpr Encode(const SymbolDeclaration& decl);
         EExpr Encode(const LogicObject& object);
-        
+
         EExpr EncodeExists(Sort sort, const std::function<EExpr(EExpr)>& makeInner);
         EExpr EncodeForAll(Sort sort, const std::function<EExpr(EExpr)>& makeInner);
         EExpr EncodeFlowContains(const SymbolDeclaration& flow, const EExpr& expr);

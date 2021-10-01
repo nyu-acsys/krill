@@ -34,17 +34,25 @@ namespace plankton {
         void Visit(const Program& object) override;
 
     private:
+        using AnnotationList = std::deque<std::unique_ptr<Annotation>>;
+        using PrePostPair = std::pair<std::unique_ptr<Annotation>, AnnotationList>;
+
         const Program& program;
         Solver solver;
         std::deque<std::unique_ptr<HeapEffect>> newInterference;
         std::deque<std::unique_ptr<Annotation>> current;
         std::deque<std::unique_ptr<Annotation>> breaking;
         std::deque<std::pair<std::unique_ptr<Annotation>, const Return*>> returning;
+        std::map<const Function*, std::deque<PrePostPair>> macroPostTable;
         bool insideAtomic;
     
         void HandleInterfaceFunction(const Function& function);
+        void HandleMacroLazy(const Macro& macro);
+        void HandleMacroEager(const Macro& macro);
         void HandleMacroProlog(const Macro& macro);
         void HandleMacroEpilog(const Macro& macro);
+        std::optional<AnnotationList> LookupMacroPost(const Macro& node, const Annotation& pre);
+        void AddMacroPost(const Macro& node, const Annotation& pre, const AnnotationList& post);
 
         void MakeInterferenceStable(const Statement& after);
         void AddNewInterference(std::deque<std::unique_ptr<HeapEffect>> effects);

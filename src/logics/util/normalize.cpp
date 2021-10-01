@@ -40,6 +40,17 @@ inline std::size_t GetIncidence(const LogicObject& object) {
 // Ordering non-virtual expressions/axioms
 //
 
+static struct SymbolOrder {
+    std::map<const SymbolDeclaration*, std::size_t> symbolToIndex;
+
+    inline std::size_t Get(const SymbolDeclaration& decl) {
+        auto find = symbolToIndex.find(&decl);
+        if (find == symbolToIndex.end()) find = symbolToIndex.emplace(&decl, symbolToIndex.size()).first;
+        return find->second;
+    }
+} ordering;
+
+
 inline bool LLessLogic(const LogicObject& object, const LogicObject& other);
 
 inline bool LNeq(const VariableDeclaration& decl, const VariableDeclaration& other) {
@@ -59,7 +70,8 @@ inline bool LLess(const VariableDeclaration& decl, const VariableDeclaration& ot
 }
 
 inline bool LLess(const SymbolDeclaration& decl, const SymbolDeclaration& other) {
-    return &decl < &other;
+    // return &decl < &other;
+    return ordering.Get(decl) < ordering.Get(other);
 }
 
 inline bool LLess(const SymbolicVariable& object, const SymbolicVariable& other) {
@@ -269,7 +281,10 @@ inline void ApplyRenaming(Annotation& annotation) {
         void Visit(const InflowEmptinessAxiom&) override { /* do nothing */ }
         void Visit(const InflowContainsValueAxiom&) override { /* do nothing */ }
         void Visit(const InflowContainsRangeAxiom&) override { /* do nothing */ }
-        void Enter(const SymbolDeclaration& object) override { (void) renaming(object); }
+        void Enter(const SymbolDeclaration& object) override {
+            ordering.Get(renaming(object));
+            // (void) renaming(object);
+        }
     } collector;
     annotation.Accept(collector);
     plankton::RenameSymbols(annotation, collector.renaming);
