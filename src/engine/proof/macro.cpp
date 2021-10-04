@@ -87,6 +87,46 @@ void ProofGenerator::HandleMacroEager(const Macro& cmd) {
 // Tabulated macro post
 //
 
+inline void CleanAnnotation(Annotation& annotation) {
+    plankton::Simplify(annotation);
+
+    // find symbols that do not occur in variable assignments or memory
+    struct : public LogicListener {
+        std::set<const SymbolDeclaration*> prune;
+        void Enter(const SymbolDeclaration& object) override { prune.erase(&object); }
+        void Visit(const StackAxiom&) override { /* do nothing */ }
+        void Visit(const InflowEmptinessAxiom&) override { /* do nothing */ }
+        void Visit(const InflowContainsValueAxiom&) override { /* do nothing */ }
+        void Visit(const InflowContainsRangeAxiom&) override { /* do nothing */ }
+    } collector;
+    collector.prune = plankton::Collect<SymbolDeclaration>(annotation);
+    annotation.Accept(collector);
+    auto prune = std::move(collector.prune);
+
+    // find unreachable memory addresses
+    auto reach = plankton::ComputeReachability(*annotation.now);
+    std::set<const SymbolDeclaration*> reachable;
+    for (const auto* var : plankton::Collect<EqualsToAxiom>(*annotation.now)) {
+        reachable.insert(&var->Value());
+        plankton::InsertInto(reach.GetReachable(var->Value()), reachable);
+    }
+    auto pruneIfUnreachable = [&reachable,&prune](const auto* mem) {
+        if (plankton::Membership(reachable, &mem->node->Decl())) return;
+        prune.insert(&mem->node->Decl());
+    };
+    for (const auto* mem : plankton::Collect<SharedMemoryCore>(*annotation.now)) pruneIfUnreachable(mem);
+    for (const auto& past : annotation.past) pruneIfUnreachable(past->formula.get());
+
+    // remove parts that are not interesting
+    auto containsPruned = [&prune](const auto& conjunct) {
+        if (dynamic_cast<const LocalMemoryResource*>(conjunct.get())) return false;
+        auto symbols = plankton::Collect<SymbolDeclaration>(*conjunct);
+        return plankton::NonEmptyIntersection(symbols, prune);
+    };
+    plankton::RemoveIf(annotation.now->conjuncts, containsPruned);
+    plankton::RemoveIf(annotation.past, containsPruned);
+}
+
 inline std::optional<ProofGenerator::AnnotationList>
 ProofGenerator::LookupMacroPost(const Macro& macro, const Annotation& annotation) {
     auto find = macroPostTable.find(&macro.Func());
@@ -107,32 +147,11 @@ ProofGenerator::AddMacroPost(const Macro& macro, const Annotation& pre, const Pr
     macroPostTable[&macro.Func()].emplace_back(plankton::Copy(pre), plankton::CopyAll(post));
 }
 
-inline void Preprocess(Annotation& annotation) {
-    plankton::Simplify(annotation);
-
-    struct : public LogicListener {
-        std::set<const SymbolDeclaration*> prune;
-        void Enter(const SymbolDeclaration& object) override { prune.erase(&object); }
-        void Visit(const StackAxiom&) override { /* do nothing */ }
-        void Visit(const InflowEmptinessAxiom&) override { /* do nothing */ }
-        void Visit(const InflowContainsValueAxiom&) override { /* do nothing */ }
-        void Visit(const InflowContainsRangeAxiom&) override { /* do nothing */ }
-    } collector;
-    collector.prune = plankton::Collect<SymbolDeclaration>(annotation);
-    annotation.Accept(collector);
-
-    plankton::RemoveIf(annotation.now->conjuncts, [&collector](const auto& conjunct) {
-        auto symbols = plankton::Collect<SymbolDeclaration>(*conjunct);
-        // return !symbols.empty() && plankton::Subset(symbols, collector.prune);
-        return plankton::NonEmptyIntersection(symbols, collector.prune);
-    });
-}
-
 void ProofGenerator::HandleMacroLazy(const Macro& cmd) {
     HandleMacroProlog(cmd);
+    decltype(current) post;
 
     // lookup tabulated posts
-    decltype(current) post;
     plankton::RemoveIf(current, [this, &cmd, &post](const auto& elem) {
         auto lookup = LookupMacroPost(cmd, *elem);
         if (!lookup) return false;
@@ -144,10 +163,11 @@ void ProofGenerator::HandleMacroLazy(const Macro& cmd) {
     // compute remaining posts
     DEBUG("    ~~> " << (current.empty() ? "not descending" : "descending...") << std::endl)
     if (!current.empty()) {
-        for (auto& elem : current) Preprocess(*elem);
+        for (auto& elem : current) CleanAnnotation(*elem);
         auto pre = plankton::CopyAll(current);
         cmd.Func().Accept(*this);
         HandleMacroEpilog(cmd);
+        // for (auto& elem : current) CleanAnnotation(*elem);
         for (const auto& elem : pre) AddMacroPost(cmd, *elem, current);
     }
 

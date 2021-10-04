@@ -5,14 +5,13 @@ import signal
 from subprocess import Popen, PIPE, TimeoutExpired
 import re
 
-TIMEOUT = 60 * 20  # in seconds
+TIMEOUT = 60 * 15  # in seconds
 REPETITIONS = 5
 
-EXECUTABLE = "./cmake-build-debug/bin/plankton"
+EXECUTABLE = "./build/bin/plankton"
 BENCHMARKS = [
-    # "examples/test.txt",
-    "examples/VechevYahavCas.pl",
     "examples/VechevYahavDCas.pl",
+    "examples/VechevYahavCas.pl",
     "examples/ORVYY1.pl",
     "examples/ORVYY2.pl",
     "examples/Michael.pl",

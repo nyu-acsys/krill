@@ -45,6 +45,7 @@ struct FulfillmentFinder {
 
 [[nodiscard]] std::unique_ptr<Annotation> Solver::TryAddFulfillment(std::unique_ptr<Annotation> annotation) const {
     MEASURE("Solver::TryAddFulfillment")
+    DEBUG("Solver::TryAddFulfillment for " << *annotation << std::endl)
     {
         MEASURE("Solver::TryAddFulfillment ~> ImprovePast")
         ImprovePast(*annotation);

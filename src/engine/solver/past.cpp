@@ -137,34 +137,39 @@ struct Interpolator {
     const SolverConfig& config;
     Annotation& annotation;
     SymbolFactory factory;
-    ImmutabilityLookup immutability;
+    std::optional<ImmutabilityLookup> immutability;
 
     Interpolator(Annotation& annotation, const std::deque<std::unique_ptr<HeapEffect>>& interference,
                  const SolverConfig& config) : interference(interference), config(config), annotation(annotation) {
         plankton::Simplify(annotation);
         plankton::AvoidEffectSymbols(factory, interference);
         plankton::RenameSymbols(annotation, factory);
-
-        immutability = MakeImmutabilityLookup(annotation, interference);
         for (auto& elem : annotation.past) ApplyImmutability(*elem->formula, annotation.now.get());
     }
 
     void Interpolate() {
-        FilterPasts(annotation, config);
+        Filter();
         ExpandHistoryMemory();
-        FilterPasts(annotation, config);
+        Filter();
         InterpolatePastToNow();
-        FilterPasts(annotation, config);
+        Filter();
         PostProcess();
     }
 
     inline void ApplyImmutability(MemoryAxiom& memory, SeparatingConjunction* addEq = nullptr) {
+        if (!immutability) immutability = MakeImmutabilityLookup(annotation, interference);
         for (auto& [field, value] : memory.fieldToValue) {
-            auto newValue = immutability[{ &memory.node->Decl(), field }];
+            assert(immutability);
+            auto newValue = immutability.value()[{ &memory.node->Decl(), field }];
             if (!newValue) continue;
             if (addEq) addEq->Conjoin(MakeEq(*newValue, value->Decl()));
             value->decl = *newValue;
         }
+    }
+
+    void Filter() {
+        FilterPasts(annotation, config);
+        immutability = std::nullopt; // needs to be recomputed since FilterPasts may change symbols
     }
 
     inline void AddDerivedCandidates(Encoding& encoding, std::deque<std::unique_ptr<Axiom>> candidates) {
@@ -198,8 +203,20 @@ struct Interpolator {
         annotation.past.clear();
 
         auto referenced = GetActiveReferences(annotation);
+        auto getReferencedPointerFields = [this,&referenced](const auto& past) {
+            auto ptrFields = GetPointerFields(*past.formula);
+            for (auto it = ptrFields.begin(); it != ptrFields.end();) {
+                if (plankton::Membership(referenced, *it)) ++it;
+                else it = ptrFields.erase(it);
+            }
+            return ptrFields;
+        };
+
         for (auto& elem : pasts) {
-            auto ptrFields = GetPointerFields(*elem->formula);
+            auto& pastAddress = elem->formula->node->Decl();
+            if (!plankton::Membership(referenced, &pastAddress)) continue;
+
+            auto ptrFields = getReferencedPointerFields(*elem);
             auto past = MakeStackBlueprint();
             past->Conjoin(std::move(elem->formula));
 
@@ -211,6 +228,7 @@ struct Interpolator {
                 ApplyImmutability(*memory, past->now.get());
                 annotation.Conjoin(std::make_unique<PastPredicate>(plankton::Copy(*memory)));
 
+                if (memory->node->Decl() == pastAddress) continue;
                 auto memoryCandidates = plankton::MakeStackCandidates(*past->now, *memory, ExtensionPolicy::FAST);
                 plankton::MoveInto(std::move(memoryCandidates), candidates);
             }
