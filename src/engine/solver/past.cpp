@@ -109,7 +109,7 @@ inline std::unique_ptr<StackAxiom> MakeEq(const SymbolDeclaration& decl, const S
 
 inline std::set<const SymbolDeclaration*> GetActiveReferences(const Annotation& annotation) {
     std::set<const SymbolDeclaration*> result;
-    for (auto variable : plankton::Collect<EqualsToAxiom>(*annotation.now)) {
+    for (const auto* variable : plankton::Collect<EqualsToAxiom>(*annotation.now)) {
         result.insert(&variable->Value());
     }
     return result;
@@ -152,7 +152,7 @@ struct Interpolator {
         ExpandHistoryMemory();
         Filter();
         InterpolatePastToNow();
-        Filter();
+        // Filter();
         PostProcess();
     }
 
@@ -203,7 +203,7 @@ struct Interpolator {
         annotation.past.clear();
 
         auto referenced = GetActiveReferences(annotation);
-        auto getReferencedPointerFields = [this,&referenced](const auto& past) {
+        auto getExpansion = [this,&referenced](const auto& past) {
             auto ptrFields = GetPointerFields(*past.formula);
             for (auto it = ptrFields.begin(); it != ptrFields.end();) {
                 if (plankton::Membership(referenced, *it)) ++it;
@@ -216,12 +216,12 @@ struct Interpolator {
             auto& pastAddress = elem->formula->node->Decl();
             if (!plankton::Membership(referenced, &pastAddress)) continue;
 
-            auto ptrFields = getReferencedPointerFields(*elem);
+            auto expansion = getExpansion(*elem);
             auto past = MakeStackBlueprint();
             past->Conjoin(std::move(elem->formula));
 
             Encoding encoding = MakeEncoding(*past, config);
-            plankton::MakeMemoryAccessible(*past->now, ptrFields, flowType, factory, encoding);
+            plankton::MakeMemoryAccessible(*past->now, expansion, flowType, factory, encoding);
 
             std::deque<std::unique_ptr<Axiom>> candidates;
             for (auto memory : plankton::CollectMutable<SharedMemoryCore>(*past->now)) {
@@ -258,28 +258,27 @@ struct Interpolator {
         return result;
     }
 
-    inline void InterpolatePastToNow(const SharedMemoryCore& now, const SharedMemoryCore& past, const std::string& field) {
-        auto& nowValue = now.fieldToValue.at(field)->Decl();
+    inline void InterpolatePastToNow(const SharedMemoryCore& past, const std::string& field, const SymbolDeclaration& interpolatedValue) {
         auto& pastValue = past.fieldToValue.at(field)->Decl();
-        if (nowValue == pastValue) return;
+        if (interpolatedValue == pastValue) return;
 
-        auto newHistory = plankton::MakeSharedMemory(now.node->Decl(), config.GetFlowValueType(), factory);
+        auto newHistory = plankton::MakeSharedMemory(past.node->Decl(), config.GetFlowValueType(), factory);
         ApplyImmutability(*newHistory);
-        newHistory->fieldToValue.at(field)->decl = nowValue;
+        newHistory->fieldToValue.at(field)->decl = interpolatedValue;
 
         auto encoding = MakeEncoding(*MakeStackBlueprint(), config);
         encoding.AddPremise(encoding.EncodeInvariants(*newHistory, config));
 
         auto vector = plankton::MakeVector<EExpr>(interference.size() + 1);
         vector.push_back( // 'field' was never changed
-                encoding.Encode(nowValue) == encoding.Encode(pastValue) &&
+                encoding.Encode(interpolatedValue) == encoding.Encode(pastValue) &&
                 encoding.EncodeMemoryEquality(past, *newHistory)
         );
         for (const auto& effect : interference) {
             if (!plankton::UpdatesField(*effect, field)) continue;
             auto& effectValue = effect->post->fieldToValue.at(field)->Decl();
             vector.push_back( // last update to 'field' is due to 'effect'
-                    encoding.Encode(nowValue) == encoding.Encode(effectValue) &&
+                    encoding.Encode(interpolatedValue) == encoding.Encode(effectValue) &&
                     encoding.Encode(*effect->context) &&
                     encoding.EncodeMemoryEquality(*effect->post, *newHistory)
             );
@@ -296,11 +295,14 @@ struct Interpolator {
         auto referenced = GetActiveReferences(annotation);
         for (const auto* nowMem : plankton::Collect<SharedMemoryCore>(*annotation.now)) {
             if (!plankton::Membership(referenced, &nowMem->node->Decl())) continue;
+            std::set<const SymbolDeclaration*> interpolated;
             for (const auto& past : annotation.past) {
                 if (nowMem->node->Decl() != past->formula->node->Decl()) continue;
                 for (const auto& [field, value] : nowMem->fieldToValue) {
                     if (INTERPOLATE_POINTERS_ONLY && value->Sort() != Sort::PTR) continue;
-                    InterpolatePastToNow(*nowMem, *past->formula, field);
+                    if (plankton::Membership(interpolated, &value->Decl())) continue;
+                    InterpolatePastToNow(*past->formula, field, value->Decl());
+                    interpolated.insert(&value->Decl());
                 }
             }
         }
@@ -309,6 +311,7 @@ struct Interpolator {
     void PostProcess() {
         plankton::InlineAndSimplify(annotation);
     }
+
 };
 
 void Solver::ImprovePast(Annotation& annotation) const {

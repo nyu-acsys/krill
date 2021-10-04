@@ -414,12 +414,14 @@ std::unique_ptr<Annotation> Solver::Join(std::deque<std::unique_ptr<Annotation>>
     if (annotations.empty()) throw std::logic_error("Cannot join empty set"); // TODO: better error handling
     if (annotations.size() == 1) return std::move(annotations.front());
     {
+        // TODO: needed for Past-to-Past Interpolation in the case 'annotations.size() == 1' as well?
         MEASURE("Solver::Join ~> ImprovePast")
         for (auto& elem : annotations) ImprovePast(*elem);
+        for (auto& elem : annotations) PrunePast(*elem);
     }
     auto result = AnnotationJoiner(std::move(annotations), config).GetResult();
     plankton::InlineAndSimplify(*result);
-    PrunePast(*result);
+    // PrunePast(*result);
      DEBUG("** join result: " << *result << std::endl << std::endl << std::endl)
 //    DEBUG(*result << std::endl << std::endl)
     

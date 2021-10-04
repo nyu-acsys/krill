@@ -147,6 +147,8 @@ std::deque<std::unique_ptr<Axiom>> plankton::MakeStackCandidates(const LogicObje
         auto symbols = plankton::Collect<SymbolDeclaration>(*elem);
         return plankton::EmptyIntersection(objectSymbols, symbols)
                || plankton::EmptyIntersection(otherSymbols, symbols);
+        //return plankton::EmptyIntersection(objectSymbols, symbols) // TODO: needed for Past-to-Past Interpolation?
+        //       && plankton::EmptyIntersection(otherSymbols, symbols);
     });
     return result;
 }

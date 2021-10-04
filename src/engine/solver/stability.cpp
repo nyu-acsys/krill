@@ -102,14 +102,12 @@ std::unique_ptr<Annotation> Solver::MakeInterferenceStable(std::unique_ptr<Annot
     MEASURE("Solver::MakeInterferenceStable")
     if (plankton::Collect<SharedMemoryCore>(*annotation->now).empty()) return annotation;
     plankton::ExtendStack(*annotation, config, ExtensionPolicy::FAST); // TODO: needed?
-
     {
         MEASURE("Solver::MakeInterferenceStable ~> ImprovePast")
-        ImprovePast(*annotation); // TODO: needed?
+        ImprovePast(*annotation);
     }
     InterferenceInfo info(std::move(annotation), interference);
     auto result = info.GetResult();
-    // PrunePast(*result); // TODO: needed?
-    // result = PerformInterpolation(std::move(result), interference);
+    // PrunePast(*result);
     return result;
 }
