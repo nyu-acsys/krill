@@ -145,10 +145,10 @@ std::deque<std::unique_ptr<Axiom>> plankton::MakeStackCandidates(const LogicObje
     auto result = candidates.Generate();
     plankton::RemoveIf(result, [&objectSymbols, &otherSymbols](const auto& elem) {
         auto symbols = plankton::Collect<SymbolDeclaration>(*elem);
+        // return plankton::EmptyIntersection(objectSymbols, symbols)
+        //        || plankton::EmptyIntersection(otherSymbols, symbols);
         return plankton::EmptyIntersection(objectSymbols, symbols)
-               || plankton::EmptyIntersection(otherSymbols, symbols);
-        //return plankton::EmptyIntersection(objectSymbols, symbols) // TODO: needed for Past-to-Past Interpolation?
-        //       && plankton::EmptyIntersection(otherSymbols, symbols);
+               && plankton::EmptyIntersection(otherSymbols, symbols);
     });
     return result;
 }

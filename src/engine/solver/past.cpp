@@ -150,7 +150,7 @@ struct Interpolator {
     void Interpolate() {
         Filter();
         ExpandHistoryMemory();
-        Filter();
+        // Filter();
         InterpolatePastToNow();
         // Filter();
         PostProcess();
