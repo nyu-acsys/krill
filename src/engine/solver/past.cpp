@@ -150,7 +150,7 @@ struct Interpolator {
     void Interpolate() {
         Filter();
         ExpandHistoryMemory();
-        // Filter();
+        Filter(); // TODO: to filter or not to filter?
         InterpolatePastToNow();
         // Filter();
         PostProcess();
@@ -290,13 +290,29 @@ struct Interpolator {
         annotation.Conjoin(std::make_unique<PastPredicate>(std::move(newHistory)));
     }
 
+    //void InterpolatePastToNow() {
+    //    MEASURE("Solver::ImprovePast ~> InterpolatePastToNow")
+    //    auto referenced = GetActiveReferences(annotation);
+    //    for (const auto* nowMem : plankton::Collect<SharedMemoryCore>(*annotation.now)) {
+    //        if (!plankton::Membership(referenced, &nowMem->node->Decl())) continue;
+    //        for (const auto& past : annotation.past) {
+    //            if (nowMem->node->Decl() != past->formula->node->Decl()) continue;
+    //            for (const auto& [field, value] : nowMem->fieldToValue) {
+    //                if (INTERPOLATE_POINTERS_ONLY && value->Sort() != Sort::PTR) continue;
+    //                InterpolatePastToNow(*past->formula, field, value->Decl());
+    //            }
+    //        }
+    //    }
+    //}
+
     void InterpolatePastToNow() {
         MEASURE("Solver::ImprovePast ~> InterpolatePastToNow")
         auto referenced = GetActiveReferences(annotation);
-        for (const auto* nowMem : plankton::Collect<SharedMemoryCore>(*annotation.now)) {
-            if (!plankton::Membership(referenced, &nowMem->node->Decl())) continue;
+        auto nowMemories = plankton::Collect<SharedMemoryCore>(*annotation.now);
+        for (const auto& past : annotation.past) {
+            if (!plankton::Membership(referenced, &past->formula->node->Decl())) continue;
             std::set<const SymbolDeclaration*> interpolated;
-            for (const auto& past : annotation.past) {
+            for (const auto* nowMem : nowMemories) {
                 if (nowMem->node->Decl() != past->formula->node->Decl()) continue;
                 for (const auto& [field, value] : nowMem->fieldToValue) {
                     if (INTERPOLATE_POINTERS_ONLY && value->Sort() != Sort::PTR) continue;

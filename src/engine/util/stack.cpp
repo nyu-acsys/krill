@@ -133,8 +133,8 @@ std::deque<std::unique_ptr<Axiom>> plankton::MakeStackCandidates(const LogicObje
 
 std::deque<std::unique_ptr<Axiom>> plankton::MakeStackCandidates(const LogicObject& object, const LogicObject& other,
                                                                  ExtensionPolicy policy) {
-    auto objectSymbols = plankton::Collect<SymbolDeclaration>(object);
-    auto otherSymbols = plankton::Collect<SymbolDeclaration>(other);
+    auto objectSymbols = plankton::CollectUsefulSymbols(object); // TODO: all or useful symbols?
+    auto otherSymbols = plankton::CollectUsefulSymbols(other); // TODO: all or useful symbols?
     plankton::DiscardIf(objectSymbols, [&otherSymbols](const auto* elem) { return plankton::Membership(otherSymbols, elem); });
     plankton::DiscardIf(otherSymbols, [&objectSymbols](const auto* elem) { return plankton::Membership(objectSymbols, elem); });
 
