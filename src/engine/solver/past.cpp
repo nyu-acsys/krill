@@ -316,6 +316,7 @@ struct Interpolator {
                 if (nowMem->node->Decl() != past->formula->node->Decl()) continue;
                 for (const auto& [field, value] : nowMem->fieldToValue) {
                     if (INTERPOLATE_POINTERS_ONLY && value->Sort() != Sort::PTR) continue;
+                    if (value->Sort() == Sort::PTR && !plankton::Membership(referenced, &value->Decl())) continue;
                     if (plankton::Membership(interpolated, &value->Decl())) continue;
                     InterpolatePastToNow(*past->formula, field, value->Decl());
                     interpolated.insert(&value->Decl());
