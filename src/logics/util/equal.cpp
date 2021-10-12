@@ -78,8 +78,8 @@ inline bool IsEqual(const PastPredicate& object, const PastPredicate& other) {
 }
 
 inline bool IsEqual(const FuturePredicate& object, const FuturePredicate& other) {
-    return &object.command == &other.command &&
-           plankton::SyntacticalEqual(*object.pre, *other.pre) && plankton::SyntacticalEqual(*object.post, *other.post);
+    return plankton::SyntacticalEqual(*object.pre, *other.pre) && plankton::SyntacticalEqual(*object.post, *other.post)
+           && plankton::SyntacticalEqual(*object.context, *other.context);
 }
 
 inline bool IsEqual(const Annotation& object, const Annotation& other) {

@@ -203,10 +203,11 @@ bool LLessPast(const std::unique_ptr<PastPredicate>& object, const std::unique_p
 }
 
 bool LLessFuture(const std::unique_ptr<FuturePredicate>& object, const std::unique_ptr<FuturePredicate>& other) {
-    if (&object->command != &other->command) return &object->command < &other->command;
     if (LLessLogic(*object->pre, *other->pre)) return true;
     if (LLessLogic(*other->pre, *object->pre)) return false;
-    return LLessLogic(*object->post, *other->post);
+    if (LLessLogic(*object->post, *other->post)) return true;
+    if (LLessLogic(*other->post, *object->post)) return false;
+    return LLessLogic(*object->context, *other->context);
 }
 
 

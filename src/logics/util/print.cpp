@@ -25,10 +25,12 @@ constexpr std::string_view LITERAL_FULFILLMENT = "@FUL";
 constexpr std::string_view SYMBOL_IMPLICATION = "==>";
 constexpr std::string_view SYMBOL_IMPLICATION_OPEN = "{ ";
 constexpr std::string_view SYMBOL_IMPLICATION_CLOSE = " }";
-constexpr std::string_view SYMBOL_PAST = "PAST";
-constexpr std::string_view SYMBOL_FUTURE = "FUT";
-constexpr std::string_view SYMBOL_TIME_LEFT = "<< ";
-constexpr std::string_view SYMBOL_TIME_RIGHT = " >>";
+constexpr std::string_view SYMBOL_PAST_LEFT = "PAST<< ";
+constexpr std::string_view SYMBOL_PAST_RIGHT = " >>";
+constexpr std::string_view SYMBOL_FUTURE_LEFT = "FUT<< ";
+constexpr std::string_view SYMBOL_FUTURE_UPDATE = " =>> ";
+constexpr std::string_view SYMBOL_FUTURE_CONTEXT = " | ";
+constexpr std::string_view SYMBOL_FUTURE_RIGHT = " >>";
 
 
 //
@@ -142,18 +144,18 @@ struct LogicPrinter : public LogicVisitor {
     }
 
     void Visit(const PastPredicate& predicate) override {
-        stream << SYMBOL_PAST << SYMBOL_TIME_LEFT;
+        stream << SYMBOL_PAST_LEFT;
         predicate.formula->Accept(*this);
-        stream << SYMBOL_TIME_RIGHT;
+        stream << SYMBOL_PAST_RIGHT;
     }
     void Visit(const FuturePredicate& predicate) override {
-        stream << SYMBOL_FUTURE << SYMBOL_TIME_LEFT;
+        stream << SYMBOL_FUTURE_LEFT;
         predicate.pre->Accept(*this);
-        stream << SYMBOL_TIME_RIGHT << " ";
-        stream << predicate.command;
-        stream << " " << SYMBOL_TIME_LEFT;
+        stream << SYMBOL_FUTURE_UPDATE;
         predicate.post->Accept(*this);
-        stream << SYMBOL_TIME_RIGHT;
+        stream << SYMBOL_FUTURE_CONTEXT;
+        predicate.context->Accept(*this);
+        stream << SYMBOL_FUTURE_RIGHT;
     }
 
     void Visit(const Annotation& annotation) override {

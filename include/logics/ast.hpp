@@ -248,19 +248,19 @@ namespace plankton {
     //
 
     struct PastPredicate final : public LogicObject {
-        std::unique_ptr<SharedMemoryCore> formula; // TODO: what goes into the history really?
+        std::unique_ptr<SharedMemoryCore> formula;
 
         explicit PastPredicate(std::unique_ptr<SharedMemoryCore> formula);
         ACCEPT_LOGIC_VISITOR
     };
 
     struct FuturePredicate final : public LogicObject  {
-        const MemoryWrite& command;
-        std::unique_ptr<Formula> pre;  // TODO: SeparatingConjunction?
-        std::unique_ptr<Formula> post;  // TODO: SeparatingConjunction?
+        std::unique_ptr<SharedMemoryCore> pre;
+        std::unique_ptr<SharedMemoryCore> post;
+        std::unique_ptr<Formula> context;
 
-        explicit FuturePredicate(const MemoryWrite& command, std::unique_ptr<Formula> pre,
-                                 std::unique_ptr<Formula> post);
+        explicit FuturePredicate(std::unique_ptr<SharedMemoryCore> pre, std::unique_ptr<SharedMemoryCore> post,
+                                 std::unique_ptr<Formula> context);
         ACCEPT_LOGIC_VISITOR
     };
 

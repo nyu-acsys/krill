@@ -189,7 +189,7 @@ std::unique_ptr<PastPredicate> plankton::Copy<PastPredicate>(const PastPredicate
 
 template<>
 std::unique_ptr<FuturePredicate> plankton::Copy<FuturePredicate>(const FuturePredicate& object) {
-    return std::make_unique<FuturePredicate>(object.command, plankton::Copy(*object.pre), plankton::Copy(*object.post));
+    return std::make_unique<FuturePredicate>(plankton::Copy(*object.pre), plankton::Copy(*object.post), plankton::Copy(*object.context));
 }
 
 template<>

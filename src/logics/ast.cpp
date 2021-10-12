@@ -137,11 +137,11 @@ MemoryAxiom::MemoryAxiom(std::unique_ptr<SymbolicVariable> adr, std::unique_ptr<
     assert(node->Order() == Order::FIRST);
     assert(flow);
     assert(flow->Order() == Order::SECOND);
-    for (const auto& field : node->Type()) {
-        assert(fieldToValue.count(field.first) != 0);
-        assert(fieldToValue[field.first]->Order() == Order::FIRST);
-        assert(fieldToValue[field.first]->Type().AssignableTo(field.second));
-    }
+    assert(plankton::All(node->Type(), [this](const auto& field) {
+        return fieldToValue.count(field.first) != 0
+               && fieldToValue[field.first]->Order() == Order::FIRST
+               && fieldToValue[field.first]->Type().AssignableTo(field.second);
+    }));
 }
 
 std::map<std::string, std::unique_ptr<SymbolicVariable>> ToUPtr(const std::map<std::string, std::reference_wrapper<const SymbolDeclaration>>& fieldToValue) {
@@ -263,10 +263,12 @@ PastPredicate::PastPredicate(std::unique_ptr<SharedMemoryCore> form) : formula(s
     assert(formula);
 }
 
-FuturePredicate::FuturePredicate(const MemoryWrite& cmd, std::unique_ptr<Formula> left, std::unique_ptr<Formula> right)
-        : command(cmd), pre(std::move(left)), post(std::move(right)) {
+FuturePredicate::FuturePredicate(std::unique_ptr<SharedMemoryCore> pre_, std::unique_ptr<SharedMemoryCore> post_,
+                                 std::unique_ptr<Formula> context_) : pre(std::move(pre_)), post(std::move(post_)),
+                                                                      context(std::move(context_)) {
     assert(pre);
     assert(post);
+    assert(context);
 }
 
 
@@ -283,8 +285,8 @@ Annotation::Annotation(std::unique_ptr<SeparatingConjunction> nw, std::deque<std
                        std::deque<std::unique_ptr<FuturePredicate>> ftr)
                        : now(std::move(nw)), past(std::move(pst)), future(std::move(ftr)) {
     assert(now);
-    for (const auto& elem : past) assert(elem);
-    for (const auto& elem : future) assert(elem);
+    assert(plankton::All(past, [](const auto& elem){ return elem.get() != nullptr; }));
+    assert(plankton::All(future, [](const auto& elem){ return elem.get() != nullptr; }));
 }
 
 void Annotation::Conjoin(std::unique_ptr<Formula> formula) { now->Conjoin(std::move(formula)); }

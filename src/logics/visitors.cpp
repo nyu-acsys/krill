@@ -64,6 +64,7 @@ void LogicVisitor::Walk(const PastPredicate& object) {
 void LogicVisitor::Walk(const FuturePredicate& object) {
     object.pre->Accept(*this);
     object.post->Accept(*this);
+    object.context->Accept(*this);
 }
 void LogicVisitor::Walk(const Annotation& object) {
     object.now->Accept(*this);
@@ -117,6 +118,7 @@ void MutableLogicVisitor::Walk(PastPredicate& object) {
 void MutableLogicVisitor::Walk(FuturePredicate& object) {
     object.pre->Accept(*this);
     object.post->Accept(*this);
+    object.context->Accept(*this);
 }
 void MutableLogicVisitor::Walk(Annotation& object) {
     object.now->Accept(*this);
