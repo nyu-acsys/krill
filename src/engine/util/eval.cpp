@@ -16,7 +16,7 @@ const T* GetResourceOrNull(const Formula& state, const U& filter) {
 template<typename T, typename U>
 const T& GetResourceOrFail(const Formula& state, const U& filter) {
     auto result = GetResourceOrNull<T>(state, filter);
-    if (!result) throw std::logic_error("Internal error: cannot find resource"); // better error handling
+    if (!result) throw std::logic_error("Internal error: cannot find resource."); // better error handling
     return *result;
 }
 
@@ -44,13 +44,31 @@ MemoryAxiom& plankton::GetResource(const SymbolDeclaration& address, Formula& st
     return const_cast<MemoryAxiom&>(plankton::GetResource(address, std::as_const(state)));
 }
 
+const SymbolDeclaration* plankton::TryEvaluate(const VariableExpression& variable, const Formula& state) {
+    auto* resource = plankton::TryGetResource(variable.Decl(), state);
+    if (!resource) return nullptr;
+    return &resource->Value();
+}
+
+const SymbolDeclaration* plankton::TryEvaluate(const Dereference& dereference, const Formula& state) {
+    auto* address = plankton::TryEvaluate(*dereference.variable, state);
+    if (!address) return nullptr;
+    auto* memory = plankton::TryGetResource(*address, state);
+    if (!memory) return nullptr;
+    return &memory->fieldToValue.at(dereference.fieldName)->Decl();
+}
+
+template<typename T>
+const SymbolDeclaration& EvaluateOrFail(const T& expr, const Formula& state) {
+    auto result = TryEvaluate(expr, state);
+    if (!result) throw std::logic_error("Internal error: cannot evaluate."); // better error handling
+    return *result;
+}
+
 const SymbolDeclaration& plankton::Evaluate(const VariableExpression& variable, const Formula& state) {
-    auto& resource = plankton::GetResource(variable.Decl(), state);
-    return resource.value->Decl();
+    return EvaluateOrFail(variable, state);
 }
 
 const SymbolDeclaration& plankton::Evaluate(const Dereference& dereference, const Formula& state) {
-    auto& address = plankton::Evaluate(*dereference.variable, state);
-    auto& memory = plankton::GetResource(address, state);
-    return memory.fieldToValue.at(dereference.fieldName)->Decl();
+    return EvaluateOrFail(dereference, state);
 }

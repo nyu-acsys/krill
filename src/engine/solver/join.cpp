@@ -165,7 +165,7 @@ struct AnnotationJoiner {
             std::set<const SymbolDeclaration*> expand;
             for (const auto* var : plankton::Collect<EqualsToAxiom>(*annotation->now))
                 expand.insert(&var->Value());
-            plankton::MakeMemoryAccessible(*annotation, std::move(expand), config);
+            plankton::MakeMemoryAccessible(*annotation, std::move(expand), config); // TODO: ensure that the memory is shared!
 
             // more flow
             if constexpr (DEEP_PREPROCESSING) {

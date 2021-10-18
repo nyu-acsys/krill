@@ -16,9 +16,8 @@ struct InterferenceInfo {
     std::unique_ptr<Annotation> annotation;
     const std::deque<std::unique_ptr<HeapEffect>>& interference;
     std::map<const SharedMemoryCore*, std::deque<std::function<void()>>> stabilityUpdates;
-    
-    explicit InterferenceInfo(std::unique_ptr<Annotation> annotation_,
-                              const std::deque<std::unique_ptr<HeapEffect>>& interference)
+
+    explicit InterferenceInfo(std::unique_ptr<Annotation> annotation_, const std::deque<std::unique_ptr<HeapEffect>>& interference)
             : annotation(std::move(annotation_)), interference(interference) {
         assert(annotation);
         Preprocess();
@@ -95,6 +94,18 @@ struct InterferenceInfo {
     }
 };
 
+// bool Solver::IsMemoryImmutable(const SharedMemoryCore& memory, const Formula& context) const {
+//     if (interference.empty()) return true;
+//     MEASURE("Solver::IsMemoryImmutable")
+//     auto annotation = std::make_unique<Annotation>();
+//     annotation->Conjoin(plankton::Copy(memory));
+//     annotation->Conjoin(plankton::Copy(context));
+//     plankton::Simplify(*annotation);
+//     InterferenceInfo info(plankton::Copy(*annotation), interference);
+//     auto stable = info.GetResult();
+//     return Implies(*stable, *annotation);
+// }
+
 std::unique_ptr<Annotation> Solver::MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const {
     // TODO: should this take a list of annotations?
     if (interference.empty()) return annotation;
@@ -104,7 +115,7 @@ std::unique_ptr<Annotation> Solver::MakeInterferenceStable(std::unique_ptr<Annot
     plankton::ExtendStack(*annotation, config, ExtensionPolicy::FAST); // TODO: needed?
     {
         MEASURE("Solver::MakeInterferenceStable ~> ImprovePast")
-        ImprovePast(*annotation);
+        ImprovePast(*annotation); // TODO: really do this?
     }
     InterferenceInfo info(std::move(annotation), interference);
     auto result = info.GetResult();

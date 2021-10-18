@@ -31,6 +31,11 @@ namespace plankton {
         explicit PostImage(std::deque<std::unique_ptr<Annotation>> posts, std::deque<std::unique_ptr<HeapEffect>> effects);
     };
 
+    struct UnboundedUpdate {
+        std::unique_ptr<MemoryWrite> command;
+        std::deque<std::unique_ptr<BinaryExpression>> guards;
+    };
+
     struct Solver final {
         explicit Solver(const Program& program, const SolverConfig& config);
 
@@ -47,11 +52,12 @@ namespace plankton {
         
         [[nodiscard]] std::unique_ptr<Annotation> Join(std::deque<std::unique_ptr<Annotation>> annotations) const;
         [[nodiscard]] std::unique_ptr<Annotation> TryAddFulfillment(std::unique_ptr<Annotation> annotation) const;
-        [[nodiscard]] bool IsUnsatisfiable(const Annotation& annotation) const;
-    
-        [[nodiscard]] std::unique_ptr<Annotation> MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const;
+        [[nodiscard]] PostImage ImproveFuture(std::unique_ptr<Annotation> annotation, const UnboundedUpdate& target) const;
+
         bool AddInterference(std::deque<std::unique_ptr<HeapEffect>> interference);
-        
+        [[nodiscard]] std::unique_ptr<Annotation> MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const;
+
+        [[nodiscard]] bool IsUnsatisfiable(const Annotation& annotation) const;
         [[nodiscard]] bool Implies(const Annotation& premise, const Annotation& conclusion) const;
         
         private:
@@ -61,7 +67,7 @@ namespace plankton {
             
             void PrepareAccess(Annotation& annotation, const Command& command) const;
             void ImprovePast(Annotation& annotation) const;
-            void PrunePast(Annotation& annotation) const;
+            void PrunePast(Annotation& annotation) const; // TODO: should not be exposed ~~> only used by ImprovePast?
     };
     
     

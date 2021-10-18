@@ -246,7 +246,7 @@ struct FlowGraphGenerator {
         // get new memory
         auto& flowType = graph.config.GetFlowValueType();
         for (auto elem : frontier) DEBUG("  missing " << elem->name << ": nonnull=" << encoding.Implies(encoding.EncodeIsNonNull(*elem)) << std::endl)
-        plankton::MakeMemoryAccessible(state, frontier, flowType, factory, encoding);
+        plankton::MakeMemoryAccessible(state, frontier, flowType, factory, encoding); // TODO: ensure that frontier is shared
         encoding.AddPremise(encoding.EncodeInvariants(state, graph.config)); // for newly added memory
         encoding.AddPremise(encoding.EncodeSimpleFlowRules(state, graph.config)); // for newly added memory
         encoding.AddPremise(encoding.EncodeAcyclicity(state)); // for newly added memory

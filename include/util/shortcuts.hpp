@@ -71,6 +71,11 @@ namespace plankton {
     static inline bool All(const T& container, const U& unaryPredicate) {
         return std::all_of(container.begin(), container.end(), unaryPredicate);
     }
+
+    template<typename T>
+    static inline bool AllNonNull(const T& container) {
+        return plankton::All(container, [](const auto& elem){ return !!elem; });
+    }
     
     template<typename T, typename U>
     static inline bool Membership(const T& container, const U& element) {

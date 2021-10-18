@@ -18,12 +18,15 @@ namespace plankton {
     const MemoryAxiom* TryGetResource(const SymbolDeclaration& address, const Formula& state);
     const MemoryAxiom& GetResource(const SymbolDeclaration& address, const Formula& state);
     MemoryAxiom& GetResource(const SymbolDeclaration& address, Formula& state);
-    
+
     const SymbolDeclaration& Evaluate(const VariableExpression& variable, const Formula& state);
     const SymbolDeclaration& Evaluate(const Dereference& dereference, const Formula& state);
-    
+    const SymbolDeclaration* TryEvaluate(const VariableExpression& variable, const Formula& state);
+    const SymbolDeclaration* TryEvaluate(const Dereference& dereference, const Formula& state);
+
     std::unique_ptr<SymbolicExpression> MakeSymbolic(const ValueExpression& expression, const Formula& context);
-    
+    std::unique_ptr<SymbolicExpression> TryMakeSymbolic(const ValueExpression& expression, const Formula& context);
+
     bool UpdatesFlow(const HeapEffect& effect);
     bool UpdatesField(const HeapEffect& effect, const std::string& field);
     
