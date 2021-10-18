@@ -35,7 +35,8 @@ struct AnnotationInfo {
     std::map<const VariableDeclaration*, const MemoryAxiom*> varToMem;
     std::size_t numTrueFulfillments = 0, numFalseFulfillments = 0;
     std::map<const VariableDeclaration*, std::set<const ObligationAxiom*>> varToObl;
-    std::map<const VariableDeclaration*, std::set<const SharedMemoryCore*>> varToHist;
+    std::map<const VariableDeclaration*, std::set<const PastPredicate*>> varToHist;
+    std::map<const VariableDeclaration*, std::set<const FuturePredicate*>> varToFut;
 
     explicit AnnotationInfo(const Annotation& annotation) : annotation(annotation) {
         // variable + memory resource
@@ -72,24 +73,37 @@ struct AnnotationInfo {
         for (const auto& past : annotation.past) {
             for (const auto& [variable, resource] : varToRes) {
                 if (resource->Value() != past->formula->node->Decl()) continue;
-                varToHist[variable].insert(past->formula.get());
+                varToHist[variable].insert(past.get());
+            }
+        }
+
+        // future
+        for (const auto& future : annotation.future) {
+            assert(future->pre->node->Decl() == future->post->node->Decl());
+            for (const auto& [variable, resource] : varToRes) {
+                if (resource->Value() != future->pre->node->Decl()) continue;
+                varToFut[variable].emplace(future.get());
             }
         }
     }
 };
 
-inline std::deque<std::vector<const SharedMemoryCore*>>
-MakePastPowerSet(std::vector<AnnotationInfo>& lookup, const VariableDeclaration& variable) {
-    // begin + end iterators
-    std::vector<std::set<const SharedMemoryCore*>::iterator> begin, end;
+template<typename T> using SetIterator = typename std::set<const T*>::iterator;
+template<typename T> using SetIteratorPair = std::pair<SetIterator<T>, SetIterator<T>>;
+
+template<typename T>
+inline std::deque<std::vector<const T*>>
+MakePowerSet(std::vector<AnnotationInfo>& lookup, const VariableDeclaration& variable,
+             std::function<SetIteratorPair<T>(AnnotationInfo&, const VariableDeclaration&)> getIterators) {
+    std::vector<SetIterator<T>> begin, end;
     begin.reserve(lookup.size());
     end.reserve(lookup.size());
     bool containsEmpty = false;
     for (auto& info : lookup) {
-        auto& set = info.varToHist[&variable];
-        begin.push_back(set.begin());
-        end.push_back(set.end());
-        containsEmpty |= set.empty();
+        auto [infoBegin, infoEnd] = getIterators(info, variable);
+        begin.push_back(infoBegin);
+        end.push_back(infoEnd);
+        containsEmpty |= infoBegin == infoEnd;
     }
     if (containsEmpty) return {};
 
@@ -105,15 +119,29 @@ MakePastPowerSet(std::vector<AnnotationInfo>& lookup, const VariableDeclaration&
         }
         return !isEnd;
     };
-    
+
     // create power set
-    std::deque<std::vector<const SharedMemoryCore*>> result;
+    std::deque<std::vector<const T*>> result;
     do {
         result.emplace_back();
         result.back().reserve(cur.size());
         for (auto it : cur) result.back().push_back(*it);
     } while (next());
     return result;
+}
+
+inline auto MakePastPowerSet(std::vector<AnnotationInfo>& lookup, const VariableDeclaration& variable) {
+    return MakePowerSet<PastPredicate>(lookup, variable, [](auto& info, auto& variable) {
+        auto& set = info.varToHist[&variable];
+        return std::make_pair(set.begin(), set.end());
+    });
+}
+
+inline auto MakeFuturePowerSet(std::vector<AnnotationInfo>& lookup, const VariableDeclaration& variable) {
+    return MakePowerSet<FuturePredicate>(lookup, variable, [](auto& info, auto& variable) {
+        auto& set = info.varToFut[&variable];
+        return std::make_pair(set.begin(), set.end());
+    });
 }
 
 struct AnnotationJoiner {
@@ -150,6 +178,7 @@ struct AnnotationJoiner {
         CreateFulfillmentResources();
         EncodeNow();
         EncodePast();
+        EncodeFuture();
         DeriveJoinedStack();
 
         return std::move(result);
@@ -293,7 +322,7 @@ struct AnnotationJoiner {
     inline void CreateObligationResources() {
         std::set<const ObligationAxiom*> blacklist;
         
-        auto getSpecs = [](const std::set<const ObligationAxiom*>& obligations) {
+        auto getSpecs = [](const auto& obligations) {
             std::vector<Specification> specs;
             specs.reserve(obligations.size());
             for (const auto* elem : obligations) specs.push_back(elem->spec);
@@ -376,16 +405,15 @@ struct AnnotationJoiner {
                 // DEBUG(" join past combination:  ")
                 // for (const auto* elem : vector) DEBUG(*elem << ",  ")
                 // DEBUG(std::endl)
-                
+
                 auto& address = resource->Value();
                 auto pastMem = plankton::MakeSharedMemory(address, config.GetFlowValueType(), factory);
-                
+
                 // force common past memory to agree
-                std::vector<EExpr> encoded;
-                encoded.reserve(vector.size());
+                auto encoded = plankton::MakeVector<EExpr>(vector.size());
                 for (std::size_t index = 0; index < vector.size(); ++index) {
                     auto& now = *lookup.at(index).annotation.now;
-                    auto memEq = encoding.EncodeMemoryEquality(*pastMem, *vector.at(index));
+                    auto memEq = encoding.EncodeMemoryEquality(*pastMem, *vector.at(index)->formula);
                     auto context = encoding.Encode(now) && encoding.EncodeInvariants(now, config);
                     encoded.push_back(memEq && context);
                 }
@@ -393,6 +421,50 @@ struct AnnotationJoiner {
 
                 // add past predicate
                 result->Conjoin(std::make_unique<PastPredicate>(std::move(pastMem)));
+            }
+        }
+    }
+
+    inline void EncodeFuture() {
+        for (const auto&[variable, resource] : varToCommonRes) {
+            auto powerSet = MakeFuturePowerSet(lookup, *variable);
+            for (const auto& vector : powerSet) {
+                // DEBUG(" join future combination:  ")
+                // for (const auto* elem : vector) DEBUG("<" << *elem << "  ")
+                // DEBUG(std::endl)
+
+                auto& address = resource->Value();
+                auto futPreMem = plankton::MakeSharedMemory(address, config.GetFlowValueType(), factory);
+                auto futPostMem = plankton::MakeSharedMemory(address, config.GetFlowValueType(), factory);
+                auto futContext = std::make_unique<Annotation>();
+
+                // conjoin future pre to generate context (make sure that no premise is lost)
+                Encoding contextEncoding;
+                auto contexts = plankton::MakeVector<EExpr>(vector.size());
+                for (const auto* future : vector) {
+                    contextEncoding.AddPremise(contextEncoding.EncodeMemoryEquality(*futPreMem, *future->pre));
+                    contexts.push_back(contextEncoding.Encode(*future->context));
+                }
+                auto ctx = contextEncoding.MakeAnd(contexts);
+                contextEncoding.Push();
+                contextEncoding.AddPremise(ctx);
+                plankton::ExtendStack(*futContext, contextEncoding, ExtensionPolicy::FAST);
+                contextEncoding.Pop();
+                contextEncoding.AddPremise(*futContext->now);
+                if (!contextEncoding.Implies(ctx)) continue;
+
+                // force common future post to agree
+                auto post = plankton::MakeVector<EExpr>(vector.size());
+                for (std::size_t index = 0; index < vector.size(); ++index) {
+                    auto& now = *lookup.at(index).annotation.now;
+                    auto memEqPost = encoding.EncodeMemoryEquality(*futPostMem, *vector.at(index)->post);
+                    auto more = encoding.Encode(now) && encoding.EncodeInvariants(now, config);
+                    post.push_back(memEqPost && more);
+                }
+                encoding.AddPremise(encoding.MakeOr(post));
+
+                // add past predicate
+                result->Conjoin(std::make_unique<FuturePredicate>(std::move(futPreMem), std::move(futPostMem), std::move(futContext->now)));
             }
         }
     }
@@ -415,6 +487,7 @@ std::unique_ptr<Annotation> Solver::Join(std::deque<std::unique_ptr<Annotation>>
     if (annotations.size() == 1) return std::move(annotations.front());
     {
         // TODO: needed for Past-to-Past Interpolation in the case 'annotations.size() == 1' as well?
+        // TODO: needed?
         MEASURE("Solver::Join ~> ImprovePast")
         for (auto& elem : annotations) ImprovePast(*elem);
         for (auto& elem : annotations) PrunePast(*elem);
