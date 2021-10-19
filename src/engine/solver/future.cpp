@@ -30,6 +30,7 @@ inline std::optional<FutureInfo> MakeFutureInfo(const Annotation& annotation, co
     // ensure variable is accessible
     const auto* resource = plankton::TryGetResource(variable, now);
     FutureInfo result(annotation, resource->Value());
+    // TODO: ensure that the result.address is shared?
 
     // extract updates
     for (std::size_t index = 0; index < cmd.lhs.size(); ++index) {
@@ -166,7 +167,7 @@ PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const Unbounded
 
         std::optional<PostImage> post;
         try {
-            post = Post(std::move(check), *target.command);
+            post = Post(std::move(check), *target.command, false);
         } catch (std::logic_error& err) { // TODO: catch proper error
             continue;
         }

@@ -264,14 +264,14 @@ inline bool IsLSorted(const Annotation& annotation) {
            std::is_sorted(annotation.future.begin(), annotation.future.end(), LLessFuture);
 }
 
-inline std::deque<const SymbolDeclaration*> GetAppearance(const LogicObject& object) {
-    struct : public LogicListener {
-        std::deque<const SymbolDeclaration*> result;
-        void Enter(const SymbolDeclaration& object) override { result.push_back(&object); }
-    } collector;
-    object.Accept(collector);
-    return std::move(collector.result);
-}
+// inline std::deque<const SymbolDeclaration*> GetAppearance(const LogicObject& object) {
+//     struct : public LogicListener {
+//         std::deque<const SymbolDeclaration*> result;
+//         void Enter(const SymbolDeclaration& object) override { result.push_back(&object); }
+//     } collector;
+//     object.Accept(collector);
+//     return std::move(collector.result);
+// }
 
 inline void ApplyRenaming(Annotation& annotation) {
     struct Collector : public LogicListener {

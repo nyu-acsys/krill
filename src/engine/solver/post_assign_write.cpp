@@ -391,36 +391,90 @@ inline std::deque<std::unique_ptr<HeapEffect>> ExtractEffects(PostImageInfo& inf
 
 
 //
+// Search for future
+//
+
+std::unique_ptr<Annotation> TryGetFromFuture(const Annotation& pre, const MemoryWrite& cmd) {
+    // get to-be-updated memory
+    auto& variable = cmd.lhs.front()->variable->Decl();
+    if (plankton::Any(cmd.lhs, [&variable](const auto& elem) { return elem->variable->Decl() != variable; })) return nullptr;
+    auto& address = plankton::GetResource(variable, *pre.now).Value();
+    auto& memory = plankton::GetResource(address, *pre.now);
+    if (!dynamic_cast<const SharedMemoryCore*>(&memory)) return nullptr;
+
+    // get candidate futures for updating memory
+    auto candidates = plankton::MakeVector<const FuturePredicate*>(pre.future.size());
+    for (const auto& future : pre.future) {
+        if (future->pre->node->Decl() != address) continue;
+        candidates.push_back(future.get());
+    }
+    if (candidates.empty()) return nullptr;
+
+    // get updates
+    Encoding encoding(*pre.now);
+    std::map<std::string, EExpr> updates;
+    for (std::size_t index = 0; index < cmd.lhs.size(); ++index) {
+        auto symbolicValue = plankton::MakeSymbolic(*cmd.rhs.at(index), *pre.now);
+        auto insertion = updates.emplace(cmd.lhs.at(index)->fieldName, encoding.Encode(*symbolicValue));
+        if (!insertion.second) return nullptr;
+    }
+
+    // find candidates that (1) perform required update and (2) are enabled
+    std::set<const FuturePredicate*> matching;
+    for (const auto* future : candidates) {
+        auto sameUpdate = plankton::MakeVector<EExpr>(updates.size());
+        for (const auto& [field, value] : updates) {
+            auto eq = value == encoding.Encode(future->post->fieldToValue.at(field)->Decl());
+            sameUpdate.push_back(eq);
+        }
+        auto memEq = encoding.EncodeMemoryEquality(memory, *future->pre);
+        auto context = encoding.Encode(*future->context);
+        auto matches = encoding.MakeAnd(sameUpdate) && (memEq >> context);
+        encoding.AddCheck(matches, [&matching,future](bool holds){
+            if (holds) matching.insert(future);
+        });
+    }
+    encoding.Check();
+    if (matching.empty()) return nullptr;
+
+    // get post annotation
+    auto result = plankton::Copy(pre);
+    std::set<const Formula*> shared;
+    plankton::InsertInto(plankton::Collect<SharedMemoryCore>(*result->now), shared);
+    plankton::DiscardIf(result->now->conjuncts, [&shared](const auto& elem){ return shared.count(elem.get()); });
+    for (const auto* future : matching) result->Conjoin(plankton::Copy(*future->post));
+    plankton::InlineAndSimplify(*result);
+    // TODO: extend stack?
+
+    return result;
+}
+
+//
 // Overall Algorithm
 //
 
-PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd) const {
+PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, bool useFuture) const {
     MEASURE("Solver::Post (MemoryWrite)")
     DEBUG("POST for " << *pre << " " << cmd << std::endl)
 
-    // TODO: use futures
     PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
-    PostImageInfo info(std::move(pre), cmd, config);
-    
-    // direct checks (avoids spurious failures due to Z3)
-    {
-        MEASURE("Solver::Post (MemoryWrite) ~> individual checks")
-        CheckPublishing(info);
-        CheckReachability(info);
-        CheckFlowCoverage(info);
-        CheckFlowUniqueness(info);
-        CheckInvariant(info);
+    if (useFuture && !pre->future.empty()) {
+        if (auto fromFuture = TryGetFromFuture(*pre, cmd)) {
+            return PostImage(std::move(fromFuture));
+        }
     }
 
-    // bulk checks
-    {
-        MEASURE("Solver::Post (MemoryWrite) ~> bulk checks")
-        AddSpecificationChecks(info);
-        AddAffectedOutsideChecks(info);
-        AddEffectContextGenerators(info);
-        info.encoding.Check();
-    }
+    PostImageInfo info(std::move(pre), cmd, config);
+    CheckPublishing(info);
+    CheckReachability(info);
+    CheckFlowCoverage(info);
+    CheckFlowUniqueness(info);
+    CheckInvariant(info);
+    AddSpecificationChecks(info);
+    AddAffectedOutsideChecks(info);
+    AddEffectContextGenerators(info);
+    info.encoding.Check();
 
     MinimizeFootprint(info);
     auto effects = ExtractEffects(info);
