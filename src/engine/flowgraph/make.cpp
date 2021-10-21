@@ -201,6 +201,7 @@ struct FlowGraphGenerator {
 
         // expand until maxDepth is reached
         while (!worklist.Empty()) {
+
             auto [depth, node] = worklist.Take();
             depth = GetExpansionDepth(*node, depth);
             InlineAliases(*node);
@@ -250,7 +251,7 @@ struct FlowGraphGenerator {
         encoding.AddPremise(encoding.EncodeInvariants(state, graph.config)); // for newly added memory
         encoding.AddPremise(encoding.EncodeSimpleFlowRules(state, graph.config)); // for newly added memory
         encoding.AddPremise(encoding.EncodeAcyclicity(state)); // for newly added memory
-        
+
         // nodes with same address => same fields
         // prune duplicate memory
         plankton::ExtendStack(*graph.pre, encoding, ExtensionPolicy::POINTERS);
@@ -259,7 +260,7 @@ struct FlowGraphGenerator {
     }
     
     void Construct(const VariableDeclaration& root, std::size_t depth) {
-        plankton::ExtendStack(*graph.pre, encoding, ExtensionPolicy::POINTERS);
+        // plankton::ExtendStack(*graph.pre, encoding, ExtensionPolicy::POINTERS);
         plankton::InlineAndSimplify(*graph.pre);
         
         std::set<const SymbolDeclaration*> frontier;
@@ -272,12 +273,12 @@ struct FlowGraphGenerator {
             encoding.AddPremise(encoding.EncodeSimpleFlowRules(state, graph.config));
             encoding.AddPremise(encoding.EncodeAcyclicity(state));
             encoding.AddPremise(encoding.EncodeOwnership(state));
-    
+
             MakeRoot(root);
             auto newFrontier = ExpandGraph(depth);
             if (frontier == newFrontier) break;
             frontier = std::move(newFrontier);
-            
+
             DeriveFrontierKnowledge(frontier);
             encoding.Pop();
             graph.nodes.clear();

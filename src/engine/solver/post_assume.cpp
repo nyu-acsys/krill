@@ -13,11 +13,18 @@ inline std::unique_ptr<StackAxiom> ConvertToLogic(const BinaryExpression& condit
                                         plankton::MakeSymbolic(*condition.rhs, context));
 }
 
+inline bool Discard(const Formula& formula, const SolverConfig& config) {
+    Encoding encoding(formula);
+    encoding.AddPremise(encoding.EncodeInvariants(formula, config));
+    encoding.AddPremise(encoding.EncodeSimpleFlowRules(formula, config));
+    return encoding.ImpliesFalse();
+}
+
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const {
     MEASURE("Solver::Post (Assume)")
     PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
     pre->Conjoin(ConvertToLogic(*cmd.condition, *pre->now));
-    if (Encoding(*pre->now).ImpliesFalse()) return PostImage();
+    if (Discard(*pre->now, config)) return PostImage();
     return PostImage(std::move(pre));
 }

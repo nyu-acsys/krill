@@ -51,6 +51,7 @@ inline CommandLineInput Interact(int argc, char** argv) {
     // input.pathToInput = "/Users/wolff/Desktop/plankton/examples/ORVYY1.pl";
     // input.pathToInput = "/Users/wolff/Desktop/plankton/examples/ORVYY2.pl";
     // input.pathToInput = "/Users/wolff/Desktop/plankton/examples/Michael.pl";
+    // input.pathToInput = "/Users/wolff/Desktop/plankton/examples/Harris.pl";
 
     return input;
 }
