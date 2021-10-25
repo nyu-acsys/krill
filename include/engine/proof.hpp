@@ -45,6 +45,7 @@ namespace plankton {
         std::deque<std::pair<std::unique_ptr<Annotation>, const Return*>> returning;
         std::map<const Function*, std::deque<PrePostPair>> macroPostTable;
         bool insideAtomic;
+        std::unique_ptr<UnboundedUpdate> debugFuture;
     
         void HandleInterfaceFunction(const Function& function);
         void HandleMacroLazy(const Macro& macro);

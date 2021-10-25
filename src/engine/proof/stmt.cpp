@@ -64,6 +64,15 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
     // looping until fixed point
     if (!current.empty()) {
         auto joinCurrent = [this]() {
+            if (debugFuture) {
+                auto annotations = std::move(current);
+                for (auto&& elem : annotations) {
+                    auto[post, effects] = solver.ImproveFuture(std::move(elem), *debugFuture);
+                    plankton::MoveInto(std::move(post), current);
+                    AddNewInterference(std::move(effects));
+                }
+            }
+
             auto join = solver.Join(std::move(current));
             current.clear();
             return join;

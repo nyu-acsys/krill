@@ -144,6 +144,35 @@ inline auto MakeFuturePowerSet(std::vector<AnnotationInfo>& lookup, const Variab
     });
 }
 
+inline void AddResourceCopies(Annotation& annotation, const SymbolDeclaration& src, const SymbolDeclaration& dst) {
+    annotation.Conjoin(MakeEq(src, dst));
+
+    // copy memory
+    if (auto mem = plankton::TryGetResource(src, *annotation.now)) {
+        auto newMem = plankton::Copy(*mem);
+        newMem->node->decl = dst;
+        annotation.Conjoin(std::move(newMem));
+    }
+
+    // copy pasts
+    for (const auto& past : annotation.past) {
+        if (past->formula->node->Decl() != src) continue;
+        auto newPast = plankton::Copy(*past);
+        newPast->formula->node->decl = dst;
+        annotation.Conjoin(std::move(newPast));
+    }
+
+    // copy futures
+    for (const auto& future : annotation.future) {
+        assert(future->pre->node->Decl() == future->post->node->Decl());
+        if (future->pre->node->Decl() != src) continue;
+        auto newFuture = plankton::Copy(*future);
+        newFuture->pre->node->decl = dst;
+        newFuture->post->node->decl = dst;
+        annotation.Conjoin(std::move(newFuture));
+    }
+}
+
 struct AnnotationJoiner {
     std::unique_ptr<Annotation> result;
     std::deque<std::unique_ptr<Annotation>> annotations;
@@ -216,12 +245,7 @@ struct AnnotationJoiner {
                 auto insertion = used.insert(&variable->Value());
                 if (insertion.second) continue; // not yet in use
                 auto& newValue = factory.GetFreshFO(variable->value->Type());
-                annotation->Conjoin(MakeEq(variable->Value(), newValue));
-                if (auto mem = plankton::TryGetResource(variable->Value(), *annotation->now)) {
-                    auto newMem = plankton::Copy(*mem);
-                    newMem->node->decl = newValue;
-                    annotation->Conjoin(std::move(newMem));
-                }
+                AddResourceCopies(*annotation, variable->Value(), newValue);
                 variable->value->decl = newValue;
             }
             
@@ -429,14 +453,16 @@ struct AnnotationJoiner {
         for (const auto&[variable, resource] : varToCommonRes) {
             auto powerSet = MakeFuturePowerSet(lookup, *variable);
             for (const auto& vector : powerSet) {
-                // DEBUG(" join future combination:  ")
-                // for (const auto* elem : vector) DEBUG("<" << *elem << "  ")
-                // DEBUG(std::endl)
+                DEBUG(" join future combination:  " << std::endl)
+                for (const auto* elem : vector) DEBUG("  - " << *elem << std::endl)
 
                 auto& address = resource->Value();
                 auto futPreMem = plankton::MakeSharedMemory(address, config.GetFlowValueType(), factory);
                 auto futPostMem = plankton::MakeSharedMemory(address, config.GetFlowValueType(), factory);
                 auto futContext = std::make_unique<Annotation>();
+
+                throw;
+                // TODO: for every future, rename the symbols from pre/post to the ones from futPreMem/futPostMem and take the resulting context
 
                 // conjoin future pre to generate context (make sure that no premise is lost)
                 Encoding contextEncoding;
@@ -449,9 +475,13 @@ struct AnnotationJoiner {
                 contextEncoding.Push();
                 contextEncoding.AddPremise(ctx);
                 plankton::ExtendStack(*futContext, contextEncoding, ExtensionPolicy::FAST);
+                DEBUG(" joined context: " << *futContext << std::endl);
                 contextEncoding.Pop();
                 contextEncoding.AddPremise(*futContext->now);
-                if (!contextEncoding.Implies(ctx)) continue;
+                if (!contextEncoding.Implies(ctx)) {
+                    DEBUG("    => discarding combination" << std::endl)
+                    continue;
+                }
 
                 // force common future post to agree
                 auto post = plankton::MakeVector<EExpr>(vector.size());

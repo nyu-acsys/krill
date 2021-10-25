@@ -6,8 +6,50 @@
 using namespace plankton;
 
 
+inline const VariableDeclaration* GetVar(const Function& func, const std::string& name) {
+    struct : public ProgramListener {
+        std::set<const VariableDeclaration*> decls;
+        void Enter(const VariableDeclaration& object) override {
+            decls.insert(&object);
+        }
+    } collector;
+    func.Accept(collector);
+    for (const auto* var : collector.decls) {
+        if (var->name == name) return var;
+    }
+    return nullptr;
+}
+
+inline std::unique_ptr<UnboundedUpdate> MakeDebugFuture(const Program& program) {
+    for (const auto& func : program.macroFunctions) {
+        if (func->name != "locate") continue;
+        auto* left = GetVar(*func, "left_1");
+        auto* lnext = GetVar(*func, "lnext_1");
+        auto* right = GetVar(*func, "right_1");
+        if (!left || !lnext || !right) return nullptr;
+
+        auto result = std::make_unique<UnboundedUpdate>();
+        result->command = std::make_unique<MemoryWrite>(
+                std::make_unique<Dereference>(std::make_unique<VariableExpression>(*left), "next"),
+                std::make_unique<VariableExpression>(*right)
+        );
+        result->guards.push_back(std::make_unique<BinaryExpression>(
+                BinaryOperator::EQ,
+                std::make_unique<Dereference>(std::make_unique<VariableExpression>(*left), "marked"),
+                std::make_unique<FalseValue>()
+        ));
+        result->guards.push_back(std::make_unique<BinaryExpression>(
+                BinaryOperator::EQ,
+                std::make_unique<Dereference>(std::make_unique<VariableExpression>(*left), "next"),
+                std::make_unique<VariableExpression>(*lnext)
+        ));
+        return result;
+    }
+    return nullptr;
+}
+
 ProofGenerator::ProofGenerator(const Program& program, const SolverConfig& config)
-        : program(program), solver(program, config), insideAtomic(false) {}
+        : program(program), solver(program, config), insideAtomic(false), debugFuture(MakeDebugFuture(program)) {}
 
 void ProofGenerator::ApplyTransformer(
         const std::function<std::unique_ptr<Annotation>(std::unique_ptr<Annotation>)>& transformer) {

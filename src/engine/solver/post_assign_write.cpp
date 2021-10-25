@@ -459,6 +459,7 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
 
     PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
+    if (useFuture) throw std::logic_error("--- breakpoint future ---");
     if (useFuture && !pre->future.empty()) {
         if (auto fromFuture = TryGetFromFuture(*pre, cmd)) {
             return PostImage(std::move(fromFuture));

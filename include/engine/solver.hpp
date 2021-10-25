@@ -34,6 +34,7 @@ namespace plankton {
     struct UnboundedUpdate {
         std::unique_ptr<MemoryWrite> command;
         std::deque<std::unique_ptr<BinaryExpression>> guards;
+        // TODO: constructor should initialize command
     };
 
     struct Solver final {

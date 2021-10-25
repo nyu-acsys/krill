@@ -174,7 +174,6 @@ void ProofGenerator::HandleMacroLazy(const Macro& cmd) {
     plankton::MoveInto(std::move(post), current);
 }
 
-
 void ProofGenerator::Visit(const Macro& cmd) {
     // save caller context
     auto breakingOuter = std::move(breaking);
@@ -194,4 +193,6 @@ void ProofGenerator::Visit(const Macro& cmd) {
     DEBUG(std::endl << "=== post annotations for macro '" << cmd.Func().name << "':" << std::endl)
     for (const auto& elem : current) DEBUG("  -- " << *elem << std::endl)
     DEBUG(std::endl << std::endl)
+
+    throw std::logic_error("breakpoint: ProofGenerator::Visit(const Macro& cmd)");
 }

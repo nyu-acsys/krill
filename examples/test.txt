@@ -97,7 +97,6 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 	}
 }
 
-
 bool contains(data_t key) {
 	Node* left, right;
 	data_t k;
