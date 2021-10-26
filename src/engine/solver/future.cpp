@@ -207,6 +207,22 @@ inline std::unique_ptr<FuturePredicate> MakeTrivialFuture(FutureInfo& info, cons
     return future;
 }
 
+inline SymbolRenaming MakeVariableRenaming(const Formula& replace, const Formula& with) {
+    auto resources = plankton::Collect<EqualsToAxiom>(with);
+    std::map<const SymbolDeclaration*, const SymbolDeclaration*> map;
+    for (const auto* var : resources) {
+        auto& other = plankton::GetResource(var->Variable(), replace);
+        auto insertion = map.emplace(&other.Value(), &var->Value());
+        assert(insertion.second);
+    }
+
+    return [map=std::move(map)](const auto& decl) -> const SymbolDeclaration& {
+        auto find = map.find(&decl);
+        if (find != map.end()) return *find->second;
+        return decl;
+    };
+}
+
 PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const UnboundedUpdate& target) const {
     DEBUG("== Solver::ImproveFuture in " << *pre << std::endl)
     assert(target.command);
@@ -221,9 +237,9 @@ PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const Unbounded
 
     annotation.Conjoin(MakeTrivialFuture(*info, config, target));
     auto immutable = ExtractImmutableState(*info, *this);
-    // auto variables = ExtractVariables(*info, *target.command);
+    auto variables = ExtractVariables(*info, *target.command);
     DEBUG("  -- immutable: " << *immutable << std::endl)
-    // DEBUG("  -- variables: " << *variables << std::endl)
+    DEBUG("  -- variables: " << *variables << std::endl)
 
     for (const auto* future : info->matchingFutures) {
         DEBUG("  -- handling: " << *future << std::endl)
@@ -236,10 +252,13 @@ PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const Unbounded
         plankton::InlineAndSimplify(*check);
         DEBUG("    ~> check annotation after inlining: " << *check << std::endl)
 
-        // prevent inlined memory from looking different from future->post // TODO: find more robust way of doing this (histories?)
-        throw; // TODO: also rename variables (at least target variables)
-        auto renaming = plankton::MakeMemoryRenaming(plankton::GetResource(future->post->node->Decl(), *check->now), *future->post);
-        plankton::RenameSymbols(*check, renaming);
+        // prevent inlined memory from looking different from future->post
+        // TODO: improve this renaming business, make it more robust, decide order (use history for memory? elegant way for variables?)
+        auto memRenaming = plankton::MakeMemoryRenaming(plankton::GetResource(future->post->node->Decl(), *check->now), *future->post);
+        plankton::RenameSymbols(*check, memRenaming);
+        auto varRenaming = MakeVariableRenaming(*check->now, *variables);
+        plankton::RenameSymbols(*check, varRenaming);
+        DEBUG("    ~> check annotation after renaming: " << *check << std::endl)
 
         std::optional<PostImage> post;
         try {
@@ -258,6 +277,7 @@ PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const Unbounded
             foundPost = true;
             auto newFuture = plankton::Copy(*future);
             newFuture->post = plankton::Copy(*postMemory);
+            assert(newFuture->pre->node->Decl() == newFuture->post->node->Decl());
             if (plankton::SyntacticalEqual(*newFuture->pre, *newFuture->post)) continue;
             DEBUG("  -- adding future: " << *newFuture << std::endl)
             annotation.Conjoin(std::move(newFuture));
