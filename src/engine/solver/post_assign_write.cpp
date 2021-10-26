@@ -459,6 +459,8 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
 
     PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
+    // TODO: filter out noop assignments
+
     if (useFuture) throw std::logic_error("--- breakpoint future ---");
     if (useFuture && !pre->future.empty()) {
         if (auto fromFuture = TryGetFromFuture(*pre, cmd)) {

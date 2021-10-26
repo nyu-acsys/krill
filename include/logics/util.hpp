@@ -32,6 +32,7 @@ namespace plankton {
     
     using SymbolRenaming = std::function<const SymbolDeclaration&(const SymbolDeclaration&)>;
     SymbolRenaming MakeDefaultRenaming(SymbolFactory& factory);
+    SymbolRenaming MakeMemoryRenaming(const MemoryAxiom& replace, const MemoryAxiom& with);
     void RenameSymbols(LogicObject& object, const SymbolRenaming& renaming);
     void RenameSymbols(LogicObject& object, SymbolFactory& factory);
     void RenameSymbols(LogicObject& object, const LogicObject& avoidSymbolsFrom);

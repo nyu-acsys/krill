@@ -12,22 +12,6 @@ using namespace plankton;
 constexpr const bool INTERPOLATE_POINTERS_ONLY = true;
 
 
-inline SymbolRenaming MakeRenaming(const MemoryAxiom& replace, const MemoryAxiom& with) {
-    assert(replace.node->Type() == with.node->Type());
-    std::map<const SymbolDeclaration*, const SymbolDeclaration*> map;
-    map[&replace.node->Decl()] = &with.node->Decl();
-    map[&replace.flow->Decl()] = &with.flow->Decl();
-    for (const auto& [name, value] : replace.fieldToValue) {
-        map[&value->Decl()] = &with.fieldToValue.at(name)->Decl();
-    }
-
-    return [map=std::move(map)](const SymbolDeclaration& decl) -> const SymbolDeclaration& {
-        auto find = map.find(&decl);
-        if (find != map.end()) return *find->second;
-        else return decl;
-    };
-}
-
 inline Encoding MakeEncoding(const Annotation& annotation, const SolverConfig& config) {
     Encoding encoding(*annotation.now);
     encoding.AddPremise(encoding.EncodeInvariants(*annotation.now, config));
@@ -46,7 +30,7 @@ inline std::optional<EExpr>
 MakeCheck(Encoding& encoding, const Formula& formula, const MemoryAxiom& weaker, const MemoryAxiom& stronger) {
     if (&stronger == &weaker) return std::nullopt;
     if (weaker.node->Decl() != stronger.node->Decl()) return std::nullopt;
-    auto renaming = MakeRenaming(weaker, stronger);
+    auto renaming = plankton::MakeMemoryRenaming(weaker, stronger);
     auto renamed = plankton::Copy(formula);
     plankton::RenameSymbols(*renamed, renaming);
     return encoding.Encode(*renamed);
@@ -245,8 +229,8 @@ struct Interpolator {
         std::deque<std::unique_ptr<Axiom>> result;
         for (const auto& effect : interference) {
             auto axioms = plankton::Collect<Axiom>(*effect->context);
-            auto preRenaming = MakeRenaming(*effect->pre, memory);
-            auto postRenaming = MakeRenaming(*effect->post, memory);
+            auto preRenaming = plankton::MakeMemoryRenaming(*effect->pre, memory);
+            auto postRenaming = plankton::MakeMemoryRenaming(*effect->post, memory);
 
             for (const auto* axiom : axioms) {
                 auto candidate = plankton::Copy(*axiom);

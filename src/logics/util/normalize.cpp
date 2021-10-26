@@ -207,6 +207,7 @@ bool LLessFuture(const std::unique_ptr<FuturePredicate>& object, const std::uniq
     if (LLessLogic(*other->pre, *object->pre)) return false;
     if (LLessLogic(*object->post, *other->post)) return true;
     if (LLessLogic(*other->post, *object->post)) return false;
+    throw; // TODO: the context may contain a separating conjunction that is not handled yet
     return LLessLogic(*object->context, *other->context);
 }
 

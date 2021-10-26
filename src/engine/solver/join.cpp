@@ -29,6 +29,16 @@ inline std::unique_ptr<FulfillmentAxiom> MakeFulfillment(bool value) {
     return std::make_unique<FulfillmentAxiom>(value);
 }
 
+inline bool UnchangedFlow(const FuturePredicate* future) {
+    assert(future);
+    return future->pre->flow->Decl() == future->post->flow->Decl();
+}
+
+inline bool ChangedField(const FuturePredicate* future, const std::string& field) {
+    assert(future);
+    return future->pre->fieldToValue.at(field)->Decl() != future->post->fieldToValue.at(field)->Decl();
+}
+
 struct AnnotationInfo {
     const Annotation& annotation;
     std::map<const VariableDeclaration*, const EqualsToAxiom*> varToRes;
@@ -190,12 +200,6 @@ struct AnnotationJoiner {
     std::unique_ptr<Annotation> GetResult() {
         assert(!annotations.empty());
         if (annotations.size() == 1) return std::move(annotations.front());
-
-        // issue warning if future predicates are lost
-        // TODO: handle futures
-        auto losesFutures = plankton::Any(annotations, [](const auto& elem){ return !elem->future.empty(); });
-        if (losesFutures) WARNING("join loses future predicates.")
-        
         Preprocess();
         
         DEBUG("preprocessed, now joining: ")
@@ -449,8 +453,25 @@ struct AnnotationJoiner {
         }
     }
 
+    inline SymbolRenaming MakeVariableRenaming() {
+        std::map<const SymbolDeclaration*, const SymbolDeclaration*> map;
+        for (const auto& [variable, resource] : varToCommonRes) {
+            auto* value = &resource->Value();
+            for (const auto& annotation : lookup) {
+                auto insertion = map.emplace(&annotation.varToRes.at(variable)->Value(), value);
+                assert(value->type.sort != Sort::PTR || insertion.second);
+            }
+        }
+
+        return [map=std::move(map)](const auto& decl) -> const SymbolDeclaration& {
+            auto find = map.find(&decl);
+            if (find != map.end()) return *find->second;
+            return decl;
+        };
+    }
+
     inline void EncodeFuture() {
-        for (const auto&[variable, resource] : varToCommonRes) {
+        for (const auto& [variable, resource] : varToCommonRes) {
             auto powerSet = MakeFuturePowerSet(lookup, *variable);
             for (const auto& vector : powerSet) {
                 DEBUG(" join future combination:  " << std::endl)
@@ -460,28 +481,27 @@ struct AnnotationJoiner {
                 auto futPreMem = plankton::MakeSharedMemory(address, config.GetFlowValueType(), factory);
                 auto futPostMem = plankton::MakeSharedMemory(address, config.GetFlowValueType(), factory);
                 auto futContext = std::make_unique<Annotation>();
+                auto variableRenaming = MakeVariableRenaming();
 
-                throw;
-                // TODO: for every future, rename the symbols from pre/post to the ones from futPreMem/futPostMem and take the resulting context
+                // keep unchanged values
+                if (plankton::All(vector, UnchangedFlow)) futPostMem->flow->decl = futPreMem->flow->Decl();
+                for (const auto& [field, value] : futPostMem->fieldToValue) {
+                    auto changedField = [&field=field](const auto* future){ return ChangedField(future, field); };
+                    if (plankton::Any(vector, changedField)) continue;
+                    value->decl = futPreMem->fieldToValue.at(field)->Decl();
+                }
 
                 // conjoin future pre to generate context (make sure that no premise is lost)
-                Encoding contextEncoding;
-                auto contexts = plankton::MakeVector<EExpr>(vector.size());
                 for (const auto* future : vector) {
-                    contextEncoding.AddPremise(contextEncoding.EncodeMemoryEquality(*futPreMem, *future->pre));
-                    contexts.push_back(contextEncoding.Encode(*future->context));
+                    auto preRenaming = plankton::MakeMemoryRenaming(*future->pre, *futPreMem);
+                    auto postRenaming = plankton::MakeMemoryRenaming(*future->post, *futPostMem);
+                    auto ctx = plankton::Copy(*future->context);
+                    plankton::RenameSymbols(*ctx, preRenaming);
+                    plankton::RenameSymbols(*ctx, postRenaming);
+                    plankton::RenameSymbols(*ctx, variableRenaming);
+                    futContext->Conjoin(std::move(ctx));
                 }
-                auto ctx = contextEncoding.MakeAnd(contexts);
-                contextEncoding.Push();
-                contextEncoding.AddPremise(ctx);
-                plankton::ExtendStack(*futContext, contextEncoding, ExtensionPolicy::FAST);
-                DEBUG(" joined context: " << *futContext << std::endl);
-                contextEncoding.Pop();
-                contextEncoding.AddPremise(*futContext->now);
-                if (!contextEncoding.Implies(ctx)) {
-                    DEBUG("    => discarding combination" << std::endl)
-                    continue;
-                }
+                plankton::Simplify(*futContext);
 
                 // force common future post to agree
                 auto post = plankton::MakeVector<EExpr>(vector.size());

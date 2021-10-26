@@ -8,6 +8,32 @@
 using namespace plankton;
 
 
+//
+// Filter futures
+//
+
+inline void FilterFutures(Annotation& annotation) {
+    // TODO: semantic filter
+    std::set<const FuturePredicate*> remove;
+    for (auto it = annotation.future.begin(); it != annotation.future.end(); ++it) {
+        const auto& future = **it;
+        const auto& futureAdr = future.pre->node->Decl();
+        for (auto ot = std::next(it); ot != annotation.future.end(); ++ot) {
+            auto& other = **ot;
+            if (futureAdr != other.pre->node->Decl()) continue;
+            auto renaming = plankton::MakeMemoryRenaming(*other.pre, *future.pre);
+            plankton::RenameSymbols(other, renaming);
+            if (plankton::SyntacticalEqual(future, other)) remove.insert(&other);
+        }
+    }
+    plankton::RemoveIf(annotation.future, [&remove](const auto& elem){ return plankton::Membership(remove, elem.get()); });
+}
+
+
+//
+// Find new futures
+//
+
 struct FutureInfo {
     const Annotation& annotation;
     const SymbolDeclaration& address;
@@ -195,17 +221,25 @@ PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const Unbounded
 
     annotation.Conjoin(MakeTrivialFuture(*info, config, target));
     auto immutable = ExtractImmutableState(*info, *this);
-    auto variables = ExtractVariables(*info, *target.command);
+    // auto variables = ExtractVariables(*info, *target.command);
     DEBUG("  -- immutable: " << *immutable << std::endl)
-    DEBUG("  -- variables: " << *variables << std::endl)
+    // DEBUG("  -- variables: " << *variables << std::endl)
 
     for (const auto* future : info->matchingFutures) {
+        DEBUG("  -- handling: " << *future << std::endl)
         auto check = std::make_unique<Annotation>();
         check->Conjoin(plankton::Copy(*future->post));
         check->Conjoin(plankton::Copy(*future->context));
         check->Conjoin(plankton::Copy(*immutable));
-        check->Conjoin(plankton::Copy(*variables));
+        // check->Conjoin(plankton::Copy(*variables));
+        DEBUG("    ~> check annotation before inlining: " << *check << std::endl)
         plankton::InlineAndSimplify(*check);
+        DEBUG("    ~> check annotation after inlining: " << *check << std::endl)
+
+        // prevent inlined memory from looking different from future->post // TODO: find more robust way of doing this (histories?)
+        throw; // TODO: also rename variables (at least target variables)
+        auto renaming = plankton::MakeMemoryRenaming(plankton::GetResource(future->post->node->Decl(), *check->now), *future->post);
+        plankton::RenameSymbols(*check, renaming);
 
         std::optional<PostImage> post;
         try {
@@ -223,13 +257,15 @@ PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const Unbounded
             if (!postMemory) continue;
             foundPost = true;
             auto newFuture = plankton::Copy(*future);
-            DEBUG("  -- adding future: " << *newFuture << std::endl)
             newFuture->post = plankton::Copy(*postMemory);
+            if (plankton::SyntacticalEqual(*newFuture->pre, *newFuture->post)) continue;
+            DEBUG("  -- adding future: " << *newFuture << std::endl)
             annotation.Conjoin(std::move(newFuture));
         }
         if (foundPost) plankton::MoveInto(std::move(post->effects), result.effects);
     }
 
+    for (auto& elem : result.annotations) FilterFutures(*elem);
     DEBUG("    - resulting annotations: " << std::endl) for (const auto& elem : result.annotations) DEBUG("        - " << *elem << std::endl)
     DEBUG("    - resulting effects: " << std::endl) for (const auto& elem : result.effects) DEBUG("        - " << *elem << std::endl)
     return result;

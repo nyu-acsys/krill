@@ -206,19 +206,3 @@ void plankton::InlineAndSimplify(Annotation& object) {
     InlineMemories(*object.now);
     RemoveNoise(object);
 }
-
-
-
-inline std::set<const SymbolDeclaration*> CollectUsefulSymbols(const Annotation& annotation) {
-    struct : public LogicListener {
-        void Visit(const StackAxiom&) override { /* do nothing */ }
-        void Visit(const InflowEmptinessAxiom&) override { /* do nothing */ }
-        void Visit(const InflowContainsValueAxiom&) override { /* do nothing */ }
-        void Visit(const InflowContainsRangeAxiom&) override { /* do nothing */ }
-        
-        std::set<const SymbolDeclaration*> result;
-        void Enter(const SymbolDeclaration& object) override { result.insert(&object); }
-    } collector;
-    annotation.Accept(collector);
-    return std::move(collector.result);
-}
