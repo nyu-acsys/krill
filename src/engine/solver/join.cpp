@@ -156,11 +156,13 @@ inline auto MakeFuturePowerSet(std::vector<AnnotationInfo>& lookup, const Variab
 
 inline void AddResourceCopies(Annotation& annotation, const SymbolDeclaration& src, const SymbolDeclaration& dst) {
     annotation.Conjoin(MakeEq(src, dst));
+    auto renaming = [&src, &dst](const auto& decl) -> const SymbolDeclaration& { return decl == src ? dst : decl; };
 
     // copy memory
     if (auto mem = plankton::TryGetResource(src, *annotation.now)) {
         auto newMem = plankton::Copy(*mem);
-        newMem->node->decl = dst;
+        plankton::RenameSymbols(*newMem, renaming);
+        assert(newMem->node->Decl() == dst);
         annotation.Conjoin(std::move(newMem));
     }
 
@@ -168,7 +170,8 @@ inline void AddResourceCopies(Annotation& annotation, const SymbolDeclaration& s
     for (const auto& past : annotation.past) {
         if (past->formula->node->Decl() != src) continue;
         auto newPast = plankton::Copy(*past);
-        newPast->formula->node->decl = dst;
+        plankton::RenameSymbols(*newPast, renaming);
+        assert(newPast->formula->node->Decl() == dst);
         annotation.Conjoin(std::move(newPast));
     }
 
@@ -177,8 +180,9 @@ inline void AddResourceCopies(Annotation& annotation, const SymbolDeclaration& s
         assert(future->pre->node->Decl() == future->post->node->Decl());
         if (future->pre->node->Decl() != src) continue;
         auto newFuture = plankton::Copy(*future);
-        newFuture->pre->node->decl = dst;
-        newFuture->post->node->decl = dst;
+        plankton::RenameSymbols(*newFuture, renaming);
+        assert(newFuture->pre->node->Decl() == dst);
+        assert(newFuture->post->node->Decl() == dst);
         annotation.Conjoin(std::move(newFuture));
     }
 }
@@ -511,10 +515,12 @@ struct AnnotationJoiner {
                     auto more = encoding.Encode(now) && encoding.EncodeInvariants(now, config);
                     post.push_back(memEqPost && more);
                 }
-                encoding.AddPremise(encoding.MakeOr(post));
+                encoding.AddPremise(encoding.MakeOr(post)); // TODO: conjoin mem equalities? (same with hists?)
 
                 // add past predicate
-                result->Conjoin(std::make_unique<FuturePredicate>(std::move(futPreMem), std::move(futPostMem), std::move(futContext->now)));
+                auto joinedFuture = std::make_unique<FuturePredicate>(std::move(futPreMem), std::move(futPostMem), std::move(futContext->now));
+                DEBUG("  ->> " << *joinedFuture << std::endl)
+                result->Conjoin(std::move(joinedFuture));
             }
         }
     }
