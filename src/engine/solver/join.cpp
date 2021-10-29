@@ -372,7 +372,13 @@ struct AnnotationJoiner {
         for (std::size_t index = 0; index < numFalse; ++index) result->Conjoin(MakeFulfillment(false));
     }
 
-    inline void EncodeNow() { // TODO: add mapping as ground truth to encoding, in order to simplify encoding for past/future?
+    /* ********************************************************************************************** */
+    /* ********************************************************************************************** */
+    /* TODO: add matching as ground truth to encoding, in order to simplify encoding for past/future? */
+    /* ********************************************************************************************** */
+    /* ********************************************************************************************** */
+
+    inline void EncodeNow() {
         std::vector<EExpr> disjunction;
         disjunction.reserve(lookup.size());
 
@@ -436,9 +442,9 @@ struct AnnotationJoiner {
     inline void EncodeFuture() {
         auto powerSet = MakeFuturePowerSet(lookup);
         for (const auto& vector : powerSet) {
-            DEBUG(" join future combination:  ")
-            for (const auto* elem : vector) DEBUG(**elem << ",  ")
-            DEBUG(std::endl)
+            // DEBUG(" join future combination:  ")
+            // for (const auto* elem : vector) DEBUG(**elem << ",  ")
+            // DEBUG(std::endl)
 
             // check match
             if (vector.empty()) continue;
@@ -462,11 +468,6 @@ struct AnnotationJoiner {
                     auto context = encoding.Encode(*lookup.at(infoIndex).annotation.now);
                     equalities.push_back(equal && context);
                 }
-                // for (const auto* other : vector) {
-                //     auto equal = val == encoding.Encode(*(**other).update->values.at(index));
-                //     auto context = encoding.Encode(?lookup.at(infoIndex).annotation.now);
-                //     equalities.push_back(equal && context);
-                // }
                 encoding.AddPremise(encoding.MakeOr(equalities));
             }
 

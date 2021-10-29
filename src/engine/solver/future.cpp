@@ -32,7 +32,7 @@ inline bool MatchesPremise(const FuturePredicate& future, const FuturePredicate&
 
 inline bool SameUpdate(const FuturePredicate& future, const FuturePredicate& other, Encoding& encoding) {
     auto vector = plankton::MakeVector<EExpr>(future.update->values.size());
-    for (std::size_t index = 0; index < vector.size(); ++index) {
+    for (std::size_t index = 0; index < future.update->values.size(); ++index) {
         vector.push_back(encoding.Encode(*future.update->values.at(index)) == encoding.Encode(*other.update->values.at(index)));
     }
     return encoding.Implies(encoding.MakeAnd(vector));
@@ -212,8 +212,13 @@ inline std::unique_ptr<SeparatingConjunction> ExtractImmutableState(FutureInfo& 
     return std::move(result->now);
 }
 
+inline std::unique_ptr<StackAxiom> MakeEq(const SymbolDeclaration& decl, const SymbolicExpression& expr) {
+    return std::make_unique<StackAxiom>(BinaryOperator::EQ, std::make_unique<SymbolicVariable>(decl), plankton::Copy(expr));
+}
+
 inline std::unique_ptr<Annotation> MakePostState(FutureInfo& info, const FuturePredicate& future,
                                                  const FutureSuggestion& target, const Type& flowType) {
+    // find variables and dereferences
     struct : public ProgramListener {
         std::set<const VariableDeclaration*> variables;
         std::set<const VariableDeclaration*> dereferences;
@@ -224,6 +229,7 @@ inline std::unique_ptr<Annotation> MakePostState(FutureInfo& info, const FutureP
     for (const auto& elem : future.update->fields) elem->Accept(collector);
     target.command->Accept(collector);
 
+    // find variables and dereferences
     std::set<const EqualsToAxiom*> resources;
     std::set<const SymbolDeclaration*> addresses;
     for (const auto* var : collector.variables) {
@@ -233,14 +239,26 @@ inline std::unique_ptr<Annotation> MakePostState(FutureInfo& info, const FutureP
         addresses.insert(&plankton::GetResource(*var, *info.annotation.now).Value());
     }
 
+    // make variables and dereferences accessible
     auto result = std::make_unique<Annotation>();
     for (const auto* res : resources) result->Conjoin(plankton::Copy(*res));
     for (const auto* adr : addresses) result->Conjoin(plankton::MakeSharedMemory(*adr, flowType, info.factory));
 
+    // add guard knowledge
     for (const auto& guard : future.guard->conjuncts) {
         auto lhs = plankton::MakeSymbolic(*guard->lhs, *result->now);
         auto rhs = plankton::MakeSymbolic(*guard->rhs, *result->now);
         result->Conjoin(std::make_unique<StackAxiom>(guard->op, std::move(lhs), std::move(rhs)));
+    }
+
+    // apply updates
+    for (std::size_t index = 0; index < future.update->fields.size(); ++index) {
+        auto& lhs = *future.update->fields.at(index);
+        auto& rhs = *future.update->values.at(index);
+        auto& memory = plankton::GetResource(plankton::Evaluate(*lhs.variable, *result->now), *result->now);
+        auto& value = *memory.fieldToValue.at(lhs.fieldName);
+        value.decl = info.factory.GetFreshFO(value.Type());
+        result->Conjoin(MakeEq(value.Decl(), rhs));
     }
 
     return result;
@@ -266,8 +284,11 @@ PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const FutureSug
         DEBUG("  -- handling future: " << *future << std::endl)
         try {
             auto check = MakePostState(*info, *future, target, config.GetFlowValueType());
+            DEBUG("       check annotation: " << *check << std::endl)
             check->Conjoin(plankton::Copy(*immutable));
+            DEBUG("       check annotation with immutable: " << *check << std::endl)
             plankton::InlineAndSimplify(*check);
+            DEBUG("       check annotation simplified: " << *check << std::endl)
 
             auto post = Post(std::move(check), *target.command, false);
             plankton::MoveInto(std::move(post.effects), result.effects);
@@ -280,6 +301,7 @@ PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const FutureSug
         }
     }
 
+    DEBUG("    - resulting annotation pre filter: " << annotation << std::endl)
     FilterFutures(annotation);
     FilterEffects(result.effects);
     DEBUG("    - resulting annotation: " << annotation << std::endl)

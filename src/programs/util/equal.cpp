@@ -31,9 +31,7 @@ inline bool IsEqual(const Dereference& object, const Dereference& other) {
     return object.variable->Decl() == other.variable->Decl() && object.fieldName == other.fieldName;
 }
 
-#include "util/log.hpp"
 inline bool IsEqual(const BinaryExpression& object, const BinaryExpression& other) {
-    DEBUG(" <chk IsEqual for BinaryExpression> " << object << "   " << other << std::endl)
     return object.op == other.op
            && plankton::SyntacticalEqual(*object.lhs, *other.lhs)
            && plankton::SyntacticalEqual(*object.rhs, *other.rhs);

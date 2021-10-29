@@ -60,19 +60,22 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
     breaking.clear();
     returning.clear();
     newInterference.clear();
+
+    auto improveFutures = [this](){
+        if (debugFuture) { // TODO: remove debug, use computed suggestions
+            auto annotations = std::move(current);
+            for (auto&& elem : annotations) {
+                auto[post, effects] = solver.ImproveFuture(std::move(elem), *debugFuture);
+                plankton::MoveInto(std::move(post), current);
+                AddNewInterference(std::move(effects));
+            }
+        }
+    };
     
     // looping until fixed point
     if (!current.empty()) {
-        auto joinCurrent = [this]() {
-            if (debugFuture) {
-                auto annotations = std::move(current);
-                for (auto&& elem : annotations) {
-                    auto[post, effects] = solver.ImproveFuture(std::move(elem), *debugFuture);
-                    plankton::MoveInto(std::move(post), current);
-                    AddNewInterference(std::move(effects));
-                }
-            }
-
+        auto joinCurrent = [this,&improveFutures]() {
+            improveFutures();
             auto join = solver.Join(std::move(current));
             current.clear();
             return join;
@@ -102,6 +105,7 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
     // post loop
     current = std::move(firstBreaking);
     MoveInto(std::move(breaking), current);
+    improveFutures();
     breaking = std::move(breakingOuter);
     MoveInto(std::move(returningOuter), returning);
     MoveInto(std::move(newInterferenceOuter), newInterference);

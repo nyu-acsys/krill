@@ -8,6 +8,16 @@
 using namespace plankton;
 
 
+std::set<const VariableDeclaration*> CollectVariables(const FuturePredicate& future) {
+    struct : public ProgramListener {
+        std::set<const VariableDeclaration*> result;
+        void Enter(const VariableDeclaration& object) override { result.insert(&object); }
+    } collector;
+    for (const auto& elem : future.guard->conjuncts) elem->Accept(collector);
+    for (const auto& elem : future.update->fields) elem->Accept(collector);
+    return std::move(collector.result);
+}
+
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const VariableAssignment& cmd) const {
     MEASURE("Solver::Post (VariableAssignment)")
     DEBUG("POST for " << *pre << " " << cmd << std::endl)
@@ -18,7 +28,11 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const VariableAssignment
 
     // handle futures
     if (!pre->future.empty()) {
-        throw std::logic_error("not yet implemented: future handling in Solver::Post for VariableAssignment");
+        std::set<const VariableDeclaration*> updatedVariables;
+        for (const auto& var : cmd.lhs) updatedVariables.insert(&var->Decl());
+        plankton::RemoveIf(pre->future, [&updatedVariables](const auto& future){
+            return plankton::NonEmptyIntersection(updatedVariables, CollectVariables(*future));
+        });
     }
     
     // evaluate rhs
