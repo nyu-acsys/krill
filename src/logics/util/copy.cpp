@@ -32,6 +32,8 @@ struct CopyVisitor : public LogicVisitor {
     void Visit(const SymbolicNull& object) override { Handle(object); }
     void Visit(const SymbolicMin& object) override { Handle(object); }
     void Visit(const SymbolicMax& object) override { Handle(object); }
+    void Visit(const Guard& object) override { Handle(object); }
+    void Visit(const Update& object) override { Handle(object); }
     void Visit(const SeparatingConjunction& object) override { Handle(object); }
     void Visit(const LocalMemoryResource& object) override { Handle(object); }
     void Visit(const SharedMemoryCore& object) override { Handle(object); }
@@ -102,6 +104,16 @@ std::unique_ptr<SymbolicMin> plankton::Copy<SymbolicMin>(const SymbolicMin& /*ob
 template<>
 std::unique_ptr<SymbolicMax> plankton::Copy<SymbolicMax>(const SymbolicMax& /*object*/) {
     return std::make_unique<SymbolicMax>();
+}
+
+template<>
+std::unique_ptr<Guard> plankton::Copy<Guard>(const Guard& object) {
+    return std::make_unique<Guard>(plankton::CopyAll(object.conjuncts));
+}
+
+template<>
+std::unique_ptr<Update> plankton::Copy<Update>(const Update& object) {
+    return std::make_unique<Update>(plankton::CopyAll(object.fields), plankton::CopyAll(object.values));
 }
 
 template<>
@@ -189,7 +201,7 @@ std::unique_ptr<PastPredicate> plankton::Copy<PastPredicate>(const PastPredicate
 
 template<>
 std::unique_ptr<FuturePredicate> plankton::Copy<FuturePredicate>(const FuturePredicate& object) {
-    return std::make_unique<FuturePredicate>(plankton::Copy(*object.pre), plankton::Copy(*object.post), plankton::Copy(*object.context));
+    return std::make_unique<FuturePredicate>(plankton::Copy(*object.update), plankton::Copy(*object.guard));
 }
 
 template<>

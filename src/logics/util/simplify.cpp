@@ -135,16 +135,13 @@ struct SyntacticEqualityInliningListener final : public MutableLogicListener {
     void Visit(PastPredicate& object) override {
         VisitWithinNewContext(*object.formula, *object.formula);
     }
-    void Visit(FuturePredicate& object) override {
-        VisitWithinNewContext(*object.pre, *object.pre);
-        VisitWithinNewContext(*object.post, *object.post);
-    }
 };
 
 inline void InlineEqualities(LogicObject& object) {
     SyntacticEqualityInliningListener inlining(object);
     object.Accept(inlining);
 }
+
 
 //
 // Remove trivialities and duplicates
@@ -176,14 +173,32 @@ struct CleanUpVisitor final : public MutableDefaultLogicVisitor {
             }
         }
     
-        RemoveIf(object.conjuncts, [](const auto& elem){ return elem.get() == nullptr; });
+        RemoveIf(object.conjuncts, [](const auto& elem){ return !elem; });
     }
     
     void Visit(NonSeparatingImplication& object) override { Walk(object); }
     void Visit(ImplicationSet& object) override { Walk(object); }
     void Visit(PastPredicate& object) override { Walk(object); }
     void Visit(FuturePredicate& object) override { Walk(object); }
-    void Visit(Annotation& object) override { Walk(object); }
+
+    template<typename T>
+    inline void RemoveDuplicates(T& container) {
+        for (auto it = container.begin(); it != container.end(); ++it) {
+            if (!*it) continue;
+            for (auto ot = std::next(it); ot != container.end(); ++ot) {
+                if (!*ot) continue;
+                if (!plankton::SyntacticalEqual(**it, **ot)) continue;
+                ot->reset(nullptr);
+            }
+        }
+        plankton::RemoveIf(container, [](const auto& elem){ return !elem; });
+    }
+
+    void Visit(Annotation& object) override {
+        Walk(object);
+        RemoveDuplicates(object.past);
+        RemoveDuplicates(object.future);
+    }
 };
 
 inline void RemoveNoise(LogicObject& object) {

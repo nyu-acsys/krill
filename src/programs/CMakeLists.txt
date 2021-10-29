@@ -4,6 +4,7 @@ set(SOURCES
         visitors.cpp
 
         util/copy.cpp
+        util/equal.cpp
         util/mover.cpp
         util/print.cpp
 )

@@ -31,10 +31,12 @@ namespace plankton {
         explicit PostImage(std::deque<std::unique_ptr<Annotation>> posts, std::deque<std::unique_ptr<HeapEffect>> effects);
     };
 
-    struct UnboundedUpdate {
+    struct FutureSuggestion {
+        std::unique_ptr<Guard> guard;
         std::unique_ptr<MemoryWrite> command;
-        std::deque<std::unique_ptr<BinaryExpression>> guards;
-        // TODO: constructor should initialize command
+
+        explicit FutureSuggestion(std::unique_ptr<MemoryWrite> command);
+        explicit FutureSuggestion(std::unique_ptr<MemoryWrite> command, std::unique_ptr<Guard> guard);
     };
 
     struct Solver final {
@@ -53,7 +55,7 @@ namespace plankton {
         
         [[nodiscard]] std::unique_ptr<Annotation> Join(std::deque<std::unique_ptr<Annotation>> annotations) const;
         [[nodiscard]] std::unique_ptr<Annotation> TryAddFulfillment(std::unique_ptr<Annotation> annotation) const;
-        [[nodiscard]] PostImage ImproveFuture(std::unique_ptr<Annotation> annotation, const UnboundedUpdate& target) const;
+        [[nodiscard]] PostImage ImproveFuture(std::unique_ptr<Annotation> annotation, const FutureSuggestion& target) const;
 
         bool AddInterference(std::deque<std::unique_ptr<HeapEffect>> interference);
         [[nodiscard]] std::unique_ptr<Annotation> MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const;

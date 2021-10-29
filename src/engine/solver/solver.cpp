@@ -42,6 +42,16 @@ PostImage::PostImage(std::deque<std::unique_ptr<Annotation>> posts, std::deque<s
     assert(plankton::AllNonNull(effects));
 }
 
+FutureSuggestion::FutureSuggestion(std::unique_ptr<MemoryWrite> command_) : guard(std::make_unique<Guard>()), command(std::move(command_)) {
+    assert(command);
+}
+
+FutureSuggestion::FutureSuggestion(std::unique_ptr<MemoryWrite> command_, std::unique_ptr<Guard> guard_)
+        : guard(std::move(guard_)), command(std::move(command_)) {
+    assert(command);
+    assert(guard);
+}
+
 
 struct AssumptionChecker : DefaultProgramVisitor {
     void Visit(const Malloc& object) override {

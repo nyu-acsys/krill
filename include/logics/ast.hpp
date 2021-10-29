@@ -254,13 +254,31 @@ namespace plankton {
         ACCEPT_LOGIC_VISITOR
     };
 
-    struct FuturePredicate final : public LogicObject  {
-        std::unique_ptr<SharedMemoryCore> pre;
-        std::unique_ptr<SharedMemoryCore> post;
-        std::unique_ptr<Formula> context;
+    struct Guard : public LogicObject {
+        std::deque<std::unique_ptr<BinaryExpression>> conjuncts;
 
-        explicit FuturePredicate(std::unique_ptr<SharedMemoryCore> pre, std::unique_ptr<SharedMemoryCore> post,
-                                 std::unique_ptr<Formula> context);
+        explicit Guard();
+        explicit Guard(std::unique_ptr<BinaryExpression> expression);
+        explicit Guard(std::deque<std::unique_ptr<BinaryExpression>> conjuncts);
+        ACCEPT_LOGIC_VISITOR
+    };
+
+    struct Update : public LogicObject {
+        std::vector<std::unique_ptr<Dereference>> fields;
+        std::vector<std::unique_ptr<SymbolicExpression>> values;
+
+        explicit Update();
+        explicit Update(std::unique_ptr<Dereference> field, std::unique_ptr<SymbolicExpression> value);
+        explicit Update(std::vector<std::unique_ptr<Dereference>> fields, std::vector<std::unique_ptr<SymbolicExpression>> values);
+        ACCEPT_LOGIC_VISITOR
+    };
+
+    struct FuturePredicate final : public LogicObject  {
+        std::unique_ptr<Guard> guard;
+        std::unique_ptr<Update> update;
+
+        explicit FuturePredicate();
+        explicit FuturePredicate(std::unique_ptr<Update> update, std::unique_ptr<Guard> guard);
         ACCEPT_LOGIC_VISITOR
     };
 

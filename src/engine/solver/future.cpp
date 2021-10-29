@@ -8,25 +8,74 @@
 using namespace plankton;
 
 
+inline bool MatchesPremise(const FuturePredicate& future, const Guard& guard, std::vector<std::unique_ptr<Dereference>>& updateLhs) {
+    if (!plankton::SyntacticalEqual(guard, *future.guard)) return false;
+    if (updateLhs.size() != future.update->fields.size()) return false;
+    for (std::size_t index = 0; index < updateLhs.size(); ++index) {
+        if (!plankton::SyntacticalEqual(*updateLhs.at(index), *future.update->fields.at(index))) return false;
+    }
+    return true;
+}
+
+inline bool MatchesPremise(const FutureSuggestion& suggestion, const FuturePredicate& future) {
+    return MatchesPremise(future, *suggestion.guard, suggestion.command->lhs);
+}
+
+inline bool MatchesPremise(const FuturePredicate& future, const FuturePredicate& other) {
+    return MatchesPremise(other, *future.guard, future.update->fields);
+}
+
+
 //
-// Filter futures
+// Filter
 //
+
+inline bool SameUpdate(const FuturePredicate& future, const FuturePredicate& other, Encoding& encoding) {
+    auto vector = plankton::MakeVector<EExpr>(future.update->values.size());
+    for (std::size_t index = 0; index < vector.size(); ++index) {
+        vector.push_back(encoding.Encode(*future.update->values.at(index)) == encoding.Encode(*other.update->values.at(index)));
+    }
+    return encoding.Implies(encoding.MakeAnd(vector));
+}
 
 inline void FilterFutures(Annotation& annotation) {
     // TODO: semantic filter
-    std::set<const FuturePredicate*> remove;
+    Encoding encoding(*annotation.now);
     for (auto it = annotation.future.begin(); it != annotation.future.end(); ++it) {
+        if (!*it) continue;
         const auto& future = **it;
-        const auto& futureAdr = future.pre->node->Decl();
         for (auto ot = std::next(it); ot != annotation.future.end(); ++ot) {
+            if (!*ot) continue;
             auto& other = **ot;
-            if (futureAdr != other.pre->node->Decl()) continue;
-            auto renaming = plankton::MakeMemoryRenaming(*other.pre, *future.pre);
-            plankton::RenameSymbols(other, renaming);
-            if (plankton::SyntacticalEqual(future, other)) remove.insert(&other);
+            if (!MatchesPremise(future, other)) continue;
+            if (!SameUpdate(future, other, encoding)) continue;
+            ot->reset(nullptr);
         }
     }
-    plankton::RemoveIf(annotation.future, [&remove](const auto& elem){ return plankton::Membership(remove, elem.get()); });
+    plankton::RemoveIf(annotation.future, [](const auto& elem){ return !elem; });
+}
+
+inline void FilterEffects(std::deque<std::unique_ptr<HeapEffect>>& effects) {
+    for (auto& effect : effects) {
+        SymbolFactory factory;
+        auto renaming = plankton::MakeDefaultRenaming(factory);
+        plankton::RenameSymbols(*effect->pre, renaming);
+        plankton::RenameSymbols(*effect->post, renaming);
+        plankton::RenameSymbols(*effect->context, renaming);
+    }
+
+    for (auto it = effects.begin(); it != effects.end(); ++it) {
+        if (!*it) continue;
+        for (auto ot = std::next(it); ot != effects.end(); ++ot) {
+            if (!*ot) continue;
+            if (!plankton::SyntacticalEqual(*(**it).pre, *(**ot).pre)) continue;
+            if (!plankton::SyntacticalEqual(*(**it).post, *(**ot).post)) continue;
+            if (!plankton::SyntacticalEqual(*(**it).context, *(**ot).context)) continue;
+            ot->reset(nullptr);
+        }
+    }
+
+    plankton::RemoveIf(effects, [](const auto& elem){ return !elem; });
 }
 
 
@@ -35,60 +84,60 @@ inline void FilterFutures(Annotation& annotation) {
 //
 
 struct FutureInfo {
-    const Annotation& annotation;
-    const SymbolDeclaration& address;
-    std::map<std::string, std::unique_ptr<SymbolicExpression>> updates;
-    std::deque<const FuturePredicate*> matchingFutures;
+    Annotation& annotation;
+    const Guard& guard;
     SymbolFactory factory;
+    std::unique_ptr<Update> targetUpdate;
+    std::deque<const FuturePredicate*> matchingFutures;
 
-    explicit FutureInfo(const Annotation& annotation, const SymbolDeclaration& address)
-            : annotation(annotation), address(address), factory(annotation) {}
+    explicit FutureInfo(Annotation& annotation, const Guard& guard) : annotation(annotation), guard(guard) {}
+    FutureInfo(FutureInfo&& other) = default;
 };
 
-inline std::optional<FutureInfo> MakeFutureInfo(const Annotation& annotation, const MemoryWrite& cmd) {
-    assert(cmd.lhs.size() == cmd.rhs.size());
-    assert(!cmd.lhs.empty());
-    const auto& now = *annotation.now;
-
-    // ensure all updates target same memory location
-    const auto& variable = cmd.lhs.front()->variable->Decl();
-    auto differentVariable = [&variable](const auto& deref) { return deref->variable->Decl() != variable; };
-    if (plankton::Any(cmd.lhs, differentVariable)) return std::nullopt;
-
-    // ensure variable is accessible
-    const auto* resource = plankton::TryGetResource(variable, now);
-    FutureInfo result(annotation, resource->Value());
-    // TODO: ensure that the result.address is shared?
+inline std::optional<FutureInfo> MakeFutureInfo(Annotation& annotation, const FutureSuggestion& suggestion) {
+    DEBUG("MakeFutureInfo for " << annotation << std::endl)
+    FutureInfo result(annotation, *suggestion.guard);
 
     // extract updates
-    for (std::size_t index = 0; index < cmd.lhs.size(); ++index) {
-        auto newValue = plankton::TryMakeSymbolic(*cmd.rhs.at(index), now);
+    result.targetUpdate = std::make_unique<Update>();
+    for (std::size_t index = 0; index < suggestion.command->lhs.size(); ++index) {
+        auto newValue = plankton::TryMakeSymbolic(*suggestion.command->rhs.at(index), *annotation.now);
         if (!newValue) return std::nullopt;
-        auto insertion = result.updates.emplace(cmd.lhs.at(index)->fieldName, std::move(newValue));
-        assert(insertion.second);
+        result.targetUpdate->fields.push_back(plankton::Copy(*suggestion.command->lhs.at(index)));
+        result.targetUpdate->values.push_back(std::move(newValue));
     }
 
-    // extract matching futures
+    // find matching futures
     for (const auto& future : annotation.future) {
-        // TODO: match context? associate futures with the command they are made for?
-        assert(future->pre->node->Decl() == future->post->node->Decl());
-        if (future->pre->node->Decl() != result.address) continue;
+        if (!MatchesPremise(suggestion, *future)) continue;
         result.matchingFutures.push_back(future.get());
     }
 
-    return std::move(result);
+    return result;
 }
 
-inline bool IsCovered(const FutureInfo& info) {
+inline bool TargetUpdateIsCovered(const FutureInfo& info) {
     Encoding encoding(*info.annotation.now);
-    return plankton::Any(info.matchingFutures, [&info,&encoding](const auto* future){
-        assert(future->pre->node->Decl() == info.address);
-        for (const auto& [field, value] : info.updates) {
-            auto equal = encoding.Encode(*value) == encoding.Encode(future->post->fieldToValue.at(field)->Decl());
+    return plankton::Any(info.matchingFutures, [&info,&encoding](const auto* future) {
+        for (std::size_t index = 0 ; index < future->update->values.size() ; ++index) {
+            auto equal = encoding.Encode(*info.targetUpdate->values.at(index)) == encoding.Encode(*future->update->values.at(index));
             if (!encoding.Implies(equal)) return false;
         }
         return true;
     });
+}
+
+inline void AddTrivialFuture(Annotation& annotation, const FutureSuggestion& target) {
+    auto update = std::make_unique<Update>();
+    for (const auto& field : target.command->lhs) {
+        auto value = plankton::TryMakeSymbolic(*field, *annotation.now);
+        if (!value) return;
+        update->fields.push_back(plankton::Copy(*field));
+        update->values.push_back(std::move(value));
+    }
+
+    auto result = std::make_unique<FuturePredicate>(std::move(update), plankton::Copy(*target.guard));
+    annotation.future.push_back(std::move(result));
 }
 
 inline std::unique_ptr<SeparatingConjunction> ExtractStack(const Annotation& annotation) {
@@ -159,134 +208,81 @@ inline std::unique_ptr<SeparatingConjunction> ExtractImmutableState(FutureInfo& 
     //     result->Conjoin(std::move(immutable));
     // }
 
-    plankton::InlineAndSimplify(*result);
+    // plankton::InlineAndSimplify(*result);
     return std::move(result->now);
 }
 
-inline std::set<const VariableDeclaration*> CollectVariables(const AstNode& object) {
+inline std::unique_ptr<Annotation> MakePostState(FutureInfo& info, const FuturePredicate& future,
+                                                 const FutureSuggestion& target, const Type& flowType) {
     struct : public ProgramListener {
-        std::set<const VariableDeclaration*> decls;
-        void Enter(const VariableDeclaration& object) override { decls.insert(&object); }
+        std::set<const VariableDeclaration*> variables;
+        std::set<const VariableDeclaration*> dereferences;
+        void Enter(const VariableDeclaration& object) override { variables.insert(&object); }
+        void Enter(const Dereference& object) override { dereferences.insert(&object.variable->Decl()); }
     } collector;
-    object.Accept(collector);
-    return std::move(collector.decls);
-}
+    for (const auto& elem : future.guard->conjuncts) elem->Accept(collector);
+    for (const auto& elem : future.update->fields) elem->Accept(collector);
+    target.command->Accept(collector);
 
-inline std::set<const VariableDeclaration*> CollectVariables(const UnboundedUpdate& object) {
-    auto result = CollectVariables(*object.command);
-    for (const auto& guard : object.guards) plankton::InsertInto(CollectVariables(*guard), result);
+    std::set<const EqualsToAxiom*> resources;
+    std::set<const SymbolDeclaration*> addresses;
+    for (const auto* var : collector.variables) {
+        resources.insert(&plankton::GetResource(*var, *info.annotation.now));
+    }
+    for (const auto* var : collector.dereferences) {
+        addresses.insert(&plankton::GetResource(*var, *info.annotation.now).Value());
+    }
+
+    auto result = std::make_unique<Annotation>();
+    for (const auto* res : resources) result->Conjoin(plankton::Copy(*res));
+    for (const auto* adr : addresses) result->Conjoin(plankton::MakeSharedMemory(*adr, flowType, info.factory));
+
+    for (const auto& guard : future.guard->conjuncts) {
+        auto lhs = plankton::MakeSymbolic(*guard->lhs, *result->now);
+        auto rhs = plankton::MakeSymbolic(*guard->rhs, *result->now);
+        result->Conjoin(std::make_unique<StackAxiom>(guard->op, std::move(lhs), std::move(rhs)));
+    }
+
     return result;
 }
 
-template<typename T>
-inline std::unique_ptr<SeparatingConjunction> ExtractVariables(const FutureInfo& info, const T& from) {
-    auto variables = CollectVariables(from);
-    auto result = std::make_unique<SeparatingConjunction>();
-    for (const auto* var : variables) {
-        auto* resource = plankton::TryGetResource(*var, *info.annotation.now);
-        if (!resource) continue;
-        result->Conjoin(plankton::Copy(*resource));
-    }
-    return result;
-}
-
-inline std::unique_ptr<FuturePredicate> MakeTrivialFuture(FutureInfo& info, const SolverConfig& config, const UnboundedUpdate& target) {
-    auto pre = plankton::MakeSharedMemory(info.address, config.GetFlowValueType(), info.factory);
-    auto post = plankton::Copy(*pre);
-    auto context = std::make_unique<SeparatingConjunction>();
-    auto contextEval = ExtractVariables(info, target);
-    contextEval->Conjoin(plankton::Copy(*pre));
-    for (const auto& condition : target.guards) {
-        auto lhs = plankton::TryMakeSymbolic(*condition->lhs, *contextEval);
-        auto rhs = plankton::TryMakeSymbolic(*condition->rhs, *contextEval);
-        if (!lhs || !rhs) continue;
-        context->Conjoin(std::make_unique<StackAxiom>(condition->op, std::move(lhs), std::move(rhs)));
-    }
-    auto future = std::make_unique<FuturePredicate>(std::move(pre), std::move(post), std::move(context));
-    info.matchingFutures.push_back(future.get());
-    return future;
-}
-
-inline SymbolRenaming MakeVariableRenaming(const Formula& replace, const Formula& with) {
-    auto resources = plankton::Collect<EqualsToAxiom>(with);
-    std::map<const SymbolDeclaration*, const SymbolDeclaration*> map;
-    for (const auto* var : resources) {
-        auto& other = plankton::GetResource(var->Variable(), replace);
-        auto insertion = map.emplace(&other.Value(), &var->Value());
-        assert(insertion.second);
-    }
-
-    return [map=std::move(map)](const auto& decl) -> const SymbolDeclaration& {
-        auto find = map.find(&decl);
-        if (find != map.end()) return *find->second;
-        return decl;
-    };
-}
-
-PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const UnboundedUpdate& target) const {
+PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const FutureSuggestion& target) const {
     DEBUG("== Solver::ImproveFuture in " << *pre << std::endl)
     assert(target.command);
     assert(pre);
 
     PostImage result(std::move(pre));
     auto& annotation = *result.annotations.front();
+    AddTrivialFuture(annotation, target);
 
     plankton::InlineAndSimplify(annotation);
-    auto info = MakeFutureInfo(annotation, *target.command);
-    if (!info || IsCovered(*info)) return result;
+    auto info = MakeFutureInfo(annotation, target);
+    if (!info || TargetUpdateIsCovered(*info)) return result;
 
-    annotation.Conjoin(MakeTrivialFuture(*info, config, target));
     auto immutable = ExtractImmutableState(*info, *this);
-    auto variables = ExtractVariables(*info, *target.command);
     DEBUG("  -- immutable: " << *immutable << std::endl)
-    DEBUG("  -- variables: " << *variables << std::endl)
 
     for (const auto* future : info->matchingFutures) {
-        DEBUG("  -- handling: " << *future << std::endl)
-        auto check = std::make_unique<Annotation>();
-        check->Conjoin(plankton::Copy(*future->post));
-        check->Conjoin(plankton::Copy(*future->context));
-        check->Conjoin(plankton::Copy(*immutable));
-        // check->Conjoin(plankton::Copy(*variables));
-        DEBUG("    ~> check annotation before inlining: " << *check << std::endl)
-        plankton::InlineAndSimplify(*check);
-        DEBUG("    ~> check annotation after inlining: " << *check << std::endl)
-
-        // prevent inlined memory from looking different from future->post
-        // TODO: improve this renaming business, make it more robust, decide order (use history for memory? elegant way for variables?)
-        auto memRenaming = plankton::MakeMemoryRenaming(plankton::GetResource(future->post->node->Decl(), *check->now), *future->post);
-        plankton::RenameSymbols(*check, memRenaming);
-        auto varRenaming = MakeVariableRenaming(*check->now, *variables);
-        plankton::RenameSymbols(*check, varRenaming);
-        DEBUG("    ~> check annotation after renaming: " << *check << std::endl)
-
-        std::optional<PostImage> post;
+        DEBUG("  -- handling future: " << *future << std::endl)
         try {
-            post = Post(std::move(check), *target.command, false);
-            DEBUG("  -- post image succeeded " << post->annotations.size() << " " << post->effects.size() << std::endl)
-        } catch (std::logic_error& err) { // TODO: catch proper error
-            DEBUG("  -- post image failed: " << err.what() << std::endl)
-            continue;
-        }
+            auto check = MakePostState(*info, *future, target, config.GetFlowValueType());
+            check->Conjoin(plankton::Copy(*immutable));
+            plankton::InlineAndSimplify(*check);
 
-        assert(post);
-        bool foundPost = false;
-        for (auto& postAnnotation : post->annotations) {
-            auto* postMemory = dynamic_cast<const SharedMemoryCore*>(plankton::TryGetResource(info->address, *postAnnotation->now));
-            if (!postMemory) continue;
-            foundPost = true;
-            auto newFuture = plankton::Copy(*future);
-            newFuture->post = plankton::Copy(*postMemory);
-            assert(newFuture->pre->node->Decl() == newFuture->post->node->Decl());
-            if (plankton::SyntacticalEqual(*newFuture->pre, *newFuture->post)) continue;
-            DEBUG("  -- adding future: " << *newFuture << std::endl)
+            auto post = Post(std::move(check), *target.command, false);
+            plankton::MoveInto(std::move(post.effects), result.effects);
+            auto newFuture = std::make_unique<FuturePredicate>(plankton::Copy(*info->targetUpdate), plankton::Copy(*future->guard));
+            DEBUG("     -- post image succeeded, adding future: " << *newFuture << std::endl)
             annotation.Conjoin(std::move(newFuture));
+
+        } catch (std::logic_error& err) { // TODO: catch proper error
+            DEBUG("     -- post image failed: " << err.what() << std::endl)
         }
-        if (foundPost) plankton::MoveInto(std::move(post->effects), result.effects);
     }
 
-    for (auto& elem : result.annotations) FilterFutures(*elem);
-    DEBUG("    - resulting annotations: " << std::endl) for (const auto& elem : result.annotations) DEBUG("        - " << *elem << std::endl)
+    FilterFutures(annotation);
+    FilterEffects(result.effects);
+    DEBUG("    - resulting annotation: " << annotation << std::endl)
     DEBUG("    - resulting effects: " << std::endl) for (const auto& elem : result.effects) DEBUG("        - " << *elem << std::endl)
     return result;
 }

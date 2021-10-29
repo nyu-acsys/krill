@@ -20,7 +20,7 @@ inline const VariableDeclaration* GetVar(const Function& func, const std::string
     return nullptr;
 }
 
-inline std::unique_ptr<UnboundedUpdate> MakeDebugFuture(const Program& program) {
+inline std::unique_ptr<FutureSuggestion> MakeDebugFuture(const Program& program) {
     for (const auto& func : program.macroFunctions) {
         if (func->name != "locate") continue;
         auto* left = GetVar(*func, "left_1");
@@ -28,17 +28,16 @@ inline std::unique_ptr<UnboundedUpdate> MakeDebugFuture(const Program& program) 
         auto* right = GetVar(*func, "right_1");
         if (!left || !lnext || !right) return nullptr;
 
-        auto result = std::make_unique<UnboundedUpdate>();
-        result->command = std::make_unique<MemoryWrite>(
+        auto result = std::make_unique<FutureSuggestion>(std::make_unique<MemoryWrite>(
                 std::make_unique<Dereference>(std::make_unique<VariableExpression>(*left), "next"),
                 std::make_unique<VariableExpression>(*right)
-        );
-        result->guards.push_back(std::make_unique<BinaryExpression>(
+        ));
+        result->guard->conjuncts.push_back(std::make_unique<BinaryExpression>(
                 BinaryOperator::EQ,
                 std::make_unique<Dereference>(std::make_unique<VariableExpression>(*left), "marked"),
                 std::make_unique<FalseValue>()
         ));
-        result->guards.push_back(std::make_unique<BinaryExpression>(
+        result->guard->conjuncts.push_back(std::make_unique<BinaryExpression>(
                 BinaryOperator::EQ,
                 std::make_unique<Dereference>(std::make_unique<VariableExpression>(*left), "next"),
                 std::make_unique<VariableExpression>(*lnext)

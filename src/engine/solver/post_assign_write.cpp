@@ -395,58 +395,63 @@ inline std::deque<std::unique_ptr<HeapEffect>> ExtractEffects(PostImageInfo& inf
 //
 
 std::unique_ptr<Annotation> TryGetFromFuture(const Annotation& pre, const MemoryWrite& cmd) {
-    // get to-be-updated memory
-    auto& variable = cmd.lhs.front()->variable->Decl();
-    if (plankton::Any(cmd.lhs, [&variable](const auto& elem) { return elem->variable->Decl() != variable; })) return nullptr;
-    auto& address = plankton::GetResource(variable, *pre.now).Value();
-    auto& memory = plankton::GetResource(address, *pre.now);
-    if (!dynamic_cast<const SharedMemoryCore*>(&memory)) return nullptr;
+    // things to be done:
+    //   - all shared flows change
+    //   - shared fields may change if not known to be different from actually changed memory
+    throw std::logic_error("not yet implemented: post write from future");
 
-    // get candidate futures for updating memory
-    auto candidates = plankton::MakeVector<const FuturePredicate*>(pre.future.size());
-    for (const auto& future : pre.future) {
-        if (future->pre->node->Decl() != address) continue;
-        candidates.push_back(future.get());
-    }
-    if (candidates.empty()) return nullptr;
-
-    // get updates
-    Encoding encoding(*pre.now);
-    std::map<std::string, EExpr> updates;
-    for (std::size_t index = 0; index < cmd.lhs.size(); ++index) {
-        auto symbolicValue = plankton::MakeSymbolic(*cmd.rhs.at(index), *pre.now);
-        auto insertion = updates.emplace(cmd.lhs.at(index)->fieldName, encoding.Encode(*symbolicValue));
-        if (!insertion.second) return nullptr;
-    }
-
-    // find candidates that (1) perform required update and (2) are enabled
-    std::set<const FuturePredicate*> matching;
-    for (const auto* future : candidates) {
-        auto sameUpdate = plankton::MakeVector<EExpr>(updates.size());
-        for (const auto& [field, value] : updates) {
-            auto eq = value == encoding.Encode(future->post->fieldToValue.at(field)->Decl());
-            sameUpdate.push_back(eq);
-        }
-        auto memEq = encoding.EncodeMemoryEquality(memory, *future->pre);
-        auto context = encoding.Encode(*future->context);
-        auto matches = encoding.MakeAnd(sameUpdate) && (memEq >> context);
-        encoding.AddCheck(matches, [&matching,future](bool holds){
-            if (holds) matching.insert(future);
-        });
-    }
-    encoding.Check();
-    if (matching.empty()) return nullptr;
-
-    // get post annotation
-    auto result = plankton::Copy(pre);
-    std::set<const Formula*> shared;
-    plankton::InsertInto(plankton::Collect<SharedMemoryCore>(*result->now), shared);
-    plankton::DiscardIf(result->now->conjuncts, [&shared](const auto& elem){ return shared.count(elem.get()); });
-    for (const auto* future : matching) result->Conjoin(plankton::Copy(*future->post));
-    plankton::InlineAndSimplify(*result);
-    // TODO: extend stack?
-
-    return result;
+    // // get to-be-updated memory
+    // auto& variable = cmd.lhs.front()->variable->Decl();
+    // if (plankton::Any(cmd.lhs, [&variable](const auto& elem) { return elem->variable->Decl() != variable; })) return nullptr;
+    // auto& address = plankton::GetResource(variable, *pre.now).Value();
+    // auto& memory = plankton::GetResource(address, *pre.now);
+    // if (!dynamic_cast<const SharedMemoryCore*>(&memory)) return nullptr;
+    //
+    // // get candidate futures for updating memory
+    // auto candidates = plankton::MakeVector<const FuturePredicate*>(pre.future.size());
+    // for (const auto& future : pre.future) {
+    //     if (future->pre->node->Decl() != address) continue;
+    //     candidates.push_back(future.get());
+    // }
+    // if (candidates.empty()) return nullptr;
+    //
+    // // get updates
+    // Encoding encoding(*pre.now);
+    // std::map<std::string, EExpr> updates;
+    // for (std::size_t index = 0; index < cmd.lhs.size(); ++index) {
+    //     auto symbolicValue = plankton::MakeSymbolic(*cmd.rhs.at(index), *pre.now);
+    //     auto insertion = updates.emplace(cmd.lhs.at(index)->fieldName, encoding.Encode(*symbolicValue));
+    //     if (!insertion.second) return nullptr;
+    // }
+    //
+    // // find candidates that (1) perform required update and (2) are enabled
+    // std::set<const FuturePredicate*> matching;
+    // for (const auto* future : candidates) {
+    //     auto sameUpdate = plankton::MakeVector<EExpr>(updates.size());
+    //     for (const auto& [field, value] : updates) {
+    //         auto eq = value == encoding.Encode(future->post->fieldToValue.at(field)->Decl());
+    //         sameUpdate.push_back(eq);
+    //     }
+    //     auto memEq = encoding.EncodeMemoryEquality(memory, *future->pre);
+    //     auto context = encoding.Encode(*future->context);
+    //     auto matches = encoding.MakeAnd(sameUpdate) && (memEq >> context);
+    //     encoding.AddCheck(matches, [&matching,future](bool holds){
+    //         if (holds) matching.insert(future);
+    //     });
+    // }
+    // encoding.Check();
+    // if (matching.empty()) return nullptr;
+    //
+    // // get post annotation
+    // auto result = plankton::Copy(pre);
+    // std::set<const Formula*> shared;
+    // plankton::InsertInto(plankton::Collect<SharedMemoryCore>(*result->now), shared);
+    // plankton::DiscardIf(result->now->conjuncts, [&shared](const auto& elem){ return shared.count(elem.get()); });
+    // for (const auto* future : matching) result->Conjoin(plankton::Copy(*future->post));
+    // plankton::InlineAndSimplify(*result);
+    // // TODO: extend stack?
+    //
+    // return result;
 }
 
 //

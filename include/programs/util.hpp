@@ -20,9 +20,11 @@ namespace plankton {
     std::string ToString(const BinaryOperator& object);
     
     bool IsRightMover(const Statement& statement);
+
+    bool SyntacticalEqual(const Expression& object, const Expression& other);
     
     inline bool IsVoid(const Function& function) { return function.returnType.empty(); }
-    
+
 } // namespace plankton
 
 #endif //PLANKTON_PROGRAMS_UTIL_HPP

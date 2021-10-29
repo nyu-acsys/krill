@@ -15,6 +15,11 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const VariableAssignment
     assert(cmd.lhs.size() == cmd.rhs.size());
     PrepareAccess(*pre, cmd); // TODO: ensure no shared variable is updated
     plankton::InlineAndSimplify(*pre);
+
+    // handle futures
+    if (!pre->future.empty()) {
+        throw std::logic_error("not yet implemented: future handling in Solver::Post for VariableAssignment");
+    }
     
     // evaluate rhs
     SymbolFactory factory(*pre);

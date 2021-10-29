@@ -7,7 +7,7 @@ inline bool IsEqual(const SymbolicNull& /*object*/, const SymbolicNull& /*other*
 inline bool IsEqual(const SymbolicMin& /*object*/, const SymbolicMin& /*other*/) { return true; }
 inline bool IsEqual(const SymbolicMax& /*object*/, const SymbolicMax& /*other*/) { return true; }
 inline bool IsEqual(const SymbolicVariable& object, const SymbolicVariable& other) {
-    return &object.Decl() == &other.Decl();
+    return object.Decl() == other.Decl();
 }
 inline bool IsEqual(const SymbolicBool& object, const SymbolicBool& other) {
     return object.value == other.value;
@@ -77,9 +77,27 @@ inline bool IsEqual(const PastPredicate& object, const PastPredicate& other) {
     return IsEqual(*object.formula, *other.formula);
 }
 
+inline bool IsEqual(const Guard& object, const Guard& other) {
+    if (object.conjuncts.size() != other.conjuncts.size()) return false;
+    for (std::size_t index = 0; index < object.conjuncts.size(); ++index) {
+        if (!plankton::SyntacticalEqual(*object.conjuncts.at(index), *other.conjuncts.at(index))) return false;
+    }
+    return true;
+}
+
+inline bool IsEqual(const Update& object, const Update& other) {
+    assert(object.values.size() == object.fields.size());
+    assert(other.values.size() == other.fields.size());
+    if (object.fields.size() != other.fields.size()) return false;
+    for (std::size_t index = 0; index < object.fields.size(); ++index) {
+        if (!plankton::SyntacticalEqual(*object.fields.at(index), *other.fields.at(index))) return false;
+        if (!plankton::SyntacticalEqual(*object.values.at(index), *other.values.at(index))) return false;
+    }
+    return true;
+}
+
 inline bool IsEqual(const FuturePredicate& object, const FuturePredicate& other) {
-    return plankton::SyntacticalEqual(*object.pre, *other.pre) && plankton::SyntacticalEqual(*object.post, *other.post)
-           && plankton::SyntacticalEqual(*object.context, *other.context);
+    return IsEqual(*object.guard, *other.guard) && IsEqual(*object.update, *other.update);
 }
 
 inline bool IsEqual(const Annotation& object, const Annotation& other) {
@@ -95,11 +113,11 @@ inline bool IsEqual(const Annotation& object, const Annotation& other) {
     return true;
 }
 
-struct Comparator : public LogicVisitor {
+struct LogicComparator : public LogicVisitor {
     bool result = false;
     const LogicObject& compare;
     
-    explicit Comparator(const LogicObject& compare) : compare(compare) {}
+    explicit LogicComparator(const LogicObject& compare) : compare(compare) {}
     
     template<typename T>
     inline void Compare(const T& object) {
@@ -113,6 +131,8 @@ struct Comparator : public LogicVisitor {
     void Visit(const SymbolicNull& object) override { Compare(object); }
     void Visit(const SymbolicMin& object) override { Compare(object); }
     void Visit(const SymbolicMax& object) override { Compare(object); }
+    void Visit(const Guard& object) override { Compare(object); }
+    void Visit(const Update& object) override { Compare(object); }
     void Visit(const SeparatingConjunction& object) override { Compare(object); }
     void Visit(const LocalMemoryResource& object) override { Compare(object); }
     void Visit(const SharedMemoryCore& object) override { Compare(object); }
@@ -131,7 +151,7 @@ struct Comparator : public LogicVisitor {
 };
 
 bool plankton::SyntacticalEqual(const LogicObject& object, const LogicObject& other) {
-    Comparator comparator(other);
+    LogicComparator comparator(other);
     object.Accept(comparator);
     return comparator.result;
 }

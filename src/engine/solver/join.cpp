@@ -29,16 +29,6 @@ inline std::unique_ptr<FulfillmentAxiom> MakeFulfillment(bool value) {
     return std::make_unique<FulfillmentAxiom>(value);
 }
 
-inline bool UnchangedFlow(const FuturePredicate* future) {
-    assert(future);
-    return future->pre->flow->Decl() == future->post->flow->Decl();
-}
-
-inline bool ChangedField(const FuturePredicate* future, const std::string& field) {
-    assert(future);
-    return future->pre->fieldToValue.at(field)->Decl() != future->post->fieldToValue.at(field)->Decl();
-}
-
 struct AnnotationInfo {
     const Annotation& annotation;
     std::map<const VariableDeclaration*, const EqualsToAxiom*> varToRes;
@@ -46,7 +36,6 @@ struct AnnotationInfo {
     std::size_t numTrueFulfillments = 0, numFalseFulfillments = 0;
     std::map<const VariableDeclaration*, std::set<const ObligationAxiom*>> varToObl;
     std::map<const VariableDeclaration*, std::set<const PastPredicate*>> varToHist;
-    std::map<const VariableDeclaration*, std::set<const FuturePredicate*>> varToFut;
 
     explicit AnnotationInfo(const Annotation& annotation) : annotation(annotation) {
         // variable + memory resource
@@ -86,31 +75,18 @@ struct AnnotationInfo {
                 varToHist[variable].insert(past.get());
             }
         }
-
-        // future
-        for (const auto& future : annotation.future) {
-            assert(future->pre->node->Decl() == future->post->node->Decl());
-            for (const auto& [variable, resource] : varToRes) {
-                if (resource->Value() != future->pre->node->Decl()) continue;
-                varToFut[variable].emplace(future.get());
-            }
-        }
     }
 };
 
-template<typename T> using SetIterator = typename std::set<const T*>::iterator;
-template<typename T> using SetIteratorPair = std::pair<SetIterator<T>, SetIterator<T>>;
-
-template<typename T>
-inline std::deque<std::vector<const T*>>
-MakePowerSet(std::vector<AnnotationInfo>& lookup, const VariableDeclaration& variable,
-             std::function<SetIteratorPair<T>(AnnotationInfo&, const VariableDeclaration&)> getIterators) {
-    std::vector<SetIterator<T>> begin, end;
+template<typename I>
+inline std::deque<std::vector<typename I::pointer>>
+MakePowerSet(std::vector<AnnotationInfo>& lookup, const std::function<std::pair<I, I>(AnnotationInfo&)>& getIterators) {
+    std::vector<I> begin, end;
     begin.reserve(lookup.size());
     end.reserve(lookup.size());
     bool containsEmpty = false;
     for (auto& info : lookup) {
-        auto [infoBegin, infoEnd] = getIterators(info, variable);
+        auto [infoBegin, infoEnd] = getIterators(info);
         begin.push_back(infoBegin);
         end.push_back(infoEnd);
         containsEmpty |= infoBegin == infoEnd;
@@ -131,27 +107,36 @@ MakePowerSet(std::vector<AnnotationInfo>& lookup, const VariableDeclaration& var
     };
 
     // create power set
-    std::deque<std::vector<const T*>> result;
+    std::deque<std::vector<typename I::pointer>> result;
     do {
         result.emplace_back();
         result.back().reserve(cur.size());
-        for (auto it : cur) result.back().push_back(*it);
+        for (auto it : cur) result.back().push_back(&*it);
     } while (next());
     return result;
 }
 
 inline auto MakePastPowerSet(std::vector<AnnotationInfo>& lookup, const VariableDeclaration& variable) {
-    return MakePowerSet<PastPredicate>(lookup, variable, [](auto& info, auto& variable) {
+    return MakePowerSet<std::set<const PastPredicate*>::const_iterator>(lookup, [&variable](auto& info) {
         auto& set = info.varToHist[&variable];
         return std::make_pair(set.begin(), set.end());
     });
 }
 
-inline auto MakeFuturePowerSet(std::vector<AnnotationInfo>& lookup, const VariableDeclaration& variable) {
-    return MakePowerSet<FuturePredicate>(lookup, variable, [](auto& info, auto& variable) {
-        auto& set = info.varToFut[&variable];
-        return std::make_pair(set.begin(), set.end());
+inline auto MakeFuturePowerSet(std::vector<AnnotationInfo>& lookup) {
+    return MakePowerSet<std::deque<std::unique_ptr<FuturePredicate>>::const_iterator>(lookup, [](auto& info) {
+        auto& future = info.annotation.future;
+        return std::make_pair(future.begin(), future.end());
     });
+}
+
+inline bool FuturePremiseMatches(const FuturePredicate& future, const FuturePredicate& other) {
+    if (!plankton::SyntacticalEqual(*future.guard, *other.guard)) return false;
+    if (future.update->fields.size() != other.update->fields.size()) return false;
+    for (std::size_t index = 0; index < future.update->fields.size(); ++index) {
+        if (!plankton::SyntacticalEqual(*future.update->fields.at(index), *other.update->fields.at(index))) return false;
+    }
+    return true;
 }
 
 inline void AddResourceCopies(Annotation& annotation, const SymbolDeclaration& src, const SymbolDeclaration& dst) {
@@ -173,17 +158,6 @@ inline void AddResourceCopies(Annotation& annotation, const SymbolDeclaration& s
         plankton::RenameSymbols(*newPast, renaming);
         assert(newPast->formula->node->Decl() == dst);
         annotation.Conjoin(std::move(newPast));
-    }
-
-    // copy futures
-    for (const auto& future : annotation.future) {
-        assert(future->pre->node->Decl() == future->post->node->Decl());
-        if (future->pre->node->Decl() != src) continue;
-        auto newFuture = plankton::Copy(*future);
-        plankton::RenameSymbols(*newFuture, renaming);
-        assert(newFuture->pre->node->Decl() == dst);
-        assert(newFuture->post->node->Decl() == dst);
-        annotation.Conjoin(std::move(newFuture));
     }
 }
 
@@ -245,7 +219,7 @@ struct AnnotationJoiner {
             // distinct symbols across annotations
             plankton::RenameSymbols(*annotation, factory);
             
-            // distinct values across variables
+            // distinct values across variables // TODO: is this really necessary??? <<<<<<<<<========================================||||||
             auto resources = plankton::CollectMutable<EqualsToAxiom>(*annotation->now);
             std::set<const SymbolDeclaration*> used;
             for (auto* variable : resources) {
@@ -398,7 +372,7 @@ struct AnnotationJoiner {
         for (std::size_t index = 0; index < numFalse; ++index) result->Conjoin(MakeFulfillment(false));
     }
 
-    inline void EncodeNow() {
+    inline void EncodeNow() { // TODO: add mapping as ground truth to encoding, in order to simplify encoding for past/future?
         std::vector<EExpr> disjunction;
         disjunction.reserve(lookup.size());
 
@@ -427,7 +401,9 @@ struct AnnotationJoiner {
 
             disjunction.push_back(encoding.MakeAnd(encoded));
         }
+
         encoding.AddPremise(encoding.MakeOr(disjunction));
+        encoding.AddPremise(encoding.Encode(*result->now));
     }
 
     inline void EncodePast() {
@@ -445,7 +421,7 @@ struct AnnotationJoiner {
                 auto encoded = plankton::MakeVector<EExpr>(vector.size());
                 for (std::size_t index = 0; index < vector.size(); ++index) {
                     auto& now = *lookup.at(index).annotation.now;
-                    auto memEq = encoding.EncodeMemoryEquality(*pastMem, *vector.at(index)->formula);
+                    auto memEq = encoding.EncodeMemoryEquality(*pastMem, *(**vector.at(index)).formula);
                     auto context = encoding.Encode(now) && encoding.EncodeInvariants(now, config);
                     encoded.push_back(memEq && context);
                 }
@@ -457,71 +433,44 @@ struct AnnotationJoiner {
         }
     }
 
-    inline SymbolRenaming MakeVariableRenaming() {
-        std::map<const SymbolDeclaration*, const SymbolDeclaration*> map;
-        for (const auto& [variable, resource] : varToCommonRes) {
-            auto* value = &resource->Value();
-            for (const auto& annotation : lookup) {
-                auto insertion = map.emplace(&annotation.varToRes.at(variable)->Value(), value);
-                assert(value->type.sort != Sort::PTR || insertion.second);
-            }
-        }
-
-        return [map=std::move(map)](const auto& decl) -> const SymbolDeclaration& {
-            auto find = map.find(&decl);
-            if (find != map.end()) return *find->second;
-            return decl;
-        };
-    }
-
     inline void EncodeFuture() {
-        for (const auto& [variable, resource] : varToCommonRes) {
-            auto powerSet = MakeFuturePowerSet(lookup, *variable);
-            for (const auto& vector : powerSet) {
-                DEBUG(" join future combination:  " << std::endl)
-                for (const auto* elem : vector) DEBUG("  - " << *elem << std::endl)
+        auto powerSet = MakeFuturePowerSet(lookup);
+        for (const auto& vector : powerSet) {
+            DEBUG(" join future combination:  ")
+            for (const auto* elem : vector) DEBUG(**elem << ",  ")
+            DEBUG(std::endl)
 
-                auto& address = resource->Value();
-                auto futPreMem = plankton::MakeSharedMemory(address, config.GetFlowValueType(), factory);
-                auto futPostMem = plankton::MakeSharedMemory(address, config.GetFlowValueType(), factory);
-                auto futContext = std::make_unique<Annotation>();
-                auto variableRenaming = MakeVariableRenaming();
+            // check match
+            if (vector.empty()) continue;
+            auto mismatch = plankton::Any(vector, [cmp=vector.front()](const auto* elem){
+                return !FuturePremiseMatches(**cmp, **elem);
+            });
+            if (mismatch) continue;
 
-                // keep unchanged values
-                if (plankton::All(vector, UnchangedFlow)) futPostMem->flow->decl = futPreMem->flow->Decl();
-                for (const auto& [field, value] : futPostMem->fieldToValue) {
-                    auto changedField = [&field=field](const auto* future){ return ChangedField(future, field); };
-                    if (plankton::Any(vector, changedField)) continue;
-                    value->decl = futPreMem->fieldToValue.at(field)->Decl();
-                }
-
-                // conjoin future pre to generate context (make sure that no premise is lost)
-                for (const auto* future : vector) {
-                    auto preRenaming = plankton::MakeMemoryRenaming(*future->pre, *futPreMem);
-                    auto postRenaming = plankton::MakeMemoryRenaming(*future->post, *futPostMem);
-                    auto ctx = plankton::Copy(*future->context);
-                    plankton::RenameSymbols(*ctx, preRenaming);
-                    plankton::RenameSymbols(*ctx, postRenaming);
-                    plankton::RenameSymbols(*ctx, variableRenaming);
-                    futContext->Conjoin(std::move(ctx));
-                }
-                plankton::Simplify(*futContext);
-
-                // force common future post to agree
-                auto post = plankton::MakeVector<EExpr>(vector.size());
-                for (std::size_t index = 0; index < vector.size(); ++index) {
-                    auto& now = *lookup.at(index).annotation.now;
-                    auto memEqPost = encoding.EncodeMemoryEquality(*futPostMem, *vector.at(index)->post);
-                    auto more = encoding.Encode(now) && encoding.EncodeInvariants(now, config);
-                    post.push_back(memEqPost && more);
-                }
-                encoding.AddPremise(encoding.MakeOr(post)); // TODO: conjoin mem equalities? (same with hists?)
-
-                // add past predicate
-                auto joinedFuture = std::make_unique<FuturePredicate>(std::move(futPreMem), std::move(futPostMem), std::move(futContext->now));
-                DEBUG("  ->> " << *joinedFuture << std::endl)
-                result->Conjoin(std::move(joinedFuture));
+            // make future
+            auto future = plankton::Copy(**vector.front());
+            for (auto& value : future->update->values) {
+                value = std::make_unique<SymbolicVariable>(factory.GetFresh(value->Type(), value->Order()));
             }
+
+            // force update to agree
+            for (std::size_t index = 0; index < future->update->values.size(); ++index) {
+                auto val = encoding.Encode(*future->update->values.at(index));
+                auto equalities = plankton::MakeVector<EExpr>(vector.size());
+                for (std::size_t infoIndex = 0; infoIndex < vector.size(); ++infoIndex) {
+                    auto equal = val == encoding.Encode(*(**vector.at(infoIndex)).update->values.at(index));
+                    auto context = encoding.Encode(*lookup.at(infoIndex).annotation.now);
+                    equalities.push_back(equal && context);
+                }
+                // for (const auto* other : vector) {
+                //     auto equal = val == encoding.Encode(*(**other).update->values.at(index));
+                //     auto context = encoding.Encode(?lookup.at(infoIndex).annotation.now);
+                //     equalities.push_back(equal && context);
+                // }
+                encoding.AddPremise(encoding.MakeOr(equalities));
+            }
+
+            result->Conjoin(std::move(future));
         }
     }
 
