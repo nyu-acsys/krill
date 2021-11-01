@@ -9,7 +9,6 @@
 using namespace plankton;
 
 constexpr const bool TABULATE_SUBROUTINES = true;
-constexpr const bool PRUNE_MACRO_POST = true;
 
 
 inline std::vector<std::unique_ptr<VariableExpression>>
@@ -74,19 +73,7 @@ void ProofGenerator::HandleMacroEpilog(const Macro& macro) {
     });
 
     // prune
-    if (PRUNE_MACRO_POST) {
-        for (const auto& annotation : current) {
-            if (!annotation) continue;
-            for (auto& other : current) {
-                if (!other) continue;
-                if (annotation.get() == other.get()) continue;
-                if (!solver.Implies(*annotation, *other)) continue;
-                DEBUG(" MACRO POST PRUNING " << *other << std::endl)
-                other.reset(nullptr);
-            }
-        }
-        plankton::RemoveIf(current, [](const auto& elem) { return !elem; });
-    }
+    PruneCurrent();
 }
 
 

@@ -120,7 +120,6 @@ struct FutureInfo {
 };
 
 inline std::optional<FutureInfo> MakeFutureInfo(Annotation& annotation, const FutureSuggestion& suggestion) {
-    DEBUG("MakeFutureInfo for " << annotation << std::endl)
     FutureInfo result(annotation, *suggestion.guard);
 
     // extract updates
@@ -303,17 +302,12 @@ PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const FutureSug
     if (!info || TargetUpdateIsCovered(*info)) return result;
 
     auto immutable = ExtractImmutableState(*info, *this);
-    DEBUG("  -- immutable: " << *immutable << std::endl)
 
     for (const auto* future : info->matchingFutures) {
-        DEBUG("  -- handling future: " << *future << std::endl)
         try {
             auto check = MakePostState(*info, *future, target, config.GetFlowValueType());
-            DEBUG("       check annotation: " << *check << std::endl)
             check->Conjoin(plankton::Copy(*immutable));
-            DEBUG("       check annotation with immutable: " << *check << std::endl)
             plankton::InlineAndSimplify(*check);
-            DEBUG("       check annotation simplified: " << *check << std::endl)
 
             auto post = Post(std::move(check), *target.command, false);
             plankton::MoveInto(std::move(post.effects), result.effects);
@@ -326,10 +320,8 @@ PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const FutureSug
         }
     }
 
-    DEBUG("    - resulting annotation pre filter: " << annotation << std::endl)
     FilterFutures(annotation);
     FilterEffects(result.effects);
-    DEBUG("    - resulting annotation: " << annotation << std::endl)
     DEBUG("    - resulting effects: " << std::endl) for (const auto& elem : result.effects) DEBUG("        - " << *elem << std::endl)
     return result;
 }

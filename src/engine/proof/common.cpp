@@ -64,8 +64,45 @@ void ProofGenerator::LeaveAllNestedScopes(const AstNode& node) {
     }
 }
 
-void ProofGenerator::ApplyTransformer(
-        const std::function<std::unique_ptr<Annotation>(std::unique_ptr<Annotation>)>& transformer) {
+void ProofGenerator::PruneCurrent() {
+    for (const auto& annotation : current) {
+        if (!annotation) continue;
+        for (auto& otherAnnotation : current) {
+            if (!otherAnnotation) continue;
+            if (annotation.get() == otherAnnotation.get()) continue;
+            if (!solver.Implies(*annotation, *otherAnnotation)) continue;
+            otherAnnotation.reset(nullptr);
+        }
+    }
+    plankton::RemoveIf(current, [](const auto& elem) { return !elem; });
+}
+
+inline bool SameReturns(const Return* command, const Return* other) {
+    if (command == other) return true;
+    if (!command || !other) return false;
+    if (command->expressions.size() != other->expressions.size()) return false;
+    for (std::size_t index = 0; index < command->expressions.size(); ++index) {
+        if (!plankton::SyntacticalEqual(*command->expressions.at(index), *other->expressions.at(index))) return false;
+    }
+    return true;
+}
+
+void ProofGenerator::PruneReturning() {
+    // TODO: avoid code duplication
+    for (const auto& [annotation, command] : returning) {
+        if (!annotation) continue;
+        for (auto& [otherAnnotation, otherCommand] : returning) {
+            if (!otherAnnotation) continue;
+            if (annotation.get() == otherAnnotation.get()) continue;
+            if (!SameReturns(command, otherCommand)) continue;
+            if (!solver.Implies(*annotation, *otherAnnotation)) continue;
+            otherAnnotation.reset(nullptr);
+        }
+    }
+    plankton::RemoveIf(returning, [](const auto& elem) { return !elem.first; });
+}
+
+void ProofGenerator::ApplyTransformer(const std::function<std::unique_ptr<Annotation>(std::unique_ptr<Annotation>)>& transformer) {
     if (current.empty()) return;
     for (auto& annotation : current) {
         annotation = transformer(std::move(annotation));

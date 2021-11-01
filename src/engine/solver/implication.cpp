@@ -122,7 +122,7 @@ bool Solver::Implies(const Annotation& premise, const Annotation& conclusion) co
     normalizedConclusion = plankton::Normalize(std::move(normalizedConclusion));
 
     if (SyntacticallyIncluded(*normalizedPremise, *normalizedConclusion)) return true;
-    DEBUG("== CHK IMP sem " << *normalizedPremise << " ==> " << *normalizedConclusion << std::endl)
+    // DEBUG("== CHK IMP sem " << *normalizedPremise << " ==> " << *normalizedConclusion << std::endl)
     return ResourcesMatch(*normalizedPremise, *normalizedConclusion) &&
            StackImplies(*normalizedPremise, *normalizedConclusion->now, config);
 }

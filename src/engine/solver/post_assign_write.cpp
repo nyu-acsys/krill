@@ -486,14 +486,14 @@ std::unique_ptr<Annotation> TryGetFromFuture(const Annotation& pre, const Memory
         decl = factory.GetFresh(decl.get().type, decl.get().order);
     };
     for (auto* memory : plankton::CollectMutable<SharedMemoryCore>(*result->now)) {
-        // result->Conjoin(std::make_unique<PastPredicate>(plankton::Copy(*memory)));
+        result->Conjoin(std::make_unique<PastPredicate>(plankton::Copy(*memory)));
         changeField(memory->flow->decl);
     }
     for (const auto& [memory, changedFields] : GetAliasChanges(*result, *update)) {
         for (const auto& field : changedFields) changeField(memory->fieldToValue.at(field)->decl);
     }
 
-    // perform actual update
+    // perform update
     for (std::size_t index = 0; index < update->fields.size(); ++index) {
         auto& field = *update->fields.at(index);
         auto& value = *update->values.at(index);

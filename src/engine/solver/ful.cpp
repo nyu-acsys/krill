@@ -10,9 +10,10 @@ using namespace plankton;
 
 
 inline std::unique_ptr<Annotation> AnnotationFromFormula(const Formula& formula) {
-    auto now = std::make_unique<SeparatingConjunction>();
-    now->Conjoin(plankton::Copy(formula));
-    return std::make_unique<Annotation>(std::move(now));
+    auto result = std::make_unique<Annotation>();
+    result->Conjoin(plankton::Copy(formula));
+    plankton::Simplify(*result);
+    return result;
 }
 
 struct FulfillmentFinder {

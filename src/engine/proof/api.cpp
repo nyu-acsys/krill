@@ -184,17 +184,18 @@ void ProofGenerator::HandleInterfaceFunction(const Function& function) {
 	DEBUG("############################################################" << std::endl)
 	DEBUG("############################################################" << std::endl)
 	DEBUG(std::endl)
- 
+
 	// reset
     insideAtomic = false;
     returning.clear();
     breaking.clear();
     current.clear();
-    
+
     // descent into function
     current.push_back(MakeInterfaceAnnotation(program, function, solver));
     function.Accept(*this);
-    
+    PruneReturning();
+
     // check post annotations
     DEBUG(std::endl << std::endl << "=== CHECKING POST ANNOTATION OF " << function.name << "  " << returning.size() << std::endl)
     for (auto& [annotation, command] : returning) {

@@ -75,10 +75,11 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 				lnext = rnext;
 			}
 			right = rnext;
+			k = right->val;
 			if (right == Tail) break;
 			rmark = right->marked;
 			rnext = right->next;
-			k = right->val;
+			// k = right->val; // wrong! must be read before the equality check with tail
 		} while (rmark || k < key);
 
 		// left and right are successors
