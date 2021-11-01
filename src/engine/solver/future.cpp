@@ -30,26 +30,51 @@ inline bool MatchesPremise(const FuturePredicate& future, const FuturePredicate&
 // Filter
 //
 
-inline bool SameUpdate(const FuturePredicate& future, const FuturePredicate& other, Encoding& encoding) {
-    auto vector = plankton::MakeVector<EExpr>(future.update->values.size());
-    for (std::size_t index = 0; index < future.update->values.size(); ++index) {
-        vector.push_back(encoding.Encode(*future.update->values.at(index)) == encoding.Encode(*other.update->values.at(index)));
+inline bool ContainsMemoryFor(const SymbolDeclaration& decl, const Formula& formula) {
+    struct MemChecker : public LogicListener {
+        const SymbolDeclaration& search;
+        bool found = false;
+        explicit MemChecker(const SymbolDeclaration& search) : search(search) {}
+        inline void Handle(const MemoryAxiom& object) { if (object.node->Decl() == search) found = true; }
+        void Visit(const LocalMemoryResource& object) override { Handle(object); }
+        void Visit(const SharedMemoryCore& object) override { Handle(object); }
+    };
+
+    MemChecker checker(decl);
+    formula.Accept(checker);
+    return checker.found;
+}
+
+inline bool Consumes(const FuturePredicate& consumer, const FuturePredicate& consumed, const Formula& now, Encoding& encoding) {
+    std::map<const SymbolDeclaration*, const SymbolDeclaration*> map;
+    for (std::size_t index = 0; index < consumer.update->values.size(); ++index) {
+        auto consumerVar = dynamic_cast<const SymbolicVariable*>(consumer.update->values.at(index).get());
+        auto consumedVar = dynamic_cast<const SymbolicVariable*>(consumed.update->values.at(index).get());
+        if (!consumerVar || !consumedVar) return false;
+        if (ContainsMemoryFor(consumedVar->Decl(), now)) return false;
+        map[&consumedVar->Decl()] = &consumerVar->Decl();
     }
-    return encoding.Implies(encoding.MakeAnd(vector));
+    auto renaming = [&map](const auto& decl) -> const SymbolDeclaration& {
+        auto find = map.find(&decl);
+        if (find != map.end()) return *find->second;
+        else return decl;
+    };
+
+    auto renamed = plankton::Copy(now);
+    plankton::RenameSymbols(*renamed, renaming);
+    return encoding.Implies(*renamed);
 }
 
 inline void FilterFutures(Annotation& annotation) {
-    // TODO: semantic filter
     Encoding encoding(*annotation.now);
-    for (auto it = annotation.future.begin(); it != annotation.future.end(); ++it) {
-        if (!*it) continue;
-        const auto& future = **it;
-        for (auto ot = std::next(it); ot != annotation.future.end(); ++ot) {
-            if (!*ot) continue;
-            auto& other = **ot;
-            if (!MatchesPremise(future, other)) continue;
-            if (!SameUpdate(future, other, encoding)) continue;
-            ot->reset(nullptr);
+    for (const auto& future : annotation.future) {
+        if (!future) continue;
+        for (auto& other : annotation.future) {
+            if (!other) continue;
+            if (future.get() == other.get()) continue;
+            if (!MatchesPremise(*future, *other)) continue;
+            if (!Consumes(*future, *other, *annotation.now, encoding)) continue;
+            other.reset(nullptr);
         }
     }
     plankton::RemoveIf(annotation.future, [](const auto& elem){ return !elem; });

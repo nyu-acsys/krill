@@ -33,13 +33,27 @@ std::unique_ptr<Annotation> Solver::PostEnter(std::unique_ptr<Annotation> pre, c
     return AddScope(std::move(pre), scope.variables);
 }
 
+inline std::set<const VariableDeclaration*> CollectVariables(const FuturePredicate& future) {
+    struct : public ProgramListener {
+        std::set<const VariableDeclaration*> result;
+        void Enter(const VariableDeclaration& object) override { result.insert(&object); }
+    } collector;
+    for (const auto& elem : future.guard->conjuncts) elem->Accept(collector);
+    for (const auto& elem : future.update->fields) elem->Accept(collector);
+    return std::move(collector.result);
+}
+
 inline std::unique_ptr<Annotation>
 RemoveScope(std::unique_ptr<Annotation> pre, const std::vector<std::unique_ptr<VariableDeclaration>>& scope) {
     if (scope.empty()) return pre;
     auto remove = plankton::Collect<EqualsToAxiom>(*pre->now, [&scope](const auto& resource){
-        return Any(scope, [&resource](const auto& decl){ return resource.Variable() == *decl; });
+        return plankton::Any(scope, [&resource](const auto& decl){ return resource.Variable() == *decl; });
     });
-    pre->now->RemoveConjunctsIf([&remove](const auto& formula){ return Membership(remove, &formula); });
+    pre->now->RemoveConjunctsIf([&remove](const auto& formula){ return plankton::Membership(remove, &formula); });
+    plankton::RemoveIf(pre->future, [&scope](const auto& future){
+        auto vars = CollectVariables(*future);
+        return plankton::Any(scope, [&vars](const auto& decl){ return plankton::Membership(vars, decl.get()); });
+    });
     return pre;
 }
 

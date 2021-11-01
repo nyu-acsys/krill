@@ -71,15 +71,15 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
             }
         }
     };
+    auto joinCurrent = [this,&improveFutures]() {
+        improveFutures();
+        auto join = solver.Join(std::move(current));
+        current.clear();
+        return join;
+    };
     
     // looping until fixed point
     if (!current.empty()) {
-        auto joinCurrent = [this,&improveFutures]() {
-            improveFutures();
-            auto join = solver.Join(std::move(current));
-            current.clear();
-            return join;
-        };
 
         std::size_t counter = 0;
         auto join = joinCurrent();
@@ -105,7 +105,9 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
     // post loop
     current = std::move(firstBreaking);
     MoveInto(std::move(breaking), current);
+    LeaveAllNestedScopes(stmt);
     improveFutures();
+
     breaking = std::move(breakingOuter);
     MoveInto(std::move(returningOuter), returning);
     MoveInto(std::move(newInterferenceOuter), newInterference);

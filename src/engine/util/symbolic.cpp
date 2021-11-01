@@ -27,7 +27,6 @@ struct ExpressionConverter : public BaseProgramVisitor {
 std::unique_ptr<SymbolicExpression> plankton::TryMakeSymbolic(const ValueExpression& expression, const Formula& context) {
     ExpressionConverter converter(context);
     expression.Accept(converter);
-    assert(converter.result);
     return std::move(converter.result);
 }
 

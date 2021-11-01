@@ -50,6 +50,20 @@ inline std::unique_ptr<FutureSuggestion> MakeDebugFuture(const Program& program)
 ProofGenerator::ProofGenerator(const Program& program, const SolverConfig& config)
         : program(program), solver(program, config), insideAtomic(false), debugFuture(MakeDebugFuture(program)) {}
 
+void ProofGenerator::LeaveAllNestedScopes(const AstNode& node) {
+    struct : public ProgramListener {
+        std::deque<const Scope*> result;
+        void Enter(const Scope& object) override { result.push_back(&object); }
+    } collector;
+    node.Accept(collector);
+
+    for (auto it = collector.result.rbegin(); it != collector.result.rend(); ++it) {
+        for (auto& annotation : current) {
+            annotation = solver.PostLeave(std::move(annotation), **it);
+        }
+    }
+}
+
 void ProofGenerator::ApplyTransformer(
         const std::function<std::unique_ptr<Annotation>(std::unique_ptr<Annotation>)>& transformer) {
     if (current.empty()) return;

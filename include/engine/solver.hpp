@@ -55,13 +55,15 @@ namespace plankton {
         
         [[nodiscard]] std::unique_ptr<Annotation> Join(std::deque<std::unique_ptr<Annotation>> annotations) const;
         [[nodiscard]] std::unique_ptr<Annotation> TryAddFulfillment(std::unique_ptr<Annotation> annotation) const;
-        [[nodiscard]] PostImage ImproveFuture(std::unique_ptr<Annotation> annotation, const FutureSuggestion& target) const;
 
         bool AddInterference(std::deque<std::unique_ptr<HeapEffect>> interference);
         [[nodiscard]] std::unique_ptr<Annotation> MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const;
 
         [[nodiscard]] bool IsUnsatisfiable(const Annotation& annotation) const;
         [[nodiscard]] bool Implies(const Annotation& premise, const Annotation& conclusion) const;
+
+        [[nodiscard]] PostImage ImproveFuture(std::unique_ptr<Annotation> annotation, const FutureSuggestion& target) const;
+        // TODO: the Solver should not decide when to call ImprovePast, should be done by the proof generating entity // TODO: past suggestions
         
         private:
             const SolverConfig& config;
