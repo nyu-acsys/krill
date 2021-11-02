@@ -311,8 +311,9 @@ EExpr Encoding::EncodeSimpleFlowRules(const Formula& formula, const SolverConfig
                 for (const auto* symbol : symbols) {
                     auto flowsOut = Encode(*config.GetOutflowContains(*memory, name, *symbol));
                     auto encSym = Encode(*symbol);
-                    auto rule = (inflowMemory(encSym) && flowsOut) >> inflowOther(encSym);
-                    result.push_back(rule);
+                    auto rule1 = (inflowMemory(encSym) && flowsOut) >> inflowOther(encSym);
+                    auto rule2 = (inflowMemory(encSym) && inflowOther(encSym)) >> flowsOut; // this relies on inflow uniqueness
+                    result.push_back(rule1 && rule2);
                 }
             }
         }

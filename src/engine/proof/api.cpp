@@ -80,6 +80,7 @@ void ProofGenerator::GenerateProof() {
     for (std::size_t counter = 0; counter < PROOF_ABORT_AFTER; ++counter) {
         program.Accept(*this);
         if (!ConsolidateNewInterference()) return;
+        throw std::logic_error("--- point du break ---"); // TODO: futures should give many effects => have a fast first pruning step in ConsolidateNewInterference
         macroPostTable.clear();
     }
     throw std::logic_error("Aborting: proof does not seem to stabilize."); // TODO: remove / better error handling
@@ -206,4 +207,6 @@ void ProofGenerator::HandleInterfaceFunction(const Function& function) {
         DEBUG("Linearizability fail for " << *command << "  in  " << *annotation << std::endl)
         throw std::logic_error("Could not establish linearizability for function '" + function.name + "'."); // TODO: better error handling
     }
+
+    throw std::logic_error("--- breakpoint ---");
 }

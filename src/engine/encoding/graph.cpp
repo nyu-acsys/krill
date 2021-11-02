@@ -123,6 +123,7 @@ EExpr Encoding::EncodeFlowRules(const FlowGraphNode& node) {
 }
 
 EExpr Encoding::EncodeKeysetDisjointness(const FlowGraph& graph, EMode mode) {
+    // TODO: this should be done only if the node-addresses are guaranteed to be distinct
     return EncodeForAll(graph.config.GetFlowValueType().sort, [this, &graph, mode](auto qv){
         auto keysets = plankton::MakeVector<EExpr>(graph.nodes.size());
         for (const auto& node : graph.nodes) keysets.push_back(Encode(node.Keyset(mode))(qv));
