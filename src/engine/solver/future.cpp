@@ -65,21 +65,6 @@ inline bool Consumes(const FuturePredicate& consumer, const FuturePredicate& con
     return encoding.Implies(*renamed);
 }
 
-inline void FilterFutures(Annotation& annotation) {
-    Encoding encoding(*annotation.now);
-    for (const auto& future : annotation.future) {
-        if (!future) continue;
-        for (auto& other : annotation.future) {
-            if (!other) continue;
-            if (future.get() == other.get()) continue;
-            if (!MatchesPremise(*future, *other)) continue;
-            if (!Consumes(*future, *other, *annotation.now, encoding)) continue;
-            other.reset(nullptr);
-        }
-    }
-    plankton::RemoveIf(annotation.future, [](const auto& elem){ return !elem; });
-}
-
 inline void FilterEffects(std::deque<std::unique_ptr<HeapEffect>>& effects) {
     for (auto& effect : effects) {
         SymbolFactory factory;
@@ -103,38 +88,55 @@ inline void FilterEffects(std::deque<std::unique_ptr<HeapEffect>>& effects) {
     plankton::RemoveIf(effects, [](const auto& elem){ return !elem; });
 }
 
+void Solver::PruneFuture(Annotation& annotation) const {
+    Encoding encoding(*annotation.now);
+    for (const auto& future : annotation.future) {
+        if (!future) continue;
+        for (auto& other : annotation.future) {
+            if (!other) continue;
+            if (future.get() == other.get()) continue;
+            if (!MatchesPremise(*future, *other)) continue;
+            if (!Consumes(*future, *other, *annotation.now, encoding)) continue;
+            other.reset(nullptr);
+        }
+    }
+    plankton::RemoveIf(annotation.future, [](const auto& elem){ return !elem; });
+}
+
 
 //
 // Find new futures
 //
 
 struct FutureInfo {
+    const SolverConfig& config;
     Annotation& annotation;
     const Guard& guard;
     SymbolFactory factory;
     std::unique_ptr<Update> targetUpdate;
     std::deque<const FuturePredicate*> matchingFutures;
 
-    explicit FutureInfo(Annotation& annotation, const Guard& guard) : annotation(annotation), guard(guard) {}
-    FutureInfo(FutureInfo&& other) = default;
+    explicit FutureInfo(const SolverConfig& config, Annotation& annotation, const Guard& guard)
+            : config(config), annotation(annotation), guard(guard), factory(annotation) {}
+    FutureInfo(const FutureInfo& other) = delete;
 };
 
-inline std::optional<FutureInfo> MakeFutureInfo(Annotation& annotation, const FutureSuggestion& suggestion) {
-    FutureInfo result(annotation, *suggestion.guard);
+inline std::unique_ptr<FutureInfo> MakeFutureInfo(Annotation& annotation, const FutureSuggestion& suggestion, const SolverConfig& config) {
+    auto result = std::make_unique<FutureInfo>(config, annotation, *suggestion.guard);
 
     // extract updates
-    result.targetUpdate = std::make_unique<Update>();
+    result->targetUpdate = std::make_unique<Update>();
     for (std::size_t index = 0; index < suggestion.command->lhs.size(); ++index) {
         auto newValue = plankton::TryMakeSymbolic(*suggestion.command->rhs.at(index), *annotation.now);
-        if (!newValue) return std::nullopt;
-        result.targetUpdate->fields.push_back(plankton::Copy(*suggestion.command->lhs.at(index)));
-        result.targetUpdate->values.push_back(std::move(newValue));
+        if (!newValue) return nullptr;
+        result->targetUpdate->fields.push_back(plankton::Copy(*suggestion.command->lhs.at(index)));
+        result->targetUpdate->values.push_back(std::move(newValue));
     }
 
     // find matching futures
     for (const auto& future : annotation.future) {
         if (!MatchesPremise(suggestion, *future)) continue;
-        result.matchingFutures.push_back(future.get());
+        result->matchingFutures.push_back(future.get());
     }
 
     return result;
@@ -149,19 +151,6 @@ inline bool TargetUpdateIsCovered(const FutureInfo& info) {
         }
         return true;
     });
-}
-
-inline void AddTrivialFuture(Annotation& annotation, const FutureSuggestion& target) {
-    auto update = std::make_unique<Update>();
-    for (const auto& field : target.command->lhs) {
-        auto value = plankton::TryMakeSymbolic(*field, *annotation.now);
-        if (!value) return;
-        update->fields.push_back(plankton::Copy(*field));
-        update->values.push_back(std::move(value));
-    }
-
-    auto result = std::make_unique<FuturePredicate>(std::move(update), plankton::Copy(*target.guard));
-    annotation.future.push_back(std::move(result));
 }
 
 inline std::unique_ptr<SeparatingConjunction> ExtractStack(const Annotation& annotation) {
@@ -195,16 +184,19 @@ GetImmutabilityModification(const Annotation& annotation, const SymbolDeclaratio
 
 inline std::unique_ptr<SharedMemoryCore>
 MakeImmutable(const SharedMemoryCore& memory, const Formula& context, const Solver& solver, SymbolFactory& factory) {
+    VariableDeclaration dummy("__future_ptr__", memory.node->Type(), false);
     auto annotation = std::make_unique<Annotation>();
+    annotation->Conjoin(std::make_unique<EqualsToAxiom>(dummy, memory.node->Decl()));
     annotation->Conjoin(plankton::Copy(memory));
     annotation->Conjoin(std::make_unique<PastPredicate>(plankton::Copy(memory)));
     annotation->Conjoin(plankton::Copy(context));
     plankton::Simplify(*annotation);
-    annotation = solver.MakeInterferenceStable(std::move(annotation));
+    annotation = solver.MakeInterferenceStable(std::move(annotation)); // TODO: avoid ImprovePast
 
-    // TODO: this is really ugly and fragile
+    // TODO: this is really ugly
+    auto& address = plankton::GetResource(dummy, *annotation->now).Value();
+    auto [now, past] = GetImmutabilityModification(*annotation, address);
     auto result = plankton::Copy(memory);
-    auto [now, past] = GetImmutabilityModification(*annotation, memory.node->Decl());
     auto makeImmutable = [&factory](auto& sym){ sym->decl = factory.GetFresh(sym->Type(), sym->Order()); };
     if (now->flow->Decl() != past->flow->Decl()) makeImmutable(result->flow);
     for (const auto& [field, value] : now->fieldToValue) {
@@ -240,8 +232,64 @@ inline std::unique_ptr<StackAxiom> MakeEq(const SymbolDeclaration& decl, const S
     return std::make_unique<StackAxiom>(BinaryOperator::EQ, std::make_unique<SymbolicVariable>(decl), plankton::Copy(expr));
 }
 
-inline std::unique_ptr<Annotation> MakePostState(FutureInfo& info, const FuturePredicate& future,
-                                                 const FutureSuggestion& target, const Type& flowType) {
+inline std::unique_ptr<SeparatingConjunction> MakeGuardSymbolic(const Guard& guard, const Formula& state) {
+    auto result = std::make_unique<SeparatingConjunction>();
+    for (const auto& conjunct : guard.conjuncts) {
+        auto lhs = plankton::TryMakeSymbolic(*conjunct->lhs, state);
+        auto rhs = plankton::TryMakeSymbolic(*conjunct->rhs, state);
+        if (!lhs || !rhs) return nullptr;
+        result->Conjoin(std::make_unique<StackAxiom>(conjunct->op, std::move(lhs), std::move(rhs)));
+    }
+    return result;
+}
+
+inline void AddTrivialFuture(Annotation& annotation, const FutureSuggestion& target) {
+    DEBUG(" adding trivial future for annotation " << annotation << std::endl)
+
+    auto guard = MakeGuardSymbolic(*target.guard, *annotation.now);
+    if (!guard) return; // variables from target are out of scope
+    auto symbols = plankton::Collect<SymbolDeclaration>(*guard);
+    Encoding encoding(*guard);
+    bool unsat = encoding.ImpliesFalse();
+    auto getAlias = [&symbols,&encoding,unsat](const auto& expr) -> const SymbolDeclaration* {
+        if (unsat) return nullptr;
+        auto variable = dynamic_cast<const SymbolicVariable*>(&expr);
+        if (!variable) return nullptr;
+        auto& decl = variable->Decl();
+
+        auto declEnc = encoding.Encode(decl);
+        std::set<const SymbolDeclaration*> result;
+        for (const auto* symbol : symbols) {
+            if (*symbol == decl) continue;
+            if (symbol->type != decl.type) continue;
+            auto symbolEnc = encoding.Encode(*symbol);
+            if (encoding.Implies(declEnc == symbolEnc)) return symbol;
+        }
+        return nullptr;
+    };
+
+    auto update = std::make_unique<Update>();
+    for (const auto& field : target.command->lhs) {
+        DEBUG("  [trivial future] looking at field " << *field << std::endl)
+        auto value = plankton::TryMakeSymbolic(*field, *annotation.now);
+        DEBUG("  [trivial future]      - value= " << value.get() << std::endl)
+        if (!value) return;
+        DEBUG("  [trivial future]      - value= " << *value << std::endl)
+        if (auto alias = getAlias(*value)) {
+            DEBUG("  [trivial future]      - alias= " << *alias << std::endl)
+            value = std::make_unique<SymbolicVariable>(*alias);
+        }
+        DEBUG("  [trivial future]      - final value= " << *value << std::endl)
+        update->fields.push_back(plankton::Copy(*field));
+        update->values.push_back(std::move(value));
+    }
+
+    auto result = std::make_unique<FuturePredicate>(std::move(update), plankton::Copy(*target.guard));
+    DEBUG("  !the trivial future is: " << *result << std::endl)
+    annotation.future.push_back(std::move(result));
+}
+
+inline std::unique_ptr<Annotation> MakePostState(FutureInfo& info, const FuturePredicate& future, const FutureSuggestion& target) {
     // find variables and dereferences
     struct : public ProgramListener {
         std::set<const VariableDeclaration*> variables;
@@ -266,14 +314,12 @@ inline std::unique_ptr<Annotation> MakePostState(FutureInfo& info, const FutureP
     // make variables and dereferences accessible
     auto result = std::make_unique<Annotation>();
     for (const auto* res : resources) result->Conjoin(plankton::Copy(*res));
-    for (const auto* adr : addresses) result->Conjoin(plankton::MakeSharedMemory(*adr, flowType, info.factory));
+    for (const auto* adr : addresses) result->Conjoin(plankton::MakeSharedMemory(*adr, info.config.GetFlowValueType(), info.factory));
 
     // add guard knowledge
-    for (const auto& guard : future.guard->conjuncts) {
-        auto lhs = plankton::MakeSymbolic(*guard->lhs, *result->now);
-        auto rhs = plankton::MakeSymbolic(*guard->rhs, *result->now);
-        result->Conjoin(std::make_unique<StackAxiom>(guard->op, std::move(lhs), std::move(rhs)));
-    }
+    auto guard = MakeGuardSymbolic(*future.guard, *result->now);
+    assert(guard);
+    result->Conjoin(std::move(guard));
 
     // apply updates
     for (std::size_t index = 0; index < future.update->fields.size(); ++index) {
@@ -285,6 +331,7 @@ inline std::unique_ptr<Annotation> MakePostState(FutureInfo& info, const FutureP
         result->Conjoin(MakeEq(value.Decl(), rhs));
     }
 
+    plankton::Simplify(*result);
     return result;
 }
 
@@ -295,19 +342,24 @@ PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const FutureSug
 
     PostImage result(std::move(pre));
     auto& annotation = *result.annotations.front();
+    ImprovePast(annotation);
     AddTrivialFuture(annotation, target);
 
     plankton::InlineAndSimplify(annotation);
-    auto info = MakeFutureInfo(annotation, target);
+    auto info = MakeFutureInfo(annotation, target, config);
     if (!info || TargetUpdateIsCovered(*info)) return result;
-
     auto immutable = ExtractImmutableState(*info, *this);
 
+    DEBUG("== still in Solver::ImproveFuture for " << annotation << std::endl)
+    DEBUG("   immutable = " << *immutable << std::endl)
     for (const auto* future : info->matchingFutures) {
+        DEBUG("   -- future: " << *future << std::endl)
         try {
-            auto check = MakePostState(*info, *future, target, config.GetFlowValueType());
+            auto check = MakePostState(*info, *future, target);
+            DEBUG("        ** post state: " << *check << std::endl)
             check->Conjoin(plankton::Copy(*immutable));
             plankton::InlineAndSimplify(*check);
+            DEBUG("        ** post state with immutable, inlined: " << *check << std::endl)
 
             auto post = Post(std::move(check), *target.command, false);
             plankton::MoveInto(std::move(post.effects), result.effects);
@@ -320,7 +372,7 @@ PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const FutureSug
         }
     }
 
-    FilterFutures(annotation);
+    PruneFuture(annotation);
     FilterEffects(result.effects);
     DEBUG("    - resulting effects: " << std::endl) for (const auto& elem : result.effects) DEBUG("        - " << *elem << std::endl)
     return result;

@@ -301,8 +301,6 @@ Update::Update(std::vector<std::unique_ptr<Dereference>> fields_, std::vector<st
     assert(CheckUpdates(fields, values));
 }
 
-FuturePredicate::FuturePredicate() = default;
-
 FuturePredicate::FuturePredicate(std::unique_ptr<Update> update_, std::unique_ptr<Guard> guard_)
         : guard(std::move(guard_)), update(std::move(update_)) {
     assert(guard);

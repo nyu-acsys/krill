@@ -32,8 +32,8 @@ struct InterferenceInfo {
         plankton::RenameSymbols(*annotation, factory);
 
         DEBUG("<<INTERFERENCE>>" << std::endl)
-        for (const auto& effect : interference) DEBUG("  -- effect: " << *effect << std::endl)
-        DEBUG(" -- pre: " << *annotation << std::endl;)
+        // for (const auto& effect : interference) DEBUG("  -- effect: " << *effect << std::endl)
+        // DEBUG(" -- pre: " << *annotation << std::endl;)
     }
 
     inline void Handle(SharedMemoryCore& memory, const HeapEffect& effect) {
@@ -81,7 +81,7 @@ struct InterferenceInfo {
             annotation->Conjoin(std::make_unique<PastPredicate>(std::move(memory)));
         }
         
-        DEBUG(" -- post: " << *annotation << std::endl;)
+        // DEBUG(" -- post: " << *annotation << std::endl;)
     }
 
     inline void Postprocess() {

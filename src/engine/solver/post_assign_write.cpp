@@ -485,28 +485,19 @@ inline std::unique_ptr<StackAxiom> MakeEq(const SymbolDeclaration& decl, const S
     return std::make_unique<StackAxiom>(BinaryOperator::EQ, std::make_unique<SymbolicVariable>(decl), plankton::Copy(expr));
 }
 
-std::unique_ptr<Annotation> TryGetFromFuture(const Annotation& pre, const MemoryWrite& cmd, const SolverConfig& config) {
+std::unique_ptr<Annotation> TryGetFromFuture(const Annotation& pre, const MemoryWrite& cmd) {
     auto update = MakeUpdate(*pre.now, cmd);
     if (!update) return nullptr;
     if (!CoveredByFuture(pre, *update)) return nullptr;
 
     auto result = plankton::Copy(pre);
     SymbolFactory factory(*result);
-    // plankton::ExtendStack(*result, config, ExtensionPolicy::FAST);
-    DEBUG(" pre after stack extension: " << *result << std::endl)
 
     // update all flow fields and fields potentially affected by the update
     auto changeField = [&factory](auto& decl){
         decl = factory.GetFresh(decl.get().type, decl.get().order);
     };
-    auto& root = plankton::Evaluate(*cmd.lhs.at(0)->variable, *result->now);
     for (auto* memory : plankton::CollectMutable<SharedMemoryCore>(*result->now)) {
-        // result->Conjoin(std::make_unique<PastPredicate>(plankton::Copy(*memory)));
-        // if (memory->node->Decl() == root) {
-        //     DEBUG(" skipping flow update on " << memory->node->Decl().name << std::endl)
-        //     continue; // TODO: <<<<==================================================================================================================||||| debug
-        // }
-        // DEBUG(" flow update on " << memory->node->Decl().name << std::endl)
         changeField(memory->flow->decl);
     }
     for (const auto& [memory, changedFields] : GetAliasChanges(*result, *update)) {
@@ -524,7 +515,6 @@ std::unique_ptr<Annotation> TryGetFromFuture(const Annotation& pre, const Memory
         result->Conjoin(MakeEq(newValue, value));
     }
 
-    // plankton::ExtendStack(*result, config, ExtensionPolicy::FAST);
     plankton::InlineAndSimplify(*result);
     return result;
 }
@@ -542,13 +532,14 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
     // TODO: filter out noop assignments
 
     if (useFuture && !pre->future.empty()) {
-        if (auto fromFuture = TryGetFromFuture(*pre, cmd, config)) {
+        if (auto fromFuture = TryGetFromFuture(*pre, cmd)) {
             DEBUG("POST result (from future) for " << cmd << " " << *fromFuture << std::endl)
             return PostImage(std::move(fromFuture));
         }
     }
 
     PostImageInfo info(std::move(pre), cmd, config);
+    assert(!info.encoding.ImpliesFalse());
     CheckPublishing(info);
     CheckReachability(info);
     CheckFlowCoverage(info);

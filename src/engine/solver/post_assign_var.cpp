@@ -20,7 +20,7 @@ std::set<const VariableDeclaration*> CollectVariables(const FuturePredicate& fut
 
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const VariableAssignment& cmd) const {
     MEASURE("Solver::Post (VariableAssignment)")
-    DEBUG("POST for " << *pre << " " << cmd << std::endl)
+    DEBUG("POST for " << *pre << " " << cmd << std::flush)
 
     assert(cmd.lhs.size() == cmd.rhs.size());
     PrepareAccess(*pre, cmd); // TODO: ensure no shared variable is updated
@@ -56,6 +56,7 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const VariableAssignment
     }
     
     plankton::InlineAndSimplify(*pre);
+    DEBUG("// post = " << *pre << std::endl << std::endl)
     // TODO: extend stack? expand memory? find fulfillments?
     return PostImage(std::move(pre));
 }

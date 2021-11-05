@@ -72,6 +72,12 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
         }
     };
     auto joinCurrent = [this,&improveFutures]() {
+        DEBUG(std::endl << std::endl)
+        DEBUG("@@@ about to join @@@")
+        for (const auto& elem : current) DEBUG(*elem)
+        DEBUG(std::endl << std::endl << std::endl)
+
+
         improveFutures();
         auto join = solver.Join(std::move(current));
         current.clear();

@@ -76,36 +76,64 @@ inline EffectPairDeque ComputeEffectImplications(const EffectPairDeque& effectPa
 // Adding new interference
 //
 
-inline bool IsEffectEmpty(const std::unique_ptr<HeapEffect>& effect) {
-    assert(effect->pre->node->Type() == effect->post->node->Type());
-    if (effect->pre->flow->Decl() != effect->post->flow->Decl()) return false;
-    for (const auto& [field, value] : effect->pre->fieldToValue) {
-        if (value->Decl() != effect->post->fieldToValue.at(field)->Decl()) return false;
+inline void RenameEffect(HeapEffect& effect, SymbolFactory& factory) {
+    auto renaming = plankton::MakeDefaultRenaming(factory);
+    plankton::RenameSymbols(*effect.pre, renaming);
+    plankton::RenameSymbols(*effect.post, renaming);
+    plankton::RenameSymbols(*effect.context, renaming);
+}
+
+inline bool IsEffectEmpty(const HeapEffect& effect) {
+    assert(effect.pre->node->Type() == effect.post->node->Type());
+    if (effect.pre->flow->Decl() != effect.post->flow->Decl()) return false;
+    for (const auto& [field, value] : effect.pre->fieldToValue) {
+        if (value->Decl() != effect.post->fieldToValue.at(field)->Decl()) return false;
     }
     return true;
 }
 
-inline void RenameEffects(std::deque<std::unique_ptr<HeapEffect>>& effects,
-                          const std::deque<std::unique_ptr<HeapEffect>>& interference) {
+inline bool AreEffectsEqual(const HeapEffect& effect, const HeapEffect& other) {
+    return plankton::SyntacticalEqual(*effect.pre, *other.pre)
+           && plankton::SyntacticalEqual(*effect.post, *other.post)
+           && plankton::SyntacticalEqual(*effect.context, *other.context);
+}
+
+inline void QuickFilter(std::deque<std::unique_ptr<HeapEffect>>& effects) {
+    for (auto& effect : effects) {
+        SymbolFactory factory;
+        RenameEffect(*effect, factory);
+    }
+
+    for (auto& effect : effects) {
+        if (!IsEffectEmpty(*effect)) continue;
+        effect.reset(nullptr);
+    }
+    for (auto it = effects.begin(); it != effects.end(); ++it) {
+        if (!*it) continue;
+        for (auto ot = std::next(it); ot != effects.end(); ++ot) {
+            if (!*ot) continue;
+            if (!AreEffectsEqual(**it, **ot)) continue;
+            ot->reset(nullptr);
+        }
+    }
+
+    plankton::RemoveIf(effects, [](const auto& elem) { return !elem; });
+}
+
+inline void RenameEffects(std::deque<std::unique_ptr<HeapEffect>>& effects, const std::deque<std::unique_ptr<HeapEffect>>& interference) {
     SymbolFactory factory;
     plankton::AvoidEffectSymbols(factory, interference);
-    
-    for (auto& effect : effects) {
-        auto renaming = plankton::MakeDefaultRenaming(factory);
-        plankton::RenameSymbols(*effect->pre, renaming);
-        plankton::RenameSymbols(*effect->post, renaming);
-        plankton::RenameSymbols(*effect->context, renaming);
-    }
+    for (auto& effect : effects) RenameEffect(*effect, factory);
 }
 
 bool Solver::AddInterference(std::deque<std::unique_ptr<HeapEffect>> effects) {
+    DEBUG("Solver::AddInterference (" << effects.size() << ")" << std::endl)
     MEASURE("Solver::AddInterference")
 
-    // prune trivial noop interference
-    plankton::RemoveIf(effects, IsEffectEmpty);
+    // preprocess
+    QuickFilter(effects);
+    DEBUG("Number of effects after filter: " << effects.size() << std::endl)
     if (effects.empty()) return false;
-    
-    // rename to avoid name clashes
     RenameEffects(effects, interference);
     
     // generate all pairs of effects and check implication, order matters

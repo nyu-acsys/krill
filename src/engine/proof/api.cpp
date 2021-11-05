@@ -10,59 +10,59 @@ using namespace plankton;
 constexpr std::size_t PROOF_ABORT_AFTER = 7;
 
 
-// inline std::unique_ptr<HeapEffect> MakeDummyEffect(SymbolFactory& factory, const Type& nodeType) {
-//     auto pre = plankton::MakeSharedMemory(factory.GetFreshFO(nodeType), Type::Data(), factory);
-//     auto post = plankton::Copy(*pre);
-//     auto context = std::make_unique<SeparatingConjunction>();
-//     return std::make_unique<HeapEffect>(std::move(pre), std::move(post), std::move(context));
-// }
-//
-// inline std::unique_ptr<HeapEffect> MakeDummyEffect1(SymbolFactory& factory, const Type& nodeType) {
-//     // [ x |=> G(inflow=A, marked=b, next=c, val=d) ~~> x |=> G(inflow=A, marked=b, next=c', val=d) | A != ∅ * b == false * c != nullptr * d < ∞ ]
-//     auto eff = MakeDummyEffect(factory, nodeType);
-//     eff->post->fieldToValue.at("next") = std::make_unique<SymbolicVariable>(factory.GetFreshFO(nodeType));
-//     auto ctx = std::make_unique<SeparatingConjunction>();
-//     ctx->Conjoin(std::make_unique<InflowEmptinessAxiom>(eff->pre->flow->Decl(), false));
-//     ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::EQ, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("marked")->Decl()), std::make_unique<SymbolicBool>(false)));
-//     ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::NEQ, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("next")->Decl()), std::make_unique<SymbolicNull>()));
-//     ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::LT, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("val")->Decl()), std::make_unique<SymbolicMax>()));
-//     eff->context = std::move(ctx);
-//     return eff;
-// }
-//
-// inline std::unique_ptr<HeapEffect> MakeDummyEffect2(SymbolFactory& factory, const Type& nodeType) {
-//     // [ x |=> G(inflow=A, marked=b, next=c, val=d) ~~> x |=> G(inflow=A, marked=b', next=c, val=d) | A != ∅ * b == false * c != nullptr * d > -∞ * d < ∞ ]
-//     auto eff = MakeDummyEffect(factory, nodeType);
-//     eff->post->fieldToValue.at("marked") = std::make_unique<SymbolicVariable>(factory.GetFreshFO(Type::Bool()));
-//     auto ctx = std::make_unique<SeparatingConjunction>();
-//     ctx->Conjoin(std::make_unique<InflowEmptinessAxiom>(eff->pre->flow->Decl(), false));
-//     ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::EQ, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("marked")->Decl()), std::make_unique<SymbolicBool>(false)));
-//     ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::NEQ, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("next")->Decl()), std::make_unique<SymbolicNull>()));
-//     ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::GT, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("val")->Decl()), std::make_unique<SymbolicMin>()));
-//     ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::LT, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("val")->Decl()), std::make_unique<SymbolicMax>()));
-//     eff->context = std::move(ctx);
-//     return eff;
-// }
-//
-// inline std::unique_ptr<HeapEffect> MakeDummyEffect3(SymbolFactory& factory, const Type& nodeType) {
-//     // [ x |=> G(inflow=A, marked=b, next=c, val=d) ~~> x |=> G(inflow=A', marked=b, next=c, val=d) | A != ∅ * d > -∞ ]
-//     auto eff = MakeDummyEffect(factory, nodeType);
-//     eff->post->flow = std::make_unique<SymbolicVariable>(factory.GetFreshSO(Type::Data()));
-//     auto ctx = std::make_unique<SeparatingConjunction>();
-//     ctx->Conjoin(std::make_unique<InflowEmptinessAxiom>(eff->pre->flow->Decl(), false));
-//     ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::GT, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("val")->Decl()), std::make_unique<SymbolicMin>()));
-//     eff->context = std::move(ctx);
-//     return eff;
-// }
-//
-// inline std::deque<std::unique_ptr<HeapEffect>> MakeDummyInterference(const Type& nodeType) {
-//     SymbolFactory factory;
-//     std::deque<std::unique_ptr<HeapEffect>> result;
-//     result.push_back(MakeDummyEffect1(factory, nodeType));
-//     result.push_back(MakeDummyEffect2(factory, nodeType));
-//     result.push_back(MakeDummyEffect3(factory, nodeType));
-//     return result;
-// }
+inline std::unique_ptr<HeapEffect> MakeDummyEffect(SymbolFactory& factory, const Type& nodeType) {
+    auto pre = plankton::MakeSharedMemory(factory.GetFreshFO(nodeType), Type::Data(), factory);
+    auto post = plankton::Copy(*pre);
+    auto context = std::make_unique<SeparatingConjunction>();
+    return std::make_unique<HeapEffect>(std::move(pre), std::move(post), std::move(context));
+}
+
+inline std::unique_ptr<HeapEffect> MakeDummyEffect1(SymbolFactory& factory, const Type& nodeType) {
+    // [ x |=> G(inflow=A, marked=b, next=c, val=d) ~~> x |=> G(inflow=A, marked=b, next=c', val=d) | A != ∅ * b == false * c != nullptr * d < ∞ ]
+    auto eff = MakeDummyEffect(factory, nodeType);
+    eff->post->fieldToValue.at("next") = std::make_unique<SymbolicVariable>(factory.GetFreshFO(nodeType));
+    auto ctx = std::make_unique<SeparatingConjunction>();
+    ctx->Conjoin(std::make_unique<InflowEmptinessAxiom>(eff->pre->flow->Decl(), false));
+    ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::EQ, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("marked")->Decl()), std::make_unique<SymbolicBool>(false)));
+    ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::NEQ, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("next")->Decl()), std::make_unique<SymbolicNull>()));
+    ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::LT, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("val")->Decl()), std::make_unique<SymbolicMax>()));
+    eff->context = std::move(ctx);
+    return eff;
+}
+
+inline std::unique_ptr<HeapEffect> MakeDummyEffect2(SymbolFactory& factory, const Type& nodeType) {
+    // [ x |=> G(inflow=A, marked=b, next=c, val=d) ~~> x |=> G(inflow=A, marked=b', next=c, val=d) | A != ∅ * b == false * c != nullptr * d > -∞ * d < ∞ ]
+    auto eff = MakeDummyEffect(factory, nodeType);
+    eff->post->fieldToValue.at("marked") = std::make_unique<SymbolicVariable>(factory.GetFreshFO(Type::Bool()));
+    auto ctx = std::make_unique<SeparatingConjunction>();
+    ctx->Conjoin(std::make_unique<InflowEmptinessAxiom>(eff->pre->flow->Decl(), false));
+    ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::EQ, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("marked")->Decl()), std::make_unique<SymbolicBool>(false)));
+    ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::NEQ, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("next")->Decl()), std::make_unique<SymbolicNull>()));
+    ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::GT, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("val")->Decl()), std::make_unique<SymbolicMin>()));
+    ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::LT, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("val")->Decl()), std::make_unique<SymbolicMax>()));
+    eff->context = std::move(ctx);
+    return eff;
+}
+
+inline std::unique_ptr<HeapEffect> MakeDummyEffect3(SymbolFactory& factory, const Type& nodeType) {
+    // [ x |=> G(inflow=A, marked=b, next=c, val=d) ~~> x |=> G(inflow=A', marked=b, next=c, val=d) | A != ∅ * d > -∞ ]
+    auto eff = MakeDummyEffect(factory, nodeType);
+    eff->post->flow = std::make_unique<SymbolicVariable>(factory.GetFreshSO(Type::Data()));
+    auto ctx = std::make_unique<SeparatingConjunction>();
+    ctx->Conjoin(std::make_unique<InflowEmptinessAxiom>(eff->pre->flow->Decl(), false));
+    ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::GT, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("val")->Decl()), std::make_unique<SymbolicMin>()));
+    eff->context = std::move(ctx);
+    return eff;
+}
+
+inline std::deque<std::unique_ptr<HeapEffect>> MakeDummyInterference(const Type& nodeType) {
+    SymbolFactory factory;
+    std::deque<std::unique_ptr<HeapEffect>> result;
+    result.push_back(MakeDummyEffect1(factory, nodeType));
+    result.push_back(MakeDummyEffect2(factory, nodeType));
+    result.push_back(MakeDummyEffect3(factory, nodeType));
+    return result;
+}
 
 
 //
@@ -71,8 +71,8 @@ constexpr std::size_t PROOF_ABORT_AFTER = 7;
 
 void ProofGenerator::GenerateProof() {
     // TODO: remove debug
-    // newInterference = MakeDummyInterference(*program.types.at(0));
-    // ConsolidateNewInterference();
+    newInterference = MakeDummyInterference(*program.types.at(0));
+    ConsolidateNewInterference();
 
     // TODO: check initializer
     
@@ -80,6 +80,7 @@ void ProofGenerator::GenerateProof() {
     for (std::size_t counter = 0; counter < PROOF_ABORT_AFTER; ++counter) {
         program.Accept(*this);
         if (!ConsolidateNewInterference()) return;
+
         throw std::logic_error("--- point du break ---"); // TODO: futures should give many effects => have a fast first pruning step in ConsolidateNewInterference
         macroPostTable.clear();
     }

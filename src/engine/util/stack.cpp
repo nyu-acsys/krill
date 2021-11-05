@@ -153,10 +153,21 @@ std::deque<std::unique_ptr<Axiom>> plankton::MakeStackCandidates(const LogicObje
     return result;
 }
 
+#include "util/log.hpp"
 void plankton::ExtendStack(Annotation& annotation, Encoding& encoding, ExtensionPolicy policy) {
-    Generator generator(policy);
-    generator.AddSymbolsFrom(annotation);
-    auto candidates = generator.Generate();
+    // Generator generator(policy);
+    // generator.AddSymbolsFrom(annotation);
+    // auto candidates = generator.Generate();
+    auto candidates = plankton::MakeStackCandidates(*annotation.now, policy);
+    for (const auto& past : annotation.past) {
+        auto pastCandidates = plankton::MakeStackCandidates(*annotation.now, *past, policy);
+        plankton::MoveInto(std::move(pastCandidates), candidates);
+    }
+    for (const auto& future : annotation.future) {
+        auto futureCandidates = plankton::MakeStackCandidates(*annotation.now, *future, policy);
+        plankton::MoveInto(std::move(futureCandidates), candidates);
+    }
+    DEBUG("plankton::ExtendStack for " << candidates.size() << " candidates" << std::endl)
     
     for (auto& candidate : candidates) {
         encoding.AddCheck(encoding.Encode(*candidate), [&candidate,&annotation](bool holds){

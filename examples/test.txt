@@ -16,7 +16,8 @@ def @contains(Node* node, data_t key) {
 }
 
 def @outflow[next](Node* node, data_t key) {
-    !node->marked ==> node->val < key
+    // !node->marked ==> node->val < key
+    node->val < key
 }
 
 def @invariant[local](Node* x) {
@@ -67,9 +68,10 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 
 		// traverse
 		right = Head;
-		rmark = Head->marked;
-		rnext = Head->next;
+		<rmark, rnext> = <Head->marked, Head->next>;
+		// k = right->val; // debug
 		do {
+		    assume(rmark || k < key); // debug
 			if (!rmark) {
 				left = right;
 				lnext = rnext;
@@ -77,9 +79,8 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 			right = rnext;
 			k = right->val;
 			if (right == Tail) break;
-			rmark = right->marked;
-			rnext = right->next;
-			// k = right->val; // wrong! must be read before the equality check with tail
+			<rmark, rnext> = <right->marked, right->next>; // if separated, needs interpolation after reading right->next
+			// k = right->val; // wrong! must be read before the equality check against Tail
 		} while (rmark || k < key);
 
 		// left and right are successors
@@ -96,6 +97,14 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 			}
 		}
 	}
+}
+
+bool contains(data_t key) {
+	Node* left, right;
+	data_t k;
+
+	<left, right, k> = locate(key);
+	return k == key;
 }
 
 bool add(data_t key) {
@@ -120,14 +129,6 @@ bool add(data_t key) {
 			}
 		}
 	}
-}
-
-bool contains(data_t key) {
-	Node* left, right;
-	data_t k;
-
-	<left, right, k> = locate(key);
-	return k == key;
 }
 
 bool remove(data_t key) {

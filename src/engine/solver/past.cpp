@@ -40,11 +40,11 @@ void FilterPasts(Annotation& annotation, const SolverConfig& config) {
     MEASURE("Solver::PrunePast ~> FilterPasts")
     if (annotation.past.empty()) return;
 
-    // TODO: is this clever?
-    plankton::RemoveIf(annotation.past,[&annotation](const auto& elem){
-       return !plankton::TryGetResource(elem->formula->node->Decl(), *annotation.now);
-    });
-    if (annotation.past.empty()) return;
+    // // TODO: is this clever? ~~> no it is not... :*(
+    // plankton::RemoveIf(annotation.past,[&annotation](const auto& elem){
+    //    return !plankton::TryGetResource(elem->formula->node->Decl(), *annotation.now);
+    // });
+    // if (annotation.past.empty()) return;
 
     plankton::InlineAndSimplify(annotation);
     auto encoding = MakeEncoding(annotation, config);
@@ -198,7 +198,7 @@ struct Interpolator {
 
         for (auto& elem : pasts) {
             auto& pastAddress = elem->formula->node->Decl();
-            if (!plankton::Membership(referenced, &pastAddress)) continue;
+            // if (!plankton::Membership(referenced, &pastAddress)) continue;
 
             auto expansion = getExpansion(*elem);
             auto past = MakeStackBlueprint();

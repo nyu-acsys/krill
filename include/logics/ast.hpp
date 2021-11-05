@@ -277,7 +277,6 @@ namespace plankton {
         std::unique_ptr<Guard> guard;
         std::unique_ptr<Update> update;
 
-        explicit FuturePredicate();
         explicit FuturePredicate(std::unique_ptr<Update> update, std::unique_ptr<Guard> guard);
         ACCEPT_LOGIC_VISITOR
     };

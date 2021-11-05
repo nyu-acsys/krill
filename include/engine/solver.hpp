@@ -71,8 +71,9 @@ namespace plankton {
             std::deque<std::unique_ptr<HeapEffect>> interference;
             
             void PrepareAccess(Annotation& annotation, const Command& command) const;
-            void ImprovePast(Annotation& annotation) const;
-            void PrunePast(Annotation& annotation) const; // TODO: should not be exposed ~~> only used by ImprovePast?
+            void ImprovePast(Annotation& annotation) const; // TODO: should not be called by MakeInterferenceStable, but the prover
+            void PrunePast(Annotation& annotation) const; // TODO: should not be exposed ~~> only used by ImprovePast? Or should it be called by the prover??
+            void PruneFuture(Annotation& annotation) const; // TODO: should not be exposed ~~> only used by ImprovePast? Or should it be called by the prover??
     };
     
     
