@@ -49,35 +49,45 @@ void FilterPasts(Annotation& annotation, const SolverConfig& config) {
     plankton::InlineAndSimplify(annotation);
     auto encoding = MakeEncoding(annotation, config);
 
-    // TODO: remove pasts that are weaker than now?
-    std::set<std::pair<const LogicObject*, const LogicObject*>> subsumption;
+    std::map<const PastPredicate*, std::set<const PastPredicate*>> subsumes;
     for (const auto& stronger : annotation.past) {
         for (const auto& weaker : annotation.past) {
             auto check = MakeCheck(encoding, *annotation.now, *weaker->formula, *stronger->formula);
             if (!check) continue;
-            encoding.AddCheck(*check, [&subsumption, &weaker, &stronger](bool holds) {
-                if (holds) subsumption.emplace(weaker.get(), stronger.get());
+            encoding.AddCheck(*check, [&subsumes, &weaker, &stronger](bool holds) {
+                DEBUG("  past subsumption=" << holds << " for " << *stronger << " => " << *weaker << std::endl)
+                if (holds) subsumes[stronger.get()].insert(weaker.get());
             });
         }
     }
     encoding.Check();
 
-    std::set<const LogicObject*> prune;
-    std::set<std::pair<const LogicObject*, const LogicObject*>> blacklist;
-    for (const auto& [weaker, stronger] : subsumption) {
-        if (plankton::Membership(blacklist, std::make_pair(stronger, weaker))) continue; // break circles
-        blacklist.emplace(weaker, stronger);
-        prune.insert(weaker);
+    for (const auto& past : annotation.past) {
+        if (!past) continue;
+        auto subsumption = subsumes[past.get()];
+        if (subsumption.empty()) continue;
+        for (auto& other : annotation.past) {
+            if (!other) continue;
+            if (past.get() == other.get()) continue;
+            if (!plankton::Membership(subsumption, other.get())) continue;
+            other.reset(nullptr);
+        }
     }
-    plankton::RemoveIf(annotation.past, [&prune](const auto& elem) {
-        return plankton::Membership(prune, elem.get());
-    });
+    plankton::RemoveIf(annotation.past, [](const auto& elem){ return !elem; });
 }
 
-void Solver::PrunePast(Annotation& annotation) const {
+void Solver::ReducePast(Annotation& annotation) const {
     MEASURE("Solver::PrunePast")
-    // TODO: should this be available to ImprovePast only?
+    DEBUG("<<REDUCE PAST>>" << std::endl)
+    DEBUG(annotation << std::endl)
     FilterPasts(annotation, config);
+    DEBUG(" ~> " << annotation << std::endl << std::endl)
+}
+
+std::unique_ptr<Annotation> Solver::ReducePast(std::unique_ptr<Annotation> annotation) const {
+    ReducePast(*annotation);
+    // DEBUG(*annotation << std::endl << std::endl)
+    return annotation;
 }
 
 
@@ -133,11 +143,18 @@ struct Interpolator {
 
     void Interpolate() {
         Filter();
+        DEBUG(" (first filter) " << annotation << " ~~> ")
         ExpandHistoryMemory();
+        DEBUG(" (expansion) " << annotation << " ~~> ")
         Filter(); // TODO: to filter or not to filter?
+        DEBUG(" (second filter) " << annotation << " ~~> ")
         InterpolatePastToNow();
+        DEBUG(" (interpolation) " << annotation << " ~~> ")
         // Filter();
+        AddTrivialPast();
+        DEBUG(" (trivial past) " << annotation << " ~~> ")
         PostProcess();
+        DEBUG(" (postprocessing) " << annotation << " ~~> ")
     }
 
     inline void ApplyImmutability(MemoryAxiom& memory, SeparatingConjunction* addEq = nullptr) {
@@ -309,16 +326,24 @@ struct Interpolator {
         }
     }
 
+    void AddTrivialPast() {
+        for (const auto* memory : plankton::Collect<SharedMemoryCore>(*annotation.now)) {
+            annotation.Conjoin(std::make_unique<PastPredicate>(plankton::Copy(*memory)));
+        }
+    }
+
     void PostProcess() {
         plankton::InlineAndSimplify(annotation);
     }
 
 };
 
-void Solver::ImprovePast(Annotation& annotation) const {
+std::unique_ptr<Annotation> Solver::ImprovePast(std::unique_ptr<Annotation> annotation) const {
     MEASURE("Solver::ImprovePast")
-    if (annotation.past.empty()) return;
-    DEBUG("== Improving past..." << std::endl)
-    Interpolator(annotation, interference, config).Interpolate();
-    DEBUG("   done" << std::endl)
+    if (annotation->past.empty()) return annotation;
+    DEBUG("<<IMPROVE PAST>>" << std::endl)
+    DEBUG(*annotation << " ~~> ")
+    Interpolator(*annotation, interference, config).Interpolate();
+    DEBUG(*annotation << std::endl << std::endl)
+    return annotation;
 }

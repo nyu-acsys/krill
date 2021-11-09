@@ -2,6 +2,7 @@
 
 #include "programs/util.hpp"
 #include "util/shortcuts.hpp"
+#include "util/log.hpp"
 
 using namespace plankton;
 
@@ -135,6 +136,40 @@ void ProofGenerator::MakeInterferenceStable(const Statement& after) {
     if (current.empty()) return;
     if (plankton::IsRightMover(after)) return;
     ApplyTransformer([this](auto annotation){
-        return solver.MakeInterferenceStable(std::move(annotation));
+        // TODO: improve future?
+        annotation = solver.ImprovePast(std::move(annotation));
+        annotation = solver.MakeInterferenceStable(std::move(annotation));
+        return solver.ReducePast(std::move(annotation));
+    });
+}
+
+void ProofGenerator::JoinCurrent() {
+    DEBUG(std::endl << std::endl)
+    DEBUG("@@@ joining current " << current.size() << std::endl << std::endl)
+
+    PruneCurrent();
+    ImproveCurrentTime();
+    ReduceCurrentTime();
+
+    auto join = solver.Join(std::move(current));
+    current.clear();
+    current.push_back(std::move(join));
+
+    ReduceCurrentTime();
+}
+void ProofGenerator::ImproveCurrentTime() {
+    ApplyTransformer([this](auto annotation){
+        annotation = solver.ImprovePast(std::move(annotation));
+        auto post = debugFuture
+                    ? solver.ImproveFuture(std::move(annotation), *debugFuture)
+                    : PostImage(std::move(annotation));
+        return post;
+    });
+}
+
+void ProofGenerator::ReduceCurrentTime() {
+    ApplyTransformer([this](auto annotation){
+        annotation = solver.ReducePast(std::move(annotation));
+        return solver.ReduceFuture(std::move(annotation));
     });
 }

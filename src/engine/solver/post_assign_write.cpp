@@ -37,7 +37,7 @@ struct PostImageInfo {
               preObligations(plankton::Collect<ObligationAxiom>(*pre.now)),
               preFulfillments(plankton::Collect<FulfillmentAxiom>(*pre.now)) {
         assert(&pre == footprint.pre.get());
-        DEBUG("** pre after footprint creation: " << pre << std::endl)
+        // DEBUG("** pre after footprint creation: " << pre << std::endl)
     }
     
     template<typename T, typename = plankton::EnableIfBaseOf<MemoryAxiom, T>>
@@ -146,21 +146,9 @@ inline void CheckFlowUniqueness(PostImageInfo& info) {
 
 inline void CheckInvariant(PostImageInfo& info) {
     for (const auto& node : info.footprint.nodes) {
-        if (node.preLocal && !node.postLocal) {
-            DEBUG(" !! debug inv check for: " << node.address.name << std::endl)
-            auto mem = node.ToLogic(EMode::POST);
-            auto sh = dynamic_cast<const SharedMemoryCore*>(mem.get());
-            assert(sh);
-            auto inv = info.config.GetSharedNodeInvariant(*sh);
-            for (const auto& elem : inv->conjuncts) {
-                auto holds = info.encoding.Implies(info.encoding.Encode(*elem));
-                DEBUG("   -- holds=" << holds << " for " << *elem << std::endl)
-            }
-        }
-
         auto nodeInvariant = info.encoding.EncodeNodeInvariant(node, EMode::POST);
         info.encoding.AddCheck(nodeInvariant, [&node](bool holds){
-            DEBUG("Checking invariant for " << node.address.name << ": holds=" << holds << std::endl)
+            // DEBUG("Checking invariant for " << node.address.name << ": holds=" << holds << std::endl)
             if (holds) return;
             throw std::logic_error("Unsafe update: invariant is not maintained."); // TODO: better error handling
         });
@@ -170,7 +158,7 @@ inline void CheckInvariant(PostImageInfo& info) {
 inline void AddSpecificationChecks(PostImageInfo& info) {
     // check purity
     plankton::AddPureCheck(info.footprint, info.encoding, [&info](bool isPure) {
-        DEBUG(" ** is pure=" << isPure << std::endl)
+        // DEBUG(" ** is pure=" << isPure << std::endl)
         info.isPureUpdate = isPure;
         if (isPure) {
             for (const auto* obl : info.preObligations) info.postSpecifications.push_back(plankton::Copy(*obl));
@@ -525,15 +513,16 @@ std::unique_ptr<Annotation> TryGetFromFuture(const Annotation& pre, const Memory
 
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, bool useFuture) const {
     MEASURE("Solver::Post (MemoryWrite)")
-    DEBUG("POST[useFuture=" << useFuture << "] for " << *pre << " " << cmd << std::endl)
+    DEBUG("<<POST MEM>> [useFuture=" << useFuture << "]" << std::endl << *pre << " " << cmd << std::flush)
 
     PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
     // TODO: filter out noop assignments
 
+    // TODO: use futures as a last resort their post image is less precise
     if (useFuture && !pre->future.empty()) {
         if (auto fromFuture = TryGetFromFuture(*pre, cmd)) {
-            DEBUG("POST result (from future) for " << cmd << " " << *fromFuture << std::endl)
+            DEBUG("/* from future */ " << *fromFuture << std::endl << std::endl)
             return PostImage(std::move(fromFuture));
         }
     }
@@ -554,6 +543,6 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
     auto effects = ExtractEffects(info);
     auto post = ExtractPost(std::move(info));
 
-    DEBUG("POST result for " << cmd << " " << *post << std::endl)
+    DEBUG(*post << std::endl << std::endl)
     return PostImage(std::move(post), std::move(effects));
 }

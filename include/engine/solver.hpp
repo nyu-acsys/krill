@@ -62,18 +62,19 @@ namespace plankton {
         [[nodiscard]] bool IsUnsatisfiable(const Annotation& annotation) const;
         [[nodiscard]] bool Implies(const Annotation& premise, const Annotation& conclusion) const;
 
+        [[nodiscard]] std::unique_ptr<Annotation> ImprovePast(std::unique_ptr<Annotation> annotation) const; // TODO: past suggestions
         [[nodiscard]] PostImage ImproveFuture(std::unique_ptr<Annotation> annotation, const FutureSuggestion& target) const;
-        // TODO: the Solver should not decide when to call ImprovePast, should be done by the proof generating entity // TODO: past suggestions
-        
+        [[nodiscard]] std::unique_ptr<Annotation> ReducePast(std::unique_ptr<Annotation> annotation) const;
+        [[nodiscard]] std::unique_ptr<Annotation> ReduceFuture(std::unique_ptr<Annotation> annotation) const;
+
         private:
             const SolverConfig& config;
             DataFlowAnalysis dataFlow;
             std::deque<std::unique_ptr<HeapEffect>> interference;
             
             void PrepareAccess(Annotation& annotation, const Command& command) const;
-            void ImprovePast(Annotation& annotation) const; // TODO: should not be called by MakeInterferenceStable, but the prover
-            void PrunePast(Annotation& annotation) const; // TODO: should not be exposed ~~> only used by ImprovePast? Or should it be called by the prover??
-            void PruneFuture(Annotation& annotation) const; // TODO: should not be exposed ~~> only used by ImprovePast? Or should it be called by the prover??
+            void ReducePast(Annotation& annotation) const;
+            void ReduceFuture(Annotation& annotation) const;
     };
     
     

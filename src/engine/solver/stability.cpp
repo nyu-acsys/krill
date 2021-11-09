@@ -31,7 +31,7 @@ struct InterferenceInfo {
         plankton::AvoidEffectSymbols(factory, interference);
         plankton::RenameSymbols(*annotation, factory);
 
-        DEBUG("<<INTERFERENCE>>" << std::endl)
+        // DEBUG("<<INTERFERENCE>>" << std::endl)
         // for (const auto& effect : interference) DEBUG("  -- effect: " << *effect << std::endl)
         // DEBUG(" -- pre: " << *annotation << std::endl;)
     }
@@ -109,16 +109,13 @@ struct InterferenceInfo {
 std::unique_ptr<Annotation> Solver::MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const {
     // TODO: should this take a list of annotations?
     if (interference.empty()) return annotation;
+    if (plankton::Collect<SharedMemoryCore>(*annotation->now).empty()) return annotation;
 
     MEASURE("Solver::MakeInterferenceStable")
-    if (plankton::Collect<SharedMemoryCore>(*annotation->now).empty()) return annotation;
+    DEBUG("<<INTERFERENCE>>" << std::endl)
     plankton::ExtendStack(*annotation, config, ExtensionPolicy::FAST); // TODO: needed?
-    {
-        MEASURE("Solver::MakeInterferenceStable ~> ImprovePast")
-        ImprovePast(*annotation); // TODO: really do this?
-    }
     InterferenceInfo info(std::move(annotation), interference);
     auto result = info.GetResult();
-    // PrunePast(*result);
+    DEBUG(*result << std::endl << std::endl)
     return result;
 }

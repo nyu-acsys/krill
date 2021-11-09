@@ -59,8 +59,11 @@ namespace plankton {
         void AddNewInterference(std::deque<std::unique_ptr<HeapEffect>> effects);
         bool ConsolidateNewInterference();
 
+        void JoinCurrent();
         void PruneCurrent();
         void PruneReturning();
+        void ImproveCurrentTime();
+        void ReduceCurrentTime();
         void LeaveAllNestedScopes(const AstNode& node);
         void ApplyTransformer(const std::function<std::unique_ptr<Annotation>(std::unique_ptr<Annotation>)>& transformer);
         void ApplyTransformer(const std::function<PostImage(std::unique_ptr<Annotation>)>& transformer);

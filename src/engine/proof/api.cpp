@@ -176,6 +176,7 @@ inline bool IsFulfilled(const Annotation& annotation, const Return& command) {
                        [returnValue](auto* elem) { return elem->returnValue == returnValue; });
 }
 
+#include "util/timer.hpp"
 void ProofGenerator::HandleInterfaceFunction(const Function& function) {
     assert(function.kind == Function::Kind::API);
     
@@ -193,6 +194,9 @@ void ProofGenerator::HandleInterfaceFunction(const Function& function) {
     breaking.clear();
     current.clear();
 
+    {
+    MEASURE("TOTAL")
+
     // descent into function
     current.push_back(MakeInterfaceAnnotation(program, function, solver));
     function.Accept(*this);
@@ -200,14 +204,18 @@ void ProofGenerator::HandleInterfaceFunction(const Function& function) {
 
     // check post annotations
     DEBUG(std::endl << std::endl << "=== CHECKING POST ANNOTATION OF " << function.name << "  " << returning.size() << std::endl)
-    for (auto& [annotation, command] : returning) {
+    for (auto&[annotation, command] : returning) {
         assert(command);
         if (IsFulfilled(*annotation, *command)) continue;
+        annotation = solver.ImprovePast(std::move(annotation));
         annotation = solver.TryAddFulfillment(std::move(annotation));
         if (IsFulfilled(*annotation, *command)) continue;
         DEBUG("Linearizability fail for " << *command << "  in  " << *annotation << std::endl)
         throw std::logic_error("Could not establish linearizability for function '" + function.name + "'."); // TODO: better error handling
     }
+
+    }
+    DEBUG(std::endl << "debug exit" << std::endl) exit(-1);
 
     throw std::logic_error("--- breakpoint ---");
 }

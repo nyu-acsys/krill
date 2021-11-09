@@ -2,6 +2,7 @@
 
 #include "programs/util.hpp"
 #include "util/shortcuts.hpp"
+#include "util/log.hpp"
 
 using namespace plankton;
 
@@ -17,6 +18,7 @@ void ProofGenerator::Visit(const Skip& /*cmd*/) {
 }
 
 void ProofGenerator::Visit(const Break& /*cmd*/) {
+    DEBUG(" BREAKING with (" << current.size() << ") ") for (const auto& elem : current) DEBUG(*elem) DEBUG(std::endl)
     MoveInto(std::move(current), breaking);
     current.clear();
 }
@@ -50,6 +52,7 @@ void ProofGenerator::Visit(const MemoryWrite& cmd) {
 }
 
 void ProofGenerator::Visit(const Return& cmd) {
+    DEBUG(" RETURNING " << cmd << " with (" << current.size() << ") ") for (const auto& elem : current) DEBUG(*elem) DEBUG(std::endl)
     // pointer accessibility is checked when returned values/variables are used
     for (auto& annotation : current) returning.emplace_back(std::move(annotation), &cmd);
     current.clear();

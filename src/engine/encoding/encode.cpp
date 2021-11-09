@@ -312,7 +312,7 @@ EExpr Encoding::EncodeSimpleFlowRules(const Formula& formula, const SolverConfig
                     auto flowsOut = Encode(*config.GetOutflowContains(*memory, name, *symbol));
                     auto encSym = Encode(*symbol);
                     auto rule1 = (inflowMemory(encSym) && flowsOut) >> inflowOther(encSym);
-                    auto rule2 = Bool(true); // inflowMemory(encSym) && inflowOther(encSym)) >> flowsOut; // this relies on inflow uniqueness // TODO: is it even correct??
+                    auto rule2 = Bool(true); // inflowMemory(encSym) && inflowOther(encSym)) >> flowsOut; // this relies on inflow uniqueness // TODO: is it even correct?? ~~> most certainly not
                     result.push_back(rule1 && rule2);
                 }
             }

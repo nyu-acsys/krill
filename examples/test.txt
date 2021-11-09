@@ -71,7 +71,15 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 		<rmark, rnext> = <Head->marked, Head->next>;
 		// k = right->val; // debug
 		do {
+		    //debug
+		    // choose {
+		    //     assume(rmark);
+		    // }{
+		    //     assume(!rmark);
+		    //     assume(k < key);
+		    // }
 		    assume(rmark || k < key); // debug
+		    // debug end
 			if (!rmark) {
 				left = right;
 				lnext = rnext;

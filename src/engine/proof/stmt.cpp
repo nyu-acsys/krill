@@ -61,32 +61,16 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
     returning.clear();
     newInterference.clear();
 
-    auto improveFutures = [this](){
-        if (debugFuture) { // TODO: remove debug, use computed suggestions
-            auto annotations = std::move(current);
-            for (auto&& elem : annotations) {
-                auto[post, effects] = solver.ImproveFuture(std::move(elem), *debugFuture);
-                plankton::MoveInto(std::move(post), current);
-                AddNewInterference(std::move(effects));
-            }
-        }
-    };
-    auto joinCurrent = [this,&improveFutures]() {
-        DEBUG(std::endl << std::endl)
-        DEBUG("@@@ about to join @@@")
-        for (const auto& elem : current) DEBUG(*elem)
-        DEBUG(std::endl << std::endl << std::endl)
-
-
-        improveFutures();
-        auto join = solver.Join(std::move(current));
+    auto joinCurrent = [this]() {
+        JoinCurrent();
+        assert(current.size() == 1);
+        auto join = std::move(current.front());
         current.clear();
         return join;
     };
     
     // looping until fixed point
     if (!current.empty()) {
-
         std::size_t counter = 0;
         auto join = joinCurrent();
         while (true) {
@@ -112,7 +96,9 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
     current = std::move(firstBreaking);
     MoveInto(std::move(breaking), current);
     LeaveAllNestedScopes(stmt);
-    improveFutures();
+    PruneCurrent();
+    ImproveCurrentTime();
+    ReduceCurrentTime();
 
     breaking = std::move(breakingOuter);
     MoveInto(std::move(returningOuter), returning);

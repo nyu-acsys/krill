@@ -246,7 +246,7 @@ struct FlowGraphGenerator {
     inline void DeriveFrontierKnowledge(const std::set<const SymbolDeclaration*>& frontier) {
         // get new memory
         auto& flowType = graph.config.GetFlowValueType();
-        for (auto elem : frontier) DEBUG("  missing " << elem->name << ": nonnull=" << encoding.Implies(encoding.EncodeIsNonNull(*elem)) << std::endl)
+        // for (auto elem : frontier) DEBUG("  missing " << elem->name << ": nonnull=" << encoding.Implies(encoding.EncodeIsNonNull(*elem)) << std::endl)
         plankton::MakeMemoryAccessible(state, frontier, flowType, factory, encoding); // TODO: ensure that frontier is shared
         encoding.AddPremise(encoding.EncodeInvariants(state, graph.config)); // for newly added memory
         encoding.AddPremise(encoding.EncodeSimpleFlowRules(state, graph.config)); // for newly added memory
@@ -333,14 +333,14 @@ FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const Mem
         throw std::logic_error("Footprint construction failed: update to '" + plankton::ToString(*dereference) + "' not covered."); // TODO: better error handling
     }
     
-    DEBUG("Footprint: " << std::endl)
-    for (const auto& node : graph.nodes) {
-        DEBUG("   - Node " << node.address.name << std::endl)
-        for (const auto& next : node.pointerFields) {
-            DEBUG("      - " << node.address.name << "->" << next.name << " == " << next.preValue.get().name << " / "
-                             << next.postValue.get().name << std::endl)
-        }
-    }
+    // DEBUG("Footprint: " << std::endl)
+    // for (const auto& node : graph.nodes) {
+    //     DEBUG("   - Node " << node.address.name << std::endl)
+    //     for (const auto& next : node.pointerFields) {
+    //         DEBUG("      - " << node.address.name << "->" << next.name << " == " << next.preValue.get().name << " / "
+    //                          << next.postValue.get().name << std::endl)
+    //     }
+    // }
     
     PostProcessFootprint(graph);
     return graph;

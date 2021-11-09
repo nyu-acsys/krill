@@ -143,11 +143,15 @@ inline auto MakeFuturePowerSet(std::vector<AnnotationInfo>& lookup) {
     });
 }
 
-inline bool FuturePremiseMatches(const FuturePredicate& future, const FuturePredicate& other) {
+inline bool FuturesMatch(const FuturePredicate& future, const FuturePredicate& other, Encoding& encoding) { // FuturePremiseMatches
     if (!plankton::SyntacticalEqual(*future.guard, *other.guard)) return false;
     if (future.update->fields.size() != other.update->fields.size()) return false;
     for (std::size_t index = 0; index < future.update->fields.size(); ++index) {
         if (!plankton::SyntacticalEqual(*future.update->fields.at(index), *other.update->fields.at(index))) return false;
+    }
+    for (std::size_t index = 0; index < future.update->values.size(); ++index) {
+        auto equal = encoding.Encode(*future.update->values.at(index)) == encoding.Encode(*other.update->values.at(index));
+        if (!encoding.Implies(equal)) return false;
     }
     return true;
 }
@@ -205,8 +209,9 @@ struct AnnotationJoiner {
         if (annotations.size() == 1) return std::move(annotations.front());
         Preprocess();
         
-        DEBUG("preprocessed, now joining: ")
-        for (const auto& elem : annotations) DEBUG(*elem; std::cout << std::endl)
+        DEBUG("(preprocessed)" << std::endl)
+        for (const auto& elem : annotations) DEBUG(*elem)
+        DEBUG(std::endl)
 
         CreateVariableResources();
         CreateMemoryResources();
@@ -222,7 +227,7 @@ struct AnnotationJoiner {
     }
 
     inline void Preprocess() {
-        DEBUG("[join] starting preprocessing..." << std::flush)
+        // DEBUG("[join] starting preprocessing..." << std::flush)
         lookup.reserve(annotations.size());
         for (auto& annotation : annotations) {
             // plankton::InlineAndSimplify(*annotation);
@@ -260,7 +265,7 @@ struct AnnotationJoiner {
             // make info
             lookup.emplace_back(*annotation);
         }
-        DEBUG(" done" << std::endl)
+        // DEBUG(" done" << std::endl)
     }
 
     inline void CreateVariableResources() {
@@ -443,9 +448,10 @@ struct AnnotationJoiner {
 
                 // force common past memory to agree
                 auto encoded = plankton::MakeVector<EExpr>(vector.size());
-                for (auto elem : vector) {
-                    auto memEq = encoding.EncodeMemoryEquality(*pastMem, *(**elem).formula);
-                    encoded.push_back(memEq);
+                for (std::size_t infoIndex = 0; infoIndex < vector.size(); ++infoIndex) {
+                    auto memEq = encoding.EncodeMemoryEquality(*pastMem, *(**vector.at(infoIndex)).formula);
+                    auto context = encoding.Encode(*lookup.at(infoIndex).annotation.now);
+                    encoded.push_back(memEq && context);
                 }
                 encoding.AddPremise(encoding.MakeOr(encoded));
 
@@ -456,6 +462,7 @@ struct AnnotationJoiner {
     }
 
     inline void EncodeFuture() {
+        DEBUG("(starting future matching...)" << std::endl)
         auto powerSet = MakeFuturePowerSet(lookup);
         for (const auto& vector : powerSet) {
             // DEBUG(" join future combination:  ")
@@ -464,8 +471,8 @@ struct AnnotationJoiner {
 
             // check match
             if (vector.empty()) continue;
-            auto mismatch = plankton::Any(vector, [cmp=vector.front()](const auto* elem){
-                return !FuturePremiseMatches(**cmp, **elem);
+            auto mismatch = plankton::Any(vector, [this,cmp=vector.front()](const auto* elem){
+                return !FuturesMatch(**cmp, **elem, encoding);
             });
             if (mismatch) continue;
 
@@ -493,53 +500,20 @@ struct AnnotationJoiner {
 
     inline void DeriveJoinedStack() {
         MEASURE("Solver::Join ~> DeriveJoinedStack")
-        DEBUG("[join] starting stack extension..." << std::flush)
+        DEBUG("(starting stack extension...)" << std::endl)
         assert(!encoding.ImpliesFalse());
         plankton::ExtendStack(*result, encoding, EXTENSION);
-        DEBUG(" done" << std::endl)
+        // DEBUG(" done" << std::endl)
     }
 };
 
 std::unique_ptr<Annotation> Solver::Join(std::deque<std::unique_ptr<Annotation>> annotations) const {
     MEASURE("Solver::Join")
-    DEBUG(std::endl << std::endl << "=== joining " << annotations.size() << std::endl)
-    for (const auto& elem : annotations) DEBUG(*elem)
-    DEBUG(std::endl)
-    
+    DEBUG("<<JOIN>> " << annotations.size() << std::endl)
     if (annotations.empty()) throw std::logic_error("Cannot join empty set"); // TODO: better error handling
-    if (annotations.size() == 1) return std::move(annotations.front());
-    {
-        // TODO: needed for Past-to-Past Interpolation in the case 'annotations.size() == 1' as well?
-        MEASURE("Solver::Join ~> preprocessing")
-        for (auto& elem : annotations) ImprovePast(*elem);
-        for (auto& elem : annotations) PrunePast(*elem);
-        for (auto& elem : annotations) PruneFuture(*elem);
-
-        for (const auto& annotation : annotations) {
-            if (!annotation) continue;
-            for (auto& other : annotations) {
-                if (!other) continue;
-                if (annotation.get() == other.get()) continue;
-                if (!Implies(*other, *annotation)) continue;
-                other.reset(nullptr);
-            }
-        }
-        plankton::RemoveIf(annotations, [](const auto& elem){ return !elem; });
-        DEBUG("=== #join after pruning: " << annotations.size() << std::endl)
-    }
-    assert(!annotations.empty());
     if (annotations.size() == 1) return std::move(annotations.front());
     auto result = AnnotationJoiner(std::move(annotations), config).GetResult();
     plankton::InlineAndSimplify(*result);
-    {
-        MEASURE("Solver::Join ~> postprocessing")
-        PrunePast(*result);
-        PruneFuture(*result);
-    }
-    // PrunePast(*result);
-     DEBUG("** join result: " << *result << std::endl << std::endl << std::endl)
-//    DEBUG(*result << std::endl << std::endl)
-    
-    // if (!result->past.empty()) throw std::logic_error("--- breakpoint ---");
+    DEBUG("== join result: " << *result << std::endl << std::endl << std::endl)
     return result;
 }

@@ -72,8 +72,10 @@ void ProofGenerator::HandleMacroEpilog(const Macro& macro) {
         return solver.PostLeave(std::move(annotation), macro.Func());
     });
 
-    // prune
+    // postprocess
     PruneCurrent();
+    ImproveCurrentTime();
+    ReduceCurrentTime();
 }
 
 
@@ -146,9 +148,9 @@ ProofGenerator::LookupMacroPost(const Macro& macro, const Annotation& annotation
 
 inline void
 ProofGenerator::AddMacroPost(const Macro& macro, const Annotation& pre, const ProofGenerator::AnnotationList& post) {
-    DEBUG("%% storing macro post: " << pre << " >>>>> ")
-    for (const auto& elem : post) DEBUG(*elem)
-    DEBUG(std::endl)
+    // DEBUG("%% storing macro post: " << pre << " >>>>> ")
+    // for (const auto& elem : post) DEBUG(*elem)
+    // DEBUG(std::endl)
     macroPostTable[&macro.Func()].emplace_back(plankton::Copy(pre), plankton::CopyAll(post));
 }
 

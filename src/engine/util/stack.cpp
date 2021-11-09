@@ -2,6 +2,7 @@
 
 #include "logics/util.hpp"
 #include "util/shortcuts.hpp"
+#include "util/log.hpp"
 
 using namespace plankton;
 
@@ -153,7 +154,6 @@ std::deque<std::unique_ptr<Axiom>> plankton::MakeStackCandidates(const LogicObje
     return result;
 }
 
-#include "util/log.hpp"
 void plankton::ExtendStack(Annotation& annotation, Encoding& encoding, ExtensionPolicy policy) {
     // Generator generator(policy);
     // generator.AddSymbolsFrom(annotation);
@@ -167,7 +167,7 @@ void plankton::ExtendStack(Annotation& annotation, Encoding& encoding, Extension
         auto futureCandidates = plankton::MakeStackCandidates(*annotation.now, *future, policy);
         plankton::MoveInto(std::move(futureCandidates), candidates);
     }
-    DEBUG("plankton::ExtendStack for " << candidates.size() << " candidates" << std::endl)
+    // DEBUG("plankton::ExtendStack for " << candidates.size() << " candidates" << std::endl)
     
     for (auto& candidate : candidates) {
         encoding.AddCheck(encoding.Encode(*candidate), [&candidate,&annotation](bool holds){
