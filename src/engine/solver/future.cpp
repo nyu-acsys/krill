@@ -375,6 +375,9 @@ PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const FutureSug
             plankton::InlineAndSimplify(*check);
 
             auto post = Post(std::move(check), *target.command, false);
+            assert(!post.annotations.empty());
+            if (post.annotations.empty())
+                throw std::logic_error("empty post image");
             plankton::MoveInto(std::move(post.effects), result.effects);
             auto newFuture = std::make_unique<FuturePredicate>(plankton::Copy(*info->targetUpdate), plankton::Copy(*future->guard));
             DEBUG("     -- post image succeeded, adding future: " << *newFuture << std::endl)

@@ -273,6 +273,7 @@ struct FlowGraphGenerator {
             encoding.AddPremise(encoding.EncodeSimpleFlowRules(state, graph.config));
             encoding.AddPremise(encoding.EncodeAcyclicity(state));
             encoding.AddPremise(encoding.EncodeOwnership(state));
+            assert(!encoding.ImpliesFalse());
 
             MakeRoot(root);
             auto newFrontier = ExpandGraph(depth);
@@ -280,6 +281,7 @@ struct FlowGraphGenerator {
             frontier = std::move(newFrontier);
 
             DeriveFrontierKnowledge(frontier);
+            assert(!encoding.ImpliesFalse());
             encoding.Pop();
             graph.nodes.clear();
         }
@@ -333,14 +335,15 @@ FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const Mem
         throw std::logic_error("Footprint construction failed: update to '" + plankton::ToString(*dereference) + "' not covered."); // TODO: better error handling
     }
     
-    // DEBUG("Footprint: " << std::endl)
-    // for (const auto& node : graph.nodes) {
-    //     DEBUG("   - Node " << node.address.name << std::endl)
-    //     for (const auto& next : node.pointerFields) {
-    //         DEBUG("      - " << node.address.name << "->" << next.name << " == " << next.preValue.get().name << " / "
-    //                          << next.postValue.get().name << std::endl)
-    //     }
-    // }
+    DEBUG("Footprint: " << std::endl)
+    for (const auto& node : graph.nodes) {
+        DEBUG("   - Node " << node.address.name << std::endl)
+        for (const auto& next : node.pointerFields) {
+            DEBUG("      - " << node.address.name << "->" << next.name << " == " << next.preValue.get().name << " / "
+                             << next.postValue.get().name << std::endl)
+        }
+    }
+    DEBUG("  with annotation: " << *graph.pre << std::endl)
     
     PostProcessFootprint(graph);
     return graph;

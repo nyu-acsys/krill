@@ -437,9 +437,15 @@ struct AnnotationJoiner {
             // }
 
             // force common memory to agree
+            // for (const auto& [var, memory] : varToCommonMem) {
+            //     auto other = info.varToMem.at(var);
+            //     encoding.AddPremise(encoding.EncodeMemoryEquality(*memory, *other));
+            // }
+
             for (const auto& [var, memory] : varToCommonMem) {
-                auto other = info.varToMem.at(var);
-                encoding.AddPremise(encoding.EncodeMemoryEquality(*memory, *other));
+                auto adr = encoding.Encode(memory->node->Decl());
+                auto other = encoding.Encode(info.varToMem.at(var)->node->Decl());
+                encoding.AddPremise(adr == other);
             }
         }
 
@@ -449,6 +455,51 @@ struct AnnotationJoiner {
     }
 
     inline void EncodeNow() {
+        // debug
+        // DEBUG("**debug@join**" << std::endl)
+        // for (const auto& info : lookup) {
+        //     DEBUG("current result resources: " << *result << std::endl)
+        //     DEBUG(" - annotation: " << info.annotation << std::endl)
+        //     Encoding enc(*info.annotation.now);
+        //     enc.AddPremise(enc.EncodeInvariants(*info.annotation.now, config));
+        //     enc.AddPremise(enc.EncodeSimpleFlowRules(*info.annotation.now, config));
+        //     if (enc.ImpliesFalse()) {
+        //         DEBUG("annotation is false: " << info.annotation << std::endl)
+        //         throw;
+        //     }
+        //     for (const auto&[var, resource] : varToCommonRes) {
+        //         auto other = info.varToRes.at(var);
+        //         enc.AddPremise(enc.Encode(resource->Value()) == enc.Encode(other->Value()));
+        //         if (enc.ImpliesFalse()) {
+        //             DEBUG("var eq is false: " << *resource << " == " << *other << std::endl)
+        //             throw;
+        //         }
+        //     }
+        //     for (const auto&[var, memory] : varToCommonMem) {
+        //         auto other = info.varToMem.at(var);
+        //         enc.AddPremise(enc.EncodeMemoryEquality(*memory, *other));
+        //         if (enc.ImpliesFalse()) {
+        //             DEBUG("mem eq is false: " << *memory << " == " << *other << std::endl)
+        //             throw;
+        //         }
+        //     }
+        //
+        //     for (auto& i : lookup) {
+        //         for (const auto&[var, memory] : varToCommonMem) {
+        //             auto other = i.varToMem.at(var);
+        //             enc.AddPremise(enc.EncodeMemoryEquality(*memory, *other));
+        //             DEBUG("     - adding mem match: " << *memory << " == " << *other << std::endl)
+        //             if (enc.ImpliesFalse()) {
+        //                 DEBUG("mem match is false: " << *memory << " == " << *other << " from annotation " << i.annotation << std::endl)
+        //                 throw;
+        //             }
+        //         }
+        //     }
+        // }
+        // DEBUG("**enddebug@join**" << std::endl)
+        // end debug
+
+
         auto disjunction = plankton::MakeVector<EExpr>(lookup.size());
         for (const auto& info : lookup) {
             assert(!encoding.Implies(EncodeAnnotation(info) >> encoding.Bool(false)));

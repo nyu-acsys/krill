@@ -197,11 +197,13 @@ inline void AddAffectedOutsideChecks(PostImageInfo& info) {
             auto isDistinct = info.encoding.Encode(insideAdr) != info.encoding.Encode(outsideAdr);
             info.encoding.AddCheck(isAlias, [&info,in=&insideAdr,out=&outsideAdr](bool holds) {
                 if (!holds) return;
+                DEBUG(" - alias detected: " << in->name << " == " << out->name << std::endl)
                 info.outsideInsideAlias.emplace(out, in);
                 info.pre.Conjoin(MakeBinary<BinaryOperator::EQ>(*in, *out));
             });
             info.encoding.AddCheck(isDistinct, [&info,in=&insideAdr,out=&outsideAdr](bool holds) {
                 if (!holds) return;
+                DEBUG(" - distinct detected: " << in->name << " == " << out->name << std::endl)
                 info.outsideInsideDistinct[out].insert(in);
                 info.pre.Conjoin(MakeBinary<BinaryOperator::NEQ>(*in, *out));
             });
@@ -530,6 +532,9 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
     }
 
     PostImageInfo info(std::move(pre), cmd, config);
+    assert(!useFuture || !info.encoding.ImpliesFalse());
+    if (info.encoding.ImpliesFalse()) return PostImage();
+    assert(!IsUnsatisfiable(info.pre));
     assert(!info.encoding.ImpliesFalse());
     CheckPublishing(info);
     CheckReachability(info);
