@@ -45,6 +45,10 @@ Encoding::Encoding(const Formula& premise) : Encoding() {
     AddPremise(premise);
 }
 
+Encoding::Encoding(const Formula& premise, const SolverConfig& config) : Encoding() {
+    AddPremise(EncodeFormulaWithKnowledge(premise, config));
+}
+
 Encoding::Encoding(const FlowGraph& graph) : Encoding() {
     AddPremise(graph);
 }

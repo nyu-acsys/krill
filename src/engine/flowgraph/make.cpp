@@ -248,9 +248,10 @@ struct FlowGraphGenerator {
         auto& flowType = graph.config.GetFlowValueType();
         // for (auto elem : frontier) DEBUG("  missing " << elem->name << ": nonnull=" << encoding.Implies(encoding.EncodeIsNonNull(*elem)) << std::endl)
         plankton::MakeMemoryAccessible(state, frontier, flowType, factory, encoding); // TODO: ensure that frontier is shared
-        encoding.AddPremise(encoding.EncodeInvariants(state, graph.config)); // for newly added memory
-        encoding.AddPremise(encoding.EncodeSimpleFlowRules(state, graph.config)); // for newly added memory
-        encoding.AddPremise(encoding.EncodeAcyclicity(state)); // for newly added memory
+        encoding.AddPremise(encoding.EncodeFormulaWithKnowledge(state, graph.config)); // for newly added memory
+        // encoding.AddPremise(encoding.EncodeInvariants(state, graph.config)); // for newly added memory
+        // encoding.AddPremise(encoding.EncodeSimpleFlowRules(state, graph.config)); // for newly added memory
+        // encoding.AddPremise(encoding.EncodeAcyclicity(state)); // for newly added memory
 
         // nodes with same address => same fields
         // prune duplicate memory
@@ -268,11 +269,12 @@ struct FlowGraphGenerator {
             MakeUpdates();
 
             encoding.Push();
-            encoding.AddPremise(state);
-            encoding.AddPremise(encoding.EncodeInvariants(state, graph.config));
-            encoding.AddPremise(encoding.EncodeSimpleFlowRules(state, graph.config));
-            encoding.AddPremise(encoding.EncodeAcyclicity(state));
-            encoding.AddPremise(encoding.EncodeOwnership(state));
+            encoding.AddPremise(encoding.EncodeFormulaWithKnowledge(state, graph.config));
+            // encoding.AddPremise(state);
+            // encoding.AddPremise(encoding.EncodeInvariants(state, graph.config));
+            // encoding.AddPremise(encoding.EncodeSimpleFlowRules(state, graph.config));
+            // encoding.AddPremise(encoding.EncodeAcyclicity(state));
+            // encoding.AddPremise(encoding.EncodeOwnership(state));
             assert(!encoding.ImpliesFalse());
 
             MakeRoot(root);

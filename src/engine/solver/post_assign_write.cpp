@@ -534,7 +534,11 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
     PostImageInfo info(std::move(pre), cmd, config);
     assert(!useFuture || !info.encoding.ImpliesFalse());
     if (info.encoding.ImpliesFalse()) return PostImage();
+    DEBUG("info.pre 1: " << info.pre << std::endl)
+    assert(!info.encoding.ImpliesFalse());
+    DEBUG("info.pre 2: " << info.pre << std::endl)
     assert(!IsUnsatisfiable(info.pre));
+    DEBUG("info.pre 3: " << info.pre << std::endl)
     assert(!info.encoding.ImpliesFalse());
     CheckPublishing(info);
     CheckReachability(info);

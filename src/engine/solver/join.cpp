@@ -8,7 +8,7 @@
 
 using namespace plankton;
 
-constexpr const std::size_t MAX_JOIN = 4;
+constexpr const std::size_t MAX_JOIN = 8;
 constexpr const bool DEEP_PREPROCESSING = false;
 constexpr const ExtensionPolicy EXTENSION = ExtensionPolicy::FAST;
 
@@ -178,7 +178,7 @@ inline void AddResourceCopies(Annotation& annotation, const SymbolDeclaration& s
         annotation.Conjoin(std::move(newPast));
     }
 
-    // copy futures
+    // copy futures // TODO: should no longer be needed!?
     for (const auto& future : annotation.future) {
         auto containsSrc = plankton::Any(future->update->values, [&src](const auto& value){
             if (auto var = dynamic_cast<const SymbolicVariable*>(value.get())) return var->Decl() == src;
@@ -241,11 +241,7 @@ struct AnnotationJoiner {
 
             // more flow
             if constexpr (DEEP_PREPROCESSING) {
-                Encoding enc;
-                enc.AddPremise(*annotation->now);
-                enc.AddPremise(enc.EncodeInvariants(*annotation->now, config));
-                enc.AddPremise(enc.EncodeSimpleFlowRules(*annotation->now, config));
-                plankton::ExtendStack(*annotation, enc, EXTENSION);
+                plankton::ExtendStack(*annotation, config, EXTENSION);
             }
 
             // distinct symbols across annotations
@@ -408,10 +404,8 @@ struct AnnotationJoiner {
         auto enc = plankton::MakeVector<EExpr>(varToCommonRes.size() + varToCommonMem.size() + 1);
 
         // state & invariants
-        auto state = encoding.Encode(*info.annotation.now);
-        auto inv = encoding.EncodeInvariants(*info.annotation.now, config);
-        auto flow = encoding.EncodeSimpleFlowRules(*info.annotation.now, config);
-        enc.push_back(state && inv && flow);
+        auto state = encoding.EncodeFormulaWithKnowledge(*info.annotation.now, config);
+        enc.push_back(state);
 
         // force common variables to agree
         for (const auto& [var, resource] : varToCommonRes) {
@@ -430,18 +424,6 @@ struct AnnotationJoiner {
 
     inline void EncodeMatching() {
         for (auto& info : lookup) {
-            // // force common variables to agree
-            // for (const auto& [var, resource] : varToCommonRes) {
-            //     auto other = info.varToRes.at(var);
-            //     encoding.AddPremise(encoding.Encode(resource->Value()) == encoding.Encode(other->Value()));
-            // }
-
-            // force common memory to agree
-            // for (const auto& [var, memory] : varToCommonMem) {
-            //     auto other = info.varToMem.at(var);
-            //     encoding.AddPremise(encoding.EncodeMemoryEquality(*memory, *other));
-            // }
-
             for (const auto& [var, memory] : varToCommonMem) {
                 auto adr = encoding.Encode(memory->node->Decl());
                 auto other = encoding.Encode(info.varToMem.at(var)->node->Decl());
@@ -449,60 +431,13 @@ struct AnnotationJoiner {
             }
         }
 
-        assert(!encoding.ImpliesFalse());
         encoding.AddPremise(encoding.Encode(*result->now));
         assert(!encoding.ImpliesFalse());
     }
 
     inline void EncodeNow() {
-        // debug
-        // DEBUG("**debug@join**" << std::endl)
-        // for (const auto& info : lookup) {
-        //     DEBUG("current result resources: " << *result << std::endl)
-        //     DEBUG(" - annotation: " << info.annotation << std::endl)
-        //     Encoding enc(*info.annotation.now);
-        //     enc.AddPremise(enc.EncodeInvariants(*info.annotation.now, config));
-        //     enc.AddPremise(enc.EncodeSimpleFlowRules(*info.annotation.now, config));
-        //     if (enc.ImpliesFalse()) {
-        //         DEBUG("annotation is false: " << info.annotation << std::endl)
-        //         throw;
-        //     }
-        //     for (const auto&[var, resource] : varToCommonRes) {
-        //         auto other = info.varToRes.at(var);
-        //         enc.AddPremise(enc.Encode(resource->Value()) == enc.Encode(other->Value()));
-        //         if (enc.ImpliesFalse()) {
-        //             DEBUG("var eq is false: " << *resource << " == " << *other << std::endl)
-        //             throw;
-        //         }
-        //     }
-        //     for (const auto&[var, memory] : varToCommonMem) {
-        //         auto other = info.varToMem.at(var);
-        //         enc.AddPremise(enc.EncodeMemoryEquality(*memory, *other));
-        //         if (enc.ImpliesFalse()) {
-        //             DEBUG("mem eq is false: " << *memory << " == " << *other << std::endl)
-        //             throw;
-        //         }
-        //     }
-        //
-        //     for (auto& i : lookup) {
-        //         for (const auto&[var, memory] : varToCommonMem) {
-        //             auto other = i.varToMem.at(var);
-        //             enc.AddPremise(enc.EncodeMemoryEquality(*memory, *other));
-        //             DEBUG("     - adding mem match: " << *memory << " == " << *other << std::endl)
-        //             if (enc.ImpliesFalse()) {
-        //                 DEBUG("mem match is false: " << *memory << " == " << *other << " from annotation " << i.annotation << std::endl)
-        //                 throw;
-        //             }
-        //         }
-        //     }
-        // }
-        // DEBUG("**enddebug@join**" << std::endl)
-        // end debug
-
-
         auto disjunction = plankton::MakeVector<EExpr>(lookup.size());
         for (const auto& info : lookup) {
-            assert(!encoding.Implies(EncodeAnnotation(info) >> encoding.Bool(false)));
             disjunction.push_back(EncodeAnnotation(info));
         }
         encoding.AddPremise(encoding.MakeOr(disjunction));
@@ -577,7 +512,6 @@ struct AnnotationJoiner {
     inline void DeriveJoinedStack() {
         MEASURE("Solver::Join ~> DeriveJoinedStack")
         DEBUG("(starting stack extension...)" << std::endl)
-        assert(!encoding.ImpliesFalse());
         plankton::ExtendStack(*result, encoding, EXTENSION);
         // DEBUG(" done" << std::endl)
     }

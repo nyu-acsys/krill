@@ -159,12 +159,8 @@ EExpr Encoding::Encode(const FlowGraph& graph) {
 
     if (graph.nodes.empty()) return Bool(true);
     auto result = plankton::MakeVector<EExpr>(8);
-    
-    result.push_back(Encode(*graph.pre->now));
-    result.push_back(EncodeInvariants(*graph.pre->now, graph.config));
-    result.push_back(EncodeSimpleFlowRules(*graph.pre->now, graph.config));
-    result.push_back(EncodeAcyclicity(*graph.pre->now));
-    result.push_back(EncodeOwnership(*graph.pre->now));
+
+    result.push_back(EncodeFormulaWithKnowledge(*graph.pre->now, graph.config));
     result.push_back(EncodeKeysetDisjointness(graph, EMode::PRE));
     result.push_back(EncodeInflowUniqueness(graph, EMode::PRE));
 
@@ -177,10 +173,6 @@ EExpr Encoding::Encode(const FlowGraph& graph) {
         }
     }
 
-    assert(ImpliesFalse() || !Implies(MakeAnd(result) >> Bool(false)));
-    assert(ImpliesFalse() || !Implies(MakeAnd(result) >> Bool(false)));
-    assert(ImpliesFalse() || !Implies(MakeAnd(result) >> Bool(false)));
-    assert(ImpliesFalse() || !Implies(MakeAnd(result) >> Bool(false)));
     assert(ImpliesFalse() || !Implies(MakeAnd(result) >> Bool(false)));
     return MakeAnd(result);
 }

@@ -243,6 +243,14 @@ EExpr Encoding::Encode(const LogicObject& object) {
     return encoder.Encode(object);
 }
 
+EExpr Encoding::EncodeFormulaWithKnowledge(const Formula& formula, const SolverConfig& config) {
+    return Encode(formula)
+           && EncodeInvariants(formula, config)
+           && EncodeSimpleFlowRules(formula, config)
+           && EncodeOwnership(formula)
+           && EncodeAcyclicity(formula);
+}
+
 EExpr Encoding::EncodeInvariants(const Formula& formula, const SolverConfig& config) {
     auto local = plankton::Collect<LocalMemoryResource>(formula);
     auto shared = plankton::Collect<SharedMemoryCore>(formula);

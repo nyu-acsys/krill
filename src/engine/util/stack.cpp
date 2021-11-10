@@ -179,8 +179,6 @@ void plankton::ExtendStack(Annotation& annotation, Encoding& encoding, Extension
 }
 
 void plankton::ExtendStack(Annotation& annotation, const SolverConfig& config, ExtensionPolicy policy) {
-    Encoding encoding(*annotation.now);
-    encoding.AddPremise(encoding.EncodeInvariants(*annotation.now, config));
-    encoding.AddPremise(encoding.EncodeSimpleFlowRules(*annotation.now, config));
+    Encoding encoding(*annotation.now, config);
     plankton::ExtendStack(annotation, encoding, policy);
 }

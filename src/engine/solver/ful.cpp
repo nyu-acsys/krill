@@ -24,9 +24,8 @@ struct FulfillmentFinder {
     std::deque<std::unique_ptr<FulfillmentAxiom>> fulfillments;
     
     explicit FulfillmentFinder(const Annotation& annotation, const SolverConfig& config)
-            : config(config), factory(annotation), encoding(*annotation.now),
+            : config(config), factory(annotation), encoding(*annotation.now, config),
               obligations(plankton::Collect<ObligationAxiom>(*annotation.now)) {
-        encoding.AddPremise(encoding.EncodeInvariants(*annotation.now, config));
     }
     
     void Handle(const Formula& formula) {
@@ -48,7 +47,7 @@ struct FulfillmentFinder {
     MEASURE("Solver::TryAddFulfillment")
     DEBUG("Solver::TryAddFulfillment for " << *annotation << std::endl)
     FulfillmentFinder finder(*annotation, config);
-    finder.Handle(*annotation->now);
+    finder.Handle(*annotation->now); // TODO: per SharedMemoryCore?
     for (const auto& past : annotation->past) finder.Handle(*past->formula);
     plankton::MoveInto(std::move(finder.fulfillments), annotation->now->conjuncts);
     return annotation;
