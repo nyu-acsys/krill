@@ -96,9 +96,10 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
     current = std::move(firstBreaking);
     MoveInto(std::move(breaking), current);
     LeaveAllNestedScopes(stmt);
-    PruneCurrent();
-    ImproveCurrentTime();
-    ReduceCurrentTime();
+    // PruneCurrent();
+    // ImproveCurrentTime();
+    // ReduceCurrentTime();
+    JoinCurrent();
 
     breaking = std::move(breakingOuter);
     MoveInto(std::move(returningOuter), returning);

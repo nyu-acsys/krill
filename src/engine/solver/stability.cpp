@@ -113,9 +113,12 @@ std::unique_ptr<Annotation> Solver::MakeInterferenceStable(std::unique_ptr<Annot
 
     MEASURE("Solver::MakeInterferenceStable")
     DEBUG("<<INTERFERENCE>>" << std::endl)
+    assert(!IsUnsatisfiable(*annotation));
     plankton::ExtendStack(*annotation, config, ExtensionPolicy::FAST); // TODO: needed?
     InterferenceInfo info(std::move(annotation), interference);
     auto result = info.GetResult();
+    plankton::InlineAndSimplify(*result);
     DEBUG(*result << std::endl << std::endl)
+    assert(!IsUnsatisfiable(*result));
     return result;
 }

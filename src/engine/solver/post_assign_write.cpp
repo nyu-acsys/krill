@@ -514,6 +514,7 @@ std::unique_ptr<Annotation> TryGetFromFuture(const Annotation& pre, const Memory
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, bool useFuture) const {
     MEASURE("Solver::Post (MemoryWrite)")
     DEBUG("<<POST MEM>> [useFuture=" << useFuture << "]" << std::endl << *pre << " " << cmd << std::flush)
+    assert(!IsUnsatisfiable(*pre));
 
     PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
@@ -523,6 +524,7 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
     if (useFuture && !pre->future.empty()) {
         if (auto fromFuture = TryGetFromFuture(*pre, cmd)) {
             DEBUG("/* from future */ " << *fromFuture << std::endl << std::endl)
+            assert(!IsUnsatisfiable(*fromFuture));
             return PostImage(std::move(fromFuture));
         }
     }
@@ -544,5 +546,6 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
     auto post = ExtractPost(std::move(info));
 
     DEBUG(*post << std::endl << std::endl)
+    assert(!IsUnsatisfiable(*post));
     return PostImage(std::move(post), std::move(effects));
 }

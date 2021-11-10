@@ -55,7 +55,7 @@ void FilterPasts(Annotation& annotation, const SolverConfig& config) {
             auto check = MakeCheck(encoding, *annotation.now, *weaker->formula, *stronger->formula);
             if (!check) continue;
             encoding.AddCheck(*check, [&subsumes, &weaker, &stronger](bool holds) {
-                DEBUG("  past subsumption=" << holds << " for " << *stronger << " => " << *weaker << std::endl)
+                // DEBUG("  past subsumption=" << holds << " for " << *stronger << " => " << *weaker << std::endl)
                 if (holds) subsumes[stronger.get()].insert(weaker.get());
             });
         }
@@ -80,8 +80,10 @@ void Solver::ReducePast(Annotation& annotation) const {
     MEASURE("Solver::PrunePast")
     DEBUG("<<REDUCE PAST>>" << std::endl)
     DEBUG(annotation << std::endl)
+    assert(!IsUnsatisfiable(annotation));
     FilterPasts(annotation, config);
     DEBUG(" ~> " << annotation << std::endl << std::endl)
+    assert(!IsUnsatisfiable(annotation));
 }
 
 std::unique_ptr<Annotation> Solver::ReducePast(std::unique_ptr<Annotation> annotation) const {
@@ -143,18 +145,18 @@ struct Interpolator {
 
     void Interpolate() {
         Filter();
-        DEBUG(" (first filter) " << annotation << " ~~> ")
+        // DEBUG(" (first filter) " << annotation << " ~~> ")
         ExpandHistoryMemory();
-        DEBUG(" (expansion) " << annotation << " ~~> ")
+        // DEBUG(" (expansion) " << annotation << " ~~> ")
         Filter(); // TODO: to filter or not to filter?
-        DEBUG(" (second filter) " << annotation << " ~~> ")
+        // DEBUG(" (second filter) " << annotation << " ~~> ")
         InterpolatePastToNow();
-        DEBUG(" (interpolation) " << annotation << " ~~> ")
+        // DEBUG(" (interpolation) " << annotation << " ~~> ")
         // Filter();
         AddTrivialPast();
-        DEBUG(" (trivial past) " << annotation << " ~~> ")
+        // DEBUG(" (trivial past) " << annotation << " ~~> ")
         PostProcess();
-        DEBUG(" (postprocessing) " << annotation << " ~~> ")
+        // DEBUG(" (postprocessing) " << annotation << " ~~> ")
     }
 
     inline void ApplyImmutability(MemoryAxiom& memory, SeparatingConjunction* addEq = nullptr) {
@@ -340,10 +342,12 @@ struct Interpolator {
 
 std::unique_ptr<Annotation> Solver::ImprovePast(std::unique_ptr<Annotation> annotation) const {
     MEASURE("Solver::ImprovePast")
+    assert(!IsUnsatisfiable(*annotation));
     if (annotation->past.empty()) return annotation;
     DEBUG("<<IMPROVE PAST>>" << std::endl)
     DEBUG(*annotation << " ~~> ")
     Interpolator(*annotation, interference, config).Interpolate();
     DEBUG(*annotation << std::endl << std::endl)
+    assert(!IsUnsatisfiable(*annotation));
     return annotation;
 }

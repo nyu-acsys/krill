@@ -92,6 +92,7 @@ inline void FilterEffects(std::deque<std::unique_ptr<HeapEffect>>& effects) {
 void Solver::ReduceFuture(Annotation& annotation) const {
     MEASURE("Solver::ReduceFuture")
     DEBUG("<<REDUCE FUTURE>>" << std::endl)
+    assert(!IsUnsatisfiable(annotation));
 
     // ignore futures when getting useful symbols
     auto futures = std::move(annotation.future);
@@ -116,6 +117,7 @@ void Solver::ReduceFuture(Annotation& annotation) const {
     }
 
     plankton::RemoveIf(annotation.future, [](const auto& elem){ return !elem; });
+    assert(!IsUnsatisfiable(annotation));
 }
 
 std::unique_ptr<Annotation> Solver::ReduceFuture(std::unique_ptr<Annotation> annotation) const {
@@ -350,6 +352,7 @@ inline std::unique_ptr<Annotation> MakePostState(FutureInfo& info, const FutureP
 PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const FutureSuggestion& target) const {
     MEASURE("Solver::ImproveFuture")
     DEBUG("<<IMPROVE FUTURE>>" << std::endl)
+    assert(!IsUnsatisfiable(*pre));
     assert(target.command);
     assert(pre);
 
