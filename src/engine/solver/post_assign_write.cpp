@@ -197,15 +197,26 @@ inline void AddAffectedOutsideChecks(PostImageInfo& info) {
             auto isDistinct = info.encoding.Encode(insideAdr) != info.encoding.Encode(outsideAdr);
             info.encoding.AddCheck(isAlias, [&info,in=&insideAdr,out=&outsideAdr](bool holds) {
                 if (!holds) return;
+                assert(holds);
                 DEBUG(" - alias detected: " << in->name << " == " << out->name << std::endl)
-                info.outsideInsideAlias.emplace(out, in);
+                auto insertion = info.outsideInsideAlias.emplace(out, in);
                 info.pre.Conjoin(MakeBinary<BinaryOperator::EQ>(*in, *out));
+                assert(insertion.second);
             });
             info.encoding.AddCheck(isDistinct, [&info,in=&insideAdr,out=&outsideAdr](bool holds) {
                 if (!holds) return;
-                DEBUG(" - distinct detected: " << in->name << " == " << out->name << std::endl)
+                assert(holds);
+                DEBUG(" - distinct detected: " << in->name << " != " << out->name << std::endl)
                 info.outsideInsideDistinct[out].insert(in);
                 info.pre.Conjoin(MakeBinary<BinaryOperator::NEQ>(*in, *out));
+            });
+            info.encoding.AddCheck(info.encoding.Bool(false), [](bool holds){
+                DEBUG(" - false=" << holds << std::endl)
+                assert(!holds);
+            });
+            info.encoding.AddCheck(isAlias && isDistinct, [in=&insideAdr,out=&outsideAdr](bool holds){
+                DEBUG(" - alias && distinct=" << holds << "  for " << in->name << " == " << out->name << std::endl)
+                assert(!holds);
             });
         }
     }
@@ -533,6 +544,7 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
 
     PostImageInfo info(std::move(pre), cmd, config);
     assert(!useFuture || !info.encoding.ImpliesFalse());
+    assert(!info.encoding.ImpliesFalse());
     if (info.encoding.ImpliesFalse()) return PostImage();
     DEBUG("info.pre 1: " << info.pre << std::endl)
     assert(!info.encoding.ImpliesFalse());
@@ -541,17 +553,29 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
     DEBUG("info.pre 3: " << info.pre << std::endl)
     assert(!info.encoding.ImpliesFalse());
     CheckPublishing(info);
+    assert(!info.encoding.ImpliesFalse());
     CheckReachability(info);
+    assert(!info.encoding.ImpliesFalse());
     CheckFlowCoverage(info);
+    assert(!info.encoding.ImpliesFalse());
     CheckFlowUniqueness(info);
+    assert(!info.encoding.ImpliesFalse());
     CheckInvariant(info);
+    assert(!info.encoding.ImpliesFalse());
     AddSpecificationChecks(info);
+    assert(!info.encoding.ImpliesFalse());
     AddAffectedOutsideChecks(info);
+    assert(!info.encoding.ImpliesFalse());
     AddEffectContextGenerators(info);
+    assert(!info.encoding.ImpliesFalse());
     info.encoding.Check();
+    assert(!info.encoding.ImpliesFalse());
 
+    assert(!info.encoding.ImpliesFalse());
     MinimizeFootprint(info);
+    assert(!info.encoding.ImpliesFalse());
     auto effects = ExtractEffects(info);
+    assert(!info.encoding.ImpliesFalse());
     auto post = ExtractPost(std::move(info));
 
     DEBUG(*post << std::endl << std::endl)
