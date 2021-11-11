@@ -64,131 +64,136 @@ inline z3::expr Translate(const z3::expr& expr, z3::context& srcContext, z3::con
     return z3::to_expr(dstContext, Z3_translate(srcContext, expr, dstContext));
 }
 
-// struct TaskPool {
-//     z3::context& srcContext;
-//     z3::solver& srcSolver;
-//     std::vector<Task> tasks;
-//     std::vector<Result> results;
-//     std::mutex takeMutex;
-//     std::mutex putMutex;
-//
-//     explicit TaskPool(const std::deque<EExpr>& expressions, z3::solver& solver) : srcContext(solver.ctx()), srcSolver(solver) {
-//         tasks.reserve(expressions.size());
-//         for (std::size_t index = 0; index < expressions.size(); ++index) {
-//             tasks.emplace_back(index, AsExpr(expressions.at(index)));
-//         }
-//         std::shuffle(tasks.begin(), tasks.end(), std::default_random_engine());
-//     }
-//
-//     std::vector<Task> Take(z3::solver& dstSolver) {
-//         std::lock_guard guard(takeMutex);
-//         auto& dstContext = dstSolver.ctx();
-//         auto result = plankton::MakeVector<Task>(BATCH_SIZE);
-//         for (std::size_t index = 0; index < BATCH_SIZE && !tasks.empty(); ++index) {
-//             result.push_back(tasks.back());
-//             result.back().expr = Translate(result.back().expr, srcContext, dstContext);
-//             tasks.pop_back();
-//         }
-//         return result;
-//     }
-//
-//     void Put(std::vector<Result> res) {
-//         std::lock_guard guard(putMutex);
-//         plankton::MoveInto(std::move(res), results);
-//     }
-// };
-
-// inline void Work(TaskPool& pool) {
-//     z3::context context;
-//     z3::solver solver(context);
-//     std::unique_lock guard(pool.takeMutex);
-//     auto premise = z3::mk_and(pool.srcSolver.assertions());
-//     solver.add(Translate(premise, pool.srcContext, context));
-//     guard.unlock();
-//
-//     while (true) {
-//         auto tasks = pool.Take(solver);
-//         if (tasks.empty()) break;
-//         auto results = plankton::MakeVector<Result>(tasks.size());
-//         for (const auto& task : tasks) {
-//             bool implied = IsImplied(solver, task.expr);
-//             results.emplace_back(task, implied);
-//         }
-//         pool.Put(std::move(results));
-//     }
-// }
-
-// inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::deque<EExpr>& expressions) {
-//     MEASURE("Z3 ~> concurrent z3::solver::check")
-//
-//     TaskPool taskPool(expressions, solver);
-//     std::deque<std::thread> threads;
-//     for (std::size_t index = 0; index < THREAD_COUNT; ++index) {
-//         threads.emplace_back([&taskPool](){
-//             Work(taskPool);
-//         });
-//     }
-//     for (auto& thread : threads) thread.join();
-//
-//     std::vector<bool> result(expressions.size());
-//     for (const auto& elem : taskPool.results) result.at(elem.id) = elem.implied;
-//     return result;
-// }
-
-struct WorkPackage {
-    z3::context context;
-    z3::solver solver;
+struct TaskPool {
+    z3::context& srcContext;
+    z3::solver& srcSolver;
     std::vector<Task> tasks;
     std::vector<Result> results;
+    std::mutex takeMutex;
+    std::mutex putMutex;
 
-    explicit WorkPackage(z3::solver& srcSolver, std::size_t size) : solver(context) {
-        auto premise = z3::mk_and(srcSolver.assertions());
-        solver.add(Translate(premise, srcSolver.ctx(), context));
-        tasks.reserve(size);
-        results.reserve(size);
+    explicit TaskPool(const std::deque<EExpr>& expressions, z3::solver& solver) : srcContext(solver.ctx()), srcSolver(solver) {
+        tasks.reserve(expressions.size());
+        for (std::size_t index = 0; index < expressions.size(); ++index) {
+            tasks.emplace_back(index, AsExpr(expressions.at(index)));
+        }
+        std::shuffle(tasks.begin(), tasks.end(), std::default_random_engine());
+    }
+
+    std::vector<Task> Take(z3::solver& dstSolver) {
+        std::lock_guard guard(takeMutex);
+        auto& dstContext = dstSolver.ctx();
+        auto result = plankton::MakeVector<Task>(BATCH_SIZE);
+        for (std::size_t index = 0; index < BATCH_SIZE && !tasks.empty(); ++index) {
+            result.push_back(tasks.back());
+            result.back().expr = Translate(result.back().expr, srcContext, dstContext);
+            tasks.pop_back();
+        }
+        return result;
+    }
+
+    void Put(std::vector<Result> res) {
+        std::lock_guard guard(putMutex);
+        plankton::MoveInto(std::move(res), results);
     }
 };
 
+inline void Work(TaskPool& pool) {
+    z3::context context;
+    z3::solver solver(context);
+    std::unique_lock guard(pool.takeMutex);
+    auto premise = z3::mk_and(pool.srcSolver.assertions());
+    solver.add(Translate(premise, pool.srcContext, context));
+    guard.unlock();
+
+    while (true) {
+        auto tasks = pool.Take(solver);
+        if (tasks.empty()) break;
+        auto results = plankton::MakeVector<Result>(tasks.size());
+        for (const auto& task : tasks) {
+            bool implied = IsImplied(solver, task.expr);
+            DEBUG("." << std::flush)
+            results.emplace_back(task, implied);
+        }
+        pool.Put(std::move(results));
+    }
+}
+
 inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::deque<EExpr>& expressions) {
     MEASURE("Z3 ~> concurrent z3::solver::check")
-
-    std::deque<WorkPackage> pool;
-    std::size_t size = expressions.size() / THREAD_COUNT + 1;
-    for (std::size_t index = 0; index < THREAD_COUNT; ++index) {
-        pool.emplace_back(solver, size);
-    }
-
-    std::size_t counter = 0;
-    for (std::size_t index = 0; index < expressions.size(); ++index) {
-        auto expr = AsExpr(expressions.at(index));
-        auto translated = Translate(expr, solver.ctx(), pool.at(counter).context);
-        pool.at(counter).tasks.emplace_back(index, translated);
-        ++counter;
-        if (counter >= pool.size()) counter = 0;
-    }
+    Timer singleTimer("ComputeImpliedInOneShot"); auto singleMeasurement = singleTimer.Measure();
 
     DEBUG("#expr=" << expressions.size() << std::flush)
+    TaskPool taskPool(expressions, solver);
     std::deque<std::thread> threads;
-    for (auto& pkg : pool) {
-        threads.emplace_back([&pkg](){
-            for (const auto& task : pkg.tasks) {
-                bool implied = IsImplied(pkg.solver, task.expr);
-                DEBUG("." << std::flush)
-                pkg.results.emplace_back(task, implied);
-            }
+    for (std::size_t index = 0; index < THREAD_COUNT; ++index) {
+        threads.emplace_back([&taskPool](){
+            Work(taskPool);
         });
     }
     for (auto& thread : threads) thread.join();
     DEBUG(std::endl)
 
     std::vector<bool> result(expressions.size());
-    for (const auto& pkg : pool) {
-        for (const auto& elem : pkg.results) {
-            result.at(elem.id) = elem.implied;
-        }
-    }
+    for (const auto& elem : taskPool.results) result.at(elem.id) = elem.implied;
     return result;
 }
+
+// struct WorkPackage {
+//     z3::context context;
+//     z3::solver solver;
+//     std::vector<Task> tasks;
+//     std::vector<Result> results;
+//
+//     explicit WorkPackage(z3::solver& srcSolver, std::size_t size) : solver(context) {
+//         auto premise = z3::mk_and(srcSolver.assertions());
+//         solver.add(Translate(premise, srcSolver.ctx(), context));
+//         tasks.reserve(size);
+//         results.reserve(size);
+//     }
+// };
+
+// inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::deque<EExpr>& expressions) {
+//     MEASURE("Z3 ~> concurrent z3::solver::check")
+//     Timer singleTimer("ComputeImpliedInOneShot"); auto singleMeasurement = singleTimer.Measure();
+//
+//     std::deque<WorkPackage> pool;
+//     std::size_t size = expressions.size() / THREAD_COUNT + 1;
+//     for (std::size_t index = 0; index < THREAD_COUNT; ++index) {
+//         pool.emplace_back(solver, size);
+//     }
+//
+//     std::size_t counter = 0;
+//     for (std::size_t index = 0; index < expressions.size(); ++index) {
+//         auto expr = AsExpr(expressions.at(index));
+//         auto translated = Translate(expr, solver.ctx(), pool.at(counter).context);
+//         pool.at(counter).tasks.emplace_back(index, translated);
+//         ++counter;
+//         if (counter >= pool.size()) counter = 0;
+//     }
+//
+//     DEBUG("#expr=" << expressions.size() << std::flush)
+//     std::deque<std::thread> threads;
+//     for (auto& pkg : pool) {
+//         threads.emplace_back([&pkg](){
+//             for (const auto& task : pkg.tasks) {
+//                 bool implied = IsImplied(pkg.solver, task.expr);
+//                 DEBUG("." << std::flush)
+//                 pkg.results.emplace_back(task, implied);
+//             }
+//         });
+//     }
+//     for (auto& thread : threads) thread.join();
+//     DEBUG(std::endl)
+//
+//     std::vector<bool> result(expressions.size());
+//     for (const auto& pkg : pool) {
+//         for (const auto& elem : pkg.results) {
+//             result.at(elem.id) = elem.implied;
+//         }
+//     }
+//     return result;
+// }
 
 
 // inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::deque<EExpr>& expressions) {
@@ -269,12 +274,14 @@ struct MethodChooser {
 void Encoding::Check() {
     assert(checks_premise.size() == checks_callback.size());
     if (checks_premise.empty()) return;
+    Push();
     auto implied = solvingMethod(AsSolver(internal), checks_premise);
     for (std::size_t index = 0; index < implied.size(); ++index) {
         checks_callback.at(index)(implied.at(index));
     }
     checks_premise.clear();
     checks_callback.clear();
+    Pop();
 }
 
 bool Encoding::ImpliesFalse() {

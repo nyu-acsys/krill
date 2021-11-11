@@ -210,14 +210,14 @@ inline void AddAffectedOutsideChecks(PostImageInfo& info) {
                 info.outsideInsideDistinct[out].insert(in);
                 info.pre.Conjoin(MakeBinary<BinaryOperator::NEQ>(*in, *out));
             });
-            info.encoding.AddCheck(info.encoding.Bool(false), [](bool holds){
-                DEBUG(" - false=" << holds << std::endl)
-                assert(!holds);
-            });
-            info.encoding.AddCheck(isAlias && isDistinct, [in=&insideAdr,out=&outsideAdr](bool holds){
-                DEBUG(" - alias && distinct=" << holds << "  for " << in->name << " == " << out->name << std::endl)
-                assert(!holds);
-            });
+            // info.encoding.AddCheck(info.encoding.Bool(false), [](bool holds){
+            //     DEBUG(" - false=" << holds << std::endl)
+            //     assert(!holds);
+            // });
+            // info.encoding.AddCheck(isAlias && isDistinct, [in=&insideAdr,out=&outsideAdr](bool holds){
+            //     DEBUG(" - alias && distinct=" << holds << "  for " << in->name << " == " << out->name << std::endl)
+            //     assert(!holds);
+            // });
         }
     }
 }
