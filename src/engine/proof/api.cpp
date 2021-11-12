@@ -465,10 +465,10 @@ void ProofGenerator::GenerateProof() {
     ConsolidateNewInterference();
 
     // TestGen test(program);
-    // {
+    // for (std::size_t index = 0; index < 5; ++index){
     //     Timer timer("test");
     //     auto measurement = timer.Measure();
-    //     auto post = solver.Post(std::move(test.annotation), *test.command, false);
+    //     auto post = solver.Post(plankton::Copy(*test.annotation), *test.command, false);
     // }
     // throw std::logic_error("---point du break---");
     // TODO: check initializer

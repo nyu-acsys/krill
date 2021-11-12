@@ -8,8 +8,8 @@
 
 using namespace plankton;
 
-constexpr bool POSTPROCESS_FLOW_GRAPHS = false;
 constexpr std::array<EMode, 2> AllEMode = {EMode::PRE, EMode::POST };
+
 
 struct UpdateMap {
     using update_list_t = std::vector<std::pair<std::string, const SymbolDeclaration*>>;
@@ -291,32 +291,6 @@ struct FlowGraphGenerator {
     }
 };
 
-inline void PostProcessFootprint(FlowGraph& footprint) {
-    if constexpr (!POSTPROCESS_FLOW_GRAPHS) return;
-    MEASURE("plankton::MakeFlowFootprint ~> PostProcessFootprint")
-
-    Encoding encoding(footprint);
-    auto handle = [&encoding](auto& pre, auto& post, const auto& info) {
-        if (pre.get() == post.get()) return;
-        auto equal = encoding.Encode(pre) == encoding.Encode(post);
-        encoding.AddCheck(equal, [&pre,&post,info](bool holds){
-            if (holds) post = pre.get();
-        });
-    };
-    
-    for (auto& node : footprint.nodes) {
-        handle(node.preAllInflow, node.postAllInflow, "allInflow@" + node.address.name);
-        handle(node.preGraphInflow, node.postGraphInflow, "graphInflow@" + node.address.name);
-        handle(node.preKeyset, node.postKeyset, "keyset@" + node.address.name);
-        for (auto& field : node.pointerFields) {
-            handle(field.preAllOutflow, field.postAllOutflow, "allOutflow@" + node.address.name + "::" + field.name);
-            handle(field.preGraphOutflow, field.postGraphOutflow, "graphOutflow@" + node.address.name + "::" + field.name);
-        }
-    }
-    
-    encoding.Check();
-}
-
 FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const MemoryWrite& command, const SolverConfig& config) {
     MEASURE("plankton::MakeFlowFootprint")
 
@@ -347,7 +321,6 @@ FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const Mem
     }
     DEBUG("  with annotation: " << *graph.pre << std::endl)
     
-    PostProcessFootprint(graph);
     return graph;
 }
 

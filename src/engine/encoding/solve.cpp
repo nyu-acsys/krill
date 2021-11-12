@@ -1,15 +1,18 @@
 #include "engine/encoding.hpp"
 
+#include <algorithm>
+#include <random>
+#include <thread>
 #include "internal.hpp"
 #include "util/shortcuts.hpp"
 #include "util/timer.hpp"
 
 using namespace plankton;
 
+static constexpr std::size_t BATCH_SIZE = 16;
+static constexpr std::size_t PARALLEL_THRESHOLD = 3 * BATCH_SIZE;
+static constexpr std::size_t FALLBACK_THREAD_COUNT = 8;
 
-//
-// Z3 handling
-//
 
 struct PreferredMethodFailed : std::exception {
     [[nodiscard]] const char* what() const noexcept override {
@@ -17,8 +20,46 @@ struct PreferredMethodFailed : std::exception {
     }
 };
 
+inline z3::expr Translate(const z3::expr& expr, const z3::context& srcContext, z3::context& dstContext) {
+    return z3::to_expr(dstContext, Z3_translate(srcContext, expr, dstContext));
+}
+
+
+//
+// Z3 handling
+//
+
+inline bool IsUnsat(const z3::solver& solver) {
+    const z3::context& context = solver.ctx();
+    z3::context myContext;
+    z3::solver mySolver(myContext);
+    for (std::size_t index = 0; index < solver.assertions().size(); ++index) {
+        auto expr = solver.assertions()[index];
+        auto myExpr = Translate(expr, context, myContext);
+        mySolver.add(myExpr);
+    }
+    DEBUG("!!IsUnsat #=" << solver.assertions().size() << std::endl << mySolver.to_smt2())
+    auto res = mySolver.check();
+    switch (res) {
+        case z3::unsat: DEBUG("UNSAT" << std::endl) return true;
+        case z3::sat: DEBUG("SAT" << std::endl) return false;
+        case z3::unknown: DEBUG("UNKNOWN" << std::endl) throw std::logic_error("Solving failed: Z3 returned z3::unknown."); // TODO: better error handling
+    }
+    // z3::solver mySolver(solver.)
+
+    // DEBUG("!!IsUnsat #=" << solver.assertions().size() << std::endl << solver.to_smt2())
+    // solver.push();
+    // auto res = solver.check();
+    // solver.pop();
+    // switch (res) {
+    //     case z3::unsat: DEBUG("UNSAT" << std::endl) return true;
+    //     case z3::sat: DEBUG("SAT" << std::endl) return false;
+    //     case z3::unknown: DEBUG("UNKNOWN" << std::endl) throw std::logic_error("Solving failed: Z3 returned z3::unknown."); // TODO: better error handling
+    // }
+}
+
 inline bool IsImplied(z3::solver& solver, const z3::expr& expr) {
-    MEASURE("Z3 ~> z3::solver::check")
+    // MEASURE("Z3 ~> z3::solver::check")
 
     solver.push();
     solver.add(!expr);
@@ -31,7 +72,22 @@ inline bool IsImplied(z3::solver& solver, const z3::expr& expr) {
     }
 }
 
+
+//
+// Batch solving
+//
+
+inline std::vector<bool> ComputeImpliedOneAtATimeSequential(z3::solver& solver, const std::deque<EExpr>& expressions);
+inline std::vector<bool> ComputeImpliedOneAtATimeParallel(z3::solver& solver, const std::deque<EExpr>& expressions);
+
 inline std::vector<bool> ComputeImpliedOneAtATime(z3::solver& solver, const std::deque<EExpr>& expressions) {
+    if (solver.check() == z3::unsat) return std::vector<bool>(expressions.size(), true);
+    if (expressions.size() < PARALLEL_THRESHOLD) return ComputeImpliedOneAtATimeSequential(solver, expressions);
+    else return ComputeImpliedOneAtATimeParallel(solver, expressions);
+}
+
+inline std::vector<bool> ComputeImpliedOneAtATimeSequential(z3::solver& solver, const std::deque<EExpr>& expressions) {
+    MEASURE("Encoding::Check() ~> ComputeImpliedOneAtATimeSequential")
     std::vector<bool> result;
     result.reserve(expressions.size());
     for (const auto& check : expressions) {
@@ -40,13 +96,11 @@ inline std::vector<bool> ComputeImpliedOneAtATime(z3::solver& solver, const std:
     return result;
 }
 
-
-#include <algorithm>
-#include <random>
-#include <thread>
-
-static constexpr std::size_t THREAD_COUNT = 12;
-static constexpr std::size_t BATCH_SIZE = 16;
+inline std::size_t GetThreadCount() {
+    auto result = std::thread::hardware_concurrency();
+    if (result > 0) return result * 2;
+    return FALLBACK_THREAD_COUNT;
+}
 
 struct Task {
     std::size_t id;
@@ -59,10 +113,6 @@ struct Result {
     bool implied;
     Result(const Task& task, bool implied) : id(task.id), implied(implied) {}
 };
-
-inline z3::expr Translate(const z3::expr& expr, z3::context& srcContext, z3::context& dstContext) {
-    return z3::to_expr(dstContext, Z3_translate(srcContext, expr, dstContext));
-}
 
 struct TaskPool {
     z3::context& srcContext;
@@ -112,18 +162,18 @@ inline void Work(TaskPool& pool) {
         auto results = plankton::MakeVector<Result>(tasks.size());
         for (const auto& task : tasks) {
             bool implied = IsImplied(solver, task.expr);
-            DEBUG("." << std::flush)
+            // DEBUG("." << std::flush)
             results.emplace_back(task, implied);
         }
         pool.Put(std::move(results));
     }
 }
 
-inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::deque<EExpr>& expressions) {
-    MEASURE("Z3 ~> concurrent z3::solver::check")
-    Timer singleTimer("ComputeImpliedInOneShot"); auto singleMeasurement = singleTimer.Measure();
+inline std::vector<bool> ComputeImpliedOneAtATimeParallel(z3::solver& solver, const std::deque<EExpr>& expressions) {
+    static const std::size_t THREAD_COUNT = GetThreadCount();
+    MEASURE("Encoding::Check() ~> ComputeImpliedOneAtATimeParallel")
 
-    DEBUG("#expr=" << expressions.size() << std::flush)
+    // DEBUG("#threads=" << THREAD_COUNT << " #expr=" << expressions.size() << " " << std::flush)
     TaskPool taskPool(expressions, solver);
     std::deque<std::thread> threads;
     for (std::size_t index = 0; index < THREAD_COUNT; ++index) {
@@ -132,113 +182,66 @@ inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::
         });
     }
     for (auto& thread : threads) thread.join();
-    DEBUG(std::endl)
+    // DEBUG(std::endl)
 
     std::vector<bool> result(expressions.size());
     for (const auto& elem : taskPool.results) result.at(elem.id) = elem.implied;
     return result;
 }
 
-// struct WorkPackage {
-//     z3::context context;
-//     z3::solver solver;
-//     std::vector<Task> tasks;
-//     std::vector<Result> results;
-//
-//     explicit WorkPackage(z3::solver& srcSolver, std::size_t size) : solver(context) {
-//         auto premise = z3::mk_and(srcSolver.assertions());
-//         solver.add(Translate(premise, srcSolver.ctx(), context));
-//         tasks.reserve(size);
-//         results.reserve(size);
-//     }
-// };
 
-// inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::deque<EExpr>& expressions) {
-//     MEASURE("Z3 ~> concurrent z3::solver::check")
-//     Timer singleTimer("ComputeImpliedInOneShot"); auto singleMeasurement = singleTimer.Measure();
 //
-//     std::deque<WorkPackage> pool;
-//     std::size_t size = expressions.size() / THREAD_COUNT + 1;
-//     for (std::size_t index = 0; index < THREAD_COUNT; ++index) {
-//         pool.emplace_back(solver, size);
-//     }
+// Backbone solving
 //
-//     std::size_t counter = 0;
-//     for (std::size_t index = 0; index < expressions.size(); ++index) {
-//         auto expr = AsExpr(expressions.at(index));
-//         auto translated = Translate(expr, solver.ctx(), pool.at(counter).context);
-//         pool.at(counter).tasks.emplace_back(index, translated);
-//         ++counter;
-//         if (counter >= pool.size()) counter = 0;
-//     }
-//
-//     DEBUG("#expr=" << expressions.size() << std::flush)
-//     std::deque<std::thread> threads;
-//     for (auto& pkg : pool) {
-//         threads.emplace_back([&pkg](){
-//             for (const auto& task : pkg.tasks) {
-//                 bool implied = IsImplied(pkg.solver, task.expr);
-//                 DEBUG("." << std::flush)
-//                 pkg.results.emplace_back(task, implied);
-//             }
-//         });
-//     }
-//     for (auto& thread : threads) thread.join();
-//     DEBUG(std::endl)
-//
-//     std::vector<bool> result(expressions.size());
-//     for (const auto& pkg : pool) {
-//         for (const auto& elem : pkg.results) {
-//             result.at(elem.id) = elem.implied;
-//         }
-//     }
-//     return result;
-// }
+
+inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::deque<EExpr>& expressions) {
+    MEASURE("Encoding::Check() ~> ComputeImpliedInOneShot")
+
+    // prepare required vectors
+    solver.push();
+    auto& context = solver.ctx();
+    z3::expr_vector variables(context);
+    z3::expr_vector assumptions(context);
+    z3::expr_vector consequences(context);
+
+    // prepare engine
+    for (unsigned int index = 0; index < expressions.size(); ++index) {
+        std::string name = "__chk__" + std::to_string(index);
+        auto var = context.bool_const(name.c_str());
+        variables.push_back(var);
+        solver.add(var == AsExpr(expressions.at(index)));
+    }
+
+    // check
+    auto answer = solver.consequences(assumptions, variables, consequences);
+    solver.pop();
+
+    // create result
+    std::vector<bool> result(expressions.size(), false);
+    switch (answer) {
+        case z3::unknown:
+            throw PreferredMethodFailed();
+
+        case z3::unsat:
+            result.flip();
+            return result;
+
+        case z3::sat:
+            for (unsigned int index = 0; index < expressions.size(); ++index) {
+                auto search = z3::implies(true, variables[(int) index]);
+                bool implied = plankton::ContainsIf(consequences, [search](const auto& elem) {
+                    return z3::eq(search, elem);
+                });
+                if (implied) result[index] = true;
+            }
+            return result;
+    }
+}
 
 
-// inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::deque<EExpr>& expressions) {
-//     MEASURE("Z3 ~> z3::solver::consequences")
 //
-//     // prepare required vectors
-//     solver.push();
-//     auto& context = solver.ctx();
-//     z3::expr_vector variables(context);
-//     z3::expr_vector assumptions(context);
-//     z3::expr_vector consequences(context);
+// Adaptive method choosing
 //
-//     // prepare engine
-//     for (unsigned int index = 0; index < expressions.size(); ++index) {
-//         std::string name = "__chk__" + std::to_string(index);
-//         auto var = context.bool_const(name.c_str());
-//         variables.push_back(var);
-//         solver.add(var == AsExpr(expressions.at(index)));
-//     }
-//
-//     // check
-//     auto answer = solver.consequences(assumptions, variables, consequences);
-//     solver.pop();
-//
-//     // create result
-//     std::vector<bool> result(expressions.size(), false);
-//     switch (answer) {
-//         case z3::unknown:
-//             throw PreferredMethodFailed();
-//
-//         case z3::unsat:
-//             result.flip();
-//             return result;
-//
-//         case z3::sat:
-//             for (unsigned int index = 0; index < expressions.size(); ++index) {
-//                 auto search = z3::implies(true, variables[(int) index]);
-//                 bool implied = plankton::ContainsIf(consequences, [search](const auto& elem) {
-//                     return z3::eq(search, elem);
-//                 });
-//                 if (implied) result[index] = true;
-//             }
-//             return result;
-//     }
-// }
 
 inline std::string GetZ3Version() {
     unsigned int versionMajor, versionMinor, versionBuild, versionRevision;
@@ -248,8 +251,6 @@ inline std::string GetZ3Version() {
 
 struct MethodChooser {
     // TODO: identify working method beforehand (during construction)
-    // static std::function<std::vector<bool>(z3::engine&, const z3::expr_vector&, bool*)> method = GetSolvingMethod();
-    // return method(encoding);
     bool fallback = false;
 
     inline std::vector<bool> operator()(z3::solver& solver, const std::deque<EExpr>& expressions) {
@@ -272,24 +273,33 @@ struct MethodChooser {
 //
 
 void Encoding::Check() {
+    MEASURE("Encoding::Check")
     assert(checks_premise.size() == checks_callback.size());
     if (checks_premise.empty()) return;
     Push();
     auto implied = solvingMethod(AsSolver(internal), checks_premise);
+    Pop();
     for (std::size_t index = 0; index < implied.size(); ++index) {
         checks_callback.at(index)(implied.at(index));
     }
     checks_premise.clear();
     checks_callback.clear();
-    Pop();
-}
-
-bool Encoding::ImpliesFalse() {
-    return Implies(Bool(false));
 }
 
 bool Encoding::Implies(const EExpr& expr) {
-    return IsImplied(AsSolver(internal), AsExpr(expr));
+    MEASURE("Encoding::Implies")
+    Push();
+    auto result = IsImplied(AsSolver(internal), AsExpr(expr));
+    Pop();
+    return result;
+}
+
+bool Encoding::ImpliesFalse() {
+    MEASURE("Encoding::ImpliesFalse")
+    Push();
+    auto result = IsUnsat(AsSolver(internal));
+    Pop();
+    return result;
 }
 
 bool Encoding::Implies(const Formula& formula) {
@@ -306,10 +316,12 @@ bool Encoding::Implies(const ImplicationSet& formula) {
 
 std::set<const SymbolDeclaration*> Encoding::ComputeNonNull(std::set<const SymbolDeclaration*> symbols) {
     plankton::DiscardIf(symbols, [](auto* decl){ return decl->type.sort != Sort::PTR; });
-    
+
     std::deque<EExpr> expressions;
     for (const auto* elem : symbols) expressions.push_back(EncodeIsNonNull(*elem));
+    Push();
     auto implied = solvingMethod(AsSolver(internal), expressions);
+    Pop();
     
     auto sym = symbols.begin();
     for (bool isNonNull : implied) {
