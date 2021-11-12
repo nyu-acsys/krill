@@ -8,6 +8,7 @@
 #include "logics/ast.hpp"
 #include "engine/config.hpp"
 #include "engine/solver.hpp"
+#include "util/log.hpp"
 
 namespace plankton {
 
@@ -46,6 +47,9 @@ namespace plankton {
         std::map<const Function*, std::deque<PrePostPair>> macroPostTable;
         bool insideAtomic;
         std::unique_ptr<FutureSuggestion> debugFuture;
+
+        #define INFO_SIZE (" (" + std::to_string(current.size()) + ") ")
+        StatusStack infoPrefix;
     
         void HandleInterfaceFunction(const Function& function);
         void HandleMacroLazy(const Macro& macro);

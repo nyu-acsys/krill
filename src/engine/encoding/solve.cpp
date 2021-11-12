@@ -29,38 +29,18 @@ inline z3::expr Translate(const z3::expr& expr, const z3::context& srcContext, z
 // Z3 handling
 //
 
-inline bool IsUnsat(const z3::solver& solver) {
-    const z3::context& context = solver.ctx();
-    z3::context myContext;
-    z3::solver mySolver(myContext);
-    for (std::size_t index = 0; index < solver.assertions().size(); ++index) {
-        auto expr = solver.assertions()[index];
-        auto myExpr = Translate(expr, context, myContext);
-        mySolver.add(myExpr);
-    }
-    DEBUG("!!IsUnsat #=" << solver.assertions().size() << std::endl << mySolver.to_smt2())
-    auto res = mySolver.check();
+inline bool IsUnsat(z3::solver& solver) {
+    solver.push();
+    auto res = solver.check();
+    solver.pop();
     switch (res) {
-        case z3::unsat: DEBUG("UNSAT" << std::endl) return true;
-        case z3::sat: DEBUG("SAT" << std::endl) return false;
-        case z3::unknown: DEBUG("UNKNOWN" << std::endl) throw std::logic_error("Solving failed: Z3 returned z3::unknown."); // TODO: better error handling
+        case z3::unsat: return true;
+        case z3::sat: return false;
+        case z3::unknown: throw std::logic_error("Solving failed: Z3 returned z3::unknown."); // TODO: better error handling
     }
-    // z3::solver mySolver(solver.)
-
-    // DEBUG("!!IsUnsat #=" << solver.assertions().size() << std::endl << solver.to_smt2())
-    // solver.push();
-    // auto res = solver.check();
-    // solver.pop();
-    // switch (res) {
-    //     case z3::unsat: DEBUG("UNSAT" << std::endl) return true;
-    //     case z3::sat: DEBUG("SAT" << std::endl) return false;
-    //     case z3::unknown: DEBUG("UNKNOWN" << std::endl) throw std::logic_error("Solving failed: Z3 returned z3::unknown."); // TODO: better error handling
-    // }
 }
 
 inline bool IsImplied(z3::solver& solver, const z3::expr& expr) {
-    // MEASURE("Z3 ~> z3::solver::check")
-
     solver.push();
     solver.add(!expr);
     auto res = solver.check();
@@ -87,7 +67,6 @@ inline std::vector<bool> ComputeImpliedOneAtATime(z3::solver& solver, const std:
 }
 
 inline std::vector<bool> ComputeImpliedOneAtATimeSequential(z3::solver& solver, const std::deque<EExpr>& expressions) {
-    MEASURE("Encoding::Check() ~> ComputeImpliedOneAtATimeSequential")
     std::vector<bool> result;
     result.reserve(expressions.size());
     for (const auto& check : expressions) {
@@ -171,7 +150,6 @@ inline void Work(TaskPool& pool) {
 
 inline std::vector<bool> ComputeImpliedOneAtATimeParallel(z3::solver& solver, const std::deque<EExpr>& expressions) {
     static const std::size_t THREAD_COUNT = GetThreadCount();
-    MEASURE("Encoding::Check() ~> ComputeImpliedOneAtATimeParallel")
 
     // DEBUG("#threads=" << THREAD_COUNT << " #expr=" << expressions.size() << " " << std::flush)
     TaskPool taskPool(expressions, solver);
@@ -195,8 +173,6 @@ inline std::vector<bool> ComputeImpliedOneAtATimeParallel(z3::solver& solver, co
 //
 
 inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::deque<EExpr>& expressions) {
-    MEASURE("Encoding::Check() ~> ComputeImpliedInOneShot")
-
     // prepare required vectors
     solver.push();
     auto& context = solver.ctx();
@@ -272,13 +248,85 @@ struct MethodChooser {
 // Encoding API
 //
 
+/**
+ * This is to fight strange non-deterministic behavior of Z3 where certain solver states
+ * might evaluate to 'sat' or 'unsat' depending on Z3's mood...
+ * Using 'push'/'pop' on the solver would not help to resolve the problem.
+ * TODO: how to avoid/improve this?
+ */
+struct Z3Wrapper {
+    z3::context context;
+    z3::solver solver;
+
+    explicit Z3Wrapper(const z3::solver& srcSolver) : solver(context) {
+        MEASURE("Z3Wrapper ~> ctor")
+        const auto& srcContext = srcSolver.ctx();
+        for (std::size_t index = 0; index < srcSolver.assertions().size(); ++index) {
+            auto srcExpr = srcSolver.assertions()[index];
+            auto expr = ::Translate(srcExpr, srcContext, context);
+            solver.add(expr);
+        }
+    }
+
+    z3::expr Translate(const EExpr& expr) {
+        MEASURE("Z3Wrapper ~> Translate(EExpr)")
+        const auto& z3expr = AsExpr(expr);
+        return ::Translate(z3expr, z3expr.ctx(), context);
+    }
+
+    std::deque<EExpr> Translate(const std::deque<EExpr>& container) {
+        MEASURE("Z3Wrapper ~> Translate(std::deque<EExpr>)")
+        std::deque<EExpr> result;
+        for (const auto& elem : container) result.push_back(AsEExpr(Translate(elem)));
+        return result;
+    }
+};
+
+inline bool IsUnsat(std::unique_ptr<InternalStorage>& internal) {
+    Z3Wrapper wrapper(AsSolver(internal));
+    return IsUnsat(wrapper.solver);
+}
+
+inline bool IsImplied(std::unique_ptr<InternalStorage>& internal, const EExpr& expression) {
+    Z3Wrapper wrapper(AsSolver(internal));
+    return IsImplied(wrapper.solver, wrapper.Translate(expression));
+}
+
+inline std::vector<bool> ComputeImplied(std::unique_ptr<InternalStorage>& internal, const std::deque<EExpr>& expressions) {
+    Z3Wrapper wrapper(AsSolver(internal));
+    return solvingMethod(wrapper.solver, wrapper.Translate(expressions));
+}
+
+// inline bool IsUnsat(std::unique_ptr<InternalStorage>& internal) {
+//     auto& solver = AsSolver(internal);
+//     solver.push();
+//     auto result = IsUnsat(solver);
+//     solver.pop();
+//     return result;
+// }
+//
+// inline bool IsImplied(std::unique_ptr<InternalStorage>& internal, const EExpr& expression) {
+//     auto& solver = AsSolver(internal);
+//     solver.push();
+//     auto result = IsImplied(solver, AsExpr(expression));
+//     solver.pop();
+//     return result;
+// }
+//
+// inline std::vector<bool> ComputeImplied(std::unique_ptr<InternalStorage>& internal, const std::deque<EExpr>& expressions) {
+//     auto& solver = AsSolver(internal);
+//     solver.push();
+//     auto result = solvingMethod(solver, expressions);
+//     solver.pop();
+//     return result;
+// }
+
+
 void Encoding::Check() {
     MEASURE("Encoding::Check")
     assert(checks_premise.size() == checks_callback.size());
     if (checks_premise.empty()) return;
-    Push();
-    auto implied = solvingMethod(AsSolver(internal), checks_premise);
-    Pop();
+    auto implied = ComputeImplied(internal, checks_premise);
     for (std::size_t index = 0; index < implied.size(); ++index) {
         checks_callback.at(index)(implied.at(index));
     }
@@ -288,17 +336,13 @@ void Encoding::Check() {
 
 bool Encoding::Implies(const EExpr& expr) {
     MEASURE("Encoding::Implies")
-    Push();
-    auto result = IsImplied(AsSolver(internal), AsExpr(expr));
-    Pop();
+    auto result = IsImplied(internal, expr);
     return result;
 }
 
 bool Encoding::ImpliesFalse() {
     MEASURE("Encoding::ImpliesFalse")
-    Push();
-    auto result = IsUnsat(AsSolver(internal));
-    Pop();
+    auto result = IsUnsat(internal);
     return result;
 }
 
@@ -319,9 +363,7 @@ std::set<const SymbolDeclaration*> Encoding::ComputeNonNull(std::set<const Symbo
 
     std::deque<EExpr> expressions;
     for (const auto* elem : symbols) expressions.push_back(EncodeIsNonNull(*elem));
-    Push();
-    auto implied = solvingMethod(AsSolver(internal), expressions);
-    Pop();
+    auto implied = ComputeImplied(internal, expressions);
     
     auto sym = symbols.begin();
     for (bool isNonNull : implied) {

@@ -19,7 +19,10 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const
     PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
     pre->Conjoin(ConvertToLogic(*cmd.condition, *pre->now));
-    if (IsUnsatisfiable(*pre)) { DEBUG("{ false }" << std::endl << std::endl) return PostImage(); }
+    if (IsUnsatisfiable(*pre)) {
+        DEBUG("{ false }" << std::endl << std::endl)
+        return PostImage();
+    }
     DEBUG(*pre << std::endl << std::endl)
     return PostImage(std::move(pre));
 }

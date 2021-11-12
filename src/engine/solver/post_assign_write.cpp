@@ -147,8 +147,7 @@ inline void CheckFlowUniqueness(PostImageInfo& info) {
 inline void CheckInvariant(PostImageInfo& info) {
     for (const auto& node : info.footprint.nodes) {
         auto nodeInvariant = info.encoding.EncodeNodeInvariant(node, EMode::POST);
-        info.encoding.AddCheck(nodeInvariant, [&node](bool holds){
-            // DEBUG("Checking invariant for " << node.address.name << ": holds=" << holds << std::endl)
+        info.encoding.AddCheck(nodeInvariant, [](bool holds){
             if (holds) return;
             throw std::logic_error("Unsafe update: invariant is not maintained."); // TODO: better error handling
         });
@@ -158,7 +157,6 @@ inline void CheckInvariant(PostImageInfo& info) {
 inline void AddSpecificationChecks(PostImageInfo& info) {
     // check purity
     plankton::AddPureCheck(info.footprint, info.encoding, [&info](bool isPure) {
-        // DEBUG(" ** is pure=" << isPure << std::endl)
         info.isPureUpdate = isPure;
         if (isPure) {
             for (const auto* obl : info.preObligations) info.postSpecifications.push_back(plankton::Copy(*obl));
@@ -197,13 +195,11 @@ inline void AddAffectedOutsideChecks(PostImageInfo& info) {
             auto isDistinct = info.encoding.Encode(insideAdr) != info.encoding.Encode(outsideAdr);
             info.encoding.AddCheck(isAlias, [&info,in=&insideAdr,out=&outsideAdr](bool holds) {
                 if (!holds) return;
-                DEBUG(" - alias detected: " << in->name << " == " << out->name << std::endl)
                 info.outsideInsideAlias.emplace(out, in);
                 info.pre.Conjoin(MakeBinary<BinaryOperator::EQ>(*in, *out));
             });
             info.encoding.AddCheck(isDistinct, [&info,in=&insideAdr,out=&outsideAdr](bool holds) {
                 if (!holds) return;
-                DEBUG(" - distinct detected: " << in->name << " != " << out->name << std::endl)
                 info.outsideInsideDistinct[out].insert(in);
                 info.pre.Conjoin(MakeBinary<BinaryOperator::NEQ>(*in, *out));
             });
@@ -516,7 +512,7 @@ std::unique_ptr<Annotation> TryGetFromFuture(const Annotation& pre, const Memory
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, bool useFuture) const {
     MEASURE("Solver::Post (MemoryWrite)")
     DEBUG("<<POST MEM>> [useFuture=" << useFuture << "]" << std::endl << *pre << " " << cmd << std::flush)
-    assert(!IsUnsatisfiable(*pre));
+    if(IsUnsatisfiable(*pre)) return PostImage();
 
     PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
@@ -526,55 +522,23 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
     if (useFuture && !pre->future.empty()) {
         if (auto fromFuture = TryGetFromFuture(*pre, cmd)) {
             DEBUG("/* from future */ " << *fromFuture << std::endl << std::endl)
-            assert(!IsUnsatisfiable(*fromFuture));
             return PostImage(std::move(fromFuture));
         }
     }
 
     PostImageInfo info(std::move(pre), cmd, config);
-    assert(!useFuture || !info.encoding.ImpliesFalse());
-    // assert(!info.encoding.ImpliesFalse());
-    if (info.encoding.ImpliesFalse()) return PostImage();
-    DEBUG("info.pre 1: " << info.pre << std::endl)
-    assert(!info.encoding.ImpliesFalse());
-    assert(!info.encoding.ImpliesFalse());
-    DEBUG("info.pre 2: " << info.pre << std::endl)
-    assert(!IsUnsatisfiable(info.pre));
-    DEBUG("info.pre 3: " << info.pre << std::endl)
-    assert(!info.encoding.ImpliesFalse());
-    assert(!info.encoding.ImpliesFalse());
     CheckPublishing(info);
-    assert(!info.encoding.ImpliesFalse());
-    assert(!info.encoding.ImpliesFalse());
     CheckReachability(info);
-    assert(!info.encoding.ImpliesFalse());
-    assert(!info.encoding.ImpliesFalse());
     CheckFlowCoverage(info);
-    assert(!info.encoding.ImpliesFalse());
-    assert(!info.encoding.ImpliesFalse());
     CheckFlowUniqueness(info);
-    assert(!info.encoding.ImpliesFalse());
-    assert(!info.encoding.ImpliesFalse());
     CheckInvariant(info);
-    assert(!info.encoding.ImpliesFalse());
-    assert(!info.encoding.ImpliesFalse());
     AddSpecificationChecks(info);
-    assert(!info.encoding.ImpliesFalse());
-    assert(!info.encoding.ImpliesFalse());
     AddAffectedOutsideChecks(info);
-    assert(!info.encoding.ImpliesFalse());
-    assert(!info.encoding.ImpliesFalse());
     AddEffectContextGenerators(info);
-    assert(!info.encoding.ImpliesFalse());
-    assert(!info.encoding.ImpliesFalse());
     info.encoding.Check();
-    assert(!info.encoding.ImpliesFalse());
 
-    assert(!info.encoding.ImpliesFalse());
     MinimizeFootprint(info);
-    assert(!info.encoding.ImpliesFalse());
     auto effects = ExtractEffects(info);
-    assert(!info.encoding.ImpliesFalse());
     auto post = ExtractPost(std::move(info));
 
     DEBUG(*post << std::endl << std::endl)

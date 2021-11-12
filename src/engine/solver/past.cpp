@@ -80,10 +80,8 @@ void Solver::ReducePast(Annotation& annotation) const {
     MEASURE("Solver::PrunePast")
     DEBUG("<<REDUCE PAST>>" << std::endl)
     DEBUG(annotation << std::endl)
-    assert(!IsUnsatisfiable(annotation));
     FilterPasts(annotation, config);
     DEBUG(" ~> " << annotation << std::endl << std::endl)
-    assert(!IsUnsatisfiable(annotation));
 }
 
 std::unique_ptr<Annotation> Solver::ReducePast(std::unique_ptr<Annotation> annotation) const {
@@ -342,12 +340,10 @@ struct Interpolator {
 
 std::unique_ptr<Annotation> Solver::ImprovePast(std::unique_ptr<Annotation> annotation) const {
     MEASURE("Solver::ImprovePast")
-    assert(!IsUnsatisfiable(*annotation));
     if (annotation->past.empty()) return annotation;
     DEBUG("<<IMPROVE PAST>>" << std::endl)
     DEBUG(*annotation << " ~~> ")
     Interpolator(*annotation, interference, config).Interpolate();
     DEBUG(*annotation << std::endl << std::endl)
-    assert(!IsUnsatisfiable(*annotation));
     return annotation;
 }

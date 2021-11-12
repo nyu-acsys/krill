@@ -186,6 +186,8 @@ void ProofGenerator::Visit(const Macro& cmd) {
     auto breakingOuter = std::move(breaking);
     auto returningOuter = std::move(returning);
 
+    infoPrefix.Push("macro-", cmd.function.get().name);
+    INFO(infoPrefix << "Descending into macro '" << cmd.function.get().name << "'..." << std::endl)
     DEBUG(std::endl << "=== pre annotations for macro '" << cmd.Func().name << "':" << std::endl)
     for (const auto& elem : current) DEBUG("  -- " << *elem << std::endl)
 
@@ -197,6 +199,8 @@ void ProofGenerator::Visit(const Macro& cmd) {
     breaking = std::move(breakingOuter);
     returning = std::move(returningOuter);
 
+    INFO(infoPrefix << "Returning from macro '" << cmd.function.get().name << "'..." << std::endl)
+    infoPrefix.Pop();
     DEBUG(std::endl << "=== post annotations for macro '" << cmd.Func().name << "':" << std::endl)
     for (const auto& elem : current) DEBUG("  -- " << *elem << std::endl)
     DEBUG(std::endl << std::endl)

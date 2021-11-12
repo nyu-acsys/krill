@@ -107,6 +107,14 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 	}
 }
 
+bool contains(data_t key) {
+	Node* left, right;
+	data_t k;
+
+	<left, right, k> = locate(key);
+	return k == key;
+}
+
 bool add(data_t key) {
 	Node* entry;
 
@@ -150,12 +158,4 @@ bool remove(data_t key) {
 			}
 		}
 	}
-}
-
-bool contains(data_t key) {
-	Node* left, right;
-	data_t k;
-
-	<left, right, k> = locate(key);
-	return k == key;
 }

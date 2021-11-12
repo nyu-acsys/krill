@@ -138,12 +138,14 @@ void ProofGenerator::AddNewInterference(std::deque<std::unique_ptr<HeapEffect>> 
 }
 
 bool ProofGenerator::ConsolidateNewInterference() {
+    INFO(infoPrefix << "Checking for new effects. (" << newInterference.size() << ") " << std::endl)
     auto result = solver.AddInterference(std::move(newInterference));
     newInterference.clear();
     return result;
 }
 
 void ProofGenerator::MakeInterferenceStable(const Statement& after) {
+    INFO(infoPrefix << "Applying interference." << INFO_SIZE << std::endl)
     if (insideAtomic) return;
     if (current.empty()) return;
     if (plankton::IsRightMover(after)) return;
@@ -156,6 +158,7 @@ void ProofGenerator::MakeInterferenceStable(const Statement& after) {
 }
 
 void ProofGenerator::JoinCurrent() {
+    INFO(infoPrefix << "Preparing Join." << INFO_SIZE << std::endl)
     DEBUG(std::endl << std::endl)
     DEBUG("@@@ joining current " << current.size() << std::endl << std::endl)
     if (current.empty()) return;
@@ -164,6 +167,7 @@ void ProofGenerator::JoinCurrent() {
     ImproveCurrentTime();
     ReduceCurrentTime();
 
+    INFO(infoPrefix << "Joining." << INFO_SIZE << std::endl)
     auto join = solver.Join(std::move(current));
     current.clear();
     current.push_back(std::move(join));
@@ -171,6 +175,7 @@ void ProofGenerator::JoinCurrent() {
     ReduceCurrentTime();
 }
 void ProofGenerator::ImproveCurrentTime() {
+    INFO(infoPrefix << "Improving time predicates." << INFO_SIZE << std::endl)
     ApplyTransformer([this](auto annotation){
         annotation = solver.ImprovePast(std::move(annotation));
         auto post = debugFuture
@@ -181,6 +186,7 @@ void ProofGenerator::ImproveCurrentTime() {
 }
 
 void ProofGenerator::ReduceCurrentTime() {
+    INFO(infoPrefix << "Minimizing time predicates." << INFO_SIZE << std::endl)
     ApplyTransformer([this](auto annotation){
         annotation = solver.ReducePast(std::move(annotation));
         return solver.ReduceFuture(std::move(annotation));

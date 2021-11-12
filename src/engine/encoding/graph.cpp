@@ -173,7 +173,6 @@ EExpr Encoding::Encode(const FlowGraph& graph) {
         }
     }
 
-    assert(ImpliesFalse() || !Implies(MakeAnd(result) >> Bool(false)));
     return MakeAnd(result);
 }
 
