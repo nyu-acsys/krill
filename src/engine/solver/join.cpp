@@ -8,7 +8,7 @@
 
 using namespace plankton;
 
-constexpr const std::size_t MAX_JOIN = 4;
+constexpr const std::size_t MAX_JOIN = 5;
 constexpr const bool DEEP_PREPROCESSING = false;
 constexpr const ExtensionPolicy EXTENSION = ExtensionPolicy::FAST;
 

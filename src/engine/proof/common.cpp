@@ -70,20 +70,20 @@ void ProofGenerator::LeaveAllNestedScopes(const AstNode& node) {
 void ProofGenerator::PruneCurrent() {
     // TODO: remove??
 
-    // for (auto& annotation : current) {
-    //     if (!solver.IsUnsatisfiable(*annotation)) continue;
-    //     annotation.reset(nullptr);
-    // }
-    // for (const auto& annotation : current) {
-    //     if (!annotation) continue;
-    //     for (auto& otherAnnotation : current) {
-    //         if (!otherAnnotation) continue;
-    //         if (annotation.get() == otherAnnotation.get()) continue;
-    //         if (!solver.Implies(*annotation, *otherAnnotation)) continue;
-    //         otherAnnotation.reset(nullptr);
-    //     }
-    // }
-    // plankton::RemoveIf(current, [](const auto& elem) { return !elem; });
+    for (auto& annotation : current) {
+        if (!solver.IsUnsatisfiable(*annotation)) continue;
+        annotation.reset(nullptr);
+    }
+    for (const auto& annotation : current) {
+        if (!annotation) continue;
+        for (auto& otherAnnotation : current) {
+            if (!otherAnnotation) continue;
+            if (annotation.get() == otherAnnotation.get()) continue;
+            if (!solver.Implies(*otherAnnotation, *annotation)) continue;
+            otherAnnotation.reset(nullptr);
+        }
+    }
+    plankton::RemoveIf(current, [](const auto& elem) { return !elem; });
 }
 
 inline bool SameReturns(const Return* command, const Return* other) {
@@ -100,21 +100,21 @@ void ProofGenerator::PruneReturning() {
     // TODO: remove??
 
     // TODO: avoid code duplication
-    // for (auto& pair : returning) {
-    //     if (!solver.IsUnsatisfiable(*pair.first)) continue;
-    //     pair.first.reset(nullptr);
-    // }
-    // for (const auto& [annotation, command] : returning) {
-    //     if (!annotation) continue;
-    //     for (auto& [otherAnnotation, otherCommand] : returning) {
-    //         if (!otherAnnotation) continue;
-    //         if (annotation.get() == otherAnnotation.get()) continue;
-    //         if (!SameReturns(command, otherCommand)) continue;
-    //         if (!solver.Implies(*annotation, *otherAnnotation)) continue;
-    //         otherAnnotation.reset(nullptr);
-    //     }
-    // }
-    // plankton::RemoveIf(returning, [](const auto& elem) { return !elem.first; });
+    for (auto& pair : returning) {
+        if (!solver.IsUnsatisfiable(*pair.first)) continue;
+        pair.first.reset(nullptr);
+    }
+    for (const auto& [annotation, command] : returning) {
+        if (!annotation) continue;
+        for (auto& [otherAnnotation, otherCommand] : returning) {
+            if (!otherAnnotation) continue;
+            if (annotation.get() == otherAnnotation.get()) continue;
+            if (!SameReturns(command, otherCommand)) continue;
+            if (!solver.Implies(*otherAnnotation, *annotation)) continue;
+            otherAnnotation.reset(nullptr);
+        }
+    }
+    plankton::RemoveIf(returning, [](const auto& elem) { return !elem.first; });
 }
 
 void ProofGenerator::ApplyTransformer(const std::function<std::unique_ptr<Annotation>(std::unique_ptr<Annotation>)>& transformer) {

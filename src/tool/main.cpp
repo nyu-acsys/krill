@@ -123,7 +123,6 @@ int main(int argc, char** argv) {
         auto cmd = Interact(argc, argv);
         auto input = Parse(cmd);
         PrintInput(input);
-//        throw std::logic_error("breakpoint");
         auto result = Verify(input);
         PrintResult(cmd, input, result);
         return 0;
@@ -133,9 +132,9 @@ int main(int argc, char** argv) {
         ERROR(err.error() << " for arg " << err.argId() << std::endl)
         return -1;
 
-    } /* catch (std::logic_error& err) {
+    } catch (std::logic_error& err) { // TODO: catch proper error class
         // plankton error
         ERROR(err.what() << std::endl)
         return -1;
-    } */ // TODO: re-enable
+    }
 }

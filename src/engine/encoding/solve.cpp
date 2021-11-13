@@ -234,9 +234,9 @@ struct MethodChooser {
         try {
             return ComputeImpliedInOneShot(solver, expressions);
         } catch (const PreferredMethodFailed& err) {
-            std::cerr << "WARNING: solving failure with Z3's solver::consequences! "
-                      << "This issue is known to happen for versions >4.8.7, your version is " << GetZ3Version()
-                      << ". Using fallback, performance may degrade..." << std::endl;
+            WARNING("solving failure with Z3's solver::consequences! "
+                            << "This issue is known to happen for versions >4.8.7, your version is " << GetZ3Version()
+                            << ". Using fallback, performance may degrade..." << std::endl)
             fallback = true;
             return ComputeImpliedOneAtATime(solver, expressions);
         }
