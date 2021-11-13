@@ -160,10 +160,8 @@ void ProofGenerator::MakeInterferenceStable(const Statement& after) {
 }
 
 void ProofGenerator::JoinCurrent() {
-    INFO(infoPrefix << "Preparing Join." << INFO_SIZE << std::endl)
-    DEBUG(std::endl << std::endl)
-    DEBUG("@@@ joining current " << current.size() << std::endl << std::endl)
     if (current.empty()) return;
+    INFO(infoPrefix << "Preparing Join." << INFO_SIZE << std::endl)
 
     PruneCurrent();
     ImproveCurrentTime();
