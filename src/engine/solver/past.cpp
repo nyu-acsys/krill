@@ -144,8 +144,8 @@ struct Interpolator {
     void Interpolate() {
         Filter();
         ExpandHistoryMemory();
-        // Filter();
-        // InterpolatePastToNow();
+        Filter();
+        InterpolatePastToNow();
         AddTrivialPast();
         PostProcess();
     }

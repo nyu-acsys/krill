@@ -30,7 +30,7 @@ namespace plankton {
         inline void Pop() { stack.pop_back(); }
         inline void Print(std::ostream& stream) const {
             for (const auto& elem : stack) stream << "[" << elem << "]";
-            stream << " ";
+            if (!stack.empty()) stream << " ";
         }
     private:
         std::vector<std::string> stack;
