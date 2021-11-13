@@ -17,8 +17,8 @@ constexpr std::size_t PROOF_ABORT_AFTER = 7;
 
 void ProofGenerator::GenerateProof() {
     // TODO: remove debug
-    newInterference = plankton::MakeTestInterference(*program.types.at(0));
-    ConsolidateNewInterference();
+    // newInterference = plankton::MakeTestInterference(*program.types.at(0));
+    // ConsolidateNewInterference();
 
     // auto [annotation, command] = plankton::MakeTestState(program);
     // for (std::size_t index = 0; index < 5; ++index){

@@ -144,17 +144,31 @@ inline auto MakeFuturePowerSet(std::vector<AnnotationInfo>& lookup) {
     });
 }
 
-inline bool FuturesMatch(const FuturePredicate& future, const FuturePredicate& other, Encoding& encoding) { // FuturePremiseMatches
-    if (!plankton::SyntacticalEqual(*future.guard, *other.guard)) return false;
-    if (future.update->fields.size() != other.update->fields.size()) return false;
+// inline bool FuturesMatch(const FuturePredicate& future, const FuturePredicate& other, Encoding& encoding) { // FuturePremiseMatches
+//     if (!plankton::SyntacticalEqual(*future.guard, *other.guard)) return false;
+//     if (future.update->fields.size() != other.update->fields.size()) return false;
+//     for (std::size_t index = 0; index < future.update->fields.size(); ++index) {
+//         if (!plankton::SyntacticalEqual(*future.update->fields.at(index), *other.update->fields.at(index))) return false;
+//     }
+//     for (std::size_t index = 0; index < future.update->values.size(); ++index) {
+//         auto equal = encoding.Encode(*future.update->values.at(index)) == encoding.Encode(*other.update->values.at(index));
+//         if (!encoding.Implies(equal)) return false;
+//     }
+//     return true;
+// }
+
+inline EExpr FuturesMatch(const FuturePredicate& future, const FuturePredicate& other, Encoding& encoding) {
+    if (!plankton::SyntacticalEqual(*future.guard, *other.guard)) return encoding.Bool(false);
+    if (future.update->fields.size() != other.update->fields.size()) return encoding.Bool(false);
     for (std::size_t index = 0; index < future.update->fields.size(); ++index) {
-        if (!plankton::SyntacticalEqual(*future.update->fields.at(index), *other.update->fields.at(index))) return false;
+        if (!plankton::SyntacticalEqual(*future.update->fields.at(index), *other.update->fields.at(index))) return encoding.Bool(false);
     }
+    auto equalities = plankton::MakeVector<EExpr>(future.update->values.size());
     for (std::size_t index = 0; index < future.update->values.size(); ++index) {
         auto equal = encoding.Encode(*future.update->values.at(index)) == encoding.Encode(*other.update->values.at(index));
-        if (!encoding.Implies(equal)) return false;
+        equalities.push_back(equal);
     }
-    return true;
+    return encoding.MakeAnd(equalities);
 }
 
 inline void AddResourceCopies(Annotation& annotation, const SymbolDeclaration& src, const SymbolDeclaration& dst) {
@@ -472,19 +486,25 @@ struct AnnotationJoiner {
     }
 
     inline void EncodeFuture() {
+        MEASURE("Solver::Join ~> FutureMatching")
         DEBUG("(starting future matching...)" << std::endl)
         auto powerSet = MakeFuturePowerSet(lookup);
-        for (const auto& vector : powerSet) {
-            // DEBUG(" join future combination:  ")
-            // for (const auto* elem : vector) DEBUG(**elem << ",  ")
-            // DEBUG(std::endl)
 
-            // check match
+        // prune mismatches
+        for (auto& vector : powerSet) {
             if (vector.empty()) continue;
-            auto mismatch = plankton::Any(vector, [this,cmp=vector.front()](const auto* elem){
-                return !FuturesMatch(**cmp, **elem, encoding);
+            auto& cmp = **vector.front();
+            auto checks = plankton::MakeVector<EExpr>(vector.size());
+            for (const auto elem : vector) checks.push_back(FuturesMatch(cmp, **elem, encoding));
+            encoding.AddCheck(encoding.MakeAnd(checks), [&vector](bool holds) {
+                if (!holds) vector.clear();
             });
-            if (mismatch) continue;
+        }
+        encoding.Check();
+
+        // add joined futures
+        for (const auto& vector : powerSet) {
+            if (vector.empty()) continue;
 
             // make future
             auto future = plankton::Copy(**vector.front());

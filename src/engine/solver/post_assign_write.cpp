@@ -509,14 +509,26 @@ std::unique_ptr<Annotation> TryGetFromFuture(const Annotation& pre, const Memory
 // Overall Algorithm
 //
 
+inline bool IsTrivial(const Formula& state, const MemoryWrite& cmd) {
+    Encoding encoding(state);
+    auto equalities = plankton::MakeVector<EExpr>(cmd.lhs.size());
+    for (std::size_t index = 0; index < cmd.lhs.size(); ++index) {
+        auto* cur = plankton::TryEvaluate(*cmd.lhs.at(index), state);
+        auto dst = plankton::TryMakeSymbolic(*cmd.rhs.at(index), state);
+        if (!cur || !dst) return false;
+        equalities.push_back(encoding.Encode(*cur) == encoding.Encode(*dst));
+    }
+    return encoding.Implies(encoding.MakeAnd(equalities));
+}
+
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, bool useFuture) const {
     MEASURE("Solver::Post (MemoryWrite)")
     DEBUG("<<POST MEM>> [useFuture=" << useFuture << "]" << std::endl << *pre << " " << cmd << std::flush)
-    if(IsUnsatisfiable(*pre)) return PostImage();
+    if (IsUnsatisfiable(*pre)) return PostImage();
 
     PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
-    // TODO: filter out noop assignments
+    if (IsTrivial(*pre->now, cmd)) return PostImage(std::move(pre)); // TODO: needed?
 
     // TODO: use futures as a last resort their post image is less precise
     if (useFuture && !pre->future.empty()) {
@@ -527,6 +539,7 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
     }
 
     PostImageInfo info(std::move(pre), cmd, config);
+    // if (info.encoding.ImpliesFalse()) return PostImage();
     CheckPublishing(info);
     CheckReachability(info);
     CheckFlowCoverage(info);

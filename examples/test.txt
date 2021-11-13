@@ -69,17 +69,9 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 		// traverse
 		right = Head;
 		<rmark, rnext> = <Head->marked, Head->next>;
-		// k = right->val; // debug
+		assert(!rmark); // ensure copied loop condition holds upon first entry
 		do {
-		    //debug
-		    // choose {
-		    //     assume(rmark);
-		    // }{
-		    //     assume(!rmark);
-		    //     assume(k < key);
-		    // }
-		    assume(rmark || k < key); // debug
-		    // debug end
+		    assume(rmark || k < key); // copied loop condition => needed for join precision
 			if (!rmark) {
 				left = right;
 				lnext = rnext;
@@ -153,7 +145,7 @@ bool remove(data_t key) {
             next = right->next;
 			if (CAS(<right->marked, right->next>, <false, next>, <true, next>)) {
                 CAS(<left->marked, left->next>, <false, right>, <false, next>);
-                // TODO: <left, right, k> = locate(key);
+                // <left, right, k> = locate(key);
                 return true;
 			}
 		}

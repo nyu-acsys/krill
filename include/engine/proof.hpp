@@ -46,7 +46,7 @@ namespace plankton {
         std::deque<std::pair<std::unique_ptr<Annotation>, const Return*>> returning;
         std::map<const Function*, std::deque<PrePostPair>> macroPostTable;
         bool insideAtomic;
-        std::unique_ptr<FutureSuggestion> debugFuture;
+        std::deque<std::unique_ptr<FutureSuggestion>> futureSuggestions;
 
         #define INFO_SIZE (" (" + std::to_string(current.size()) + ") ")
         StatusStack infoPrefix;

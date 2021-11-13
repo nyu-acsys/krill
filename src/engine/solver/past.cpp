@@ -143,18 +143,11 @@ struct Interpolator {
 
     void Interpolate() {
         Filter();
-        // DEBUG(" (first filter) " << annotation << " ~~> ")
         ExpandHistoryMemory();
-        // DEBUG(" (expansion) " << annotation << " ~~> ")
-        Filter(); // TODO: to filter or not to filter?
-        // DEBUG(" (second filter) " << annotation << " ~~> ")
-        InterpolatePastToNow();
-        // DEBUG(" (interpolation) " << annotation << " ~~> ")
         // Filter();
+        // InterpolatePastToNow();
         AddTrivialPast();
-        // DEBUG(" (trivial past) " << annotation << " ~~> ")
         PostProcess();
-        // DEBUG(" (postprocessing) " << annotation << " ~~> ")
     }
 
     inline void ApplyImmutability(MemoryAxiom& memory, SeparatingConjunction* addEq = nullptr) {
@@ -342,7 +335,6 @@ std::unique_ptr<Annotation> Solver::ImprovePast(std::unique_ptr<Annotation> anno
     MEASURE("Solver::ImprovePast")
     if (annotation->past.empty()) return annotation;
     DEBUG("<<IMPROVE PAST>>" << std::endl)
-    DEBUG(*annotation << " ~~> ")
     Interpolator(*annotation, interference, config).Interpolate();
     DEBUG(*annotation << std::endl << std::endl)
     return annotation;

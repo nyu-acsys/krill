@@ -164,13 +164,24 @@ inline std::unique_ptr<FutureInfo> MakeFutureInfo(Annotation& annotation, const 
 
 inline bool TargetUpdateIsCovered(const FutureInfo& info) {
     Encoding encoding(*info.annotation.now);
-    return plankton::Any(info.matchingFutures, [&info,&encoding](const auto* future) {
+    auto checks = plankton::MakeVector<EExpr>(info.matchingFutures.size());
+    for (const auto* future : info.matchingFutures) {
+        auto equalities = plankton::MakeVector<EExpr>(future->update->values.size());
         for (std::size_t index = 0 ; index < future->update->values.size() ; ++index) {
             auto equal = encoding.Encode(*info.targetUpdate->values.at(index)) == encoding.Encode(*future->update->values.at(index));
-            if (!encoding.Implies(equal)) return false;
+            equalities.push_back(equal);
         }
-        return true;
-    });
+        checks.push_back(encoding.MakeAnd(equalities));
+    }
+    return encoding.Implies(encoding.MakeOr(checks));
+
+    // return plankton::Any(info.matchingFutures, [&info,&encoding](const auto* future) {
+    //     for (std::size_t index = 0 ; index < future->update->values.size() ; ++index) {
+    //         auto equal = encoding.Encode(*info.targetUpdate->values.at(index)) == encoding.Encode(*future->update->values.at(index));
+    //         if (!encoding.Implies(equal)) return false;
+    //     }
+    //     return true;
+    // });
 }
 
 inline std::unique_ptr<SeparatingConjunction> ExtractStack(const Annotation& annotation) {
@@ -298,6 +309,7 @@ inline void AddTrivialFuture(Annotation& annotation, const FutureSuggestion& tar
     }
 
     auto result = std::make_unique<FuturePredicate>(std::move(update), plankton::Copy(*target.guard));
+    DEBUG("     -- adding trivial future: " << *result << std::endl)
     annotation.future.push_back(std::move(result));
 }
 

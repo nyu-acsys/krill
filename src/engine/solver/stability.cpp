@@ -117,6 +117,6 @@ std::unique_ptr<Annotation> Solver::MakeInterferenceStable(std::unique_ptr<Annot
     InterferenceInfo info(std::move(annotation), interference);
     auto result = info.GetResult();
     plankton::InlineAndSimplify(*result);
-    DEBUG(*result << std::endl << std::endl)
+    // DEBUG(*result << std::endl << std::endl)
     return result;
 }

@@ -49,7 +49,9 @@ inline std::unique_ptr<FutureSuggestion> MakeDebugFuture(const Program& program)
 }
 
 ProofGenerator::ProofGenerator(const Program& program, const SolverConfig& config)
-        : program(program), solver(program, config), insideAtomic(false), debugFuture(MakeDebugFuture(program)) {}
+        : program(program), solver(program, config), insideAtomic(false) {
+    futureSuggestions.push_back(MakeDebugFuture(program));
+}
 
 void ProofGenerator::LeaveAllNestedScopes(const AstNode& node) {
     struct : public ProgramListener {
@@ -177,12 +179,18 @@ void ProofGenerator::JoinCurrent() {
 void ProofGenerator::ImproveCurrentTime() {
     INFO(infoPrefix << "Improving time predicates." << INFO_SIZE << std::endl)
     ApplyTransformer([this](auto annotation){
-        annotation = solver.ImprovePast(std::move(annotation));
-        auto post = debugFuture
-                    ? solver.ImproveFuture(std::move(annotation), *debugFuture)
-                    : PostImage(std::move(annotation));
-        return post;
+        return solver.ImprovePast(std::move(annotation));
     });
+    for (const auto& future : futureSuggestions) {
+        ApplyTransformer([this,&future](auto annotation) {
+            return solver.ImproveFuture(std::move(annotation), *future);
+        });
+    }
+    for (const auto& future : futureSuggestions) { // repeat because Z3 hates us...
+        ApplyTransformer([this,&future](auto annotation) {
+            return solver.ImproveFuture(std::move(annotation), *future);
+        });
+    }
 }
 
 void ProofGenerator::ReduceCurrentTime() {

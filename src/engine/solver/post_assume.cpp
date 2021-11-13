@@ -23,6 +23,7 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const
         DEBUG("{ false }" << std::endl << std::endl)
         return PostImage();
     }
+    plankton::InlineAndSimplify(*pre);
     DEBUG(*pre << std::endl << std::endl)
     return PostImage(std::move(pre));
 }
