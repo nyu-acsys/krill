@@ -69,7 +69,7 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 		// traverse
 		right = Head;
 		<rmark, rnext> = <Head->marked, Head->next>;
-		assert(!rmark); // ensure copied loop condition holds upon first entry
+		// assert(!rmark); // ensure copied loop condition holds upon first entry
 		do {
 		    assume(rmark || k < key); // copied loop condition => needed for join precision
 			if (!rmark) {
