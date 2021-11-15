@@ -1,4 +1,4 @@
-#name "Harris Set"
+#name "BUGGY Michael Set"
 
 
 struct Node {
@@ -16,7 +16,6 @@ def @contains(Node* node, data_t key) {
 }
 
 def @outflow[next](Node* node, data_t key) {
-    // !node->marked ==> node->val < key
     node->val < key
 }
 
@@ -61,68 +60,58 @@ void __init__() {
 
 
 inline <Node*, Node*, data_t> locate(data_t key) {
-	while (true) {
-		Node* left, lnext, right, rnext;
-		bool rmark;
-		data_t k;
-
-		// traverse
-		right = Head;
-		<rmark, rnext> = <Head->marked, Head->next>;
-		do {
-		    assume(rmark || k < key); // repeated loop condition for join precision
-			if (!rmark) {
-				left = right;
-				lnext = rnext;
-			}
-			right = rnext;
-			k = right->val;
-			if (right == Tail) break;
-			<rmark, rnext> = <right->marked, right->next>;
-		} while (rmark || k < key);
-
-		// left and right are successors
-		if (lnext == right) {
-			if (right == Tail || !right->marked) {
-				return <left, right, k>;
-			}
-		}
-
-		// unlink marked nodes between left and right (potentially unboundedly many)
-		if (CAS(<left->marked, left->next>, <false, lnext>, <false, right>)) {
-			if (right == Tail || !right->marked) {
-				return <left, right, k>;
-			}
-		}
-	}
-}
-
-bool contains(data_t key) {
-	Node* left, right;
+	Node* curr, pred, next;
 	data_t k;
 
-	<left, right, k> = locate(key);
+	curr = Head;
+	do {
+		pred = curr;
+		curr = pred->next;
+        if (pred->marked == false && pred->next == curr) {
+			k = curr->val;
+			if (curr->marked == true) {
+			    next = curr->next;
+			    CAS(<pred->marked, pred->next>, <false, curr>, <false, next>);
+			    // retry
+			    curr = Head;
+			    k = MIN;
+			}
+		} else {
+            // retry
+			curr = Head;
+			k = MIN;
+		}
+	} while (k < key);
+    return <pred, curr, k>;
+}
+
+
+bool contains(data_t key) {
+	Node* curr, pred;
+	data_t k;
+
+	<pred, curr, k> = locate(key);
 	return k == key;
 }
 
 bool add(data_t key) {
-	Node* entry;
+	Node* curr, pred, entry;
+	data_t k;
 
 	entry = malloc;
 	entry->val = key;
 	entry->marked = false;
 
 	while (true) {
-		Node* left, right;
-		data_t k;
-		<left, right, k> = locate(key);
+		<pred, curr, k> = locate(key);
 
 		if (k == key) {
             return false;
 
 		} else {
-			entry->next = right;
-            if (CAS(<left->marked, left->next>, <false, right>, <false, entry>)) {
+			entry->next = curr;
+            // if (CAS(<pred->marked, pred->next>, <false, curr>, <false, entry>)) { // correct
+            if (CAS(<pred->marked, pred->next>, <false, curr>, <true, entry>)) { // buggy: logically delete pred
 				return true;
 			}
 		}
@@ -130,20 +119,20 @@ bool add(data_t key) {
 }
 
 bool remove(data_t key) {
+	Node* curr, pred, next;
+	data_t k;
+
 	while (true) {
-		Node* left, right;
-		data_t k;
-		<left, right, k> = locate(key);
+		<pred, curr, k> = locate(key);
 
 		if (k > key) {
 			return false;
 
 		} else {
-			Node* next;
-            next = right->next;
-			if (CAS(<right->marked, right->next>, <false, next>, <true, next>)) {
-                CAS(<left->marked, left->next>, <false, right>, <false, next>);
-                // <left, right, k> = locate(key);
+            next = curr->next;
+			if (CAS(<curr->marked, curr->next>, <false, next>, <true, next>)) {
+                CAS(<pred->marked, pred->next>, <false, curr>, <false, next>);
+                // <pred, curr, k> = locate(key);
                 return true;
 			}
 		}

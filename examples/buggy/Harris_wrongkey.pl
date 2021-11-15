@@ -1,4 +1,4 @@
-#name "Harris Set"
+#name "BUGGY Harris Set"
 
 
 struct Node {
@@ -76,9 +76,10 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 				lnext = rnext;
 			}
 			right = rnext;
-			k = right->val;
+			// k = right->val; // correct
 			if (right == Tail) break;
 			<rmark, rnext> = <right->marked, right->next>;
+			k = right->val; // buggy: breaking path uses wrong value
 		} while (rmark || k < key);
 
 		// left and right are successors

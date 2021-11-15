@@ -169,6 +169,7 @@ struct FlowGraphGenerator {
         // create a new node, add to footprint
         auto newNode = MakeNodeFromResource(*resource, factory, graph);
         ApplyUpdates(newNode);
+        newNode.needed |= newNode.HasUpdatedPointers() || newNode.HasUpdatedData();
         graph.nodes.push_back(std::move(newNode));
         return &graph.nodes.back();
     }
@@ -318,6 +319,10 @@ FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const Mem
             DEBUG("      - " << node.address.name << "->" << next.name << " == " << next.preValue.get().name << " / "
                              << next.postValue.get().name << std::endl)
         }
+        // for (const auto& data : node.dataFields) {
+        //     DEBUG("      - " << node.address.name << "->" << data.name << " == " << data.preValue.get().name << " / "
+        //                      << data.postValue.get().name << std::endl)
+        // }
     }
     DEBUG("  with annotation: " << *graph.pre << std::endl)
     

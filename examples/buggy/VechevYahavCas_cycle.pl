@@ -1,5 +1,4 @@
-#name "Michael Set"
-
+#name "BUGGY Vechev&Yahav CAS Set"
 
 struct Node {
 	data_t val;
@@ -12,7 +11,7 @@ Node* Tail;
 
 
 def @contains(Node* node, data_t key) {
-    !node->marked && node->val == key
+    node->val == key
 }
 
 def @outflow[next](Node* node, data_t key) {
@@ -39,7 +38,6 @@ def @invariant[shared](Node* x) {
  && Tail->_flow != 0
  && x->val == MAX ==> x == Tail
  && x->next == NULL ==> x == Tail
- && x->next != NULL ==> x->val != MAX
 
  && !x->marked ==> [x->val, MAX] in x->_flow
  && x->_flow == 0 ==> x->marked
@@ -60,42 +58,29 @@ void __init__() {
 
 
 inline <Node*, Node*, data_t> locate(data_t key) {
-	Node* curr, pred, next;
+	Node* pred, curr;
 	data_t k;
 
 	curr = Head;
 	do {
 		pred = curr;
 		curr = pred->next;
-        if (pred->marked == false && pred->next == curr) {
-			k = curr->val;
-			if (curr->marked == true) {
-			    next = curr->next;
-			    CAS(<pred->marked, pred->next>, <false, curr>, <false, next>);
-			    // retry
-			    curr = Head;
-			    k = MIN;
-			}
-		} else {
-            // retry
-			curr = Head;
-			k = MIN;
-		}
+        k = curr->val;
 	} while (k < key);
     return <pred, curr, k>;
 }
 
 
 bool contains(data_t key) {
-	Node* curr, pred;
+	Node* pred, curr;
 	data_t k;
 
 	<pred, curr, k> = locate(key);
-	return k == key;
+    return k == key;
 }
 
 bool add(data_t key) {
-	Node* curr, pred, entry;
+	Node* entry, pred, curr;
 	data_t k;
 
 	entry = malloc;
@@ -109,7 +94,8 @@ bool add(data_t key) {
             return false;
 
 		} else {
-			entry->next = curr;
+			// entry->next = curr; // correct
+			entry->next = pred; // buggy: introducing cycle
             if (CAS(<pred->marked, pred->next>, <false, curr>, <false, entry>)) {
 				return true;
 			}
@@ -118,7 +104,7 @@ bool add(data_t key) {
 }
 
 bool remove(data_t key) {
-	Node* curr, pred, next;
+	Node* pred, curr, next;
 	data_t k;
 
 	while (true) {
@@ -128,11 +114,12 @@ bool remove(data_t key) {
 			return false;
 
 		} else {
+            // TODO: support any curr->marked, not just unmarked
             next = curr->next;
 			if (CAS(<curr->marked, curr->next>, <false, next>, <true, next>)) {
-                CAS(<pred->marked, pred->next>, <false, curr>, <false, next>);
-                // <pred, curr, k> = locate(key);
-                return true;
+                if (CAS(<pred->marked, pred->next>, <false, curr>, <false, next>)) {
+                    return true;
+                }
 			}
 		}
 	}

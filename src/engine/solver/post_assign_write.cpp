@@ -534,10 +534,6 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
     std::unique_ptr<Annotation> fromFuture;
     if (useFuture && !pre->future.empty()) {
         fromFuture = TryGetFromFuture(*pre, cmd);
-        // if (auto fromFuture = TryGetFromFuture(*pre, cmd)) {
-        //     DEBUG("/* from future */ " << *fromFuture << std::endl << std::endl)
-        //     return PostImage(std::move(fromFuture));
-        // }
     }
 
     try {

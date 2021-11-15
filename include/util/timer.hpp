@@ -14,10 +14,11 @@ namespace plankton {
         std::size_t counter;
         std::chrono::milliseconds elapsed;
 
-        [[nodiscard]] inline std::string ToString(const std::string& note) const {
+        [[nodiscard]] inline std::string ToString(const std::string& note, bool sortable = false) const {
             std::stringstream stream;
+            auto milli = std::to_string(elapsed.count());
+            if (sortable) stream << "[" << std::string(10 - milli.length(), '0') << milli << "ms] ";
             stream << note << " '" << info << "' (" << counter << "): ";
-            auto milli = elapsed.count();
             stream << milli << "ms";
             stream << std::endl;
             return stream.str();
@@ -43,7 +44,7 @@ namespace plankton {
         };
 
         explicit Timer(std::string info) : info(std::move(info)), counter(0), elapsed(0) {}
-        ~Timer() { INFO(ToString("Total time measured for")) }
+        ~Timer() { INFO(ToString("Total time measured for", true)) }
         void Print() const { INFO(ToString("Time measured for")) }
         Measurement Measure() { return Measurement(*this); }
     };
