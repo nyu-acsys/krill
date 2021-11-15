@@ -531,30 +531,39 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
     if (IsTrivial(*pre->now, cmd)) return PostImage(std::move(pre)); // TODO: needed?
 
     // TODO: use futures as a last resort their post image is less precise
+    std::unique_ptr<Annotation> fromFuture;
     if (useFuture && !pre->future.empty()) {
-        if (auto fromFuture = TryGetFromFuture(*pre, cmd)) {
-            DEBUG("/* from future */ " << *fromFuture << std::endl << std::endl)
-            return PostImage(std::move(fromFuture));
-        }
+        fromFuture = TryGetFromFuture(*pre, cmd);
+        // if (auto fromFuture = TryGetFromFuture(*pre, cmd)) {
+        //     DEBUG("/* from future */ " << *fromFuture << std::endl << std::endl)
+        //     return PostImage(std::move(fromFuture));
+        // }
     }
 
-    PostImageInfo info(std::move(pre), cmd, config);
-    // if (info.encoding.ImpliesFalse()) return PostImage();
-    CheckPublishing(info);
-    CheckReachability(info);
-    CheckFlowCoverage(info);
-    CheckFlowUniqueness(info);
-    CheckInvariant(info);
-    AddSpecificationChecks(info);
-    AddAffectedOutsideChecks(info);
-    AddEffectContextGenerators(info);
-    info.encoding.Check();
+    try {
+        PostImageInfo info(std::move(pre), cmd, config);
+        // if (info.encoding.ImpliesFalse()) return PostImage();
+        CheckPublishing(info);
+        CheckReachability(info);
+        CheckFlowCoverage(info);
+        CheckFlowUniqueness(info);
+        CheckInvariant(info);
+        AddSpecificationChecks(info);
+        AddAffectedOutsideChecks(info);
+        AddEffectContextGenerators(info);
+        info.encoding.Check();
 
-    MinimizeFootprint(info);
-    auto effects = ExtractEffects(info);
-    auto post = ExtractPost(std::move(info));
+        MinimizeFootprint(info);
+        auto effects = ExtractEffects(info);
+        auto post = ExtractPost(std::move(info));
 
-    DEBUG(*post << std::endl << std::endl)
-    if (IsUnsatisfiable(*post)) throw std::logic_error("Failed to perform proper memory update: solver inconsistency detected."); // TODO better error handling
-    return PostImage(std::move(post), std::move(effects));
+        DEBUG(*post << std::endl << std::endl)
+        if (IsUnsatisfiable(*post)) throw std::logic_error("Failed to perform proper memory update: solver inconsistency detected."); // TODO better error handling
+        return PostImage(std::move(post), std::move(effects));
+
+    } catch (std::logic_error& err) {
+        if (!fromFuture) throw err;
+        DEBUG("/* from future */ " << *fromFuture << std::endl << std::endl)
+        return PostImage(std::move(fromFuture));
+    }
 }

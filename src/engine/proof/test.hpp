@@ -64,6 +64,47 @@ namespace plankton {
         return result;
     }
 
+    inline const VariableDeclaration* GetVar(const Function& func, const std::string& name) {
+        struct : public ProgramListener {
+            std::set<const VariableDeclaration*> decls;
+            void Enter(const VariableDeclaration& object) override {
+                decls.insert(&object);
+            }
+        } collector;
+        func.Accept(collector);
+        for (const auto* var : collector.decls) {
+            if (var->name == name) return var;
+        }
+        return nullptr;
+    }
+
+    inline std::unique_ptr<FutureSuggestion> MakeDebugFuture(const Program& program) {
+        for (const auto& func : program.macroFunctions) {
+            if (func->name != "locate") continue;
+            auto* left = GetVar(*func, "left_1");
+            auto* lnext = GetVar(*func, "lnext_1");
+            auto* right = GetVar(*func, "right_1");
+            if (!left || !lnext || !right) return nullptr;
+
+            auto result = std::make_unique<FutureSuggestion>(std::make_unique<MemoryWrite>(
+                    std::make_unique<Dereference>(std::make_unique<VariableExpression>(*left), "next"),
+                    std::make_unique<VariableExpression>(*right)
+            ));
+            result->guard->conjuncts.push_back(std::make_unique<BinaryExpression>(
+                    BinaryOperator::EQ,
+                    std::make_unique<Dereference>(std::make_unique<VariableExpression>(*left), "marked"),
+                    std::make_unique<FalseValue>()
+            ));
+            result->guard->conjuncts.push_back(std::make_unique<BinaryExpression>(
+                    BinaryOperator::EQ,
+                    std::make_unique<Dereference>(std::make_unique<VariableExpression>(*left), "next"),
+                    std::make_unique<VariableExpression>(*lnext)
+            ));
+            return result;
+        }
+        return nullptr;
+    }
+
     struct TestGen {
         SymbolFactory factory;
         std::unique_ptr<Annotation> annotation;

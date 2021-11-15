@@ -31,14 +31,6 @@ namespace plankton {
         explicit PostImage(std::deque<std::unique_ptr<Annotation>> posts, std::deque<std::unique_ptr<HeapEffect>> effects);
     };
 
-    struct FutureSuggestion {
-        std::unique_ptr<Guard> guard;
-        std::unique_ptr<MemoryWrite> command;
-
-        explicit FutureSuggestion(std::unique_ptr<MemoryWrite> command);
-        explicit FutureSuggestion(std::unique_ptr<MemoryWrite> command, std::unique_ptr<Guard> guard);
-    };
-
     struct Solver final {
         explicit Solver(const Program& program, const SolverConfig& config);
 

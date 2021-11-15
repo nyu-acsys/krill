@@ -30,6 +30,13 @@ void ProofGenerator::GenerateProof() {
     // TODO: check initializer
 
     INFO(infoPrefix << "Proof generation for '" << program.name << "' initiated." << std::endl)
+    INFO(infoPrefix << "Starting with empty interference set." << std::endl)
+    if (futureSuggestions.empty()) {
+        INFO(infoPrefix << "Using no future suggestions." << std::endl)
+    } else {
+        INFO(infoPrefix << "Using the following future suggestions: " << std::endl)
+        for (const auto& suggestion : futureSuggestions) INFO(infoPrefix << "   " << *suggestion << std::endl)
+    }
 
     // check API functions
     for (std::size_t counter = 0; counter < PROOF_ABORT_AFTER; ++counter) {
