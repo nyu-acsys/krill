@@ -8,7 +8,7 @@
 using namespace plankton;
 
 
-constexpr std::size_t LOOP_ABORT_AFTER = 7;
+constexpr std::size_t LOOP_ABORT_AFTER = 12;
 
 
 void ProofGenerator::Visit(const Sequence& stmt) {

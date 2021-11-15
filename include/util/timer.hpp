@@ -43,7 +43,7 @@ namespace plankton {
         };
 
         explicit Timer(std::string info) : info(std::move(info)), counter(0), elapsed(0) {}
-        ~Timer() { DEBUG(ToString("Total time measured for")) }
+        ~Timer() { INFO(ToString("Total time measured for")) }
         void Print() const { INFO(ToString("Time measured for")) }
         Measurement Measure() { return Measurement(*this); }
     };

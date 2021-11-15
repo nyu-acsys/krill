@@ -129,11 +129,13 @@ int main(int argc, char** argv) {
 
     } catch (TCLAP::ArgException& err) {
         // command line misuse
+        INFO("ERROR: " << err.error() << " for arg " << err.argId() << std::endl << std::endl)
         ERROR(err.error() << " for arg " << err.argId() << std::endl)
         return -1;
 
     } catch (std::logic_error& err) { // TODO: catch proper error class
         // plankton error
+        INFO("ERROR: " << err.what() << std::endl << std::endl)
         ERROR(err.what() << std::endl)
         return -1;
     }
