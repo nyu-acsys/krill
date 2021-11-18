@@ -8,7 +8,10 @@ using namespace plankton;
 
 
 ProofGenerator::ProofGenerator(const Program& program, const SolverConfig& config)
-        : program(program), solver(program, config), insideAtomic(false) {
+        : program(program), solver(program, config), insideAtomic(false),
+          pldiPost("PLDI Post"), pldiJoin("PLDI Join"), pldiInterference("PLDI Interference"),
+          pldiPastImprove("PLDI Past improve"), pldiPastReduce("PLDI Past reduce"),
+          pldiFutureImprove("PLDI Future improve"), pldiFutureReduce("PLDI Future reduce") {
     futureSuggestions = plankton::SuggestFutures(program);
 }
 
@@ -112,9 +115,19 @@ void ProofGenerator::MakeInterferenceStable(const Statement& after) {
     if (plankton::IsRightMover(after)) return;
     ApplyTransformer([this](auto annotation){
         // TODO: improve future?
-        annotation = solver.ImprovePast(std::move(annotation));
-        annotation = solver.MakeInterferenceStable(std::move(annotation));
-        return solver.ReducePast(std::move(annotation));
+        {
+            auto measure = pldiPastImprove.Measure();
+            annotation = solver.ImprovePast(std::move(annotation));
+        }
+        {
+            auto measure = pldiInterference.Measure();
+            annotation = solver.MakeInterferenceStable(std::move(annotation));
+        }
+        {
+            auto measure = pldiPastReduce.Measure();
+            annotation = solver.ReducePast(std::move(annotation));
+        }
+        return annotation;
     });
 }
 
@@ -127,24 +140,30 @@ void ProofGenerator::JoinCurrent() {
     ReduceCurrentTime();
 
     INFO(infoPrefix << "Joining." << INFO_SIZE << std::endl)
-    auto join = solver.Join(std::move(current));
-    current.clear();
-    current.push_back(std::move(join));
+    {
+        auto measure = pldiJoin.Measure();
+        auto join = solver.Join(std::move(current));
+        current.clear();
+        current.push_back(std::move(join));
+    }
 
     ReduceCurrentTime();
 }
 void ProofGenerator::ImproveCurrentTime() {
     INFO(infoPrefix << "Improving time predicates." << INFO_SIZE << std::endl)
-    ApplyTransformer([this](auto annotation){
+    ApplyTransformer([this](auto annotation) {
+        auto measure = pldiPastImprove.Measure();
         return solver.ImprovePast(std::move(annotation));
     });
     for (const auto& future : futureSuggestions) {
-        ApplyTransformer([this,&future](auto annotation) {
+        ApplyTransformer([this, &future](auto annotation) {
+            auto measure = pldiFutureImprove.Measure();
             return solver.ImproveFuture(std::move(annotation), *future);
         });
     }
     for (const auto& future : futureSuggestions) { // repeat because Z3 hates us...
-        ApplyTransformer([this,&future](auto annotation) {
+        ApplyTransformer([this, &future](auto annotation) {
+            auto measure = pldiFutureImprove.Measure();
             return solver.ImproveFuture(std::move(annotation), *future);
         });
     }
@@ -153,7 +172,14 @@ void ProofGenerator::ImproveCurrentTime() {
 void ProofGenerator::ReduceCurrentTime() {
     INFO(infoPrefix << "Minimizing time predicates." << INFO_SIZE << std::endl)
     ApplyTransformer([this](auto annotation){
-        annotation = solver.ReducePast(std::move(annotation));
-        return solver.ReduceFuture(std::move(annotation));
+        {
+            auto measure = pldiPastReduce.Measure();
+            annotation = solver.ReducePast(std::move(annotation));
+        }
+        {
+            auto measure = pldiFutureReduce.Measure();
+            annotation = solver.ReduceFuture(std::move(annotation));
+        }
+        return annotation;
     });
 }

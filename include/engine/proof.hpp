@@ -9,6 +9,7 @@
 #include "engine/config.hpp"
 #include "engine/solver.hpp"
 #include "util/log.hpp"
+#include "util/timer.hpp"
 
 namespace plankton {
 
@@ -50,6 +51,7 @@ namespace plankton {
 
         #define INFO_SIZE (" (" + std::to_string(current.size()) + ") ")
         StatusStack infoPrefix;
+        Timer pldiPost, pldiJoin, pldiInterference, pldiPastImprove, pldiPastReduce, pldiFutureImprove, pldiFutureReduce;
     
         void HandleInterfaceFunction(const Function& function);
         void HandleMacroLazy(const Macro& macro);
