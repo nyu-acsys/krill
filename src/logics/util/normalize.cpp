@@ -11,13 +11,25 @@ constexpr std::size_t MAX_NUM_ITERATIONS = 12; // 6
 // Ordering: fast approximation based on class
 //
 
-struct IncidenceVisitor : public BaseLogicVisitor {
+struct IncidenceVisitor : public BaseLogicVisitor, public BaseProgramVisitor {
+    using BaseLogicVisitor::Visit;
+    using BaseProgramVisitor::Visit;
     std::size_t result = 0;
+    void Visit(const VariableExpression& /*object*/) override { result = 010; }
+    void Visit(const TrueValue& /*object*/) override { result = 20; }
+    void Visit(const FalseValue& /*object*/) override { result = 30; }
+    void Visit(const MinValue& /*object*/) override { result = 40; }
+    void Visit(const MaxValue& /*object*/) override { result = 50; }
+    void Visit(const NullValue& /*object*/) override { result = 60; }
+    void Visit(const Dereference& /*object*/) override { result = 70; }
+    void Visit(const BinaryExpression& /*object*/) override { result = 80; }
     void Visit(const SymbolicVariable& /*object*/) override { result = 110; }
     void Visit(const SymbolicBool& /*object*/) override { result = 120; }
     void Visit(const SymbolicNull& /*object*/) override { result = 130; }
     void Visit(const SymbolicMin& /*object*/) override { result = 140; }
     void Visit(const SymbolicMax& /*object*/) override { result = 150; }
+    void Visit(const Guard& /*object*/) override { result = 160; }
+    void Visit(const Update& /*object*/) override { result = 170; }
     void Visit(const EqualsToAxiom& /*object*/) override { result = 210; }
     void Visit(const LocalMemoryResource& /*object*/) override { result = 220; }
     void Visit(const SharedMemoryCore& /*object*/) override { result = 230; }
@@ -29,7 +41,8 @@ struct IncidenceVisitor : public BaseLogicVisitor {
     void Visit(const InflowContainsRangeAxiom& /*object*/) override { result = 290; }
 };
 
-inline std::size_t GetIncidence(const LogicObject& object) {
+template<typename T>
+inline std::size_t GetIncidence(const T& object) {
     IncidenceVisitor visitor;
     object.Accept(visitor);
     return visitor.result;
@@ -52,6 +65,7 @@ static struct SymbolOrder {
 
 
 inline bool LLessLogic(const LogicObject& object, const LogicObject& other);
+inline bool LLessProgram(const Expression& object, const Expression& other);
 
 inline bool LNeq(const VariableDeclaration& decl, const VariableDeclaration& other) {
     return &decl != &other;
@@ -74,6 +88,43 @@ inline bool LLess(const SymbolDeclaration& decl, const SymbolDeclaration& other)
     return ordering.Get(decl) < ordering.Get(other);
 }
 
+inline bool LLess(const VariableExpression& object, const VariableExpression& other) {
+    return LLess(object.Decl(), other.Decl());
+}
+
+inline bool LLess(const TrueValue& /*object*/, const TrueValue& /*other*/) {
+    return false;
+}
+
+inline bool LLess(const FalseValue& /*object*/, const FalseValue& /*other*/) {
+    return false;
+}
+
+inline bool LLess(const MinValue& /*object*/, const MinValue& /*other*/) {
+    return false;
+}
+
+inline bool LLess(const MaxValue& /*object*/, const MaxValue& /*other*/) {
+    return false;
+}
+
+inline bool LLess(const NullValue& /*object*/, const NullValue& /*other*/) {
+    return false;
+}
+
+inline bool LLess(const Dereference& object, const Dereference& other) {
+    if (LLess(*object.variable, *other.variable)) return true;
+    if (LLess(*other.variable, *object.variable)) return false;
+    return object.fieldName < other.fieldName;
+}
+
+inline bool LLess(const BinaryExpression& object, const BinaryExpression& other) {
+    if (object.op != other.op) return object.op < other.op;
+    if (LLessProgram(*object.lhs, *other.lhs)) return true;
+    if (LLessProgram(*other.lhs, *object.lhs)) return false;
+    return LLessProgram(*other.rhs, *object.rhs);
+}
+
 inline bool LLess(const SymbolicVariable& object, const SymbolicVariable& other) {
     return LLess(object.Decl(), other.Decl());
 }
@@ -91,6 +142,26 @@ inline bool LLess(const SymbolicMin& /*object*/, const SymbolicMin& /*other*/) {
 }
 
 inline bool LLess(const SymbolicMax& /*object*/, const SymbolicMax& /*other*/) {
+    return false;
+}
+
+inline bool LLess(const Guard& object, const Guard& other) {
+    if (object.conjuncts.size() != other.conjuncts.size()) return object.conjuncts.size() < other.conjuncts.size();
+    for (std::size_t index = 0; index < object.conjuncts.size(); ++index) {
+        if (LLessProgram(*object.conjuncts.at(index), *other.conjuncts.at(index))) return true;
+        if (LLessProgram(*other.conjuncts.at(index), *object.conjuncts.at(index))) return false;
+    }
+    return false;
+}
+
+inline bool LLess(const Update& object, const Update& other) {
+    if (object.fields.size() != other.fields.size()) return object.fields.size() < other.fields.size();
+    for (std::size_t index = 0; index < object.fields.size(); ++index) {
+        if (LLessProgram(*object.fields.at(index), *other.fields.at(index))) return true;
+        if (LLessProgram(*other.fields.at(index), *object.fields.at(index))) return false;
+        if (LLessLogic(*object.values.at(index), *other.values.at(index))) return true;
+        if (LLessLogic(*other.values.at(index), *object.values.at(index))) return false;
+    }
     return false;
 }
 
@@ -147,34 +218,50 @@ inline bool LLess(const FulfillmentAxiom& object, const FulfillmentAxiom& other)
 // Ordering superclasses
 //
 
-struct LLessVisitor : public BaseLogicVisitor {
-    const LogicObject& object;
-    const LogicObject& other;
+template<typename T>
+struct LLessVisitor : public BaseLogicVisitor, public BaseProgramVisitor {
+    using BaseLogicVisitor::Visit;
+    using BaseProgramVisitor::Visit;
+
+    const T& object;
+    const T& other;
     bool result = false;
-    
-    LLessVisitor(const LogicObject& object, const LogicObject& other) : object(object), other(other) {}
+
+    LLessVisitor(const T& object, const T& other) : object(object), other(other) {}
     
     inline bool GetResult() {
         object.Accept(*this);
         return result;
     };
     
-    template<typename T>
-    void Handle(const T& obj) {
-        assert(&object == &obj);
-        if (auto otherCast = dynamic_cast<const T*>(&other)) {
-            assert(&other == otherCast);
-            result = LLess(obj, *otherCast);
-            return;
+    template<typename U>
+    void Handle(const U& obj) {
+        if constexpr (std::is_base_of_v<T, U>) {
+            assert(&object == &obj);
+            if (auto otherCast = dynamic_cast<const U*>(&other)) {
+                assert(&other == otherCast);
+                result = LLess(obj, *otherCast);
+                return;
+            }
         }
         throw std::logic_error("Internal error: cannot normalize."); // TODO: better error handling
     }
-    
+
+    void Visit(const VariableExpression& obj) override { Handle(obj); }
+    void Visit(const TrueValue& obj) override { Handle(obj); }
+    void Visit(const FalseValue& obj) override { Handle(obj); }
+    void Visit(const MinValue& obj) override { Handle(obj); }
+    void Visit(const MaxValue& obj) override { Handle(obj); }
+    void Visit(const NullValue& obj) override { Handle(obj); }
+    void Visit(const Dereference& obj) override { Handle(obj); }
+    void Visit(const BinaryExpression& obj) override { Handle(obj); }
     void Visit(const SymbolicVariable& obj) override { Handle(obj); }
     void Visit(const SymbolicBool& obj) override { Handle(obj); }
     void Visit(const SymbolicNull& obj) override { Handle(obj); }
     void Visit(const SymbolicMin& obj) override { Handle(obj); }
     void Visit(const SymbolicMax& obj) override { Handle(obj); }
+    void Visit(const Guard& obj) override { Handle(obj); }
+    void Visit(const Update& obj) override { Handle(obj); }
     void Visit(const LocalMemoryResource& obj) override { Handle(obj); }
     void Visit(const SharedMemoryCore& obj) override { Handle(obj); }
     void Visit(const EqualsToAxiom& obj) override { Handle(obj); }
@@ -185,6 +272,14 @@ struct LLessVisitor : public BaseLogicVisitor {
     void Visit(const ObligationAxiom& obj) override { Handle(obj); }
     void Visit(const FulfillmentAxiom& obj) override { Handle(obj); }
 };
+
+bool LLessProgram(const Expression& object, const Expression& other) {
+    auto objectIn = GetIncidence(object);
+    auto otherIn = GetIncidence(other);
+    if (objectIn != otherIn) return objectIn < otherIn;
+    LLessVisitor comparator(object, other);
+    return comparator.GetResult();
+}
 
 bool LLessLogic(const LogicObject& object, const LogicObject& other) {
     auto objectIn = GetIncidence(object);
@@ -203,11 +298,7 @@ bool LLessPast(const std::unique_ptr<PastPredicate>& object, const std::unique_p
 }
 
 bool LLessFuture(const std::unique_ptr<FuturePredicate>& object, const std::unique_ptr<FuturePredicate>& other) {
-    if (LLessLogic(*object->pre, *other->pre)) return true;
-    if (LLessLogic(*other->pre, *object->pre)) return false;
-    if (LLessLogic(*object->post, *other->post)) return true;
-    if (LLessLogic(*other->post, *object->post)) return false;
-    return LLessLogic(*object->context, *other->context);
+    return LLessLogic(*object->guard, *other->guard) && LLessLogic(*object->update, *other->update);
 }
 
 
@@ -262,15 +353,6 @@ inline bool IsLSorted(const Annotation& annotation) {
     return std::is_sorted(annotation.now->conjuncts.begin(), annotation.now->conjuncts.end(), LLessNow) &&
            std::is_sorted(annotation.past.begin(), annotation.past.end(), LLessPast) &&
            std::is_sorted(annotation.future.begin(), annotation.future.end(), LLessFuture);
-}
-
-inline std::deque<const SymbolDeclaration*> GetAppearance(const LogicObject& object) {
-    struct : public LogicListener {
-        std::deque<const SymbolDeclaration*> result;
-        void Enter(const SymbolDeclaration& object) override { result.push_back(&object); }
-    } collector;
-    object.Accept(collector);
-    return std::move(collector.result);
 }
 
 inline void ApplyRenaming(Annotation& annotation) {

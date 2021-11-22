@@ -2,6 +2,8 @@
 #ifndef PLANKTON_UTIL_LOG_HPP
 #define PLANKTON_UTIL_LOG_HPP
 
+#include <array>
+#include <vector>
 #include <iostream>
 
 namespace plankton {
@@ -20,6 +22,24 @@ namespace plankton {
     #define WARNING(X) { std::cerr << "WARNING: " << X; }
     
     #define ERROR(X) { std::cerr << "ERROR: " << X; }
+
+    struct StatusStack {
+        inline void Push(std::string string) { stack.push_back(std::move(string)); }
+        inline void Push(std::string string, std::string other) { stack.push_back(std::move(string) + std::move(other)); }
+        inline void Push(std::string string, std::size_t other) { stack.push_back(std::move(string) + std::to_string(other)); }
+        inline void Pop() { stack.pop_back(); }
+        inline void Print(std::ostream& stream) const {
+            for (const auto& elem : stack) stream << "[" << elem << "]";
+            if (!stack.empty()) stream << " ";
+        }
+    private:
+        std::vector<std::string> stack;
+    };
+
+    inline std::ostream& operator<<(std::ostream& stream, const StatusStack& statusStack) {
+        statusStack.Print(stream);
+        return stream;
+    }
 
 } // namespace plankton
 

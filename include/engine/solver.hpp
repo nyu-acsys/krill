@@ -43,25 +43,30 @@ namespace plankton {
         [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const;
         [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const Malloc& cmd) const;
         [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const VariableAssignment& cmd) const;
-        [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd) const;
+        [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, bool useFuture = true) const;
         
         [[nodiscard]] std::unique_ptr<Annotation> Join(std::deque<std::unique_ptr<Annotation>> annotations) const;
         [[nodiscard]] std::unique_ptr<Annotation> TryAddFulfillment(std::unique_ptr<Annotation> annotation) const;
-        [[nodiscard]] bool IsUnsatisfiable(const Annotation& annotation) const;
-    
-        [[nodiscard]] std::unique_ptr<Annotation> MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const;
+
         bool AddInterference(std::deque<std::unique_ptr<HeapEffect>> interference);
-        
+        [[nodiscard]] std::unique_ptr<Annotation> MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const;
+
+        [[nodiscard]] bool IsUnsatisfiable(const Annotation& annotation) const;
         [[nodiscard]] bool Implies(const Annotation& premise, const Annotation& conclusion) const;
-        
+
+        [[nodiscard]] std::unique_ptr<Annotation> ImprovePast(std::unique_ptr<Annotation> annotation) const; // TODO: past suggestions
+        [[nodiscard]] PostImage ImproveFuture(std::unique_ptr<Annotation> annotation, const FutureSuggestion& target) const;
+        [[nodiscard]] std::unique_ptr<Annotation> ReducePast(std::unique_ptr<Annotation> annotation) const;
+        [[nodiscard]] std::unique_ptr<Annotation> ReduceFuture(std::unique_ptr<Annotation> annotation) const;
+
         private:
             const SolverConfig& config;
             DataFlowAnalysis dataFlow;
             std::deque<std::unique_ptr<HeapEffect>> interference;
             
             void PrepareAccess(Annotation& annotation, const Command& command) const;
-            void ImprovePast(Annotation& annotation) const;
-            void PrunePast(Annotation& annotation) const;
+            void ReducePast(Annotation& annotation) const;
+            void ReduceFuture(Annotation& annotation) const;
     };
     
     

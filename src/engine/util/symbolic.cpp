@@ -11,8 +11,9 @@ struct ExpressionConverter : public BaseProgramVisitor {
 
     template<typename T>
     std::unique_ptr<SymbolicVariable> ConvertByEvaluation(const T& object) {
-        auto& symbol = plankton::Evaluate(object, formula);
-        return std::make_unique<SymbolicVariable>(symbol);
+        auto* symbol = plankton::TryEvaluate(object, formula);
+        if (!symbol) return nullptr;
+        return std::make_unique<SymbolicVariable>(*symbol);
     }
     void Visit(const VariableExpression& object) override { result = ConvertByEvaluation(object); }
     void Visit(const Dereference& object) override { result = ConvertByEvaluation(object); }
@@ -23,10 +24,14 @@ struct ExpressionConverter : public BaseProgramVisitor {
     void Visit(const NullValue& /*object*/) override { result = std::make_unique<SymbolicNull>(); }
 };
 
-std::unique_ptr<SymbolicExpression> plankton::MakeSymbolic(const ValueExpression& expression, const Formula& context) {
-    // TODO: ensure/assert that the necessary resources are present in context
+std::unique_ptr<SymbolicExpression> plankton::TryMakeSymbolic(const ValueExpression& expression, const Formula& context) {
     ExpressionConverter converter(context);
     expression.Accept(converter);
-    assert(converter.result);
     return std::move(converter.result);
+}
+
+std::unique_ptr<SymbolicExpression> plankton::MakeSymbolic(const ValueExpression& expression, const Formula& context) {
+    auto result = TryMakeSymbolic(expression, context);
+    if (result) return result;
+    throw std::logic_error("Internal error: cannot make symbolic."); // better error handling
 }

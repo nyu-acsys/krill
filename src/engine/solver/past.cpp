@@ -12,22 +12,6 @@ using namespace plankton;
 constexpr const bool INTERPOLATE_POINTERS_ONLY = true;
 
 
-inline SymbolRenaming MakeRenaming(const MemoryAxiom& replace, const MemoryAxiom& with) {
-    assert(replace.node->Type() == with.node->Type());
-    std::map<const SymbolDeclaration*, const SymbolDeclaration*> map;
-    map[&replace.node->Decl()] = &with.node->Decl();
-    map[&replace.flow->Decl()] = &with.flow->Decl();
-    for (const auto& [name, value] : replace.fieldToValue) {
-        map[&value->Decl()] = &with.fieldToValue.at(name)->Decl();
-    }
-
-    return [map=std::move(map)](const SymbolDeclaration& decl) -> const SymbolDeclaration& {
-        auto find = map.find(&decl);
-        if (find != map.end()) return *find->second;
-        else return decl;
-    };
-}
-
 inline Encoding MakeEncoding(const Annotation& annotation, const SolverConfig& config) {
     Encoding encoding(*annotation.now);
     encoding.AddPremise(encoding.EncodeInvariants(*annotation.now, config));
@@ -46,7 +30,7 @@ inline std::optional<EExpr>
 MakeCheck(Encoding& encoding, const Formula& formula, const MemoryAxiom& weaker, const MemoryAxiom& stronger) {
     if (&stronger == &weaker) return std::nullopt;
     if (weaker.node->Decl() != stronger.node->Decl()) return std::nullopt;
-    auto renaming = MakeRenaming(weaker, stronger);
+    auto renaming = plankton::MakeMemoryRenaming(weaker, stronger);
     auto renamed = plankton::Copy(formula);
     plankton::RenameSymbols(*renamed, renaming);
     return encoding.Encode(*renamed);
@@ -56,44 +40,54 @@ void FilterPasts(Annotation& annotation, const SolverConfig& config) {
     MEASURE("Solver::PrunePast ~> FilterPasts")
     if (annotation.past.empty()) return;
 
-    // TODO: is this clever?
-    plankton::RemoveIf(annotation.past,[&annotation](const auto& elem){
-       return !plankton::TryGetResource(elem->formula->node->Decl(), *annotation.now);
-    });
-    if (annotation.past.empty()) return;
+    // // TODO: is this clever? ~~> no it is not... :*(
+    // plankton::RemoveIf(annotation.past,[&annotation](const auto& elem){
+    //    return !plankton::TryGetResource(elem->formula->node->Decl(), *annotation.now);
+    // });
+    // if (annotation.past.empty()) return;
 
     plankton::InlineAndSimplify(annotation);
     auto encoding = MakeEncoding(annotation, config);
 
-    // TODO: remove pasts that are weaker than now?
-    std::set<std::pair<const LogicObject*, const LogicObject*>> subsumption;
+    std::map<const PastPredicate*, std::set<const PastPredicate*>> subsumes;
     for (const auto& stronger : annotation.past) {
         for (const auto& weaker : annotation.past) {
             auto check = MakeCheck(encoding, *annotation.now, *weaker->formula, *stronger->formula);
             if (!check) continue;
-            encoding.AddCheck(*check, [&subsumption, &weaker, &stronger](bool holds) {
-                if (holds) subsumption.emplace(weaker.get(), stronger.get());
+            encoding.AddCheck(*check, [&subsumes, &weaker, &stronger](bool holds) {
+                // DEBUG("  past subsumption=" << holds << " for " << *stronger << " => " << *weaker << std::endl)
+                if (holds) subsumes[stronger.get()].insert(weaker.get());
             });
         }
     }
     encoding.Check();
 
-    std::set<const LogicObject*> prune;
-    std::set<std::pair<const LogicObject*, const LogicObject*>> blacklist;
-    for (const auto& [weaker, stronger] : subsumption) {
-        if (plankton::Membership(blacklist, std::make_pair(stronger, weaker))) continue; // break circles
-        blacklist.emplace(weaker, stronger);
-        prune.insert(weaker);
+    for (const auto& past : annotation.past) {
+        if (!past) continue;
+        auto subsumption = subsumes[past.get()];
+        if (subsumption.empty()) continue;
+        for (auto& other : annotation.past) {
+            if (!other) continue;
+            if (past.get() == other.get()) continue;
+            if (!plankton::Membership(subsumption, other.get())) continue;
+            other.reset(nullptr);
+        }
     }
-    plankton::RemoveIf(annotation.past, [&prune](const auto& elem) {
-        return plankton::Membership(prune, elem.get());
-    });
+    plankton::RemoveIf(annotation.past, [](const auto& elem){ return !elem; });
 }
 
-void Solver::PrunePast(Annotation& annotation) const {
+void Solver::ReducePast(Annotation& annotation) const {
     MEASURE("Solver::PrunePast")
-    // TODO: should this be available to ImprovePast only?
+    DEBUG("<<REDUCE PAST>>" << std::endl)
+    DEBUG(annotation << std::endl)
     FilterPasts(annotation, config);
+    DEBUG(" ~> " << annotation << std::endl << std::endl)
+}
+
+std::unique_ptr<Annotation> Solver::ReducePast(std::unique_ptr<Annotation> annotation) const {
+    ReducePast(*annotation);
+    // DEBUG(*annotation << std::endl << std::endl)
+    return annotation;
 }
 
 
@@ -150,9 +144,9 @@ struct Interpolator {
     void Interpolate() {
         Filter();
         ExpandHistoryMemory();
-        Filter(); // TODO: to filter or not to filter?
+        Filter();
         InterpolatePastToNow();
-        // Filter();
+        AddTrivialPast();
         PostProcess();
     }
 
@@ -214,7 +208,7 @@ struct Interpolator {
 
         for (auto& elem : pasts) {
             auto& pastAddress = elem->formula->node->Decl();
-            if (!plankton::Membership(referenced, &pastAddress)) continue;
+            // if (!plankton::Membership(referenced, &pastAddress)) continue;
 
             auto expansion = getExpansion(*elem);
             auto past = MakeStackBlueprint();
@@ -245,8 +239,8 @@ struct Interpolator {
         std::deque<std::unique_ptr<Axiom>> result;
         for (const auto& effect : interference) {
             auto axioms = plankton::Collect<Axiom>(*effect->context);
-            auto preRenaming = MakeRenaming(*effect->pre, memory);
-            auto postRenaming = MakeRenaming(*effect->post, memory);
+            auto preRenaming = plankton::MakeMemoryRenaming(*effect->pre, memory);
+            auto postRenaming = plankton::MakeMemoryRenaming(*effect->post, memory);
 
             for (const auto* axiom : axioms) {
                 auto candidate = plankton::Copy(*axiom);
@@ -325,16 +319,23 @@ struct Interpolator {
         }
     }
 
+    void AddTrivialPast() {
+        for (const auto* memory : plankton::Collect<SharedMemoryCore>(*annotation.now)) {
+            annotation.Conjoin(std::make_unique<PastPredicate>(plankton::Copy(*memory)));
+        }
+    }
+
     void PostProcess() {
         plankton::InlineAndSimplify(annotation);
     }
 
 };
 
-void Solver::ImprovePast(Annotation& annotation) const {
+std::unique_ptr<Annotation> Solver::ImprovePast(std::unique_ptr<Annotation> annotation) const {
     MEASURE("Solver::ImprovePast")
-    if (annotation.past.empty()) return;
-    DEBUG("== Improving past..." << std::endl)
-    Interpolator(annotation, interference, config).Interpolate();
-    DEBUG("   done" << std::endl)
+    if (annotation->past.empty()) return annotation;
+    DEBUG("<<IMPROVE PAST>>" << std::endl)
+    Interpolator(*annotation, interference, config).Interpolate();
+    DEBUG(*annotation << std::endl << std::endl)
+    return annotation;
 }

@@ -37,7 +37,7 @@ struct PostImageInfo {
               preObligations(plankton::Collect<ObligationAxiom>(*pre.now)),
               preFulfillments(plankton::Collect<FulfillmentAxiom>(*pre.now)) {
         assert(&pre == footprint.pre.get());
-        DEBUG("** pre after footprint creation: " << pre << std::endl)
+        // DEBUG("** pre after footprint creation: " << pre << std::endl)
     }
     
     template<typename T, typename = plankton::EnableIfBaseOf<MemoryAxiom, T>>
@@ -147,8 +147,7 @@ inline void CheckFlowUniqueness(PostImageInfo& info) {
 inline void CheckInvariant(PostImageInfo& info) {
     for (const auto& node : info.footprint.nodes) {
         auto nodeInvariant = info.encoding.EncodeNodeInvariant(node, EMode::POST);
-        info.encoding.AddCheck(nodeInvariant, [&node](bool holds){
-            DEBUG("Checking invariant for " << node.address.name << ": holds=" << holds << std::endl)
+        info.encoding.AddCheck(nodeInvariant, [](bool holds){
             if (holds) return;
             throw std::logic_error("Unsafe update: invariant is not maintained."); // TODO: better error handling
         });
@@ -158,7 +157,6 @@ inline void CheckInvariant(PostImageInfo& info) {
 inline void AddSpecificationChecks(PostImageInfo& info) {
     // check purity
     plankton::AddPureCheck(info.footprint, info.encoding, [&info](bool isPure) {
-        DEBUG(" ** is pure=" << isPure << std::endl)
         info.isPureUpdate = isPure;
         if (isPure) {
             for (const auto* obl : info.preObligations) info.postSpecifications.push_back(plankton::Copy(*obl));
@@ -391,41 +389,177 @@ inline std::deque<std::unique_ptr<HeapEffect>> ExtractEffects(PostImageInfo& inf
 
 
 //
+// Search for future
+//
+
+inline std::unique_ptr<Update> MakeUpdate(const Formula& state, const MemoryWrite& cmd) {
+    assert(cmd.lhs.size() == cmd.rhs.size());
+    auto result = std::make_unique<Update>();
+    for (std::size_t index = 0; index < cmd.lhs.size(); ++index) {
+        auto value = plankton::TryMakeSymbolic(*cmd.rhs.at(index), state);
+        if (!value) return nullptr;
+        result->fields.push_back(plankton::Copy(*cmd.lhs.at(index)));
+        result->values.push_back(std::move(value));
+    }
+    return result;
+}
+
+inline std::optional<EExpr> MakeEnablednessCheck(Encoding& encoding, const FuturePredicate& future, const Update& cmd, const Formula& state) {
+    assert(future.update->fields.size() == future.update->values.size());
+
+    // check updated fields are syntactically equal
+    if (future.update->fields.size() != cmd.fields.size()) return std::nullopt;
+    for (std::size_t index = 0; index < cmd.fields.size(); ++index) {
+        auto sameField = plankton::SyntacticalEqual(*future.update->fields.at(index), *cmd.fields.at(index));
+        if (!sameField) return std::nullopt;
+    }
+
+    // check performed updates are semantically equal
+    auto conditions = plankton::MakeVector<EExpr>(future.guard->conjuncts.size() + future.update->fields.size());
+    for (std::size_t index = 0; index < cmd.fields.size(); ++index) {
+        auto sameValue = encoding.Encode(*future.update->values.at(index)) == encoding.Encode(*cmd.values.at(index));
+        conditions.push_back(sameValue);
+    }
+
+    // check guard is enabled
+    for (const auto& guard : future.guard->conjuncts) {
+        auto lhs = plankton::MakeSymbolic(*guard->lhs, state);
+        auto rhs = plankton::MakeSymbolic(*guard->rhs, state);
+        if (!lhs || !rhs) return encoding.Bool(false);
+        StackAxiom dummy(guard->op, std::move(lhs), std::move(rhs));
+        conditions.push_back(encoding.Encode(dummy));
+    }
+
+    return encoding.MakeAnd(conditions);
+}
+
+inline bool CoveredByFuture(const Annotation& pre, const Update& update) {
+    auto& now = *pre.now;
+    Encoding encoding(now);
+    bool eureka = false;
+    for (const auto& future : pre.future) {
+        auto enabled = MakeEnablednessCheck(encoding, *future, update, now);
+        if (!enabled) continue;
+        encoding.AddCheck(*enabled, [&eureka](bool holds){
+            if (holds) eureka = true;
+        });
+    }
+    encoding.Check();
+    return eureka;
+}
+
+inline std::map<SharedMemoryCore*, std::set<std::string>> GetAliasChanges(Annotation& annotation, const Update& update) {
+    std::map<SharedMemoryCore*, std::set<std::string>> result;
+    Encoding encoding(*annotation.now);
+    // TODO: add invariants and simple flow rules to encoding?
+    auto memories = plankton::CollectMutable<SharedMemoryCore>(*annotation.now);
+    for (auto* memory : memories) {
+        auto adr = encoding.Encode(memory->node->Decl());
+        for (const auto& deref : update.fields) {
+            auto notAffected = adr != encoding.Encode(deref->variable->Decl());
+            encoding.AddCheck(notAffected, [memory,&deref,&result](bool holds){
+                if (holds) return;
+                result[memory].insert(deref->fieldName);
+            });
+        }
+    }
+    encoding.Check();
+    return result;
+}
+
+inline std::unique_ptr<StackAxiom> MakeEq(const SymbolDeclaration& decl, const SymbolicExpression& expr) {
+    return std::make_unique<StackAxiom>(BinaryOperator::EQ, std::make_unique<SymbolicVariable>(decl), plankton::Copy(expr));
+}
+
+std::unique_ptr<Annotation> TryGetFromFuture(const Annotation& pre, const MemoryWrite& cmd) {
+    auto update = MakeUpdate(*pre.now, cmd);
+    if (!update) return nullptr;
+    if (!CoveredByFuture(pre, *update)) return nullptr;
+
+    auto result = plankton::Copy(pre);
+    SymbolFactory factory(*result);
+
+    // update all flow fields and fields potentially affected by the update
+    auto changeField = [&factory](auto& decl){
+        decl = factory.GetFresh(decl.get().type, decl.get().order);
+    };
+    for (auto* memory : plankton::CollectMutable<SharedMemoryCore>(*result->now)) {
+        changeField(memory->flow->decl);
+    }
+    for (const auto& [memory, changedFields] : GetAliasChanges(*result, *update)) {
+        for (const auto& field : changedFields) changeField(memory->fieldToValue.at(field)->decl);
+    }
+
+    // perform update
+    for (std::size_t index = 0; index < update->fields.size(); ++index) {
+        auto& field = *update->fields.at(index);
+        auto& value = *update->values.at(index);
+        auto& variable = plankton::GetResource(field.variable->Decl(), *result->now);
+        auto& memory = plankton::GetResource(variable.Value(), *result->now);
+        auto& newValue = factory.GetFreshFO(value.Type());
+        memory.fieldToValue.at(field.fieldName)->decl = newValue;
+        result->Conjoin(MakeEq(newValue, value));
+    }
+
+    plankton::InlineAndSimplify(*result);
+    return result;
+}
+
+//
 // Overall Algorithm
 //
 
-PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd) const {
-    MEASURE("Solver::Post (MemoryWrite)")
-    DEBUG("POST for " << *pre << " " << cmd << std::endl)
+inline bool IsTrivial(const Formula& state, const MemoryWrite& cmd) {
+    Encoding encoding(state);
+    auto equalities = plankton::MakeVector<EExpr>(cmd.lhs.size());
+    for (std::size_t index = 0; index < cmd.lhs.size(); ++index) {
+        auto* cur = plankton::TryEvaluate(*cmd.lhs.at(index), state);
+        auto dst = plankton::TryMakeSymbolic(*cmd.rhs.at(index), state);
+        if (!cur || !dst) return false;
+        equalities.push_back(encoding.Encode(*cur) == encoding.Encode(*dst));
+    }
+    return encoding.Implies(encoding.MakeAnd(equalities));
+}
 
-    // TODO: use futures
+PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, bool useFuture) const {
+    MEASURE("Solver::Post (MemoryWrite)")
+    DEBUG("<<POST MEM>> [useFuture=" << useFuture << "]" << std::endl << *pre << " " << cmd << std::flush)
+    if (IsUnsatisfiable(*pre)) return PostImage();
+
     PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
-    PostImageInfo info(std::move(pre), cmd, config);
-    
-    // direct checks (avoids spurious failures due to Z3)
-    {
-        MEASURE("Solver::Post (MemoryWrite) ~> individual checks")
+    if (IsTrivial(*pre->now, cmd)) return PostImage(std::move(pre)); // TODO: needed?
+
+    // TODO: use futures as a last resort their post image is less precise
+    std::unique_ptr<Annotation> fromFuture;
+    if (useFuture && !pre->future.empty()) {
+        fromFuture = TryGetFromFuture(*pre, cmd);
+    }
+
+    try {
+        PostImageInfo info(std::move(pre), cmd, config);
+        // if (info.encoding.ImpliesFalse()) return PostImage();
         CheckPublishing(info);
         CheckReachability(info);
         CheckFlowCoverage(info);
         CheckFlowUniqueness(info);
         CheckInvariant(info);
-    }
-
-    // bulk checks
-    {
-        MEASURE("Solver::Post (MemoryWrite) ~> bulk checks")
         AddSpecificationChecks(info);
         AddAffectedOutsideChecks(info);
         AddEffectContextGenerators(info);
         info.encoding.Check();
+
+        MinimizeFootprint(info);
+        auto effects = ExtractEffects(info);
+        auto post = ExtractPost(std::move(info));
+
+        DEBUG(*post << std::endl << std::endl)
+        if (IsUnsatisfiable(*post)) throw std::logic_error("Failed to perform proper memory update: solver inconsistency detected."); // TODO better error handling
+        return PostImage(std::move(post), std::move(effects));
+
+    } catch (std::logic_error& err) {
+        if (!fromFuture) throw err;
+        DEBUG("/* from future */ " << *fromFuture << std::endl << std::endl)
+        return PostImage(std::move(fromFuture));
     }
-
-    MinimizeFootprint(info);
-    auto effects = ExtractEffects(info);
-    auto post = ExtractPost(std::move(info));
-
-    DEBUG("POST result for " << cmd << " " << *post << std::endl)
-    return PostImage(std::move(post), std::move(effects));
 }

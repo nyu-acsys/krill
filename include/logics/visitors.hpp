@@ -12,6 +12,8 @@ namespace plankton {
     struct SymbolicNull;
     struct SymbolicMin;
     struct SymbolicMax;
+    struct Guard;
+    struct Update;
     struct SeparatingConjunction;
     struct LocalMemoryResource;
     struct SharedMemoryCore;
@@ -38,6 +40,8 @@ namespace plankton {
         virtual void Visit(const SymbolicNull& object) = 0;
         virtual void Visit(const SymbolicMin& object) = 0;
         virtual void Visit(const SymbolicMax& object) = 0;
+        virtual void Visit(const Guard& object) = 0;
+        virtual void Visit(const Update& object) = 0;
         virtual void Visit(const SeparatingConjunction& object) = 0;
         virtual void Visit(const LocalMemoryResource& object) = 0;
         virtual void Visit(const SharedMemoryCore& object) = 0;
@@ -59,6 +63,8 @@ namespace plankton {
         void Walk(const SymbolicNull& object);
         void Walk(const SymbolicMin& object);
         void Walk(const SymbolicMax& object);
+        void Walk(const Guard& object);
+        void Walk(const Update& object);
         void Walk(const SeparatingConjunction& object);
         void Walk(const LocalMemoryResource& object);
         void Walk(const SharedMemoryCore& object);
@@ -85,6 +91,8 @@ namespace plankton {
         void Visit(const SymbolicNull& object) override;
         void Visit(const SymbolicMin& object) override;
         void Visit(const SymbolicMax& object) override;
+        void Visit(const Guard& object) override;
+        void Visit(const Update& object) override;
         void Visit(const SeparatingConjunction& object) override;
         void Visit(const LocalMemoryResource& object) override;
         void Visit(const SharedMemoryCore& object) override;
@@ -111,6 +119,8 @@ namespace plankton {
         void Visit(const SymbolicNull& object) override;
         void Visit(const SymbolicMin& object) override;
         void Visit(const SymbolicMax& object) override;
+        void Visit(const Guard& object) override;
+        void Visit(const Update& object) override;
         void Visit(const SeparatingConjunction& object) override;
         void Visit(const LocalMemoryResource& object) override;
         void Visit(const SharedMemoryCore& object) override;
@@ -138,6 +148,8 @@ namespace plankton {
         void Visit(const SymbolicNull& object) override;
         void Visit(const SymbolicMin& object) override;
         void Visit(const SymbolicMax& object) override;
+        void Visit(const Guard& object) override;
+        void Visit(const Update& object) override;
         void Visit(const SeparatingConjunction& object) override;
         void Visit(const LocalMemoryResource& object) override;
         void Visit(const SharedMemoryCore& object) override;
@@ -161,6 +173,8 @@ namespace plankton {
         virtual void Enter(const SymbolicNull& object);
         virtual void Enter(const SymbolicMin& object);
         virtual void Enter(const SymbolicMax& object);
+        virtual void Enter(const Guard& object);
+        virtual void Enter(const Update& object);
         virtual void Enter(const SeparatingConjunction& object);
         virtual void Enter(const LocalMemoryResource& object);
         virtual void Enter(const SharedMemoryCore& object);
@@ -188,6 +202,8 @@ namespace plankton {
         virtual void Visit(SymbolicNull& object) = 0;
         virtual void Visit(SymbolicMin& object) = 0;
         virtual void Visit(SymbolicMax& object) = 0;
+        virtual void Visit(Guard& object) = 0;
+        virtual void Visit(Update& object) = 0;
         virtual void Visit(SeparatingConjunction& object) = 0;
         virtual void Visit(LocalMemoryResource& object) = 0;
         virtual void Visit(SharedMemoryCore& object) = 0;
@@ -209,6 +225,8 @@ namespace plankton {
         void Walk(SymbolicNull& object);
         void Walk(SymbolicMin& object);
         void Walk(SymbolicMax& object);
+        void Walk(Guard& object);
+        void Walk(Update& object);
         void Walk(SeparatingConjunction& object);
         void Walk(LocalMemoryResource& object);
         void Walk(SharedMemoryCore& object);
@@ -235,6 +253,8 @@ namespace plankton {
         void Visit(SymbolicNull& object) override;
         void Visit(SymbolicMin& object) override;
         void Visit(SymbolicMax& object) override;
+        void Visit(Guard& object) override;
+        void Visit(Update& object) override;
         void Visit(SeparatingConjunction& object) override;
         void Visit(LocalMemoryResource& object) override;
         void Visit(SharedMemoryCore& object) override;
@@ -261,6 +281,8 @@ namespace plankton {
         void Visit(SymbolicNull& object) override;
         void Visit(SymbolicMin& object) override;
         void Visit(SymbolicMax& object) override;
+        void Visit(Guard& object) override;
+        void Visit(Update& object) override;
         void Visit(SeparatingConjunction& object) override;
         void Visit(LocalMemoryResource& object) override;
         void Visit(SharedMemoryCore& object) override;
@@ -287,6 +309,8 @@ namespace plankton {
         void Visit(SymbolicNull& object) override;
         void Visit(SymbolicMin& object) override;
         void Visit(SymbolicMax& object) override;
+        void Visit(Guard& object) override;
+        void Visit(Update& object) override;
         void Visit(SeparatingConjunction& object) override;
         void Visit(LocalMemoryResource& object) override;
         void Visit(SharedMemoryCore& object) override;
@@ -310,6 +334,8 @@ namespace plankton {
         virtual void Enter(SymbolicNull& object);
         virtual void Enter(SymbolicMin& object);
         virtual void Enter(SymbolicMax& object);
+        virtual void Enter(Guard& object);
+        virtual void Enter(Update& object);
         virtual void Enter(SeparatingConjunction& object);
         virtual void Enter(LocalMemoryResource& object);
         virtual void Enter(SharedMemoryCore& object);

@@ -44,9 +44,14 @@ inline bool PastSyntacticallyIncluded(const Annotation& premise, const Annotatio
     return true;
 }
 
-inline bool FutureSyntacticallyIncluded(const Annotation& /*premise*/, const Annotation& conclusion) {
-    if (conclusion.future.empty()) return true;
-    throw std::logic_error("Not yet implemented: syntactic inclusion among futures.");
+inline bool FutureSyntacticallyIncluded(const Annotation& premise, const Annotation& conclusion) {
+    for (const auto& future : conclusion.future) {
+        auto subsumed = plankton::Any(premise.future, [&future](const auto& other) {
+            return plankton::SyntacticalEqual(*future, *other);
+        });
+        if (!subsumed) return false;
+    }
+    return true;
 }
 
 inline bool SyntacticallyIncluded(const Annotation& premise, const Annotation& conclusion) {
@@ -117,7 +122,7 @@ bool Solver::Implies(const Annotation& premise, const Annotation& conclusion) co
     normalizedConclusion = plankton::Normalize(std::move(normalizedConclusion));
 
     if (SyntacticallyIncluded(*normalizedPremise, *normalizedConclusion)) return true;
-    DEBUG("== CHK IMP sem " << *normalizedPremise << " ==> " << *normalizedConclusion << std::endl)
+    // DEBUG("== CHK IMP sem " << *normalizedPremise << " ==> " << *normalizedConclusion << std::endl)
     return ResourcesMatch(*normalizedPremise, *normalizedConclusion) &&
            StackImplies(*normalizedPremise, *normalizedConclusion->now, config);
 }

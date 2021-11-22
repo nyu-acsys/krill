@@ -61,50 +61,6 @@ inline void Flatten(LogicObject& object) {
 
 
 //
-// Inline memories
-//
-
-struct EqualityCollection {
-    std::set<std::pair<const SymbolDeclaration*, const SymbolDeclaration*>> set;
-    
-    void Add(const SymbolDeclaration& symbol, const SymbolDeclaration& other) {
-        assert(symbol.type == other.type);
-        assert(symbol.order == other.order);
-        if (&symbol <= &other) set.emplace(&symbol, &other);
-        else set.emplace(&other, &symbol);
-    }
-    
-    void Handle(const SharedMemoryCore& memory, SharedMemoryCore& other) {
-        if (memory.node->Decl() != other.node->Decl()) return;
-        Add(memory.node->Decl(), other.node->Decl());
-        Add(memory.flow->Decl(), other.flow->Decl());
-        assert(memory.node->Type() == other.node->Type());
-        for (const auto& [field, value] : memory.fieldToValue) {
-            Add(value->Decl(), other.fieldToValue.at(field)->Decl());
-        }
-    }
-};
-
-inline EqualityCollection ExtractEqualities(SeparatingConjunction& object) {
-    EqualityCollection equalities;
-    auto memories = plankton::CollectMutable<SharedMemoryCore>(object);
-    for (auto it = memories.begin(); it != memories.end(); ++it) {
-        for (auto ot = std::next(it); ot != memories.end(); ++ot) {
-            equalities.Handle(**it, **ot);
-        }
-    }
-    return equalities;
-}
-
-inline void InlineMemories(SeparatingConjunction& object) {
-    auto equalities = ExtractEqualities(object);
-    for (const auto& [symbol, other] : equalities.set) {
-        ApplyRenaming(object, *symbol, *other);
-    }
-}
-
-
-//
 // Inline Equalities
 //
 
@@ -135,16 +91,97 @@ struct SyntacticEqualityInliningListener final : public MutableLogicListener {
     void Visit(PastPredicate& object) override {
         VisitWithinNewContext(*object.formula, *object.formula);
     }
-    void Visit(FuturePredicate& object) override {
-        VisitWithinNewContext(*object.pre, *object.pre);
-        VisitWithinNewContext(*object.post, *object.post);
-    }
 };
 
 inline void InlineEqualities(LogicObject& object) {
     SyntacticEqualityInliningListener inlining(object);
     object.Accept(inlining);
 }
+
+
+//
+// Inline memories
+//
+
+// struct EqualityCollection {
+//     std::set<std::pair<const SymbolDeclaration*, const SymbolDeclaration*>> set;
+//
+//     void Add(const SymbolDeclaration& symbol, const SymbolDeclaration& other) {
+//         assert(symbol.type == other.type);
+//         assert(symbol.order == other.order);
+//         if (&symbol <= &other) set.emplace(&symbol, &other);
+//         else set.emplace(&other, &symbol);
+//     }
+//
+//     void Handle(const SharedMemoryCore& memory, SharedMemoryCore& other) {
+//         if (memory.node->Decl() != other.node->Decl()) return;
+//         Add(memory.node->Decl(), other.node->Decl());
+//         Add(memory.flow->Decl(), other.flow->Decl());
+//         assert(memory.node->Type() == other.node->Type());
+//         for (const auto& [field, value] : memory.fieldToValue) {
+//             Add(value->Decl(), other.fieldToValue.at(field)->Decl());
+//         }
+//     }
+// };
+//
+// inline EqualityCollection ExtractEqualities(SeparatingConjunction& object) {
+//     EqualityCollection equalities;
+//     auto memories = plankton::CollectMutable<SharedMemoryCore>(object);
+//     for (auto it = memories.begin(); it != memories.end(); ++it) {
+//         for (auto ot = std::next(it); ot != memories.end(); ++ot) {
+//             equalities.Handle(**it, **ot);
+//         }
+//     }
+//     return equalities;
+// }
+//
+// #include "util/log.hpp"
+// inline void InlineMemories(SeparatingConjunction& object) {
+//     // TODO: this breaks when there are more than 2 copies of a memory
+//     auto equalities = ExtractEqualities(object);
+//     for (const auto& [symbol, other] : equalities.set) {
+//         DEBUG(" inlining " << symbol->name << " ~> " << other->name << std::endl)
+//         ApplyRenaming(object, *symbol, *other);
+//     }
+// }
+
+struct MemoryCollector : public MutableLogicListener {
+    std::map<const SymbolDeclaration*, std::set<SharedMemoryCore*>> memories;
+    void Enter(SharedMemoryCore& object) override {
+        memories[&object.node->Decl()].insert(&object);
+    }
+};
+
+inline std::unique_ptr<Axiom> MakeEq(const SymbolDeclaration& decl, const SymbolDeclaration& other) {
+    return std::make_unique<StackAxiom>(BinaryOperator::EQ, std::make_unique<SymbolicVariable>(decl), std::make_unique<SymbolicVariable>(other));
+}
+
+inline void MakeMemoriesEqual(const SharedMemoryCore& src, SharedMemoryCore& other, SeparatingConjunction& object) {
+    assert(src.node->Decl() == other.node->Decl());
+    object.Conjoin(MakeEq(other.flow->Decl(), src.flow->Decl()));
+    other.flow->decl = src.flow->Decl();
+    for (auto& [field, value] : other.fieldToValue) {
+        auto& newValue = src.fieldToValue.at(field)->Decl();
+        object.Conjoin(MakeEq(value->decl, newValue));
+        value->decl = newValue;
+    }
+}
+
+inline void InlineMemories(SeparatingConjunction& object) {
+    MemoryCollector collector;
+    object.Accept(collector);
+    bool inlined = false;
+    for (const auto& pair : collector.memories) {
+        auto& equalSet = pair.second;
+        if (equalSet.empty()) continue;
+        for (auto it = std::next(equalSet.begin()); it != equalSet.end(); ++it) {
+            MakeMemoriesEqual(**equalSet.begin(), **it, object);
+            inlined = true;
+        }
+    }
+    if (inlined) InlineEqualities(object);
+}
+
 
 //
 // Remove trivialities and duplicates
@@ -176,14 +213,32 @@ struct CleanUpVisitor final : public MutableDefaultLogicVisitor {
             }
         }
     
-        RemoveIf(object.conjuncts, [](const auto& elem){ return elem.get() == nullptr; });
+        RemoveIf(object.conjuncts, [](const auto& elem){ return !elem; });
     }
     
     void Visit(NonSeparatingImplication& object) override { Walk(object); }
     void Visit(ImplicationSet& object) override { Walk(object); }
     void Visit(PastPredicate& object) override { Walk(object); }
     void Visit(FuturePredicate& object) override { Walk(object); }
-    void Visit(Annotation& object) override { Walk(object); }
+
+    template<typename T>
+    inline void RemoveDuplicates(T& container) {
+        for (auto it = container.begin(); it != container.end(); ++it) {
+            if (!*it) continue;
+            for (auto ot = std::next(it); ot != container.end(); ++ot) {
+                if (!*ot) continue;
+                if (!plankton::SyntacticalEqual(**it, **ot)) continue;
+                ot->reset(nullptr);
+            }
+        }
+        plankton::RemoveIf(container, [](const auto& elem){ return !elem; });
+    }
+
+    void Visit(Annotation& object) override {
+        Walk(object);
+        RemoveDuplicates(object.past);
+        RemoveDuplicates(object.future);
+    }
 };
 
 inline void RemoveNoise(LogicObject& object) {
@@ -205,20 +260,4 @@ void plankton::InlineAndSimplify(Annotation& object) {
     InlineEqualities(object);
     InlineMemories(*object.now);
     RemoveNoise(object);
-}
-
-
-
-inline std::set<const SymbolDeclaration*> CollectUsefulSymbols(const Annotation& annotation) {
-    struct : public LogicListener {
-        void Visit(const StackAxiom&) override { /* do nothing */ }
-        void Visit(const InflowEmptinessAxiom&) override { /* do nothing */ }
-        void Visit(const InflowContainsValueAxiom&) override { /* do nothing */ }
-        void Visit(const InflowContainsRangeAxiom&) override { /* do nothing */ }
-        
-        std::set<const SymbolDeclaration*> result;
-        void Enter(const SymbolDeclaration& object) override { result.insert(&object); }
-    } collector;
-    annotation.Accept(collector);
-    return std::move(collector.result);
 }

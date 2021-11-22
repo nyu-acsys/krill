@@ -25,6 +25,7 @@ set(SOURCES
 
         solver/access.cpp
         solver/ful.cpp
+        solver/future.cpp
         solver/implication.cpp
         solver/interference.cpp
         solver/join.cpp
@@ -57,5 +58,6 @@ set(SOURCES
         static.cpp
 )
 
+find_package (Threads)
 add_library(Engine ${SOURCES})
-target_link_libraries(Engine Programs Logics ${Z3_LIBRARY})
+target_link_libraries(Engine Programs Logics ${Z3_LIBRARY} ${CMAKE_THREAD_LIBS_INIT})

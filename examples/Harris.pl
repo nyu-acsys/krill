@@ -16,7 +16,6 @@ def @contains(Node* node, data_t key) {
 }
 
 def @outflow[next](Node* node, data_t key) {
-    // !node->marked ==> node->val < key
     node->val < key
 }
 

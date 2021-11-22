@@ -8,8 +8,8 @@
 
 using namespace plankton;
 
-constexpr bool POSTPROCESS_FLOW_GRAPHS = false;
 constexpr std::array<EMode, 2> AllEMode = {EMode::PRE, EMode::POST };
+
 
 struct UpdateMap {
     using update_list_t = std::vector<std::pair<std::string, const SymbolDeclaration*>>;
@@ -169,6 +169,7 @@ struct FlowGraphGenerator {
         // create a new node, add to footprint
         auto newNode = MakeNodeFromResource(*resource, factory, graph);
         ApplyUpdates(newNode);
+        newNode.needed |= newNode.HasUpdatedPointers() || newNode.HasUpdatedData();
         graph.nodes.push_back(std::move(newNode));
         return &graph.nodes.back();
     }
@@ -201,6 +202,7 @@ struct FlowGraphGenerator {
 
         // expand until maxDepth is reached
         while (!worklist.Empty()) {
+
             auto [depth, node] = worklist.Take();
             depth = GetExpansionDepth(*node, depth);
             InlineAliases(*node);
@@ -245,12 +247,13 @@ struct FlowGraphGenerator {
     inline void DeriveFrontierKnowledge(const std::set<const SymbolDeclaration*>& frontier) {
         // get new memory
         auto& flowType = graph.config.GetFlowValueType();
-        for (auto elem : frontier) DEBUG("  missing " << elem->name << ": nonnull=" << encoding.Implies(encoding.EncodeIsNonNull(*elem)) << std::endl)
-        plankton::MakeMemoryAccessible(state, frontier, flowType, factory, encoding);
-        encoding.AddPremise(encoding.EncodeInvariants(state, graph.config)); // for newly added memory
-        encoding.AddPremise(encoding.EncodeSimpleFlowRules(state, graph.config)); // for newly added memory
-        encoding.AddPremise(encoding.EncodeAcyclicity(state)); // for newly added memory
-        
+        // for (auto elem : frontier) DEBUG("  missing " << elem->name << ": nonnull=" << encoding.Implies(encoding.EncodeIsNonNull(*elem)) << std::endl)
+        plankton::MakeMemoryAccessible(state, frontier, flowType, factory, encoding); // TODO: ensure that frontier is shared
+        encoding.AddPremise(encoding.EncodeFormulaWithKnowledge(state, graph.config)); // for newly added memory
+        // encoding.AddPremise(encoding.EncodeInvariants(state, graph.config)); // for newly added memory
+        // encoding.AddPremise(encoding.EncodeSimpleFlowRules(state, graph.config)); // for newly added memory
+        // encoding.AddPremise(encoding.EncodeAcyclicity(state)); // for newly added memory
+
         // nodes with same address => same fields
         // prune duplicate memory
         plankton::ExtendStack(*graph.pre, encoding, ExtensionPolicy::POINTERS);
@@ -259,7 +262,7 @@ struct FlowGraphGenerator {
     }
     
     void Construct(const VariableDeclaration& root, std::size_t depth) {
-        plankton::ExtendStack(*graph.pre, encoding, ExtensionPolicy::POINTERS);
+        // plankton::ExtendStack(*graph.pre, encoding, ExtensionPolicy::POINTERS);
         plankton::InlineAndSimplify(*graph.pre);
         
         std::set<const SymbolDeclaration*> frontier;
@@ -267,50 +270,27 @@ struct FlowGraphGenerator {
             MakeUpdates();
 
             encoding.Push();
-            encoding.AddPremise(state);
-            encoding.AddPremise(encoding.EncodeInvariants(state, graph.config));
-            encoding.AddPremise(encoding.EncodeSimpleFlowRules(state, graph.config));
-            encoding.AddPremise(encoding.EncodeAcyclicity(state));
-            encoding.AddPremise(encoding.EncodeOwnership(state));
-    
+            encoding.AddPremise(encoding.EncodeFormulaWithKnowledge(state, graph.config));
+            // encoding.AddPremise(state);
+            // encoding.AddPremise(encoding.EncodeInvariants(state, graph.config));
+            // encoding.AddPremise(encoding.EncodeSimpleFlowRules(state, graph.config));
+            // encoding.AddPremise(encoding.EncodeAcyclicity(state));
+            // encoding.AddPremise(encoding.EncodeOwnership(state));
+            assert(!encoding.ImpliesFalse());
+
             MakeRoot(root);
             auto newFrontier = ExpandGraph(depth);
             if (frontier == newFrontier) break;
             frontier = std::move(newFrontier);
-            
+
             DeriveFrontierKnowledge(frontier);
+            assert(!encoding.ImpliesFalse());
             encoding.Pop();
             graph.nodes.clear();
         }
         CheckGraph();
     }
 };
-
-inline void PostProcessFootprint(FlowGraph& footprint) {
-    if constexpr (!POSTPROCESS_FLOW_GRAPHS) return;
-    MEASURE("plankton::MakeFlowFootprint ~> PostProcessFootprint")
-
-    Encoding encoding(footprint);
-    auto handle = [&encoding](auto& pre, auto& post, const auto& info) {
-        if (pre.get() == post.get()) return;
-        auto equal = encoding.Encode(pre) == encoding.Encode(post);
-        encoding.AddCheck(equal, [&pre,&post,info](bool holds){
-            if (holds) post = pre.get();
-        });
-    };
-    
-    for (auto& node : footprint.nodes) {
-        handle(node.preAllInflow, node.postAllInflow, "allInflow@" + node.address.name);
-        handle(node.preGraphInflow, node.postGraphInflow, "graphInflow@" + node.address.name);
-        handle(node.preKeyset, node.postKeyset, "keyset@" + node.address.name);
-        for (auto& field : node.pointerFields) {
-            handle(field.preAllOutflow, field.postAllOutflow, "allOutflow@" + node.address.name + "::" + field.name);
-            handle(field.preGraphOutflow, field.postGraphOutflow, "graphOutflow@" + node.address.name + "::" + field.name);
-        }
-    }
-    
-    encoding.Check();
-}
 
 FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const MemoryWrite& command, const SolverConfig& config) {
     MEASURE("plankton::MakeFlowFootprint")
@@ -339,9 +319,13 @@ FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const Mem
             DEBUG("      - " << node.address.name << "->" << next.name << " == " << next.preValue.get().name << " / "
                              << next.postValue.get().name << std::endl)
         }
+        // for (const auto& data : node.dataFields) {
+        //     DEBUG("      - " << node.address.name << "->" << data.name << " == " << data.preValue.get().name << " / "
+        //                      << data.postValue.get().name << std::endl)
+        // }
     }
+    DEBUG("  with annotation: " << *graph.pre << std::endl)
     
-    PostProcessFootprint(graph);
     return graph;
 }
 

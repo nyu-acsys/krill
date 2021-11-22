@@ -16,9 +16,8 @@ struct InterferenceInfo {
     std::unique_ptr<Annotation> annotation;
     const std::deque<std::unique_ptr<HeapEffect>>& interference;
     std::map<const SharedMemoryCore*, std::deque<std::function<void()>>> stabilityUpdates;
-    
-    explicit InterferenceInfo(std::unique_ptr<Annotation> annotation_,
-                              const std::deque<std::unique_ptr<HeapEffect>>& interference)
+
+    explicit InterferenceInfo(std::unique_ptr<Annotation> annotation_, const std::deque<std::unique_ptr<HeapEffect>>& interference)
             : annotation(std::move(annotation_)), interference(interference) {
         assert(annotation);
         Preprocess();
@@ -32,9 +31,9 @@ struct InterferenceInfo {
         plankton::AvoidEffectSymbols(factory, interference);
         plankton::RenameSymbols(*annotation, factory);
 
-        DEBUG("<<INTERFERENCE>>" << std::endl)
-        for (const auto& effect : interference) DEBUG("  -- effect: " << *effect << std::endl)
-        DEBUG(" -- pre: " << *annotation << std::endl;)
+        // DEBUG("<<INTERFERENCE>>" << std::endl)
+        // for (const auto& effect : interference) DEBUG("  -- effect: " << *effect << std::endl)
+        // DEBUG(" -- pre: " << *annotation << std::endl;)
     }
 
     inline void Handle(SharedMemoryCore& memory, const HeapEffect& effect) {
@@ -82,7 +81,7 @@ struct InterferenceInfo {
             annotation->Conjoin(std::make_unique<PastPredicate>(std::move(memory)));
         }
         
-        DEBUG(" -- post: " << *annotation << std::endl;)
+        // DEBUG(" -- post: " << *annotation << std::endl;)
     }
 
     inline void Postprocess() {
@@ -95,19 +94,29 @@ struct InterferenceInfo {
     }
 };
 
+// bool Solver::IsMemoryImmutable(const SharedMemoryCore& memory, const Formula& context) const {
+//     if (interference.empty()) return true;
+//     MEASURE("Solver::IsMemoryImmutable")
+//     auto annotation = std::make_unique<Annotation>();
+//     annotation->Conjoin(plankton::Copy(memory));
+//     annotation->Conjoin(plankton::Copy(context));
+//     plankton::Simplify(*annotation);
+//     InterferenceInfo info(plankton::Copy(*annotation), interference);
+//     auto stable = info.GetResult();
+//     return Implies(*stable, *annotation);
+// }
+
 std::unique_ptr<Annotation> Solver::MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const {
     // TODO: should this take a list of annotations?
     if (interference.empty()) return annotation;
+    if (plankton::Collect<SharedMemoryCore>(*annotation->now).empty()) return annotation;
 
     MEASURE("Solver::MakeInterferenceStable")
-    if (plankton::Collect<SharedMemoryCore>(*annotation->now).empty()) return annotation;
-    plankton::ExtendStack(*annotation, config, ExtensionPolicy::FAST); // TODO: needed?
-    {
-        MEASURE("Solver::MakeInterferenceStable ~> ImprovePast")
-        ImprovePast(*annotation);
-    }
+    DEBUG("<<INTERFERENCE>>" << std::endl)
+    plankton::ExtendStack(*annotation, config, ExtensionPolicy::FAST);
     InterferenceInfo info(std::move(annotation), interference);
     auto result = info.GetResult();
-    // PrunePast(*result);
+    plankton::InlineAndSimplify(*result);
+    // DEBUG(*result << std::endl << std::endl)
     return result;
 }

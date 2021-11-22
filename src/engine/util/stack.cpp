@@ -2,6 +2,7 @@
 
 #include "logics/util.hpp"
 #include "util/shortcuts.hpp"
+#include "util/log.hpp"
 
 using namespace plankton;
 
@@ -154,9 +155,19 @@ std::deque<std::unique_ptr<Axiom>> plankton::MakeStackCandidates(const LogicObje
 }
 
 void plankton::ExtendStack(Annotation& annotation, Encoding& encoding, ExtensionPolicy policy) {
-    Generator generator(policy);
-    generator.AddSymbolsFrom(annotation);
-    auto candidates = generator.Generate();
+    // Generator generator(policy);
+    // generator.AddSymbolsFrom(annotation);
+    // auto candidates = generator.Generate();
+    auto candidates = plankton::MakeStackCandidates(*annotation.now, policy);
+    for (const auto& past : annotation.past) {
+        auto pastCandidates = plankton::MakeStackCandidates(*annotation.now, *past, policy);
+        plankton::MoveInto(std::move(pastCandidates), candidates);
+    }
+    for (const auto& future : annotation.future) {
+        auto futureCandidates = plankton::MakeStackCandidates(*annotation.now, *future, policy);
+        plankton::MoveInto(std::move(futureCandidates), candidates);
+    }
+    // DEBUG("plankton::ExtendStack for " << candidates.size() << " candidates" << std::endl)
     
     for (auto& candidate : candidates) {
         encoding.AddCheck(encoding.Encode(*candidate), [&candidate,&annotation](bool holds){
@@ -168,8 +179,6 @@ void plankton::ExtendStack(Annotation& annotation, Encoding& encoding, Extension
 }
 
 void plankton::ExtendStack(Annotation& annotation, const SolverConfig& config, ExtensionPolicy policy) {
-    Encoding encoding(*annotation.now);
-    encoding.AddPremise(encoding.EncodeInvariants(*annotation.now, config));
-    encoding.AddPremise(encoding.EncodeSimpleFlowRules(*annotation.now, config));
+    Encoding encoding(*annotation.now, config);
     plankton::ExtendStack(annotation, encoding, policy);
 }

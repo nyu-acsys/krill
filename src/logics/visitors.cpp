@@ -23,6 +23,10 @@ void LogicVisitor::Walk(const SymbolicBool& /*object*/) { /* do nothing */ }
 void LogicVisitor::Walk(const SymbolicNull& /*object*/) { /* do nothing */ }
 void LogicVisitor::Walk(const SymbolicMin& /*object*/) { /* do nothing */ }
 void LogicVisitor::Walk(const SymbolicMax& /*object*/) { /* do nothing */ }
+void LogicVisitor::Walk(const Guard& /*object*/) { /* do nothing */ }
+void LogicVisitor::Walk(const Update& object) {
+    for (auto& elem : object.values) elem->Accept(*this);
+}
 void LogicVisitor::Walk(const LocalMemoryResource& object) { HandleMemoryAxiom(*this, object); }
 void LogicVisitor::Walk(const SharedMemoryCore& object) { HandleMemoryAxiom(*this, object); }
 void LogicVisitor::Walk(const SeparatingConjunction& object) {
@@ -62,9 +66,8 @@ void LogicVisitor::Walk(const PastPredicate& object) {
     object.formula->Accept(*this);
 }
 void LogicVisitor::Walk(const FuturePredicate& object) {
-    object.pre->Accept(*this);
-    object.post->Accept(*this);
-    object.context->Accept(*this);
+    object.guard->Accept(*this);
+    object.update->Accept(*this);
 }
 void LogicVisitor::Walk(const Annotation& object) {
     object.now->Accept(*this);
@@ -77,6 +80,10 @@ void MutableLogicVisitor::Walk(SymbolicBool& /*object*/) { /* do nothing */ }
 void MutableLogicVisitor::Walk(SymbolicNull& /*object*/) { /* do nothing */ }
 void MutableLogicVisitor::Walk(SymbolicMin& /*object*/) { /* do nothing */ }
 void MutableLogicVisitor::Walk(SymbolicMax& /*object*/) { /* do nothing */ }
+void MutableLogicVisitor::Walk(Guard& /*object*/) { /* do nothing */ }
+void MutableLogicVisitor::Walk(Update& object) {
+    for (auto& elem : object.values) elem->Accept(*this);
+}
 void MutableLogicVisitor::Walk(LocalMemoryResource& object) { HandleMemoryAxiom(*this, object); }
 void MutableLogicVisitor::Walk(SharedMemoryCore& object) { HandleMemoryAxiom(*this, object); }
 void MutableLogicVisitor::Walk(SeparatingConjunction& object) {
@@ -116,9 +123,8 @@ void MutableLogicVisitor::Walk(PastPredicate& object) {
     object.formula->Accept(*this);
 }
 void MutableLogicVisitor::Walk(FuturePredicate& object) {
-    object.pre->Accept(*this);
-    object.post->Accept(*this);
-    object.context->Accept(*this);
+    object.guard->Accept(*this);
+    object.update->Accept(*this);
 }
 void MutableLogicVisitor::Walk(Annotation& object) {
     object.now->Accept(*this);
@@ -144,6 +150,8 @@ void BaseLogicVisitor::Visit(const SymbolicBool& /*object*/) { COMPLAIN(BaseLogi
 void BaseLogicVisitor::Visit(const SymbolicNull& /*object*/) { COMPLAIN(BaseLogicVisitor, const SymbolicNull&); }
 void BaseLogicVisitor::Visit(const SymbolicMin& /*object*/) { COMPLAIN(BaseLogicVisitor, const SymbolicMin&); }
 void BaseLogicVisitor::Visit(const SymbolicMax& /*object*/) { COMPLAIN(BaseLogicVisitor, const SymbolicMax&); }
+void BaseLogicVisitor::Visit(const Guard& /*object*/) { COMPLAIN(BaseLogicVisitor, const Guard&); }
+void BaseLogicVisitor::Visit(const Update& /*object*/) { COMPLAIN(BaseLogicVisitor, const Update&); }
 void BaseLogicVisitor::Visit(const SeparatingConjunction& /*object*/) { COMPLAIN(BaseLogicVisitor, const SeparatingConjunction&); }
 void BaseLogicVisitor::Visit(const LocalMemoryResource& /*object*/) { COMPLAIN(BaseLogicVisitor, const LocalMemoryResource&); }
 void BaseLogicVisitor::Visit(const SharedMemoryCore& /*object*/) { COMPLAIN(BaseLogicVisitor, const SharedMemoryCore&); }
@@ -165,6 +173,8 @@ void MutableBaseLogicVisitor::Visit(SymbolicBool& /*object*/) { COMPLAIN(Mutable
 void MutableBaseLogicVisitor::Visit(SymbolicNull& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, SymbolicNull&); }
 void MutableBaseLogicVisitor::Visit(SymbolicMin& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, SymbolicMin&); }
 void MutableBaseLogicVisitor::Visit(SymbolicMax& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, SymbolicMax&); }
+void MutableBaseLogicVisitor::Visit(Guard& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, Guard&); }
+void MutableBaseLogicVisitor::Visit(Update& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, Update&); }
 void MutableBaseLogicVisitor::Visit(SeparatingConjunction& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, SeparatingConjunction&); }
 void MutableBaseLogicVisitor::Visit(LocalMemoryResource& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, LocalMemoryResource&); }
 void MutableBaseLogicVisitor::Visit(SharedMemoryCore& /*object*/) { COMPLAIN(MutableBaseLogicVisitor, SharedMemoryCore&); }
@@ -187,6 +197,8 @@ void DefaultLogicVisitor::Visit(const SymbolicBool& /*object*/) { /* do nothing 
 void DefaultLogicVisitor::Visit(const SymbolicNull& /*object*/) { /* do nothing */ }
 void DefaultLogicVisitor::Visit(const SymbolicMin& /*object*/) { /* do nothing */ }
 void DefaultLogicVisitor::Visit(const SymbolicMax& /*object*/) { /* do nothing */ }
+void DefaultLogicVisitor::Visit(const Guard& /*object*/) { /* do nothing */ }
+void DefaultLogicVisitor::Visit(const Update& /*object*/) { /* do nothing */ }
 void DefaultLogicVisitor::Visit(const SeparatingConjunction& /*object*/) { /* do nothing */ }
 void DefaultLogicVisitor::Visit(const LocalMemoryResource& /*object*/) { /* do nothing */ }
 void DefaultLogicVisitor::Visit(const SharedMemoryCore& /*object*/) { /* do nothing */ }
@@ -208,6 +220,8 @@ void MutableDefaultLogicVisitor::Visit(SymbolicBool& /*object*/) { /* do nothing
 void MutableDefaultLogicVisitor::Visit(SymbolicNull& /*object*/) { /* do nothing */ }
 void MutableDefaultLogicVisitor::Visit(SymbolicMin& /*object*/) { /* do nothing */ }
 void MutableDefaultLogicVisitor::Visit(SymbolicMax& /*object*/) { /* do nothing */ }
+void MutableDefaultLogicVisitor::Visit(Guard& /*object*/) { /* do nothing */ }
+void MutableDefaultLogicVisitor::Visit(Update& /*object*/) { /* do nothing */ }
 void MutableDefaultLogicVisitor::Visit(SeparatingConjunction& /*object*/) { /* do nothing */ }
 void MutableDefaultLogicVisitor::Visit(LocalMemoryResource& /*object*/) { /* do nothing */ }
 void MutableDefaultLogicVisitor::Visit(SharedMemoryCore& /*object*/) { /* do nothing */ }
@@ -230,6 +244,8 @@ void LogicListener::Visit(const SymbolicBool& object) { Enter(object); Walk(obje
 void LogicListener::Visit(const SymbolicNull& object) { Enter(object); Walk(object); }
 void LogicListener::Visit(const SymbolicMin& object) { Enter(object); Walk(object); }
 void LogicListener::Visit(const SymbolicMax& object) { Enter(object); Walk(object); }
+void LogicListener::Visit(const Guard& object) { Enter(object); Walk(object); }
+void LogicListener::Visit(const Update& object) { Enter(object); Walk(object); }
 void LogicListener::Visit(const SeparatingConjunction& object) { Enter(object); Walk(object); }
 void LogicListener::Visit(const LocalMemoryResource& object) { Enter(object); Walk(object); }
 void LogicListener::Visit(const SharedMemoryCore& object) { Enter(object); Walk(object); }
@@ -251,6 +267,8 @@ void MutableLogicListener::Visit(SymbolicBool& object) { Enter(object); Walk(obj
 void MutableLogicListener::Visit(SymbolicNull& object) { Enter(object); Walk(object); }
 void MutableLogicListener::Visit(SymbolicMin& object) { Enter(object); Walk(object); }
 void MutableLogicListener::Visit(SymbolicMax& object) { Enter(object); Walk(object); }
+void MutableLogicListener::Visit(Guard& object) { Enter(object); Walk(object); }
+void MutableLogicListener::Visit(Update& object) { Enter(object); Walk(object); }
 void MutableLogicListener::Visit(SeparatingConjunction& object) { Enter(object); Walk(object); }
 void MutableLogicListener::Visit(LocalMemoryResource& object) { Enter(object); Walk(object); }
 void MutableLogicListener::Visit(SharedMemoryCore& object) { Enter(object); Walk(object); }
@@ -274,6 +292,8 @@ void LogicListener::Enter(const SymbolicBool& /*object*/) { /* do nothing */ }
 void LogicListener::Enter(const SymbolicNull& /*object*/) { /* do nothing */ }
 void LogicListener::Enter(const SymbolicMin& /*object*/) { /* do nothing */ }
 void LogicListener::Enter(const SymbolicMax& /*object*/) { /* do nothing */ }
+void LogicListener::Enter(const Guard& /*object*/) { /* do nothing */ }
+void LogicListener::Enter(const Update& /*object*/) { /* do nothing */ }
 void LogicListener::Enter(const SeparatingConjunction& /*object*/) { /* do nothing */ }
 void LogicListener::Enter(const LocalMemoryResource& /*object*/) { /* do nothing */ }
 void LogicListener::Enter(const SharedMemoryCore& /*object*/) { /* do nothing */ }
@@ -297,6 +317,8 @@ void MutableLogicListener::Enter(SymbolicBool& /*object*/) { /* do nothing */ }
 void MutableLogicListener::Enter(SymbolicNull& /*object*/) { /* do nothing */ }
 void MutableLogicListener::Enter(SymbolicMin& /*object*/) { /* do nothing */ }
 void MutableLogicListener::Enter(SymbolicMax& /*object*/) { /* do nothing */ }
+void MutableLogicListener::Enter(Guard& /*object*/) { /* do nothing */ }
+void MutableLogicListener::Enter(Update& /*object*/) { /* do nothing */ }
 void MutableLogicListener::Enter(SeparatingConjunction& /*object*/) { /* do nothing */ }
 void MutableLogicListener::Enter(LocalMemoryResource& /*object*/) { /* do nothing */ }
 void MutableLogicListener::Enter(SharedMemoryCore& /*object*/) { /* do nothing */ }

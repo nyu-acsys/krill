@@ -6,6 +6,5 @@ using namespace plankton;
 
 
 bool Solver::IsUnsatisfiable(const Annotation& annotation) const {
-    Encoding encoding(*annotation.now);
-    return encoding.ImpliesFalse();
+    return Encoding(*annotation.now, config).ImpliesFalse();
 }

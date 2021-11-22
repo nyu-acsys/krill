@@ -4,6 +4,8 @@
 
 # Build
 build/*
+build-linux/*
+build-linux-notime/*
 cmake-build-debug/*
 cmake-build-release/*
 cmake-build-relwithdebinfo/*

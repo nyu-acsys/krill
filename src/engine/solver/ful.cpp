@@ -10,9 +10,10 @@ using namespace plankton;
 
 
 inline std::unique_ptr<Annotation> AnnotationFromFormula(const Formula& formula) {
-    auto now = std::make_unique<SeparatingConjunction>();
-    now->Conjoin(plankton::Copy(formula));
-    return std::make_unique<Annotation>(std::move(now));
+    auto result = std::make_unique<Annotation>();
+    result->Conjoin(plankton::Copy(formula));
+    plankton::Simplify(*result);
+    return result;
 }
 
 struct FulfillmentFinder {
@@ -23,9 +24,8 @@ struct FulfillmentFinder {
     std::deque<std::unique_ptr<FulfillmentAxiom>> fulfillments;
     
     explicit FulfillmentFinder(const Annotation& annotation, const SolverConfig& config)
-            : config(config), factory(annotation), encoding(*annotation.now),
+            : config(config), factory(annotation), encoding(*annotation.now, config),
               obligations(plankton::Collect<ObligationAxiom>(*annotation.now)) {
-        encoding.AddPremise(encoding.EncodeInvariants(*annotation.now, config));
     }
     
     void Handle(const Formula& formula) {
@@ -46,12 +46,8 @@ struct FulfillmentFinder {
 [[nodiscard]] std::unique_ptr<Annotation> Solver::TryAddFulfillment(std::unique_ptr<Annotation> annotation) const {
     MEASURE("Solver::TryAddFulfillment")
     DEBUG("Solver::TryAddFulfillment for " << *annotation << std::endl)
-    {
-        MEASURE("Solver::TryAddFulfillment ~> ImprovePast")
-        ImprovePast(*annotation);
-    }
     FulfillmentFinder finder(*annotation, config);
-    finder.Handle(*annotation->now);
+    finder.Handle(*annotation->now); // TODO: per SharedMemoryCore?
     for (const auto& past : annotation->past) finder.Handle(*past->formula);
     plankton::MoveInto(std::move(finder.fulfillments), annotation->now->conjuncts);
     return annotation;

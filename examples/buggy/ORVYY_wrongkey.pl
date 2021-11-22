@@ -1,4 +1,4 @@
-#name "Vechev&Yahav CAS Set"
+#name "BUGGY ORVYY Set"
 
 
 struct Node {
@@ -12,11 +12,11 @@ Node* Tail;
 
 
 def @contains(Node* node, data_t key) {
-    node->val == key
+    !node->marked && node->val == key
 }
 
 def @outflow[next](Node* node, data_t key) {
-    node->val < key
+    !node->marked ==> node->val < key
 }
 
 def @invariant[local](Node* x) {
@@ -41,7 +41,7 @@ def @invariant[shared](Node* x) {
  && x->next == NULL ==> x == Tail
 
  && !x->marked ==> [x->val, MAX] in x->_flow
- && x->_flow == 0 ==> x->marked
+ && x->_flow != 0 ==> !x->marked
  && x->_flow != 0 ==> [x->val, MAX] in x->_flow
 }
 
@@ -65,8 +65,9 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 	curr = Head;
 	do {
 		pred = curr;
+		k = curr->val; // buggy: wrong key
 		curr = pred->next;
-        k = curr->val;
+        // k = curr->val; // correct
 	} while (k < key);
     return <pred, curr, k>;
 }
@@ -77,7 +78,7 @@ bool contains(data_t key) {
 	data_t k;
 
 	<pred, curr, k> = locate(key);
-    return k == key;
+	return k == key;
 }
 
 bool add(data_t key) {
@@ -96,12 +97,21 @@ bool add(data_t key) {
 
 		} else {
 			entry->next = curr;
-            if (CAS(<pred->marked, pred->next>, <false, curr>, <false, entry>)) {
-				return true;
+			atomic {
+				choose {
+					assume(pred->marked == false);
+					assume(curr == pred->next);
+
+					pred->next = entry;
+					return true;
+				}{
+					skip; // retry
+				}
 			}
 		}
 	}
 }
+
 
 bool remove(data_t key) {
 	Node* pred, curr, next;
@@ -114,12 +124,9 @@ bool remove(data_t key) {
 			return false;
 
 		} else {
-            // TODO: support any curr->marked, not just unmarked
             next = curr->next;
-			if (CAS(<curr->marked, curr->next>, <false, next>, <true, next>)) {
-                if (CAS(<pred->marked, pred->next>, <false, curr>, <false, next>)) {
-                    return true;
-                }
+			if (CAS(<pred->marked, pred->next, curr->marked, curr->next>, <false, curr, false, next>, <false, next, true, next>)) {
+				return true;
 			}
 		}
 	}

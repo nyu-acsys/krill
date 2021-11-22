@@ -15,6 +15,22 @@ SymbolRenaming plankton::MakeDefaultRenaming(SymbolFactory& factory) {
     return renaming;
 }
 
+SymbolRenaming plankton::MakeMemoryRenaming(const MemoryAxiom& replace, const MemoryAxiom& with) {
+    assert(replace.node->Type() == with.node->Type());
+    std::map<const SymbolDeclaration*, const SymbolDeclaration*> map;
+    map[&replace.node->Decl()] = &with.node->Decl();
+    map[&replace.flow->Decl()] = &with.flow->Decl();
+    for (const auto& [name, value] : replace.fieldToValue) {
+        map[&value->Decl()] = &with.fieldToValue.at(name)->Decl();
+    }
+
+    return [map=std::move(map)](const SymbolDeclaration& decl) -> const SymbolDeclaration& {
+        auto find = map.find(&decl);
+        if (find != map.end()) return *find->second;
+        else return decl;
+    };
+}
+
 struct SymbolRenamingListener : public MutableLogicListener {
     const SymbolRenaming& renaming;
     

@@ -20,6 +20,7 @@ constexpr std::string_view SYMBOL_ELEMENT_OF = " ∈ ";
 constexpr std::string_view SYMBOL_SUBSET = " ⊆ ";
 constexpr std::string_view SYMBOL_OP_SPACE = " ";
 constexpr std::string_view SYMBOL_EMPTY_SET = "∅";
+constexpr std::string_view SYMBOL_UPDATE = " =>> ";
 constexpr std::string_view LITERAL_OBLIGATION = "@OBL";
 constexpr std::string_view LITERAL_FULFILLMENT = "@FUL";
 constexpr std::string_view SYMBOL_IMPLICATION = "==>";
@@ -28,8 +29,7 @@ constexpr std::string_view SYMBOL_IMPLICATION_CLOSE = " }";
 constexpr std::string_view SYMBOL_PAST_LEFT = "PAST<< ";
 constexpr std::string_view SYMBOL_PAST_RIGHT = " >>";
 constexpr std::string_view SYMBOL_FUTURE_LEFT = "FUT<< ";
-constexpr std::string_view SYMBOL_FUTURE_UPDATE = " =>> ";
-constexpr std::string_view SYMBOL_FUTURE_CONTEXT = " | ";
+constexpr std::string_view SYMBOL_FUTURE_GUARD = "  |  ";
 constexpr std::string_view SYMBOL_FUTURE_RIGHT = " >>";
 
 
@@ -62,21 +62,38 @@ struct LogicPrinter : public LogicVisitor {
     void Visit(const SymbolicNull& /*expression*/) override { stream << LITERAL_NULL; }
     void Visit(const SymbolicMin& /*expression*/) override { stream << LITERAL_MIN; }
     void Visit(const SymbolicMax& /*expression*/) override { stream << LITERAL_MAX; }
-    
+
     template<typename T>
-    inline void HandleSeparatedConjuncts(const T& formula) {
-        if (formula.conjuncts.empty()) {
-            stream << LITERAL_TRUE;
+    inline void PrintSequence(const T& container, std::string_view join, std::string_view empty) {
+        if (container.empty()) {
+            stream << empty;
             return;
         }
         bool first = true;
-        for (const auto& elem : formula.conjuncts) {
+        for (const auto& elem : container) {
             if (first) first = false;
-            else stream << SYMBOL_STAR;
-            elem->Accept(*this);
+            else stream << join;
+            if constexpr (std::is_base_of_v<LogicObject, typename T::value_type::element_type>) elem->Accept(*this);
+            else plankton::Print(*elem, stream);
         }
     }
-    
+    template<typename T>
+    inline void HandleSeparatedConjuncts(const T& formula) {
+        PrintSequence(formula.conjuncts, SYMBOL_STAR, LITERAL_TRUE);
+    }
+
+    void Visit(const Guard& expression) override {
+        PrintSequence(expression.conjuncts, SYMBOL_STAR, LITERAL_TRUE);
+    }
+    void Visit(const Update& expression) override {
+        if (expression.fields.empty()) {
+            stream << SYMBOL_EMPTY_SET;
+        } else {
+            PrintSequence(expression.fields, ", ", "");
+            stream << SYMBOL_UPDATE;
+            PrintSequence(expression.values, ", ", "");
+        }
+    }
     void Visit(const SeparatingConjunction& formula) override {
         HandleSeparatedConjuncts(formula);
     }
@@ -150,11 +167,9 @@ struct LogicPrinter : public LogicVisitor {
     }
     void Visit(const FuturePredicate& predicate) override {
         stream << SYMBOL_FUTURE_LEFT;
-        predicate.pre->Accept(*this);
-        stream << SYMBOL_FUTURE_UPDATE;
-        predicate.post->Accept(*this);
-        stream << SYMBOL_FUTURE_CONTEXT;
-        predicate.context->Accept(*this);
+        predicate.update->Accept(*this);
+        stream << SYMBOL_FUTURE_GUARD;
+        predicate.guard->Accept(*this);
         stream << SYMBOL_FUTURE_RIGHT;
     }
 

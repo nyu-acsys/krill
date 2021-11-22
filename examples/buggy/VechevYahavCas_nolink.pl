@@ -1,5 +1,4 @@
-#name "Vechev&Yahav CAS Set"
-
+#name "BUGGY Vechev&Yahav CAS Set"
 
 struct Node {
 	data_t val;
@@ -95,7 +94,8 @@ bool add(data_t key) {
             return false;
 
 		} else {
-			entry->next = curr;
+			// entry->next = curr; // correct
+			skip; // buggy: no linking
             if (CAS(<pred->marked, pred->next>, <false, curr>, <false, entry>)) {
 				return true;
 			}

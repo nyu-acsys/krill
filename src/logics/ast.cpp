@@ -1,5 +1,7 @@
 #include "logics/ast.hpp"
 
+#include <utility>
+
 #include "logics/util.hpp"
 #include "util/shortcuts.hpp"
 
@@ -263,12 +265,46 @@ PastPredicate::PastPredicate(std::unique_ptr<SharedMemoryCore> form) : formula(s
     assert(formula);
 }
 
-FuturePredicate::FuturePredicate(std::unique_ptr<SharedMemoryCore> pre_, std::unique_ptr<SharedMemoryCore> post_,
-                                 std::unique_ptr<Formula> context_) : pre(std::move(pre_)), post(std::move(post_)),
-                                                                      context(std::move(context_)) {
-    assert(pre);
-    assert(post);
-    assert(context);
+Guard::Guard() = default;
+
+Guard::Guard(std::unique_ptr<BinaryExpression> expression_) {
+    assert(expression_);
+    conjuncts.push_back(std::move(expression_));
+}
+
+Guard::Guard(std::deque<std::unique_ptr<BinaryExpression>> conjuncts_) : conjuncts(std::move(conjuncts_)) {
+    assert(plankton::AllNonNull(conjuncts));
+}
+
+Update::Update() = default;
+
+Update::Update(std::unique_ptr<Dereference> field_, std::unique_ptr<SymbolicExpression> value_) {
+    assert(field_);
+    assert(value_);
+    assert(field_->Type().AssignableFrom(value_->Type()));
+    fields.push_back(std::move(field_));
+    values.push_back(std::move(value_));
+}
+
+bool CheckUpdates(const std::vector<std::unique_ptr<Dereference>>& fields, const std::vector<std::unique_ptr<SymbolicExpression>>& values) {
+    for (std::size_t index = 0; index < fields.size(); ++index) {
+        if (fields.at(index)->Type().AssignableFrom(values.at(index)->Type())) continue;
+        return false;
+    }
+    return true;
+}
+
+Update::Update(std::vector<std::unique_ptr<Dereference>> fields_, std::vector<std::unique_ptr<SymbolicExpression>> values_) : fields(std::move(fields_)), values(std::move(values_)) {
+    assert(plankton::AllNonNull(fields));
+    assert(plankton::AllNonNull(values));
+    assert(fields.size() == values.size());
+    assert(CheckUpdates(fields, values));
+}
+
+FuturePredicate::FuturePredicate(std::unique_ptr<Update> update_, std::unique_ptr<Guard> guard_)
+        : guard(std::move(guard_)), update(std::move(update_)) {
+    assert(guard);
+    assert(update);
 }
 
 

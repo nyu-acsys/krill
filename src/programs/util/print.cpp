@@ -72,8 +72,11 @@ struct ExpressionPrinter : public BaseProgramVisitor {
 };
 
 struct CommandPrinter : public ExpressionPrinter {
-    using ExpressionPrinter::ExpressionPrinter;
     using ExpressionPrinter::Visit;
+    std::string_view lineEnd;
+
+    explicit CommandPrinter(std::ostream& stream, bool breakLines) : ExpressionPrinter(stream), lineEnd(breakLines ? LB : " ") {}
+    explicit CommandPrinter(std::ostream& stream) : CommandPrinter(stream, true) {}
 
     template<typename T>
     void PrintSequence(const T& sequence) {
@@ -85,32 +88,32 @@ struct CommandPrinter : public ExpressionPrinter {
         }
     }
     
-    void Visit(const Skip& /*object*/) override { stream << CMD_SKIP << ";" << LB; }
-    void Visit(const Break& /*object*/) override { stream << CMD_BREAK << ";" << LB; }
+    void Visit(const Skip& /*object*/) override { stream << CMD_SKIP << ";" << lineEnd; }
+    void Visit(const Break& /*object*/) override { stream << CMD_BREAK << ";" << lineEnd; }
     void Visit(const Return& object) override {
         stream << CMD_RETURN;
         if (!object.expressions.empty()) stream << " ";
         PrintSequence(object.expressions);
-        stream << ";" << LB;
+        stream << ";" << lineEnd;
     }
     void Visit(const Assume& object) override {
         stream << CMD_ASSUME << "(";
         object.condition->Accept(*this);
-        stream << ");" << LB;
+        stream << ");" << lineEnd;
     }
     void Visit(const Fail& /*object*/) override {
-        stream << CMD_ASSERT << "(" << LITERAL_FALSE << ");" << LB;
+        stream << CMD_ASSERT << "(" << LITERAL_FALSE << ");" << lineEnd;
     }
     void Visit(const Malloc& object) override {
         object.lhs->Accept(*this);
         stream << SYMBOL_ASSIGN << CMD_MALLOC << "(" << CMD_SIZEOF << "(";
-        stream << object.lhs->Type().name << "))" << ";" << LB;
+        stream << object.lhs->Type().name << "))" << ";" << lineEnd;
     }
     void Visit(const Macro& object) override {
         PrintSequence(object.lhs);
         stream << SYMBOL_ASSIGN << object.Func().name << "(";
         PrintSequence(object.arguments);
-        stream << ");" << LB;
+        stream << ");" << lineEnd;
     }
     template<typename T>
     void HandleAssignment(const T& object) {
@@ -119,7 +122,7 @@ struct CommandPrinter : public ExpressionPrinter {
         PrintSequence(object.lhs);
         stream << SYMBOL_ASSIGN;
         PrintSequence(object.rhs);
-        stream << ";" << LB;
+        stream << ";" << lineEnd;
     }
     void Visit(const VariableAssignment& object) override { HandleAssignment(object); }
     void Visit(const MemoryWrite& object) override { HandleAssignment(object); }
@@ -240,7 +243,7 @@ void plankton::Print(const AstNode& object, std::ostream& stream) {
         std::ostream& stream;
         explicit Visitor(std::ostream& stream) : stream(stream) {}
         void PrintExpression(const AstNode& object) { ExpressionPrinter printer(stream); object.Accept(printer); }
-        void PrintCommand(const Command& expr) { CommandPrinter printer(stream); expr.Accept(printer); }
+        void PrintCommand(const Command& expr) { CommandPrinter printer(stream, false); expr.Accept(printer); }
         void PrintProgram(const AstNode& expr) { ProgramPrinter printer(stream); expr.Accept(printer); }
         void Visit(const VariableExpression& object) override { PrintExpression(object); }
         void Visit(const TrueValue& object) override { PrintExpression(object); }

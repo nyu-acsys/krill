@@ -72,7 +72,7 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 			if (curr->marked == true) {
 			    next = curr->next;
 			    CAS(<pred->marked, pred->next>, <false, curr>, <false, next>);
-			    // retry // TODO: only retry if CAS successful?
+			    // retry
 			    curr = Head;
 			    k = MIN;
 			}
@@ -131,7 +131,7 @@ bool remove(data_t key) {
             next = curr->next;
 			if (CAS(<curr->marked, curr->next>, <false, next>, <true, next>)) {
                 CAS(<pred->marked, pred->next>, <false, curr>, <false, next>);
-                // TODO: <pred, curr, k> = locate(key);
+                // <pred, curr, k> = locate(key);
                 return true;
 			}
 		}

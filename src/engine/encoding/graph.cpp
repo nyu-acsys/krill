@@ -86,13 +86,17 @@ EExpr Encoding::EncodeFlowRules(const FlowGraphNode& node) {
     addRule(frame, preAll);
     addRule(frame, postAll);
 
+    // frame flow is disjoint from pre graph flow
+    addRule(frame, !preGraph);
+    addRule(preGraph, !frame);
+
     // all flow is either frame flow or root flow
     addRule(preAll, preGraph || frame);
     addRule(postAll, postGraph || frame);
 
     // redundant
     addRule(preGraph == postGraph, preAll == postAll);
-    addRule(preAll == postAll, preGraph == postGraph);
+    // addRule(preAll == postAll, preGraph == postGraph); // this wrongly imposes implicit assumptions on flow update
 
     // keyset is subset of all flow and not outflow
     addRule(preKey, preAll && !preOut);
@@ -123,6 +127,7 @@ EExpr Encoding::EncodeFlowRules(const FlowGraphNode& node) {
 }
 
 EExpr Encoding::EncodeKeysetDisjointness(const FlowGraph& graph, EMode mode) {
+    // TODO: this should be done only if the node-addresses are guaranteed to be distinct ==> or not to be used with pure heap graphs
     return EncodeForAll(graph.config.GetFlowValueType().sort, [this, &graph, mode](auto qv){
         auto keysets = plankton::MakeVector<EExpr>(graph.nodes.size());
         for (const auto& node : graph.nodes) keysets.push_back(Encode(node.Keyset(mode))(qv));
@@ -131,6 +136,7 @@ EExpr Encoding::EncodeKeysetDisjointness(const FlowGraph& graph, EMode mode) {
 }
 
 EExpr Encoding::EncodeInflowUniqueness(const FlowGraph& graph, EMode mode) {
+    // TODO: this should be done only if the node-addresses are guaranteed to be distinct ==> or not to be used with pure heap graphs
     auto isNonEmpty = [&](const SymbolDeclaration& flow) {
         return Encode(InflowEmptinessAxiom(flow, false));
     };
@@ -145,18 +151,19 @@ EExpr Encoding::EncodeInflowUniqueness(const FlowGraph& graph, EMode mode) {
     return MakeAnd(result);
 }
 
+#include "util/log.hpp"
 EExpr Encoding::Encode(const FlowGraph& graph) {
+    //
+    // TODO: get rid of pure heap graphs => the fact that their nodes are not necessarily distinct makes things hard ??
+    //
+
     if (graph.nodes.empty()) return Bool(true);
     auto result = plankton::MakeVector<EExpr>(8);
-    
-    result.push_back(Encode(*graph.pre->now));
-    result.push_back(EncodeInvariants(*graph.pre->now, graph.config));
-    result.push_back(EncodeSimpleFlowRules(*graph.pre->now, graph.config));
-    result.push_back(EncodeAcyclicity(*graph.pre->now));
-    result.push_back(EncodeOwnership(*graph.pre->now));
+
+    result.push_back(EncodeFormulaWithKnowledge(*graph.pre->now, graph.config));
     result.push_back(EncodeKeysetDisjointness(graph, EMode::PRE));
     result.push_back(EncodeInflowUniqueness(graph, EMode::PRE));
-    
+
     for (const auto& node : graph.nodes) {
         result.push_back(EncodeNodeInvariant(node, EMode::PRE));
         result.push_back(EncodeFlowRules(node));
@@ -165,7 +172,7 @@ EExpr Encoding::Encode(const FlowGraph& graph) {
             result.push_back(EncodeOutflow(node, field, EMode::POST));
         }
     }
-    
+
     return MakeAnd(result);
 }
 

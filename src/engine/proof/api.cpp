@@ -3,66 +3,12 @@
 #include "programs/util.hpp"
 #include "logics/util.hpp"
 #include "util/shortcuts.hpp"
-#include "util/log.hpp"
+#include "util/timer.hpp"
+#include "test.hpp"
 
 using namespace plankton;
 
 constexpr std::size_t PROOF_ABORT_AFTER = 7;
-
-
-// inline std::unique_ptr<HeapEffect> MakeDummyEffect(SymbolFactory& factory, const Type& nodeType) {
-//     auto pre = plankton::MakeSharedMemory(factory.GetFreshFO(nodeType), Type::Data(), factory);
-//     auto post = plankton::Copy(*pre);
-//     auto context = std::make_unique<SeparatingConjunction>();
-//     return std::make_unique<HeapEffect>(std::move(pre), std::move(post), std::move(context));
-// }
-//
-// inline std::unique_ptr<HeapEffect> MakeDummyEffect1(SymbolFactory& factory, const Type& nodeType) {
-//     // [ x |=> G(inflow=A, marked=b, next=c, val=d) ~~> x |=> G(inflow=A, marked=b, next=c', val=d) | A != ∅ * b == false * c != nullptr * d < ∞ ]
-//     auto eff = MakeDummyEffect(factory, nodeType);
-//     eff->post->fieldToValue.at("next") = std::make_unique<SymbolicVariable>(factory.GetFreshFO(nodeType));
-//     auto ctx = std::make_unique<SeparatingConjunction>();
-//     ctx->Conjoin(std::make_unique<InflowEmptinessAxiom>(eff->pre->flow->Decl(), false));
-//     ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::EQ, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("marked")->Decl()), std::make_unique<SymbolicBool>(false)));
-//     ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::NEQ, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("next")->Decl()), std::make_unique<SymbolicNull>()));
-//     ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::LT, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("val")->Decl()), std::make_unique<SymbolicMax>()));
-//     eff->context = std::move(ctx);
-//     return eff;
-// }
-//
-// inline std::unique_ptr<HeapEffect> MakeDummyEffect2(SymbolFactory& factory, const Type& nodeType) {
-//     // [ x |=> G(inflow=A, marked=b, next=c, val=d) ~~> x |=> G(inflow=A, marked=b', next=c, val=d) | A != ∅ * b == false * c != nullptr * d > -∞ * d < ∞ ]
-//     auto eff = MakeDummyEffect(factory, nodeType);
-//     eff->post->fieldToValue.at("marked") = std::make_unique<SymbolicVariable>(factory.GetFreshFO(Type::Bool()));
-//     auto ctx = std::make_unique<SeparatingConjunction>();
-//     ctx->Conjoin(std::make_unique<InflowEmptinessAxiom>(eff->pre->flow->Decl(), false));
-//     ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::EQ, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("marked")->Decl()), std::make_unique<SymbolicBool>(false)));
-//     ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::NEQ, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("next")->Decl()), std::make_unique<SymbolicNull>()));
-//     ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::GT, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("val")->Decl()), std::make_unique<SymbolicMin>()));
-//     ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::LT, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("val")->Decl()), std::make_unique<SymbolicMax>()));
-//     eff->context = std::move(ctx);
-//     return eff;
-// }
-//
-// inline std::unique_ptr<HeapEffect> MakeDummyEffect3(SymbolFactory& factory, const Type& nodeType) {
-//     // [ x |=> G(inflow=A, marked=b, next=c, val=d) ~~> x |=> G(inflow=A', marked=b, next=c, val=d) | A != ∅ * d > -∞ ]
-//     auto eff = MakeDummyEffect(factory, nodeType);
-//     eff->post->flow = std::make_unique<SymbolicVariable>(factory.GetFreshSO(Type::Data()));
-//     auto ctx = std::make_unique<SeparatingConjunction>();
-//     ctx->Conjoin(std::make_unique<InflowEmptinessAxiom>(eff->pre->flow->Decl(), false));
-//     ctx->Conjoin(std::make_unique<StackAxiom>(BinaryOperator::GT, std::make_unique<SymbolicVariable>(eff->pre->fieldToValue.at("val")->Decl()), std::make_unique<SymbolicMin>()));
-//     eff->context = std::move(ctx);
-//     return eff;
-// }
-//
-// inline std::deque<std::unique_ptr<HeapEffect>> MakeDummyInterference(const Type& nodeType) {
-//     SymbolFactory factory;
-//     std::deque<std::unique_ptr<HeapEffect>> result;
-//     result.push_back(MakeDummyEffect1(factory, nodeType));
-//     result.push_back(MakeDummyEffect2(factory, nodeType));
-//     result.push_back(MakeDummyEffect3(factory, nodeType));
-//     return result;
-// }
 
 
 //
@@ -71,16 +17,43 @@ constexpr std::size_t PROOF_ABORT_AFTER = 7;
 
 void ProofGenerator::GenerateProof() {
     // TODO: remove debug
-    // newInterference = MakeDummyInterference(*program.types.at(0));
+    // newInterference = plankton::MakeTestInterference(*program.types.at(0));
     // ConsolidateNewInterference();
 
+    // auto [annotation, command] = plankton::MakeTestState(program);
+    // for (std::size_t index = 0; index < 5; ++index){
+    //     Timer timer("test");
+    //     auto measurement = timer.Measure();
+    //     auto post = solver.Post(plankton::Copy(*annotation), *command, false);
+    // }
+    // throw std::logic_error("---point du break---");
     // TODO: check initializer
-    
+
+    INFO(infoPrefix << "Proof generation for '" << program.name << "' initiated." << std::endl)
+    INFO(infoPrefix << "Starting with empty interference set." << std::endl)
+    if (futureSuggestions.empty()) {
+        INFO(infoPrefix << "Using no future suggestions." << std::endl)
+    } else {
+        INFO(infoPrefix << "Using the following future suggestions: " << std::endl)
+        for (const auto& suggestion : futureSuggestions) INFO(infoPrefix << "   " << *suggestion << std::endl)
+    }
+
     // check API functions
     for (std::size_t counter = 0; counter < PROOF_ABORT_AFTER; ++counter) {
+        infoPrefix.Push("iter-", counter);
+        INFO(infoPrefix << "Starting iteration " << counter << " of fixed-point iteration..." << std::endl)
+
         program.Accept(*this);
-        if (!ConsolidateNewInterference()) return;
+        if (!ConsolidateNewInterference()) {
+            INFO(infoPrefix << "Fixed-point reached." << std::endl)
+            infoPrefix.Pop();
+            INFO(infoPrefix << "Proof generation was successful!" << std::endl)
+
+            return;
+        }
+
         macroPostTable.clear();
+        infoPrefix.Pop();
     }
     throw std::logic_error("Aborting: proof does not seem to stabilize."); // TODO: remove / better error handling
 }
@@ -176,7 +149,9 @@ inline bool IsFulfilled(const Annotation& annotation, const Return& command) {
 
 void ProofGenerator::HandleInterfaceFunction(const Function& function) {
     assert(function.kind == Function::Kind::API);
-    
+
+    infoPrefix.Push("fun-", function.name);
+    INFO(infoPrefix << "Handling function '" << function.name << "'..." << std::endl)
 	DEBUG(std::endl << std::endl << std::endl << std::endl << std::endl)
 	DEBUG("############################################################" << std::endl)
 	DEBUG("############################################################" << std::endl)
@@ -184,25 +159,30 @@ void ProofGenerator::HandleInterfaceFunction(const Function& function) {
 	DEBUG("############################################################" << std::endl)
 	DEBUG("############################################################" << std::endl)
 	DEBUG(std::endl)
- 
+
 	// reset
     insideAtomic = false;
     returning.clear();
     breaking.clear();
     current.clear();
-    
+
     // descent into function
     current.push_back(MakeInterfaceAnnotation(program, function, solver));
     function.Accept(*this);
-    
+    PruneReturning();
+
     // check post annotations
+    INFO(infoPrefix << "Checking linearizability of function '" << function.name << "'..." << std::endl)
     DEBUG(std::endl << std::endl << "=== CHECKING POST ANNOTATION OF " << function.name << "  " << returning.size() << std::endl)
-    for (auto& [annotation, command] : returning) {
+    for (auto&[annotation, command] : returning) {
         assert(command);
         if (IsFulfilled(*annotation, *command)) continue;
+        annotation = solver.ImprovePast(std::move(annotation));
         annotation = solver.TryAddFulfillment(std::move(annotation));
+        annotation = solver.TryAddFulfillment(std::move(annotation)); // retry in case Z3 is funny
         if (IsFulfilled(*annotation, *command)) continue;
         DEBUG("Linearizability fail for " << *command << "  in  " << *annotation << std::endl)
         throw std::logic_error("Could not establish linearizability for function '" + function.name + "'."); // TODO: better error handling
     }
+    infoPrefix.Pop();
 }

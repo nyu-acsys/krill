@@ -56,6 +56,7 @@ void ProofGenerator::HandleMacroProlog(const Macro& macro) {
 //
 
 void ProofGenerator::HandleMacroEpilog(const Macro& macro) {
+    // assign return values
     decltype(current) newCurrent;
     for (auto& [annotation, command] : returning) {
         current.clear();
@@ -65,10 +66,16 @@ void ProofGenerator::HandleMacroEpilog(const Macro& macro) {
     }
     current = std::move(newCurrent);
 
+    // leave scopes
+    LeaveAllNestedScopes(macro.Func());
     ApplyTransformer([this,&macro](auto annotation){
-        annotation = solver.PostLeave(std::move(annotation), *macro.function.get().body);
         return solver.PostLeave(std::move(annotation), macro.Func());
     });
+
+    // postprocess
+    PruneCurrent();
+    ImproveCurrentTime();
+    ReduceCurrentTime();
 }
 
 
@@ -141,9 +148,9 @@ ProofGenerator::LookupMacroPost(const Macro& macro, const Annotation& annotation
 
 inline void
 ProofGenerator::AddMacroPost(const Macro& macro, const Annotation& pre, const ProofGenerator::AnnotationList& post) {
-    DEBUG("%% storing macro post: " << pre << " >>>>> ")
-    for (const auto& elem : post) DEBUG(*elem)
-    DEBUG(std::endl)
+    // DEBUG("%% storing macro post: " << pre << " >>>>> ")
+    // for (const auto& elem : post) DEBUG(*elem)
+    // DEBUG(std::endl)
     macroPostTable[&macro.Func()].emplace_back(plankton::Copy(pre), plankton::CopyAll(post));
 }
 
@@ -174,12 +181,13 @@ void ProofGenerator::HandleMacroLazy(const Macro& cmd) {
     plankton::MoveInto(std::move(post), current);
 }
 
-
 void ProofGenerator::Visit(const Macro& cmd) {
     // save caller context
     auto breakingOuter = std::move(breaking);
     auto returningOuter = std::move(returning);
 
+    infoPrefix.Push("macro-", cmd.function.get().name);
+    INFO(infoPrefix << "Descending into macro '" << cmd.function.get().name << "'..." << std::endl)
     DEBUG(std::endl << "=== pre annotations for macro '" << cmd.Func().name << "':" << std::endl)
     for (const auto& elem : current) DEBUG("  -- " << *elem << std::endl)
 
@@ -191,6 +199,8 @@ void ProofGenerator::Visit(const Macro& cmd) {
     breaking = std::move(breakingOuter);
     returning = std::move(returningOuter);
 
+    INFO(infoPrefix << "Returning from macro '" << cmd.function.get().name << "'..." << std::endl)
+    infoPrefix.Pop();
     DEBUG(std::endl << "=== post annotations for macro '" << cmd.Func().name << "':" << std::endl)
     for (const auto& elem : current) DEBUG("  -- " << *elem << std::endl)
     DEBUG(std::endl << std::endl)

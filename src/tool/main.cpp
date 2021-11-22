@@ -44,13 +44,13 @@ inline CommandLineInput Interact(int argc, char** argv) {
     input.pathToInput = programArg.getValue();
     input.spuriousCasFail = !casSwitch.getValue();
     input.printGist = gistSwitch.getValue();
-    
+
     // input.pathToInput = "/Users/wolff/Desktop/plankton/examples/test.txt";
     // input.pathToInput = "/Users/wolff/Desktop/plankton/examples/VechevYahavDCas.pl";
     // input.pathToInput = "/Users/wolff/Desktop/plankton/examples/VechevYahavCas.pl";
-    // input.pathToInput = "/Users/wolff/Desktop/plankton/examples/ORVYY1.pl";
-    // input.pathToInput = "/Users/wolff/Desktop/plankton/examples/ORVYY2.pl";
+    // input.pathToInput = "/Users/wolff/Desktop/plankton/examples/ORVYY.pl";
     // input.pathToInput = "/Users/wolff/Desktop/plankton/examples/Michael.pl";
+    // input.pathToInput = "/Users/wolff/Desktop/plankton/examples/Harris.pl";
 
     return input;
 }
@@ -122,19 +122,20 @@ int main(int argc, char** argv) {
         auto cmd = Interact(argc, argv);
         auto input = Parse(cmd);
         PrintInput(input);
-//        throw std::logic_error("breakpoint");
         auto result = Verify(input);
         PrintResult(cmd, input, result);
         return 0;
 
     } catch (TCLAP::ArgException& err) {
         // command line misuse
+        INFO("ERROR: " << err.error() << " for arg " << err.argId() << std::endl << std::endl)
         ERROR(err.error() << " for arg " << err.argId() << std::endl)
         return -1;
 
-    } /* catch (std::logic_error& err) {
+    } catch (std::logic_error& err) { // TODO: catch proper error class
         // plankton error
+        INFO("ERROR: " << err.what() << std::endl << std::endl)
         ERROR(err.what() << std::endl)
         return -1;
-    } */ // TODO: re-enable
+    }
 }

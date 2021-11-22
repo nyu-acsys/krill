@@ -27,20 +27,29 @@ PostImage::PostImage(std::unique_ptr<Annotation> post) {
 }
 
 PostImage::PostImage(std::deque<std::unique_ptr<Annotation>> posts) : annotations(std::move(posts)) {
-    for (const auto& elem : annotations) assert(elem);
+    assert(plankton::AllNonNull(annotations));
 }
 
-PostImage::PostImage(std::unique_ptr<Annotation> post, std::deque<std::unique_ptr<HeapEffect>> effects)
-        : effects(std::move(effects)) {
+PostImage::PostImage(std::unique_ptr<Annotation> post, std::deque<std::unique_ptr<HeapEffect>> effects) : effects(std::move(effects)) {
     assert(post);
     annotations.push_back(std::move(post));
-    for (const auto& elem : effects) assert(elem);
+    assert(plankton::AllNonNull(effects));
 }
 
 PostImage::PostImage(std::deque<std::unique_ptr<Annotation>> posts, std::deque<std::unique_ptr<HeapEffect>> effects)
         : annotations(std::move(posts)), effects(std::move(effects)) {
-    for (const auto& elem : annotations) assert(elem);
-    for (const auto& elem : effects) assert(elem);
+    assert(plankton::AllNonNull(annotations));
+    assert(plankton::AllNonNull(effects));
+}
+
+FutureSuggestion::FutureSuggestion(std::unique_ptr<MemoryWrite> command_) : guard(std::make_unique<Guard>()), command(std::move(command_)) {
+    assert(command);
+}
+
+FutureSuggestion::FutureSuggestion(std::unique_ptr<MemoryWrite> command_, std::unique_ptr<Guard> guard_)
+        : guard(std::move(guard_)), command(std::move(command_)) {
+    assert(command);
+    assert(guard);
 }
 
 

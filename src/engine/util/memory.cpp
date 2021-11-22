@@ -25,8 +25,8 @@ void plankton::MakeMemoryAccessible(Annotation& annotation, std::set<const Symbo
                                     const SolverConfig& config) {
     if (symbols.empty()) return;
     SymbolFactory factory(annotation);
-    Encoding encoding(*annotation.now);
-    encoding.AddPremise(encoding.EncodeInvariants(*annotation.now, config));
+    Encoding encoding(*annotation.now, config);
+    // encoding.AddPremise(encoding.EncodeInvariants(*annotation.now, config));
     return plankton::MakeMemoryAccessible(*annotation.now, std::move(symbols), config.GetFlowValueType(),
                                           factory, encoding);
 }

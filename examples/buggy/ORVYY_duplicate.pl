@@ -1,4 +1,4 @@
-#name "ORVYY Set"
+#name "BUGGY ORVYY Set"
 
 
 struct Node {
@@ -16,7 +16,7 @@ def @contains(Node* node, data_t key) {
 }
 
 def @outflow[next](Node* node, data_t key) {
-    node->val < key
+    !node->marked ==> node->val < key
 }
 
 def @invariant[local](Node* x) {
@@ -91,10 +91,11 @@ bool add(data_t key) {
 	while (true) {
 		<pred, curr, k> = locate(key);
 
-		if (k == key) {
-            return false;
-
-		} else {
+        // buggy: ignoring already present key
+		// if (k == key) {
+        //     return false;
+        //
+		// } else {
 			entry->next = curr;
 			atomic {
 				choose {
@@ -107,7 +108,7 @@ bool add(data_t key) {
 					skip; // retry
 				}
 			}
-		}
+		// }
 	}
 }
 

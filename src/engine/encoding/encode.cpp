@@ -243,6 +243,14 @@ EExpr Encoding::Encode(const LogicObject& object) {
     return encoder.Encode(object);
 }
 
+EExpr Encoding::EncodeFormulaWithKnowledge(const Formula& formula, const SolverConfig& config) {
+    return Encode(formula)
+           && EncodeInvariants(formula, config)
+           && EncodeSimpleFlowRules(formula, config)
+           && EncodeOwnership(formula)
+           && EncodeAcyclicity(formula);
+}
+
 EExpr Encoding::EncodeInvariants(const Formula& formula, const SolverConfig& config) {
     auto local = plankton::Collect<LocalMemoryResource>(formula);
     auto shared = plankton::Collect<SharedMemoryCore>(formula);
@@ -311,8 +319,9 @@ EExpr Encoding::EncodeSimpleFlowRules(const Formula& formula, const SolverConfig
                 for (const auto* symbol : symbols) {
                     auto flowsOut = Encode(*config.GetOutflowContains(*memory, name, *symbol));
                     auto encSym = Encode(*symbol);
-                    auto rule = (inflowMemory(encSym) && flowsOut) >> inflowOther(encSym);
-                    result.push_back(rule);
+                    auto rule1 = (inflowMemory(encSym) && flowsOut) >> inflowOther(encSym);
+                    auto rule2 = Bool(true); // inflowMemory(encSym) && inflowOther(encSym)) >> flowsOut; // this relies on inflow uniqueness // TODO: is it even correct?? ~~> most certainly not
+                    result.push_back(rule1 && rule2);
                 }
             }
         }

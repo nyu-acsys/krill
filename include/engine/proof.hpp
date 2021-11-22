@@ -8,6 +8,8 @@
 #include "logics/ast.hpp"
 #include "engine/config.hpp"
 #include "engine/solver.hpp"
+#include "util/log.hpp"
+#include "util/timer.hpp"
 
 namespace plankton {
 
@@ -45,6 +47,11 @@ namespace plankton {
         std::deque<std::pair<std::unique_ptr<Annotation>, const Return*>> returning;
         std::map<const Function*, std::deque<PrePostPair>> macroPostTable;
         bool insideAtomic;
+        std::deque<std::unique_ptr<FutureSuggestion>> futureSuggestions;
+
+        #define INFO_SIZE (" (" + std::to_string(current.size()) + ") ")
+        StatusStack infoPrefix;
+        Timer pldiPost, pldiJoin, pldiInterference, pldiPastImprove, pldiPastReduce, pldiFutureImprove, pldiFutureReduce;
     
         void HandleInterfaceFunction(const Function& function);
         void HandleMacroLazy(const Macro& macro);
@@ -57,7 +64,13 @@ namespace plankton {
         void MakeInterferenceStable(const Statement& after);
         void AddNewInterference(std::deque<std::unique_ptr<HeapEffect>> effects);
         bool ConsolidateNewInterference();
-        
+
+        void JoinCurrent();
+        void PruneCurrent();
+        void PruneReturning();
+        void ImproveCurrentTime();
+        void ReduceCurrentTime();
+        void LeaveAllNestedScopes(const AstNode& node);
         void ApplyTransformer(const std::function<std::unique_ptr<Annotation>(std::unique_ptr<Annotation>)>& transformer);
         void ApplyTransformer(const std::function<PostImage(std::unique_ptr<Annotation>)>& transformer);
     };

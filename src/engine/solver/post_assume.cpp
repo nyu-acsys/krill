@@ -15,9 +15,15 @@ inline std::unique_ptr<StackAxiom> ConvertToLogic(const BinaryExpression& condit
 
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const {
     MEASURE("Solver::Post (Assume)")
+    DEBUG("<<POST ASSUME>>" << std::endl << *pre << " " << cmd << std::flush)
     PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
     pre->Conjoin(ConvertToLogic(*cmd.condition, *pre->now));
-    if (Encoding(*pre->now).ImpliesFalse()) return PostImage();
+    if (IsUnsatisfiable(*pre)) {
+        DEBUG("{ false }" << std::endl << std::endl)
+        return PostImage();
+    }
+    plankton::InlineAndSimplify(*pre);
+    DEBUG(*pre << std::endl << std::endl)
     return PostImage(std::move(pre));
 }

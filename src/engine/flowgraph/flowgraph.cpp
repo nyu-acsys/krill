@@ -67,9 +67,14 @@ bool FlowGraphNode::HasUpdatedPointers() const {
     return plankton::Any(pointerFields, hasUp);
 }
 
+bool FlowGraphNode::HasUpdatedData() const {
+    auto hasUp = [](auto& field) { return field.HasUpdated(); };
+    return plankton::Any(dataFields, hasUp);
+}
+
 bool FlowGraphNode::HasUpdated() const {
     auto hasUp = [](auto& field) { return field.HasUpdated(); };
-    return HasUpdatedFlow() || HasUpdatedPointers() || plankton::Any(dataFields, hasUp);
+    return HasUpdatedFlow() || HasUpdatedPointers() || HasUpdatedData();
 }
 
 bool FlowGraphNode::IsLocal(EMode mode) const {
