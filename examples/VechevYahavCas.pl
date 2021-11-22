@@ -1,5 +1,6 @@
 #name "Vechev&Yahav CAS Set"
 
+
 struct Node {
 	data_t val;
 	bool marked;
