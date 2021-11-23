@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <random>
 #include <thread>
+#include <mutex>
 #include "internal.hpp"
 #include "util/shortcuts.hpp"
 #include "util/timer.hpp"
@@ -38,6 +39,7 @@ inline bool IsUnsat(z3::solver& solver) {
         case z3::sat: return false;
         case z3::unknown: throw std::logic_error("Solving failed: Z3 returned z3::unknown."); // TODO: better error handling
     }
+    throw;
 }
 
 inline bool IsImplied(z3::solver& solver, const z3::expr& expr) {
@@ -50,6 +52,7 @@ inline bool IsImplied(z3::solver& solver, const z3::expr& expr) {
         case z3::sat: return false;
         case z3::unknown: throw std::logic_error("Solving failed: Z3 returned z3::unknown."); // TODO: better error handling
     }
+    throw;
 }
 
 
@@ -205,13 +208,19 @@ inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::
         case z3::sat:
             for (unsigned int index = 0; index < expressions.size(); ++index) {
                 auto search = z3::implies(true, variables[(int) index]);
-                bool implied = plankton::ContainsIf(consequences, [search](const auto& elem) {
-                    return z3::eq(search, elem);
-                });
-                if (implied) result[index] = true;
+                for (const auto& elem : consequences) {
+                    if (!z3::eq(search, elem)) continue;
+                    result[index] = true;
+                    break;
+                }
+                // bool implied = plankton::ContainsIf(consequences, [search](const z3::expr& elem) {
+                //     return z3::eq(search, elem);
+                // });
+                // if (implied) result[index] = true;
             }
             return result;
     }
+    throw;
 }
 
 

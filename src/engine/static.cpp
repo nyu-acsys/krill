@@ -78,7 +78,7 @@ struct AlwaysShared : public ProgramListener {
     template<typename L, typename R>
     void HandleAssignment(const Assignment<L,R>& object) {
         for (std::size_t index = 0; index < object.lhs.size(); ++index) {
-            if (object.lhs.at(index)->Sort() != Sort::PTR) continue;
+            if (object.lhs.at(index)->GetSort() != Sort::PTR) continue;
             if (!ContainsNonShared(*object.rhs.at(index))) continue;
             sharedPointers.erase(&object.lhs.at(index)->Decl());
         }
@@ -181,7 +181,7 @@ inline bool LooksBounded(const Dereference& lhs, const SimpleExpression& rhs,
 
     if (auto lhsNext = plankton::TryGetResource(lhsVal, *state->now)) {
         for (const auto&[field, value] : lhsNext->fieldToValue) {
-            if (value->Sort() != Sort::PTR) continue;
+            if (value->GetSort() != Sort::PTR) continue;
             if (encoding.Implies(encoding.Encode(*value) == rhsSym)) return true;
         }
     }
@@ -190,7 +190,7 @@ inline bool LooksBounded(const Dereference& lhs, const SimpleExpression& rhs,
         auto& rhsRes = plankton::GetResource(rhsVar->Decl(), *state->now);
         auto& rhsMem = plankton::GetResource(rhsRes.Value(), *state->now);
         for (const auto&[field, value] : rhsMem.fieldToValue) {
-            if (value->Sort() != Sort::PTR) continue;
+            if (value->GetSort() != Sort::PTR) continue;
             if (encoding.Implies(encoding.Encode(*value) == encoding.Encode(lhsVal))) return true;
         }
     }
@@ -201,7 +201,7 @@ inline bool LooksBounded(const Dereference& lhs, const SimpleExpression& rhs,
 inline bool LooksBounded(const MemoryWrite& write, const std::vector<std::unique_ptr<BinaryExpression>>& assumptions,
                          const DataFlowAnalysis& dataFlow) {
     for (std::size_t index = 0; index < write.lhs.size(); ++index) {
-        if (write.lhs.at(index)->Sort() != Sort::PTR) continue;
+        if (write.lhs.at(index)->GetSort() != Sort::PTR) continue;
         if (LooksBounded(*write.lhs.at(index), *write.rhs.at(index), assumptions, dataFlow)) continue;
         return false;
     }

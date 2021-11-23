@@ -58,7 +58,7 @@ void ProofGenerator::GenerateProof() {
     throw std::logic_error("Aborting: proof does not seem to stabilize."); // TODO: remove / better error handling
 }
 
-void ProofGenerator::Visit(const Program& object) {
+void ProofGenerator::Visit([[maybe_unused]] const Program& object) {
     assert(&object == &program);
     for (const auto& function : program.apiFunctions) {
         HandleInterfaceFunction(*function);

@@ -41,7 +41,7 @@ ReachSet plankton::ComputeReachability(const Formula& formula) {
     ReachSet initial;
     for (const auto* memory : plankton::Collect<MemoryAxiom>(formula)) {
         for (const auto& pair : memory->fieldToValue) {
-            if (pair.second->Sort() != Sort::PTR) continue;
+            if (pair.second->GetSort() != Sort::PTR) continue;
             initial.container[&memory->node->Decl()].insert(&pair.second->Decl());
         }
     }

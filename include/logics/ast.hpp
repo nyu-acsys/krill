@@ -5,6 +5,7 @@
 #include <set>
 #include <deque>
 #include <memory>
+#include <functional>
 #include "visitors.hpp"
 #include "programs/ast.hpp"
 
@@ -64,17 +65,17 @@ namespace plankton {
     //
 
     struct SymbolicExpression : public LogicObject {
-        [[nodiscard]] virtual Order Order() const = 0;
-        [[nodiscard]] virtual const Type& Type() const = 0;
-        [[nodiscard]] Sort Sort() const { return Type().sort; }
+        [[nodiscard]] virtual Order GetOrder() const = 0;
+        [[nodiscard]] virtual const Type& GetType() const = 0;
+        [[nodiscard]] Sort GetSort() const { return GetType().sort; }
     };
 
     struct SymbolicVariable final : SymbolicExpression {
         std::reference_wrapper<const SymbolDeclaration> decl;
 
         explicit SymbolicVariable(const SymbolDeclaration& decl);
-        [[nodiscard]] plankton::Order Order() const override;
-        [[nodiscard]] const plankton::Type& Type() const override;
+        [[nodiscard]] Order GetOrder() const override;
+        [[nodiscard]] const Type& GetType() const override;
         [[nodiscard]] inline const SymbolDeclaration& Decl() const { return decl; };
         ACCEPT_LOGIC_VISITOR
     };
@@ -83,29 +84,29 @@ namespace plankton {
         bool value;
 
         explicit SymbolicBool(bool value);
-        [[nodiscard]] plankton::Order Order() const override;
-        [[nodiscard]] const plankton::Type& Type() const override;
+        [[nodiscard]] Order GetOrder() const override;
+        [[nodiscard]] const Type& GetType() const override;
         ACCEPT_LOGIC_VISITOR
     };
 
     struct SymbolicNull final : public SymbolicExpression {
         explicit SymbolicNull();
-        [[nodiscard]] plankton::Order Order() const override;
-        [[nodiscard]] const plankton::Type& Type() const override;
+        [[nodiscard]] Order GetOrder() const override;
+        [[nodiscard]] const Type& GetType() const override;
         ACCEPT_LOGIC_VISITOR
     };
 
     struct SymbolicMin final : public SymbolicExpression {
         explicit SymbolicMin();
-        [[nodiscard]] plankton::Order Order() const override;
-        [[nodiscard]] const plankton::Type& Type() const override;
+        [[nodiscard]] Order GetOrder() const override;
+        [[nodiscard]] const Type& GetType() const override;
         ACCEPT_LOGIC_VISITOR
     };
 
     struct SymbolicMax final : public SymbolicExpression {
         explicit SymbolicMax();
-        [[nodiscard]] const plankton::Type& Type() const override;
-        [[nodiscard]] plankton::Order Order() const override;
+        [[nodiscard]] Order GetOrder() const override;
+        [[nodiscard]] const Type& GetType() const override;
         ACCEPT_LOGIC_VISITOR
     };
 

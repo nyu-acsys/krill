@@ -106,6 +106,7 @@ EExpr Encoding::Encode(const SymbolDeclaration& decl) {
                 return AsEExpr(expr);
             });
     }
+    throw;
 }
 
 EExpr Encoding::EncodeExists(Sort sort, const std::function<EExpr(EExpr)>& makeInner) {
@@ -152,7 +153,7 @@ EExpr Encoding::EncodeMemoryEquality(const MemoryAxiom& memory, const MemoryAxio
     z3::expr_vector result(CTX);
     result.push_back(AsExpr(Encode(memory.node->Decl()) == Encode(other.node->Decl())));
     result.push_back(AsExpr(Encode(memory.flow->Decl()) == Encode(other.flow->Decl())));
-    assert(memory.node->Type() == other.node->Type());
+    assert(memory.node->GetType() == other.node->GetType());
     for (const auto& [field, value] : memory.fieldToValue) {
         result.push_back(AsExpr(Encode(value->Decl()) == Encode(other.fieldToValue.at(field)->Decl())));
     }
@@ -212,7 +213,7 @@ struct FormulaEncoder : public BaseLogicVisitor {
     }
     void Visit(const InflowEmptinessAxiom& object) override {
         auto flow = encoding.Encode(object.flow->Decl());
-        result = encoding.EncodeForAll(object.flow->Sort(), [flow](auto qv){
+        result = encoding.EncodeForAll(object.flow->GetSort(), [flow](auto qv){
             return !flow(qv);
         });
         if (!object.isEmpty) result = !result.value();
@@ -224,7 +225,7 @@ struct FormulaEncoder : public BaseLogicVisitor {
         auto flow = encoding.Encode(object.flow->Decl());
         auto low = Encode(*object.valueLow);
         auto high = Encode(*object.valueHigh);
-        result = encoding.EncodeForAll(object.flow->Sort(), [flow,low,high](auto qv){
+        result = encoding.EncodeForAll(object.flow->GetSort(), [flow,low,high](auto qv){
             return ((low <= qv) && (qv <= high)) >> flow(qv);
         });
     }
@@ -292,7 +293,7 @@ EExpr Encoding::EncodeOwnership(const Formula& formula) {
         for (const auto* other : shared) {
             result.push_back(address != Encode(other->node->Decl()));
             for (const auto& pair : other->fieldToValue) {
-                if (pair.second->Sort() != Sort::PTR) continue;
+                if (pair.second->GetSort() != Sort::PTR) continue;
                 result.push_back(address != Encode(pair.second->Decl()));
             }
         }
@@ -311,7 +312,7 @@ EExpr Encoding::EncodeSimpleFlowRules(const Formula& formula, const SolverConfig
     for (const auto* memory : memories) {
         auto inflowMemory = Encode(*memory->flow);
         for (const auto& [name, value]: memory->fieldToValue) {
-            if (value->Sort() != Sort::PTR) continue;
+            if (value->GetSort() != Sort::PTR) continue;
             for (const auto* other : memories) {
                 if (memory == other) continue;
                 if (value->Decl() != other->node->Decl()) continue;

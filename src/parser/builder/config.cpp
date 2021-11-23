@@ -99,7 +99,7 @@ std::unique_ptr<ImplicationSet> Instantiate(const FlowStore& store,
     // create variable map
     std::map<const SymbolDeclaration*, const SymbolDeclaration*> replacement;
     auto AddReplacement = [&replacement](auto& replace, auto& with) {
-        auto insertion = replacement.emplace(&replace, &with);
+        [[maybe_unused]] auto insertion = replacement.emplace(&replace, &with);
         assert(insertion.second);
     };
     if constexpr (HasMem) {
@@ -236,7 +236,7 @@ std::map<const VariableDeclaration*, FlowStore> ExtractVariableInvariants(const 
         });
         
         if (store.invariant->conjuncts.empty()) continue;
-        auto insertion = result.emplace(var, std::move(store));
+        [[maybe_unused]] auto insertion = result.emplace(var, std::move(store));
         assert(insertion.second);
     }
     
@@ -261,13 +261,13 @@ struct ParsedSolverConfigImpl : public ParsedSolverConfig {
     }
     
     [[nodiscard]] std::unique_ptr<ImplicationSet> GetSharedNodeInvariant(const SharedMemoryCore& memory) const override {
-        auto store = FindStore(sharedInv, &memory.node->Type());
+        auto store = FindStore(sharedInv, &memory.node->GetType());
         if (!store) return std::make_unique<ImplicationSet>();
         return Instantiate<true, false>(*store, &memory, nullptr);
     }
     
     [[nodiscard]] std::unique_ptr<ImplicationSet> GetLocalNodeInvariant(const LocalMemoryResource& memory) const override {
-        auto store = FindStore(localInv, &memory.node->Type());
+        auto store = FindStore(localInv, &memory.node->GetType());
         if (!store) return std::make_unique<ImplicationSet>();
         return Instantiate<true, false>(*store, &memory, nullptr);
     }
@@ -280,14 +280,14 @@ struct ParsedSolverConfigImpl : public ParsedSolverConfig {
     
     [[nodiscard]] std::unique_ptr<ImplicationSet> GetOutflowContains(const MemoryAxiom& memory, const std::string& fieldName,
                                                                      const SymbolDeclaration& value) const override {
-        auto store = FindStore(outflowPred, std::make_pair(&memory.node->Type(), fieldName));
+        auto store = FindStore(outflowPred, std::make_pair(&memory.node->GetType(), fieldName));
         if (!store) throw std::logic_error("Internal error: cannot find outflow predicate");
         return Instantiate<true, true>(*store, &memory, &value);
     }
     
     [[nodiscard]] std::unique_ptr<ImplicationSet> GetLogicallyContains(const MemoryAxiom& memory,
                                                                 const SymbolDeclaration& value) const override {
-        auto store = FindStore(containsPred, &memory.node->Type());
+        auto store = FindStore(containsPred, &memory.node->GetType());
         if (!store) throw std::logic_error("Internal error: cannot find contains predicate");
         return Instantiate<true, true>(*store, &memory, &value);
     }

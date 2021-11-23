@@ -23,7 +23,9 @@ void ProofGenerator::Visit(const Skip& cmd) {
 
 void ProofGenerator::Visit(const Break& cmd) {
     INFO(infoPrefix << "Post for '" << cmd << "'." << INFO_SIZE << std::endl)
-    DEBUG(" BREAKING with (" << current.size() << ") ") for (const auto& elem : current) DEBUG(*elem) DEBUG(std::endl)
+    DEBUG(" BREAKING with (" << current.size() << ") ")
+    DEBUG_FOREACH(current, [](const auto& elem){ DEBUG(*elem) })
+    DEBUG(std::endl)
     MoveInto(std::move(current), breaking);
     current.clear();
 }
@@ -63,7 +65,9 @@ void ProofGenerator::Visit(const MemoryWrite& cmd) {
 
 void ProofGenerator::Visit(const Return& cmd) {
     INFO(infoPrefix << "Post for '" << cmd << "'." << INFO_SIZE << std::endl)
-    DEBUG(" RETURNING " << cmd << " with (" << current.size() << ") ") for (const auto& elem : current) DEBUG(*elem) DEBUG(std::endl)
+    DEBUG(" RETURNING " << cmd << " with (" << current.size() << ") ")
+    DEBUG_FOREACH(current, [](const auto& elem){ DEBUG(*elem) })
+    DEBUG(std::endl)
     // pointer accessibility is checked when returned values/variables are used
     for (auto& annotation : current) returning.emplace_back(std::move(annotation), &cmd);
     current.clear();

@@ -16,7 +16,7 @@ SymbolRenaming plankton::MakeDefaultRenaming(SymbolFactory& factory) {
 }
 
 SymbolRenaming plankton::MakeMemoryRenaming(const MemoryAxiom& replace, const MemoryAxiom& with) {
-    assert(replace.node->Type() == with.node->Type());
+    assert(replace.node->GetType() == with.node->GetType());
     std::map<const SymbolDeclaration*, const SymbolDeclaration*> map;
     map[&replace.node->Decl()] = &with.node->Decl();
     map[&replace.flow->Decl()] = &with.flow->Decl();

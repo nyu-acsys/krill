@@ -38,16 +38,16 @@ struct InterferenceInfo {
 
     inline void Handle(SharedMemoryCore& memory, const HeapEffect& effect) {
         // TODO: avoid encoding the same annotation/effect multiple times
-        if (memory.node->Type() != effect.pre->node->Type()) return;
+        if (memory.node->GetType() != effect.pre->node->GetType()) return;
         if (&effect.pre->node->Decl() != &effect.post->node->Decl()) throw std::logic_error("Unsupported effect"); // TODO: better error handling
     
         auto effectMatch = encoding.EncodeMemoryEquality(memory, *effect.pre) && encoding.Encode(*effect.context);
         auto isInterferenceFree = effectMatch >> encoding.Bool(false);
         auto applyEffect = [this, &memory, &effect]() {
-            if (UpdatesFlow(effect)) memory.flow->decl = factory.GetFreshSO(memory.flow->Type());
+            if (UpdatesFlow(effect)) memory.flow->decl = factory.GetFreshSO(memory.flow->GetType());
             for (auto&[field, value] : memory.fieldToValue) {
                 if (!UpdatesField(effect, field)) continue;
-                value->decl = factory.GetFreshFO(value->Type());
+                value->decl = factory.GetFreshFO(value->GetType());
             }
         };
         encoding.AddCheck(isInterferenceFree, [this, &memory, applyEffect = std::move(applyEffect)](bool isStable) {

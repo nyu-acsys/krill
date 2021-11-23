@@ -107,7 +107,7 @@ struct CommandPrinter : public ExpressionPrinter {
     void Visit(const Malloc& object) override {
         object.lhs->Accept(*this);
         stream << SYMBOL_ASSIGN << CMD_MALLOC << "(" << CMD_SIZEOF << "(";
-        stream << object.lhs->Type().name << "))" << ";" << lineEnd;
+        stream << object.lhs->GetType().name << "))" << ";" << lineEnd;
     }
     void Visit(const Macro& object) override {
         PrintSequence(object.lhs);

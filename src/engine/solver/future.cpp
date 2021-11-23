@@ -215,7 +215,7 @@ GetImmutabilityModification(const Annotation& annotation, const SymbolDeclaratio
 
 inline std::unique_ptr<SharedMemoryCore>
 MakeImmutable(const SharedMemoryCore& memory, const Formula& context, const Solver& solver, SymbolFactory& factory) {
-    VariableDeclaration dummy("__future_ptr__", memory.node->Type(), false);
+    VariableDeclaration dummy("__future_ptr__", memory.node->GetType(), false);
     auto annotation = std::make_unique<Annotation>();
     annotation->Conjoin(std::make_unique<EqualsToAxiom>(dummy, memory.node->Decl()));
     annotation->Conjoin(plankton::Copy(memory));
@@ -228,7 +228,7 @@ MakeImmutable(const SharedMemoryCore& memory, const Formula& context, const Solv
     auto& address = plankton::GetResource(dummy, *annotation->now).Value();
     auto [now, past] = GetImmutabilityModification(*annotation, address);
     auto result = plankton::Copy(memory);
-    auto makeImmutable = [&factory](auto& sym){ sym->decl = factory.GetFresh(sym->Type(), sym->Order()); };
+    auto makeImmutable = [&factory](auto& sym){ sym->decl = factory.GetFresh(sym->GetType(), sym->GetOrder()); };
     if (now->flow->Decl() != past->flow->Decl()) makeImmutable(result->flow);
     for (const auto& [field, value] : now->fieldToValue) {
         if (value->Decl() != past->fieldToValue.at(field)->Decl()) makeImmutable(result->fieldToValue.at(field));
@@ -351,7 +351,7 @@ inline std::unique_ptr<Annotation> MakePostState(FutureInfo& info, const FutureP
         auto& rhs = *future.update->values.at(index);
         auto& memory = plankton::GetResource(plankton::Evaluate(*lhs.variable, *result->now), *result->now);
         auto& value = *memory.fieldToValue.at(lhs.fieldName);
-        value.decl = info.factory.GetFreshFO(value.Type());
+        value.decl = info.factory.GetFreshFO(value.GetType());
         result->Conjoin(MakeEq(value.Decl(), rhs));
     }
 
@@ -395,7 +395,8 @@ PostImage Solver::ImproveFuture(std::unique_ptr<Annotation> pre, const FutureSug
     }
 
     FilterEffects(result.effects);
-    DEBUG("    - resulting effects: " << std::endl) for (const auto& elem : result.effects) DEBUG("        - " << *elem << std::endl)
+    DEBUG("    - resulting effects: " << std::endl)
+    DEBUG_FOREACH(result.effects, [](const auto& elem){ DEBUG("        - " << *elem << std::endl) })
     DEBUG(std::endl)
     return result;
 }

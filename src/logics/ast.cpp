@@ -24,14 +24,17 @@ inline constexpr std::string_view MakeNamePrefix(Sort sort, Order order) {
                 case Sort::DATA: return "@d";
                 case Sort::PTR: return "@a";
             }
-            case Order::SECOND:
-                switch (sort) {
-                    case Sort::VOID: return "@V";
-                    case Sort::BOOL: return "@B";
-                    case Sort::DATA: return "@D";
-                    case Sort::PTR: return "@A";
-                }
+            throw;
+        case Order::SECOND:
+            switch (sort) {
+                case Sort::VOID: return "@V";
+                case Sort::BOOL: return "@B";
+                case Sort::DATA: return "@D";
+                case Sort::PTR: return "@A";
+            }
+            throw;
     }
+    throw;
 }
 
 inline std::string MakeName(const Type& type, Order order, std::size_t counter) {
@@ -87,33 +90,33 @@ const SymbolDeclaration& SymbolFactory::GetFresh(const Type& type, Order order) 
 
 SymbolicVariable::SymbolicVariable(const SymbolDeclaration& decl) : decl(decl) {}
 
-Order SymbolicVariable::Order() const { return Decl().order; }
+Order SymbolicVariable::GetOrder() const { return Decl().order; }
 
-const Type& SymbolicVariable::Type() const { return Decl().type; }
+const Type& SymbolicVariable::GetType() const { return Decl().type; }
 
 SymbolicBool::SymbolicBool(bool value) : value(value) {}
 
-Order SymbolicBool::Order() const { return plankton::Order::FIRST; }
+Order SymbolicBool::GetOrder() const { return plankton::Order::FIRST; }
 
-const Type& SymbolicBool::Type() const { return Type::Bool(); }
+const Type& SymbolicBool::GetType() const { return Type::Bool(); }
 
 SymbolicNull::SymbolicNull() = default;
 
-Order SymbolicNull::Order() const { return plankton::Order::FIRST; }
+Order SymbolicNull::GetOrder() const { return plankton::Order::FIRST; }
 
-const Type& SymbolicNull::Type() const { return Type::Null(); }
+const Type& SymbolicNull::GetType() const { return Type::Null(); }
 
 SymbolicMin::SymbolicMin() = default;
 
-Order SymbolicMin::Order() const { return plankton::Order::FIRST; }
+Order SymbolicMin::GetOrder() const { return plankton::Order::FIRST; }
 
-const Type& SymbolicMin::Type() const { return Type::Data(); }
+const Type& SymbolicMin::GetType() const { return Type::Data(); }
 
 SymbolicMax::SymbolicMax() = default;
 
-Order SymbolicMax::Order() const { return plankton::Order::FIRST; }
+Order SymbolicMax::GetOrder() const { return plankton::Order::FIRST; }
 
-const Type& SymbolicMax::Type() const { return Type::Data(); }
+const Type& SymbolicMax::GetType() const { return Type::Data(); }
 
 
 //
@@ -136,13 +139,13 @@ MemoryAxiom::MemoryAxiom(std::unique_ptr<SymbolicVariable> adr, std::unique_ptr<
                          std::map<std::string, std::unique_ptr<SymbolicVariable>> fields)
         : node(std::move(adr)), flow(std::move(flw)), fieldToValue(std::move(fields)) {
     assert(node);
-    assert(node->Order() == Order::FIRST);
+    assert(node->GetOrder() == Order::FIRST);
     assert(flow);
-    assert(flow->Order() == Order::SECOND);
-    assert(plankton::All(node->Type(), [this](const auto& field) {
+    assert(flow->GetOrder() == Order::SECOND);
+    assert(plankton::All(node->GetType(), [this](const auto& field) {
         return fieldToValue.count(field.first) != 0
-               && fieldToValue[field.first]->Order() == Order::FIRST
-               && fieldToValue[field.first]->Type().AssignableTo(field.second);
+               && fieldToValue[field.first]->GetOrder() == Order::FIRST
+               && fieldToValue[field.first]->GetType().AssignableTo(field.second);
     }));
 }
 
@@ -160,8 +163,8 @@ MemoryAxiom::MemoryAxiom(const SymbolDeclaration& node, const SymbolDeclaration&
 EqualsToAxiom::EqualsToAxiom(const VariableDeclaration& var, std::unique_ptr<SymbolicVariable> val)
         : variable(var), value(std::move(val)) {
     assert(value);
-    assert(variable.get().type == value->Type());
-    assert(value->Order() == Order::FIRST);
+    assert(variable.get().type == value->GetType());
+    assert(value->GetOrder() == Order::FIRST);
 }
 
 EqualsToAxiom::EqualsToAxiom(const VariableDeclaration& variable, const SymbolDeclaration& value)
@@ -172,14 +175,14 @@ StackAxiom::StackAxiom(BinaryOperator op, std::unique_ptr<SymbolicExpression> le
         : op(op), lhs(std::move(left)), rhs(std::move(right)) {
     assert(lhs);
     assert(rhs);
-    assert(rhs->Type().Comparable(lhs->Type()));
-    assert(rhs->Order() == lhs->Order());
+    assert(rhs->GetType().Comparable(lhs->GetType()));
+    assert(rhs->GetOrder() == lhs->GetOrder());
 }
 
 InflowEmptinessAxiom::InflowEmptinessAxiom(std::unique_ptr<SymbolicVariable> flw, bool isEmpty)
         : flow(std::move(flw)), isEmpty(isEmpty) {
     assert(flow);
-    assert(flow->Order() == Order::SECOND);
+    assert(flow->GetOrder() == Order::SECOND);
 }
 
 InflowEmptinessAxiom::InflowEmptinessAxiom(const SymbolDeclaration& flow, bool isEmpty)
@@ -189,10 +192,10 @@ InflowContainsValueAxiom::InflowContainsValueAxiom(std::unique_ptr<SymbolicVaria
                                                    std::unique_ptr<SymbolicVariable> val)
         : flow(std::move(flw)), value(std::move(val)) {
     assert(flow);
-    assert(flow->Order() == Order::SECOND);
+    assert(flow->GetOrder() == Order::SECOND);
     assert(value);
-    assert(value->Order() == Order::FIRST);
-    assert(flow->Type() == value->Type());
+    assert(value->GetOrder() == Order::FIRST);
+    assert(flow->GetType() == value->GetType());
 }
 
 InflowContainsValueAxiom::InflowContainsValueAxiom(const SymbolDeclaration& flow, const SymbolDeclaration& value)
@@ -204,13 +207,13 @@ InflowContainsRangeAxiom::InflowContainsRangeAxiom(std::unique_ptr<SymbolicVaria
                                                    std::unique_ptr<SymbolicExpression> high)
         : flow(std::move(flw)), valueLow(std::move(low)), valueHigh(std::move(high)) {
     assert(flow);
-    assert(flow->Order() == Order::SECOND);
+    assert(flow->GetOrder() == Order::SECOND);
     assert(valueLow);
-    assert(valueLow->Order() == Order::FIRST);
-    assert(flow->Type() == valueLow->Type());
+    assert(valueLow->GetOrder() == Order::FIRST);
+    assert(flow->GetType() == valueLow->GetType());
     assert(valueHigh);
-    assert(valueHigh->Order() == Order::FIRST);
-    assert(valueLow->Type() == valueHigh->Type());
+    assert(valueHigh->GetOrder() == Order::FIRST);
+    assert(valueLow->GetType() == valueHigh->GetType());
 }
 
 InflowContainsRangeAxiom::InflowContainsRangeAxiom(const SymbolDeclaration& flow,
@@ -222,8 +225,8 @@ InflowContainsRangeAxiom::InflowContainsRangeAxiom(const SymbolDeclaration& flow
 
 ObligationAxiom::ObligationAxiom(Specification spec, std::unique_ptr<SymbolicVariable> k) : spec(spec), key(std::move(k)) {
     assert(key);
-    assert(key->Order() == Order::FIRST);
-    assert(key->Type() == Type::Data());
+    assert(key->GetOrder() == Order::FIRST);
+    assert(key->GetType() == Type::Data());
 }
 
 ObligationAxiom::ObligationAxiom(Specification spec, const SymbolDeclaration& key)
@@ -281,14 +284,14 @@ Update::Update() = default;
 Update::Update(std::unique_ptr<Dereference> field_, std::unique_ptr<SymbolicExpression> value_) {
     assert(field_);
     assert(value_);
-    assert(field_->Type().AssignableFrom(value_->Type()));
+    assert(field_->GetType().AssignableFrom(value_->GetType()));
     fields.push_back(std::move(field_));
     values.push_back(std::move(value_));
 }
 
 bool CheckUpdates(const std::vector<std::unique_ptr<Dereference>>& fields, const std::vector<std::unique_ptr<SymbolicExpression>>& values) {
     for (std::size_t index = 0; index < fields.size(); ++index) {
-        if (fields.at(index)->Type().AssignableFrom(values.at(index)->Type())) continue;
+        if (fields.at(index)->GetType().AssignableFrom(values.at(index)->GetType())) continue;
         return false;
     }
     return true;

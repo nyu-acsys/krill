@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <ostream>
+#include <optional>
 #include <cassert>
 #include "visitors.hpp"
 
@@ -106,8 +107,8 @@ namespace plankton {
     //
     
     struct Expression : AstNode {
-        [[nodiscard]] virtual const Type& Type() const = 0;
-        [[nodiscard]] virtual Sort Sort() const { return Type().sort; };
+        [[nodiscard]] virtual const Type& GetType() const = 0;
+        [[nodiscard]] virtual Sort GetSort() const { return GetType().sort; };
     };
     
     struct ValueExpression : Expression {
@@ -121,37 +122,37 @@ namespace plankton {
         
         explicit VariableExpression(const VariableDeclaration& decl);
         [[nodiscard]] inline const VariableDeclaration& Decl() const { return decl; }
-        [[nodiscard]] const plankton::Type& Type() const override;
+        [[nodiscard]] const Type& GetType() const override;
         ACCEPT_PROGRAM_VISITOR
     };
 
     struct TrueValue final : public SimpleExpression {
         explicit TrueValue() = default;
-        [[nodiscard]] const plankton::Type& Type() const override;
+        [[nodiscard]] const Type& GetType() const override;
         ACCEPT_PROGRAM_VISITOR
     };
 
     struct FalseValue final : public SimpleExpression {
         explicit FalseValue() = default;
-        [[nodiscard]] const plankton::Type& Type() const override;
+        [[nodiscard]] const Type& GetType() const override;
         ACCEPT_PROGRAM_VISITOR
     };
 
     struct MinValue final : public SimpleExpression {
         explicit MinValue() = default;
-        [[nodiscard]] const plankton::Type& Type() const override;
+        [[nodiscard]] const Type& GetType() const override;
         ACCEPT_PROGRAM_VISITOR
     };
 
     struct MaxValue final : public SimpleExpression {
         explicit MaxValue() = default;
-        [[nodiscard]] const plankton::Type& Type() const override;
+        [[nodiscard]] const Type& GetType() const override;
         ACCEPT_PROGRAM_VISITOR
     };
 
     struct NullValue final : public SimpleExpression {
         explicit NullValue() = default;
-        [[nodiscard]] const plankton::Type& Type() const override;
+        [[nodiscard]] const Type& GetType() const override;
         ACCEPT_PROGRAM_VISITOR
     };
 
@@ -160,7 +161,7 @@ namespace plankton {
         std::string fieldName;
         
         explicit Dereference(std::unique_ptr<VariableExpression> variable, std::string fieldName);
-        [[nodiscard]] const plankton::Type& Type() const override;
+        [[nodiscard]] const Type& GetType() const override;
         ACCEPT_PROGRAM_VISITOR
     };
     
@@ -178,7 +179,7 @@ namespace plankton {
     
         explicit BinaryExpression(BinaryOperator op_, std::unique_ptr<ValueExpression> lhs_,
                                   std::unique_ptr<ValueExpression> rhs_);
-        [[nodiscard]] const plankton::Type& Type() const override;
+        [[nodiscard]] const plankton::Type& GetType() const override;
         ACCEPT_PROGRAM_VISITOR
     };
     

@@ -54,14 +54,14 @@ struct Worklist {
 inline FlowGraphNode MakeNodeFromResource(const MemoryAxiom& axiom, SymbolFactory& factory, const FlowGraph& graph) {
     FlowGraphNode result(graph, axiom.node->Decl(), plankton::IsLocal(axiom), axiom.flow->Decl(), factory);
     
-    auto& flowType = axiom.flow->Type();
+    auto& flowType = axiom.flow->GetType();
     result.dataFields.reserve(axiom.fieldToValue.size());
     result.pointerFields.reserve(axiom.fieldToValue.size());
     for (const auto& [name, value] : axiom.fieldToValue) {
-        if (value->Sort() == Sort::PTR) {
-            result.pointerFields.emplace_back(name, value->Type(), value->Decl(), factory, flowType);
+        if (value->GetSort() == Sort::PTR) {
+            result.pointerFields.emplace_back(name, value->GetType(), value->Decl(), factory, flowType);
         } else {
-            result.dataFields.emplace_back(name, value->Type(), value->Decl());
+            result.dataFields.emplace_back(name, value->GetType(), value->Decl());
         }
     }
     
@@ -299,7 +299,7 @@ FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const Mem
     assert(!command.lhs.empty());
     auto& lhs = *command.lhs.front();
     auto& root = lhs.variable->Decl();
-    auto depth = config.GetMaxFootprintDepth(lhs.variable->Type(), lhs.fieldName);
+    auto depth = config.GetMaxFootprintDepth(lhs.variable->GetType(), lhs.fieldName);
     
     FlowGraph graph(std::move(pre), config);
     FlowGraphGenerator generator(graph, command);

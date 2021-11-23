@@ -31,7 +31,7 @@ inline bool CheckContext(const Formula& context) {
 
 inline bool UpdateSubset(const HeapEffect& premise, const HeapEffect& conclusion) {
     if (plankton::UpdatesFlow(conclusion) && !plankton::UpdatesFlow(premise)) return false;
-    const auto& fields = premise.pre->node->Type().fields;
+    const auto& fields = premise.pre->node->GetType().fields;
     return plankton::All(fields, [&premise, &conclusion](const auto& field) {
         return !plankton::UpdatesField(conclusion, field.first) || plankton::UpdatesField(premise, field.first);
     });
@@ -84,7 +84,7 @@ inline void RenameEffect(HeapEffect& effect, SymbolFactory& factory) {
 }
 
 inline bool IsEffectEmpty(const HeapEffect& effect) {
-    assert(effect.pre->node->Type() == effect.post->node->Type());
+    assert(effect.pre->node->GetType() == effect.post->node->GetType());
     if (effect.pre->flow->Decl() != effect.post->flow->Decl()) return false;
     for (const auto& [field, value] : effect.pre->fieldToValue) {
         if (value->Decl() != effect.post->fieldToValue.at(field)->Decl()) return false;

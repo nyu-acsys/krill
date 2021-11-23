@@ -13,8 +13,10 @@ namespace plankton {
 
     #ifdef ENABLE_DEBUG_PRINTING
         #define DEBUG(X) { std::cout << X; }
+        #define DEBUG_FOREACH(X, F) { for (const auto& elem : X) { F(elem); } }
     #else
         #define DEBUG(X) {}
+        #define DEBUG_FOREACH(X, F) {}
     #endif
     
     #define INFO(X) { std::cout << X; }

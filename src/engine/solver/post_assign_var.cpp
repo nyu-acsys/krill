@@ -40,7 +40,7 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const VariableAssignment
     std::deque<std::unique_ptr<SymbolicVariable>> symbols;
     for (const auto& expr : cmd.rhs) {
         auto value = plankton::MakeSymbolic(*expr, *pre->now);
-        auto& symbol = factory.GetFreshFO(expr->Type());
+        auto& symbol = factory.GetFreshFO(expr->GetType());
         symbols.push_back(std::make_unique<SymbolicVariable>(symbol));
         pre->Conjoin(std::make_unique<StackAxiom>(
                 BinaryOperator::EQ, std::make_unique<SymbolicVariable>(symbol), std::move(value)

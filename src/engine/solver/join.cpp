@@ -47,14 +47,14 @@ struct AnnotationInfo {
             varToRes[&variable->Variable()] = variable;
 
             // memory resources
-            if (variable->value->Sort() == Sort::PTR) {
+            if (variable->value->GetSort() == Sort::PTR) {
                 auto memory = plankton::TryGetResource(variable->Value(), *annotation.now);
                 if (!memory) continue;
                 varToMem[&variable->Variable()] = memory;
             }
             
             // obligation resources
-            if (variable->value->Sort() == Sort::DATA) {
+            if (variable->value->GetSort() == Sort::DATA) {
                 for (const auto* obligation : obligations) {
                     if (obligation->key->Decl() != variable->Value()) continue;
                     varToObl[&variable->Variable()].insert(obligation);
@@ -225,7 +225,7 @@ struct AnnotationJoiner {
         Preprocess();
         
         DEBUG("(preprocessed)" << std::endl)
-        for (const auto& elem : annotations) DEBUG(*elem)
+        DEBUG_FOREACH(annotations, [](const auto& elem){ DEBUG(*elem) })
         DEBUG(std::endl)
 
         CreateVariableResources();
@@ -268,7 +268,7 @@ struct AnnotationJoiner {
                 if (variable->Variable().type.sort != Sort::PTR) continue;
                 auto insertion = used.insert(&variable->Value());
                 if (insertion.second) continue; // not yet in use
-                auto& newValue = factory.GetFreshFO(variable->value->Type());
+                auto& newValue = factory.GetFreshFO(variable->value->GetType());
                 AddResourceCopies(*annotation, variable->Value(), newValue);
                 variable->value->decl = newValue;
             }
@@ -509,7 +509,7 @@ struct AnnotationJoiner {
             // make future
             auto future = plankton::Copy(**vector.front());
             for (auto& value : future->update->values) {
-                value = std::make_unique<SymbolicVariable>(factory.GetFresh(value->Type(), value->Order()));
+                value = std::make_unique<SymbolicVariable>(factory.GetFresh(value->GetType(), value->GetOrder()));
             }
 
             // force update to agree

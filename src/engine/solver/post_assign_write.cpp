@@ -237,11 +237,11 @@ inline std::unique_ptr<SharedMemoryCore> HandleSharedOutside(PostImageInfo& info
     
     SymbolFactory factory(info.pre);
     auto updateFlow = [&result,&factory](){
-        result->flow->decl = factory.GetFresh(result->flow->Type(), result->flow->Order());
+        result->flow->decl = factory.GetFresh(result->flow->GetType(), result->flow->GetOrder());
     };
     auto updateField = [&result,&factory](const Field& field){
         auto& value = result->fieldToValue.at(field.name);
-        value->decl = factory.GetFresh(value->Type(), value->Order());
+        value->decl = factory.GetFresh(value->GetType(), value->GetOrder());
     };
     
     for (const auto& inside : info.footprint.nodes) {
@@ -315,12 +315,14 @@ inline std::vector<std::function<std::unique_ptr<Axiom>()>> GetContextGenerators
                     [&symbol]() { return MakeBinary<BinaryOperator::NEQ>(symbol, std::make_unique<SymbolicNull>()); }
                 };
             }
+            throw;
         case Order::SECOND:
             return { // empty or not
                 [&symbol]() { return std::make_unique<InflowEmptinessAxiom>(symbol, true); },
                 [&symbol]() { return std::make_unique<InflowEmptinessAxiom>(symbol, false); }
             };
     }
+    throw;
 }
 
 inline void AddEffectContextGenerators(PostImageInfo& info) {
@@ -496,7 +498,7 @@ std::unique_ptr<Annotation> TryGetFromFuture(const Annotation& pre, const Memory
         auto& value = *update->values.at(index);
         auto& variable = plankton::GetResource(field.variable->Decl(), *result->now);
         auto& memory = plankton::GetResource(variable.Value(), *result->now);
-        auto& newValue = factory.GetFreshFO(value.Type());
+        auto& newValue = factory.GetFreshFO(value.GetType());
         memory.fieldToValue.at(field.fieldName)->decl = newValue;
         result->Conjoin(MakeEq(newValue, value));
     }

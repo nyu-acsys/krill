@@ -50,9 +50,16 @@ struct FunctionContextCollector : public PlanktonBaseVisitor {
     std::vector<T*> result;
 
     template<typename U>
-    antlrcpp::Any Handle(U* /*context*/) { /* do nothing */ return nullptr; }
-    template<>
-    antlrcpp::Any Handle<T>(T* context) { if (context) result.push_back(context); return nullptr; }
+    antlrcpp::Any Handle(U* context) {
+        if constexpr (std::is_base_of_v<T, U>) {
+            if (context) result.push_back(context);
+        }
+        return nullptr;
+    }
+    // template<typename U>
+    // antlrcpp::Any Handle(U* /*context*/) { /* do nothing */ return nullptr; }
+    // template<>
+    // antlrcpp::Any Handle<T>(T* context) { if (context) result.push_back(context); return nullptr; }
     
     antlrcpp::Any visitFunctionInterface(PlanktonParser::FunctionInterfaceContext* ctx) override { return Handle(ctx); }
     antlrcpp::Any visitFunctionMacro(PlanktonParser::FunctionMacroContext* ctx) override { return Handle(ctx); }

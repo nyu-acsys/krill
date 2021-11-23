@@ -31,7 +31,7 @@ MakeFreshCell(const Type& type, const Annotation& frame, const SolverConfig& con
     
     // pointer fields at address are NULL
     for (const auto&[field, value] : memory->fieldToValue) {
-        if (value->Sort() != Sort::PTR) continue;
+        if (value->GetSort() != Sort::PTR) continue;
         context->Conjoin(std::make_unique<StackAxiom>(
                 BinaryOperator::EQ, plankton::Copy(*value), std::make_unique<SymbolicNull>()
         ));
@@ -59,7 +59,7 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const Malloc& cmd) const
     assert(!cmd.lhs->Decl().isShared);
     
     auto& resource = plankton::GetResource(cmd.lhs->Decl(), *pre->now);
-    auto [cell, context] = MakeFreshCell(cmd.lhs->Type(), *pre, config);
+    auto [cell, context] = MakeFreshCell(cmd.lhs->GetType(), *pre, config);
     resource.value = std::move(cell);
     pre->Conjoin(std::move(context));
     return PostImage(std::move(pre));

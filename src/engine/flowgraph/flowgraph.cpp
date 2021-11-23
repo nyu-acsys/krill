@@ -15,6 +15,7 @@ inline T& Switch(EMode mode, T& pre, T& post) {
         case EMode::PRE: return pre;
         case EMode::POST: return post;
     }
+    throw;
 }
 
 Field::Field(std::string name, const Type& type, const SymbolDeclaration& value)
@@ -73,7 +74,6 @@ bool FlowGraphNode::HasUpdatedData() const {
 }
 
 bool FlowGraphNode::HasUpdated() const {
-    auto hasUp = [](auto& field) { return field.HasUpdated(); };
     return HasUpdatedFlow() || HasUpdatedPointers() || HasUpdatedData();
 }
 

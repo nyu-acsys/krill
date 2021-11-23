@@ -20,10 +20,10 @@ std::unique_ptr<ValueExpression> AstBuilder::MakeExpression(PlanktonParser::Expr
 std::unique_ptr<Dereference> AstBuilder::MakeExpression(PlanktonParser::DerefContext& context) {
     auto var = std::make_unique<VariableExpression>(VariableByName(context.name->getText()));
     auto fieldName = context.field->getText();
-    if (var->Type().GetField(fieldName).has_value()) {
+    if (var->GetType().GetField(fieldName).has_value()) {
         return std::make_unique<Dereference>(std::move(var), fieldName);
     }
-    throw std::logic_error("Parser error: variable of type '" + var->Type().name + "' has no member named '" + fieldName + "'."); // TODO: better error handling
+    throw std::logic_error("Parser error: variable of type '" + var->GetType().name + "' has no member named '" + fieldName + "'."); // TODO: better error handling
 }
 
 struct ValueBuilder : public PlanktonBaseVisitor {
@@ -79,8 +79,8 @@ struct NegatedExpressionBuilder : public PlanktonBaseVisitor {
     template<typename T>
     inline antlrcpp::Any Handle(T& ctx, bool neg) {
         expr = builder.MakeExpression(*ctx.expression());
-        if (neg && expr->Type() != Type::Bool()) {
-            throw std::logic_error("Parse error: operator '!' not allowed with value of type '" + expr->Type().name + "'."); // TODO: better error handling
+        if (neg && expr->GetType() != Type::Bool()) {
+            throw std::logic_error("Parse error: operator '!' not allowed with value of type '" + expr->GetType().name + "'."); // TODO: better error handling
         }
         negated = neg;
         return nullptr;
@@ -112,6 +112,7 @@ inline bool IsOperatorCompatible(BinaryOperator op, const Type& lhs, const Type&
         case BinaryOperator::GT:
             return lhs.sort == Sort::DATA;
     }
+    throw;
 }
 
 struct BinaryConditionBuilder : public PlanktonBaseVisitor {
@@ -122,12 +123,12 @@ struct BinaryConditionBuilder : public PlanktonBaseVisitor {
     
     antlrcpp::Any visitCondBinarySimple(PlanktonParser::CondBinarySimpleContext* ctx) override {
         auto [expr, negated] = builder.MakeExpression(*ctx->simpleCondition());
-        if (expr->Type() == Type::Bool()) {
+        if (expr->GetType() == Type::Bool()) {
             result = std::make_unique<BinaryExpression>(BinaryOperator::EQ, std::move(expr), MakeBool(!negated));
             return nullptr;
         }
         
-        throw std::logic_error("Parse error: cannot implicitly convert expression of type '" + expr->Type().name + "' to bool.");
+        throw std::logic_error("Parse error: cannot implicitly convert expression of type '" + expr->GetType().name + "' to bool.");
     }
     
     template<BinaryOperator Op, typename T>
@@ -135,9 +136,9 @@ struct BinaryConditionBuilder : public PlanktonBaseVisitor {
         auto[lhs, lhsNegated] = builder.MakeExpression(*ctx.lhs);
         auto[rhs, rhsNegated] = builder.MakeExpression(*ctx.rhs);
         
-        if (!lhs->Type().Comparable(rhs->Type()))
-            throw std::logic_error("Parse error: incomparable types '" + lhs->Type().name + "' and '" + rhs->Type().name + "'."); // TODO: better error handling
-        if (!IsOperatorCompatible(Op, lhs->Type(), rhs->Type()))
+        if (!lhs->GetType().Comparable(rhs->GetType()))
+            throw std::logic_error("Parse error: incomparable types '" + lhs->GetType().name + "' and '" + rhs->GetType().name + "'."); // TODO: better error handling
+        if (!IsOperatorCompatible(Op, lhs->GetType(), rhs->GetType()))
             throw std::logic_error("Parse error: operator " + plankton::ToString(Op) + " not allowed here."); // TODO: better error handling
         
         result = std::make_unique<BinaryExpression>(Op, std::move(lhs), std::move(rhs));

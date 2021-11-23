@@ -449,7 +449,7 @@ inline std::unique_ptr<T> BuildAssignment(AstBuilder& builder, U& lhsContext, V&
         throw std::logic_error("Parse error: unbalanced assignment."); // TODO: better error handling
     }
     for (std::size_t index = 0; index < result->lhs.size(); ++index) {
-        if (result->lhs.at(index)->Type().AssignableFrom(result->rhs.at(index)->Type())) continue;
+        if (result->lhs.at(index)->GetType().AssignableFrom(result->rhs.at(index)->GetType())) continue;
         throw std::logic_error("Parse error: assignment from incompatible type."); // TODO: better error handling
     }
     

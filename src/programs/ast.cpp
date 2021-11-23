@@ -81,26 +81,26 @@ Function::Function(std::string name, Kind kind, std::unique_ptr<Scope> bdy)
 
 VariableExpression::VariableExpression(const VariableDeclaration& decl) : decl(decl) {}
 
-const Type& VariableExpression::Type() const { return Decl().type; }
+const Type& VariableExpression::GetType() const { return Decl().type; }
 
-const plankton::Type& TrueValue::Type() const { return plankton::Type::Bool(); }
+const plankton::Type& TrueValue::GetType() const { return plankton::Type::Bool(); }
 
-const plankton::Type& FalseValue::Type() const { return plankton::Type::Bool(); }
+const plankton::Type& FalseValue::GetType() const { return plankton::Type::Bool(); }
 
-const Type& MinValue::Type() const { return plankton::Type::Data(); }
+const Type& MinValue::GetType() const { return plankton::Type::Data(); }
 
-const Type& MaxValue::Type() const { return plankton::Type::Data(); }
+const Type& MaxValue::GetType() const { return plankton::Type::Data(); }
 
-const Type& NullValue::Type() const { return plankton::Type::Null(); }
+const Type& NullValue::GetType() const { return plankton::Type::Null(); }
 
 Dereference::Dereference(std::unique_ptr<VariableExpression> var, std::string fieldName_)
         : variable(std::move(var)), fieldName(std::move(fieldName_)) {
-    assert(variable->Sort() == Sort::PTR); // TODO: throw
-    assert(variable->Type().GetField(fieldName).has_value()); // TODO: throw
+    assert(variable->GetSort() == Sort::PTR); // TODO: throw
+    assert(variable->GetType().GetField(fieldName).has_value()); // TODO: throw
 }
 
-const Type& Dereference::Type() const {
-    return variable->Type()[fieldName];
+const Type& Dereference::GetType() const {
+    return variable->GetType()[fieldName];
 }
 
 BinaryOperator plankton::Symmetric(BinaryOperator op) {
@@ -112,6 +112,7 @@ BinaryOperator plankton::Symmetric(BinaryOperator op) {
         case BinaryOperator::GEQ: return BinaryOperator::LEQ;
         case BinaryOperator::GT: return BinaryOperator::LT;
     }
+    throw;
 }
 
 BinaryOperator plankton::Negate(BinaryOperator op) {
@@ -123,6 +124,7 @@ BinaryOperator plankton::Negate(BinaryOperator op) {
         case BinaryOperator::GEQ: return BinaryOperator::LT;
         case BinaryOperator::GT: return BinaryOperator::LEQ;
     }
+    throw;
 }
 
 BinaryExpression::BinaryExpression(BinaryOperator op, std::unique_ptr<ValueExpression> lhs_,
@@ -130,11 +132,11 @@ BinaryExpression::BinaryExpression(BinaryOperator op, std::unique_ptr<ValueExpre
         : op(op), lhs(std::move(lhs_)), rhs(std::move(rhs_)) {
     assert(lhs);
     assert(rhs);
-    assert(lhs->Type().Comparable(rhs->Type()));
-    assert(op == BinaryOperator::EQ || op == BinaryOperator::NEQ || lhs->Type() == Type::Data());
+    assert(lhs->GetType().Comparable(rhs->GetType()));
+    assert(op == BinaryOperator::EQ || op == BinaryOperator::NEQ || lhs->GetType() == Type::Data());
 }
 
-const Type& BinaryExpression::Type() const { return plankton::Type::Bool(); }
+const Type& BinaryExpression::GetType() const { return plankton::Type::Bool(); }
 
 
 //
@@ -188,7 +190,7 @@ Return::Return(std::unique_ptr<SimpleExpression> expression) {
 
 Assume::Assume(std::unique_ptr<BinaryExpression> cond) : condition(std::move(cond)) {
     assert(condition);
-    assert(condition->Type() == Type::Bool());
+    assert(condition->GetType() == Type::Bool());
 }
 
 Malloc::Malloc(std::unique_ptr<VariableExpression> left) : lhs(std::move(left)) {

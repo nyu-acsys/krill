@@ -42,7 +42,7 @@ void ProofGenerator::HandleMacroProlog(const Macro& macro) {
         SymbolFactory factory(*result);
         for (const auto& lhs : macro.lhs) {
             auto& resource = plankton::GetResource(lhs->Decl(), *result->now);
-            resource.value->decl = factory.GetFreshFO(lhs->Type());
+            resource.value->decl = factory.GetFreshFO(lhs->GetType());
         }
         return result;
     });
@@ -189,7 +189,7 @@ void ProofGenerator::Visit(const Macro& cmd) {
     infoPrefix.Push("macro-", cmd.function.get().name);
     INFO(infoPrefix << "Descending into macro '" << cmd.function.get().name << "'..." << std::endl)
     DEBUG(std::endl << "=== pre annotations for macro '" << cmd.Func().name << "':" << std::endl)
-    for (const auto& elem : current) DEBUG("  -- " << *elem << std::endl)
+    DEBUG_FOREACH(current, [](const auto& elem){ DEBUG("  -- " << *elem << std::endl) })
 
     // TODO: proper framing?
     if (TABULATE_SUBROUTINES) HandleMacroLazy(cmd);
@@ -202,6 +202,6 @@ void ProofGenerator::Visit(const Macro& cmd) {
     INFO(infoPrefix << "Returning from macro '" << cmd.function.get().name << "'..." << std::endl)
     infoPrefix.Pop();
     DEBUG(std::endl << "=== post annotations for macro '" << cmd.Func().name << "':" << std::endl)
-    for (const auto& elem : current) DEBUG("  -- " << *elem << std::endl)
+    DEBUG_FOREACH(current, [](const auto& elem){ DEBUG("  -- " << *elem << std::endl) })
     DEBUG(std::endl << std::endl)
 }
