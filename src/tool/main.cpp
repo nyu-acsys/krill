@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
 
     } catch (std::logic_error& err) { // TODO: catch proper error class
         // plankton error
-        INFO("ERROR: " << err.what() << std::endl << std::endl)
+        INFO(std::endl << std::endl << "ERROR: " << err.what() << std::endl << std::endl)
         ERROR(err.what() << std::endl)
         return -1;
     }
