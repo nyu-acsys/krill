@@ -38,6 +38,7 @@ set(SOURCES
         solver/solver.cpp
         solver/stability.cpp
         solver/unsat.cpp
+        solver/widen.cpp
 
         proof/common.cpp
         proof/api.cpp
