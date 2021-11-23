@@ -257,78 +257,78 @@ struct MethodChooser {
 // Encoding API
 //
 
-/**
- * This is to fight strange non-deterministic behavior of Z3 where certain solver states
- * might evaluate to 'sat' or 'unsat' depending on Z3's mood...
- * Using 'push'/'pop' on the solver would not help to resolve the problem.
- * TODO: how to avoid/improve this?
- */
-struct Z3Wrapper {
-    z3::context context;
-    z3::solver solver;
-
-    explicit Z3Wrapper(const z3::solver& srcSolver) : solver(context) {
-        MEASURE("Z3Wrapper ~> ctor")
-        const auto& srcContext = srcSolver.ctx();
-        for (std::size_t index = 0; index < srcSolver.assertions().size(); ++index) {
-            auto srcExpr = srcSolver.assertions()[index];
-            auto expr = ::Translate(srcExpr, srcContext, context);
-            solver.add(expr);
-        }
-    }
-
-    z3::expr Translate(const EExpr& expr) {
-        MEASURE("Z3Wrapper ~> Translate(EExpr)")
-        const auto& z3expr = AsExpr(expr);
-        return ::Translate(z3expr, z3expr.ctx(), context);
-    }
-
-    std::deque<EExpr> Translate(const std::deque<EExpr>& container) {
-        MEASURE("Z3Wrapper ~> Translate(std::deque<EExpr>)")
-        std::deque<EExpr> result;
-        for (const auto& elem : container) result.push_back(AsEExpr(Translate(elem)));
-        return result;
-    }
-};
-
-inline bool IsUnsat(std::unique_ptr<InternalStorage>& internal) {
-    Z3Wrapper wrapper(AsSolver(internal));
-    return IsUnsat(wrapper.solver);
-}
-
-inline bool IsImplied(std::unique_ptr<InternalStorage>& internal, const EExpr& expression) {
-    Z3Wrapper wrapper(AsSolver(internal));
-    return IsImplied(wrapper.solver, wrapper.Translate(expression));
-}
-
-inline std::vector<bool> ComputeImplied(std::unique_ptr<InternalStorage>& internal, const std::deque<EExpr>& expressions) {
-    Z3Wrapper wrapper(AsSolver(internal));
-    return solvingMethod(wrapper.solver, wrapper.Translate(expressions));
-}
-
+// /**
+//  * This is to fight strange non-deterministic behavior of Z3 where certain solver states
+//  * might evaluate to 'sat' or 'unsat' depending on Z3's mood...
+//  * Using 'push'/'pop' on the solver would not help to resolve the problem.
+//  * TODO: how to avoid/improve this?
+//  */
+// struct Z3Wrapper {
+//     z3::context context;
+//     z3::solver solver;
+//
+//     explicit Z3Wrapper(const z3::solver& srcSolver) : solver(context) {
+//         MEASURE("Z3Wrapper ~> ctor")
+//         const auto& srcContext = srcSolver.ctx();
+//         for (std::size_t index = 0; index < srcSolver.assertions().size(); ++index) {
+//             auto srcExpr = srcSolver.assertions()[index];
+//             auto expr = ::Translate(srcExpr, srcContext, context);
+//             solver.add(expr);
+//         }
+//     }
+//
+//     z3::expr Translate(const EExpr& expr) {
+//         MEASURE("Z3Wrapper ~> Translate(EExpr)")
+//         const auto& z3expr = AsExpr(expr);
+//         return ::Translate(z3expr, z3expr.ctx(), context);
+//     }
+//
+//     std::deque<EExpr> Translate(const std::deque<EExpr>& container) {
+//         MEASURE("Z3Wrapper ~> Translate(std::deque<EExpr>)")
+//         std::deque<EExpr> result;
+//         for (const auto& elem : container) result.push_back(AsEExpr(Translate(elem)));
+//         return result;
+//     }
+// };
+//
 // inline bool IsUnsat(std::unique_ptr<InternalStorage>& internal) {
-//     auto& solver = AsSolver(internal);
-//     solver.push();
-//     auto result = IsUnsat(solver);
-//     solver.pop();
-//     return result;
+//     Z3Wrapper wrapper(AsSolver(internal));
+//     return IsUnsat(wrapper.solver);
 // }
 //
 // inline bool IsImplied(std::unique_ptr<InternalStorage>& internal, const EExpr& expression) {
-//     auto& solver = AsSolver(internal);
-//     solver.push();
-//     auto result = IsImplied(solver, AsExpr(expression));
-//     solver.pop();
-//     return result;
+//     Z3Wrapper wrapper(AsSolver(internal));
+//     return IsImplied(wrapper.solver, wrapper.Translate(expression));
 // }
 //
 // inline std::vector<bool> ComputeImplied(std::unique_ptr<InternalStorage>& internal, const std::deque<EExpr>& expressions) {
-//     auto& solver = AsSolver(internal);
-//     solver.push();
-//     auto result = solvingMethod(solver, expressions);
-//     solver.pop();
-//     return result;
+//     Z3Wrapper wrapper(AsSolver(internal));
+//     return solvingMethod(wrapper.solver, wrapper.Translate(expressions));
 // }
+
+inline bool IsUnsat(std::unique_ptr<InternalStorage>& internal) {
+    auto& solver = AsSolver(internal);
+    solver.push();
+    auto result = IsUnsat(solver);
+    solver.pop();
+    return result;
+}
+
+inline bool IsImplied(std::unique_ptr<InternalStorage>& internal, const EExpr& expression) {
+    auto& solver = AsSolver(internal);
+    solver.push();
+    auto result = IsImplied(solver, AsExpr(expression));
+    solver.pop();
+    return result;
+}
+
+inline std::vector<bool> ComputeImplied(std::unique_ptr<InternalStorage>& internal, const std::deque<EExpr>& expressions) {
+    auto& solver = AsSolver(internal);
+    solver.push();
+    auto result = solvingMethod(solver, expressions);
+    solver.pop();
+    return result;
+}
 
 
 void Encoding::Check() {
