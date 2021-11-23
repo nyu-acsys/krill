@@ -197,16 +197,17 @@ struct FlowGraphGenerator {
     }
     
     std::set<const SymbolDeclaration*> ExpandGraph(std::size_t initialDepth) {
+        Worklist cycleBreaker;
         Worklist worklist(initialDepth, graph.nodes.front());
         std::set<const SymbolDeclaration*> missingFrontier;
 
         // expand until maxDepth is reached
         while (!worklist.Empty()) {
-
             auto [depth, node] = worklist.Take();
             depth = GetExpansionDepth(*node, depth);
+            auto inserted = cycleBreaker.Add(depth, *node);
             InlineAliases(*node);
-            if (depth == 0) continue;
+            if (depth == 0 || !inserted) continue;
 
             bool publish = !node->postLocal;
             for (auto& field : node->pointerFields) {
@@ -312,19 +313,19 @@ FlowGraph plankton::MakeFlowFootprint(std::unique_ptr<Annotation> pre, const Mem
         throw std::logic_error("Footprint construction failed: update to '" + plankton::ToString(*dereference) + "' not covered."); // TODO: better error handling
     }
     
-    DEBUG("Footprint: " << std::endl)
-    for (const auto& node : graph.nodes) {
-        DEBUG("   - Node " << node.address.name << std::endl)
-        for (const auto& next : node.pointerFields) {
-            DEBUG("      - " << node.address.name << "->" << next.name << " == " << next.preValue.get().name << " / "
-                             << next.postValue.get().name << std::endl)
-        }
-        // for (const auto& data : node.dataFields) {
-        //     DEBUG("      - " << node.address.name << "->" << data.name << " == " << data.preValue.get().name << " / "
-        //                      << data.postValue.get().name << std::endl)
-        // }
-    }
-    DEBUG("  with annotation: " << *graph.pre << std::endl)
+    // DEBUG("Footprint: " << std::endl)
+    // for (const auto& node : graph.nodes) {
+    //     DEBUG("   - Node " << node.address.name << std::endl)
+    //     for (const auto& next : node.pointerFields) {
+    //         DEBUG("      - " << node.address.name << "->" << next.name << " == " << next.preValue.get().name << " / "
+    //                          << next.postValue.get().name << std::endl)
+    //     }
+    //     // for (const auto& data : node.dataFields) {
+    //     //     DEBUG("      - " << node.address.name << "->" << data.name << " == " << data.preValue.get().name << " / "
+    //     //                      << data.postValue.get().name << std::endl)
+    //     // }
+    // }
+    // DEBUG("  with annotation: " << *graph.pre << std::endl)
     
     return graph;
 }
