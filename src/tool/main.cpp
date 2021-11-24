@@ -32,7 +32,7 @@ struct IsRegularFileConstraint : public TCLAP::Constraint<std::string> {
 };
 
 inline CommandLineInput Interact(int argc, char** argv) {
-    TCLAP::CmdLine cmd("PLANKTON verification tool for lock-free data structures", ' ', "2.0");
+    TCLAP::CmdLine cmd("PLANKTON verification tool for lock-free data structures", ' ', "1.0");
     auto isFile = std::make_unique<IsRegularFileConstraint>("_to_input");
     
     TCLAP::SwitchArg casSwitch("", "no-spurious", "Deactivates Compare-and-Swap failing spuriously", cmd, false);

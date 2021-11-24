@@ -5,16 +5,16 @@ import signal
 from subprocess import Popen, PIPE, TimeoutExpired
 import re
 
-TIMEOUT = 60 * 15  # in seconds
+TIMEOUT = 60 * 60 * 6  # in seconds
 REPETITIONS = 5
 
 EXECUTABLE = "./build/bin/plankton"
 BENCHMARKS = [
     "examples/VechevYahavDCas.pl",
     "examples/VechevYahavCas.pl",
-    "examples/ORVYY1.pl",
-    "examples/ORVYY2.pl",
+    "examples/ORVYY.pl",
     "examples/Michael.pl",
+    "examples/Harris.pl",
 ]
 
 REGEX = r"@gist\[(?P<path>.*?)\]=(?P<result>[01]),(?P<time>[0-9]*);(.*)"
