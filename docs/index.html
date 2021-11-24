@@ -894,7 +894,7 @@
 						<td class="text-nowrap"><code> --no-spurious</code></td>
 						<td class="text-center">yes</td>
 						<td class="text-center"><code>false</code></td>
-						<td>Tells the internal internal rewrite engine to rewrite <code>CAS</code> commands more strictly, i.e, does not allow for <code>CAS</code> commands to fail spuriously.
+						<td>Instructs the internal rewrite engine to prevent desugared <code>CAS</code> commands  to fail spuriously.
 							<!-- Note that the C++ standard explicitly allows <code>CAS</code> to fail spuriously. -->
 						</td>
 					</tr>
@@ -903,6 +903,15 @@
 			<p>
 				Besides the above, <code>--version</code> prints the tool's version, <code>-h</code> and <code>--help</code> print the full usage description.
 			</p>
+
+			<h4>Basic Usage</h4>
+			<p>
+				Input programs must adhere to the following EBNF.
+				Also note that <kbd>plankton</kbd> expects the program to contain an appropriate flow definition and node invariant.
+			</p>
+			<pre class="bg-light"><code class="">
+        ???
+			</code></pre>
 		</div>
 		<br>
 
