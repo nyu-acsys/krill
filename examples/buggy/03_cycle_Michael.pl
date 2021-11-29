@@ -109,7 +109,8 @@ bool add(data_t key) {
             return false;
 
 		} else {
-			entry->next = curr;
+			// entry->next = curr; // correct
+			entry->next = pred; // buggy: introducing cycle
             if (CAS(<pred->marked, pred->next>, <false, curr>, <false, entry>)) {
 				return true;
 			}
@@ -129,11 +130,11 @@ bool remove(data_t key) {
 
 		} else {
             next = curr->next;
-			// if (CAS(<curr->marked, curr->next>, <false, next>, <true, next>)) { // buggy: no logical deletion
+			if (CAS(<curr->marked, curr->next>, <false, next>, <true, next>)) {
                 CAS(<pred->marked, pred->next>, <false, curr>, <false, next>);
                 // <pred, curr, k> = locate(key);
                 return true;
-			// }
+			}
 		}
 	}
 }

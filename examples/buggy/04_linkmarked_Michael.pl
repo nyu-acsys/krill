@@ -1,4 +1,4 @@
-#name "BUGGY ORVYY Set"
+#name "BUGGY Michael Set"
 
 
 struct Node {
@@ -16,7 +16,7 @@ def @contains(Node* node, data_t key) {
 }
 
 def @outflow[next](Node* node, data_t key) {
-    !node->marked ==> node->val < key
+    node->val < key
 }
 
 def @invariant[local](Node* x) {
@@ -39,9 +39,10 @@ def @invariant[shared](Node* x) {
  && Tail->_flow != 0
  && x->val == MAX ==> x == Tail
  && x->next == NULL ==> x == Tail
+ && x->next != NULL ==> x->val != MAX
 
  && !x->marked ==> [x->val, MAX] in x->_flow
- && x->_flow != 0 ==> !x->marked
+ && x->_flow == 0 ==> x->marked
  && x->_flow != 0 ==> [x->val, MAX] in x->_flow
 }
 
@@ -59,21 +60,34 @@ void __init__() {
 
 
 inline <Node*, Node*, data_t> locate(data_t key) {
-	Node* pred, curr;
+	Node* curr, pred, next;
 	data_t k;
 
 	curr = Head;
 	do {
 		pred = curr;
 		curr = pred->next;
-        k = curr->val;
+        if (pred->marked == false && pred->next == curr) {
+			k = curr->val;
+			if (curr->marked == true) {
+			    next = curr->next;
+			    CAS(<pred->marked, pred->next>, <false, curr>, <false, next>);
+			    // retry
+			    curr = Head;
+			    k = MIN;
+			}
+		} else {
+            // retry
+			curr = Head;
+			k = MIN;
+		}
 	} while (k < key);
     return <pred, curr, k>;
 }
 
 
 bool contains(data_t key) {
-	Node* pred, curr;
+	Node* curr, pred;
 	data_t k;
 
 	<pred, curr, k> = locate(key);
@@ -81,40 +95,31 @@ bool contains(data_t key) {
 }
 
 bool add(data_t key) {
-	Node* entry, pred, curr;
+	Node* curr, pred, entry;
 	data_t k;
 
 	entry = malloc;
 	entry->val = key;
-	entry->marked = false;
+	// entry->marked = false; // correct
+	skip; // buggy: linking potentially marked node
 
 	while (true) {
 		<pred, curr, k> = locate(key);
 
 		if (k == key) {
-             return false;
+            return false;
 
 		} else {
 			entry->next = curr;
-			atomic {
-				choose {
-					// assume(pred->marked == false); // correct
-					skip; // buggy: update logically deleted node
-					assume(curr == pred->next);
-
-					pred->next = entry;
-					return true;
-				}{
-					skip; // retry
-				}
+            if (CAS(<pred->marked, pred->next>, <false, curr>, <false, entry>)) {
+				return true;
 			}
 		}
 	}
 }
 
-
 bool remove(data_t key) {
-	Node* pred, curr, next;
+	Node* curr, pred, next;
 	data_t k;
 
 	while (true) {
@@ -125,8 +130,10 @@ bool remove(data_t key) {
 
 		} else {
             next = curr->next;
-			if (CAS(<pred->marked, pred->next, curr->marked, curr->next>, <false, curr, false, next>, <false, next, true, next>)) {
-				return true;
+			if (CAS(<curr->marked, curr->next>, <false, next>, <true, next>)) {
+                CAS(<pred->marked, pred->next>, <false, curr>, <false, next>);
+                // <pred, curr, k> = locate(key);
+                return true;
 			}
 		}
 	}
