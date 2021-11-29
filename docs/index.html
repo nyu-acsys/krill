@@ -49,6 +49,10 @@
 			background-color: #e83e8c;
 		}
 
+		.code-link {
+			color: #e83e8c;
+		}
+
 		.tooltip-inner {
 			/*max-width: 400px;*/
 			max-width: 25rem;
@@ -150,10 +154,10 @@
 					<i class="far fa-file-pdf"></i> 
 					DOI
 				</a> -->
-				<a target="new" href="https://github.com/Wolff09/plankton" class="btn btn-primary text-right">
+				<!-- <a target="new" href="https://github.com/Wolff09/plankton" class="btn btn-primary text-right">
 					<i class="fas fa-code"></i>
 					Source Code
-				</a>
+				</a> -->
 				<!-- <a target="new"  href="#" class="btn btn-primary text-right">
 					<i class="fas fa-hdd"></i>
 					Virtual Machine
@@ -162,13 +166,20 @@
 		</div>
 
 
+		<div class="alert alert-warning container text-center lead p-4">
+			<em>
+				All information on this page is preliminary since the work is still under submission.
+				<br>
+				In particular, the source code is not yet publicly available.
+			</em>
+		</div><br>
 
 		<!-- ********************************************************************************** -->
 		<!-- *********************************** QUICKSTART *********************************** -->
 		<!-- ********************************************************************************** -->
 
 		<!-- Quick Start -->
-		<div class="alert alert-info container">
+		<!-- <div class="alert alert-info container">
 			<strong><i class="fas fa-shipping-fast"></i> Quick Start <i class="fas fa-shipping-fast"></i></strong>
 			<ol class="mt-2 mb-2">
 				<li class="mt-1">
@@ -190,7 +201,7 @@
 					Presto!
 				</li>
 			</ol>
-		</div>
+		</div> -->
 		<br>
 
 
@@ -270,7 +281,7 @@
 			<h4>Compilation</h4>
 			<p>
 				To build the project, do the following:</p>
-			<pre class="bg-light"><code class="bash">
+			<pre class="bg-light border"><code class="bash">
         cd path/to/plankton-PLDI22
         mkdir build
         cd build
@@ -325,23 +336,23 @@
 			<ul>
 				<li>
 					<i>Vechev&Yahav's 2CAS set</i> <span class="ref-full">VechevY08</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/VechevYahavDCas.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/VechevYahavDCas.pl">Code</a>
 				</li>
 				<li>
 					<i>Vechev&Yahav's CAS set</i> <span class="ref-full">VechevY08</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/VechevYahavCas.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/VechevYahavCas.pl">Code</a>
 				</li>
 				<li>
 					<i>ORVYY's set</i> <span class="ref-full">OHearnRVYY10</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/ORVYY.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/ORVYY.pl">Code</a>
 				</li>
 				<li>
 					<i>Michael's set</i> <span class="ref-full">Michael02a</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/Michael.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/Michael.pl">Code</a>
 				</li>
 				<li>
 					<i>Harris's set</i> <span class="ref-full">Harris01</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/Harris.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/Harris.pl">Code</a>
 				</li>
 			</ul>
 			
@@ -349,7 +360,7 @@
 			<p>
 				To run the benchmarks go to the installation folder and execute the benchmark script like so:
 			</p>
-			<pre class="bg-light"><code class="bash">
+			<pre class="bg-light border"><code class="bash">
         cd path/to/installation
         python3 benchmark.py
 			</code></pre>
@@ -362,7 +373,7 @@
 				To modify the repetition count or the timeout, modify time first lines of <code>benchmark.py</code> where the variables <code>TIMEOUT</code> (in seconds) and <code>REPETITIONS</code> are defined.
 				You may also abort <code>benchmark.py</code> (<code>ctrl+c</code>) which stops the benchmarking and produces the average of the benchmarks covered so far (the benchmarks are run in a round robin fashion so that preliminary results are more likely to cover the entire benchmark suite).
 			</p>
-			<pre class="bg-light"><code class="bash">
+			<pre class="bg-light border"><code class="bash">
         python3 benchmark.py &lt;timeout_in_seconds&gt;
 			</code></pre>
 			<p>
@@ -388,7 +399,7 @@
 				The timeout was set to 6h.
 				We mark successful tasks with <i class="experiments fas fa-check"></i>, failed tasks with <i class="experiments fas fa-times"></i>, and timed out tasks with <i class="experiments far fa-clock"></i>.
 			</p>
-			<table class="table experiments">
+			<table class="table experiments border">
 				<thead>
 					<tr>
 						<th scope="col">Program</th>
@@ -406,80 +417,68 @@
 				<tbody>
 					<tr>
 						<th scope="row">Vechev&Yahav's 2CAS set</th>
-						<td class="text-right">?</td>
-						<td class="text-right">?</td>
-						<td class="text-right">?</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right font-weight-bold">?s <i class="fas fa-check"></i></td>
+						<td class="text-right">2</td>
+						<td class="text-right">3</td>
+						<td class="text-right">1</td>
+						<td class="text-right">17%</td>
+						<td class="text-right">1%</td>
+						<td class="text-right">31%</td>
+						<td class="text-right">28%</td>
+						<td class="text-right">8%</td>
+						<td class="text-right font-weight-bold">4m 21s <i class="fas fa-check"></i></td>
 					</tr>
 					<tr>
 						<th scope="row">Vechev&Yahav's CAS set</th>
-						<td class="text-right">?</td>
-						<td class="text-right">?</td>
-						<td class="text-right">?</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right font-weight-bold">?s <i class="fas fa-check"></i></td>
+						<td class="text-right">2</td>
+						<td class="text-right">3</td>
+						<td class="text-right">1</td>
+						<td class="text-right">10%</td>
+						<td class="text-right">18%</td>
+						<td class="text-right">28%</td>
+						<td class="text-right">28%</td>
+						<td class="text-right">6%</td>
+						<td class="text-right font-weight-bold">8m 13s <i class="fas fa-check"></i></td>
 					</tr>
 					<tr>
 						<th scope="row">ORVYY's set</th>
-						<td class="text-right">?</td>
-						<td class="text-right">?</td>
-						<td class="text-right">?</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right font-weight-bold">?s <i class="fas fa-check"></i></td>
+						<td class="text-right">2</td>
+						<td class="text-right">3</td>
+						<td class="text-right">0</td>
+						<td class="text-right">14%</td>
+						<td class="text-right">0%</td>
+						<td class="text-right">32%</td>
+						<td class="text-right">34%</td>
+						<td class="text-right">6%</td>
+						<td class="text-right font-weight-bold">4m 30s <i class="fas fa-check"></i></td>
 					</tr>
 					<tr>
 						<th scope="row">Michael's set</th>
-						<td class="text-right">?</td>
-						<td class="text-right">?</td>
-						<td class="text-right">?</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right font-weight-bold">?s <i class="fas fa-check"></i></td>
+						<td class="text-right">2</td>
+						<td class="text-right">3</td>
+						<td class="text-right">2</td>
+						<td class="text-right">10%</td>
+						<td class="text-right">48%</td>
+						<td class="text-right">16%</td>
+						<td class="text-right">14%</td>
+						<td class="text-right">5%</td>
+						<td class="text-right font-weight-bold">16m 27s <i class="fas fa-check"></i></td>
 					</tr>
 					<tr>
 						<th scope="row">Harris's set</th>
-						<td class="text-right">?</td>
-						<td class="text-right">?</td>
-						<td class="text-right">?</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right font-weight-bold">?s <i class="fas fa-check"></i></td>
-					</tr>
-					<tr>
-						<th scope="row"></th>
-						<td class="text-right">?</td>
-						<td class="text-right">?</td>
-						<td class="text-right">?</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right">?%</td>
-						<td class="text-right font-weight-bold">?s <i class="fas fa-check"></i></td>
+						<td class="text-right">2</td>
+						<td class="text-right">3</td>
+						<td class="text-right">2</td>
+						<td class="text-right">4%</td>
+						<td class="text-right">14%</td>
+						<td class="text-right">8%</td>
+						<td class="text-right">64%</td>
+						<td class="text-right">2%</td>
+						<td class="text-right font-weight-bold">144m 37s <i class="fas fa-check"></i></td>
 					</tr>
 				</tbody>
 			</table>
 
-			<h4 id="stresstest">Stress Tests</h4>
+			<!-- <h4 id="stresstest">Stress Tests</h4>
 			<p>
 				We also stress tested <kbd>plankton</kbd> by running versions of our benchmark programs with purposely inserted bugs.
 				As expected, verification fails in all those cases.
@@ -525,17 +524,17 @@
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's 2CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavDCas_null.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavDCas_null.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavCas_null.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavCas_null.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							ORVYY's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/ORVYY_null.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/ORVYY_null.pl">Code</a>
 						</li>
 					</ul>
 					<p>
@@ -552,27 +551,27 @@
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's 2CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavDCas_nolink.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavDCas_nolink.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavCas_nolink.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavCas_nolink.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							ORVYY's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/ORVYY_nolink.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/ORVYY_nolink.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Michael's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/Michael_nolink.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/Michael_nolink.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Harris' set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/Harris_nolink.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/Harris_nolink.pl">Code</a>
 						</li>
 					</ul>
 					<p>
@@ -589,27 +588,27 @@
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's 2CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavDCas_cycle.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavDCas_cycle.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavCas_cycle.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavCas_cycle.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							ORVYY's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/ORVYY_cycle.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/ORVYY_cycle.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Michael's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/Michael_cycle.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/Michael_cycle.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Harris' set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/Harris_cycle.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/Harris_cycle.pl">Code</a>
 						</li>
 					</ul>
 					<p>
@@ -626,27 +625,27 @@
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's 2CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavDCas_linkmarked.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavDCas_linkmarked.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavCas_linkmarked.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavCas_linkmarked.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							ORVYY's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/ORVYY_linkmarked.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/ORVYY_linkmarked.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Michael's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/Michael_linkmarked.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/Michael_linkmarked.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Harris' set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/Harris_linkmarked.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/Harris_linkmarked.pl">Code</a>
 						</li>
 					</ul>
 					<p>
@@ -663,27 +662,27 @@
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's 2CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavDCas_wrong.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavDCas_wrong.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavCas_wrong.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavCas_wrong.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							ORVYY's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/ORVYY_wrong.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/ORVYY_wrong.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Michael's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/Michael_wrong.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/Michael_wrong.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Harris' set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/Harris_wrong.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/Harris_wrong.pl">Code</a>
 						</li>
 					</ul>
 					<p>
@@ -700,27 +699,27 @@
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's 2CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavDCas_ignoremark.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavDCas_ignoremark.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavCas_ignoremark.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavCas_ignoremark.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							ORVYY's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/ORVYY_ignoremark.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/ORVYY_ignoremark.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Michael's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/Michael_ignoremark.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/Michael_ignoremark.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Harris' set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/Harris_ignoremark.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/Harris_ignoremark.pl">Code</a>
 						</li>
 					</ul>
 					<p>
@@ -737,27 +736,27 @@
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's 2CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavDCas_duplicate.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavDCas_duplicate.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavCas_duplicate.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavCas_duplicate.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							ORVYY's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/ORVYY_duplicate.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/ORVYY_duplicate.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Michael's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/Michael_duplicate.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/Michael_duplicate.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Harris' set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/Harris_duplicate.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/Harris_duplicate.pl">Code</a>
 						</li>
 					</ul>
 					<p>
@@ -774,27 +773,27 @@
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's 2CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavDCas_mark.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavDCas_mark.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavCas_mark.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavCas_mark.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							ORVYY's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/ORVYY_mark.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/ORVYY_mark.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Michael's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/Michael_mark.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/Michael_mark.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Harris' set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/Harris_mark.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/Harris_mark.pl">Code</a>
 						</li>
 					</ul>
 					<p>
@@ -811,27 +810,27 @@
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's 2CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavDCas_nomark.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavDCas_nomark.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Vechev&Yahav's CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/VechevYahavCas_nomark.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/VechevYahavCas_nomark.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							ORVYY's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/ORVYY_nomark.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/ORVYY_nomark.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Michael's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/Michael_nomark.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/Michael_nomark.pl">Code</a>
 						</li>
 						<li>
 							<span class="font-weight-bold">?s</span> for 
 							Harris' set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/examples/buggy/Harris_nomark.pl">Code</a>
+							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/Harris_nomark.pl">Code</a>
 						</li>
 					</ul>
 					<p>
@@ -839,7 +838,7 @@
 						??
 					</p>
 				</div>
-			</div>
+			</div> -->
 		</div>
 		<br>
 
@@ -859,13 +858,13 @@
 			<p>
 				You invoke <kbd>plankton</kbd> like so:
 			</p>
-			<pre class="bg-light"><code class="">
+			<pre class="bg-light border"><code class="">
         ./plankton  [-g] [--no-spurious]  &lt;path_to_program&gt;
 			</code></pre>
 			<p>
 				The flags and their arguments are listed in the following table (excerpt).
 			</p>
-			<table class="table">
+			<table class="table border">
 				<thead>
 					<tr>
 						<th scope="col">Flag / Argument</th>
@@ -904,14 +903,161 @@
 				Besides the above, <code>--version</code> prints the tool's version, <code>-h</code> and <code>--help</code> print the full usage description.
 			</p>
 
-			<h4>Basic Usage</h4>
+			<h4>Input Programs</h4>
 			<p>
-				Input programs must adhere to the following EBNF.
-				Also note that <kbd>plankton</kbd> expects the program to contain an appropriate flow definition and node invariant.
+				<kbd>plankton</kbd> supports a simple C-style input language.
+				Below you find an example program that showcases the required components and the most common constructs.
+				(Note that the below example may not be linearizable.)
+				For a list of all supported constructs, refer to the <a target="new" href="https://www.antlr.org/">ANTLR</a> parser definition <span class="text-nowrap"><i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/src/parser/Plankton.g4">here</a></span>.
 			</p>
-			<pre class="bg-light"><code class="">
-        ???
-			</code></pre>
+			<nav>
+				<div class="nav nav-tabs" id="nav-tab" role="tablist">
+					<a class="nav-item nav-link active" id="nav-Example1-tab" data-toggle="tab" href="#nav-Example1" role="tab" aria-controls="nav-Example1" aria-selected="true">Initialization</a>
+					<a class="nav-item nav-link" id="nav-Example2-tab" data-toggle="tab" href="#nav-Example2" role="tab" aria-controls="nav-Example2" aria-selected="true">Flow&amp;Node invariants</a>
+					<a class="nav-item nav-link" id="nav-Example3-tab" data-toggle="tab" href="#nav-Example3" role="tab" aria-controls="nav-Example3" aria-selected="true">Helpers</a>
+					<a class="nav-item nav-link" id="nav-Example4-tab" data-toggle="tab" href="#nav-Example4" role="tab" aria-controls="nav-Example4" aria-selected="true">API functions</a>
+				</div>
+			</nav>
+			<div class="tab-content border-left border-right border-bottom p-3" id="nav-tabContent">
+				<div class="tab-pane show active" id="nav-Example1" role="tabpanel" aria-labelledby="nav-Example1-tab">
+					<p>
+						The first part of a program declares some structures and shared variables, like <code>Node</code> resp. <code>Head</code> in the example below.
+						Additionally, there is a dedicated initializer <code>__init__</code> that is executed atomically once before execution begins.
+						The <code>#name</code> option is optional.
+					</p>
+					<pre class="bg-light border"><code class="c">
+        #name "Program Name"
+        
+        
+        struct Node {
+            data_t val; // 'int' and 'data_t' are synonyms
+            bool marked;
+            Node* next;
+        }
+        
+        Node* Head;
+        
+        
+        void __init__() {
+            Head = malloc;
+            Head-&gt;next = NULL;
+            Head-&gt;marked = false;
+            Head-&gt;val = MIN; // there is also 'MAX'
+        }
+					</code></pre>
+				</div>
+				<div class="tab-pane show" id="nav-Example2" role="tabpanel" aria-labelledby="nav-Example2-tab">
+					<p>
+						First, <code>@contains</code> defines a predicate characterizing the logical contents of a node.
+						This predicate takes a pointer to the node and a value, and returns <code>true</code> iff the given value is considered logically contained in the given node.
+						Second, <code>@outflow</code> defines a predicate characterizing the outflow of a node per pointer field, here <code>next</code>.
+						Third, <code>@invariant</code> defines the node invariants of the program.
+						There is a dedicated invariant for nodes in the <code>local</code> and the <code>shared</code> heap.
+					</p>
+					<pre class="bg-light border"><code class="c">
+        def @contains(Node* node, data_t key) {
+            !node-&gt;marked && node-&gt;val == key
+        }
+        
+        def @outflow[next](Node* node, data_t key) {
+            !node-&gt;marked ==&gt; node-&gt;val &lt; key
+        }
+        
+        def @invariant[local](Node* x) {
+            x-&gt;_flow == 0
+        }
+        
+        def @invariant[shared](Node* x) {
+            Head != NULL
+         && Head-&gt;val == MIN
+         && !Head-&gt;marked
+         && Head-&gt;_flow != 0
+         && [MIN, MAX] in Head-&gt;_flow
+         && x-&gt;val == MIN ==&gt; x == Head
+        
+         && !x-&gt;marked ==&gt; [x-&gt;val, MAX] in x-&gt;_flow
+         && x-&gt;_flow != 0 ==&gt; [x-&gt;val, MAX] in x-&gt;_flow
+        }
+					</code></pre>
+				</div>
+				<div class="tab-pane show" id="nav-Example3" role="tabpanel" aria-labelledby="nav-Example3-tab">
+					<p>
+						Helper functions allow code reuse across multiple API functions.
+						Helpers are defined with the keyword <code>inline</code>.
+						They may have an arbitrary return type, including <code>void</code>, <code>int</code>, <code>int</code>, <code>Node*</code> (or pointers to any other declared struct), and comma separated lists of types.
+					</p>
+					<p>
+						For verification, one can think of helpers being inlined.
+					</p>
+					<pre class="bg-light border"><code class="c">
+        inline &lt;Node*, data_t&gt; locate(data_t key) {
+            Node* curr;
+            data_t k;
+            bool mark;
+        
+            curr = Head;
+            do {
+                curr = curr-&gt;next;
+                k = curr-&gt;val;
+                mark = curr-&gt;marked;
+            } while (k &lt; key || mark);
+            return &lt;curr, k&gt;;
+        }
+					</code></pre>
+				</div>
+				<div class="tab-pane show" id="nav-Example4" role="tabpanel" aria-labelledby="nav-Example4-tab">
+					<p>
+						API functions are targeted by the verification process.
+						They must have return type <code>bool</code> and take a single <code>data_t</code> or <code>int</code> as argument.
+						The allowed names are <code>contains</code>, <code>add</code>, <code>insert</code>, <code>remove</code>, and <code>delete</code>.
+						<kbd>plankton</kbd> derives the specification of API functions from their name.
+					</p>
+					<pre class="bg-light border"><code class="c">
+        bool contains(data_t key) {
+            Node* curr;
+            data_t k;
+        
+            &lt;curr, k&gt; = locate(key);
+            return k == key;
+        }
+        
+        bool add(data_t key) {
+            entry = malloc;
+            entry-&gt;val = key;
+            entry-&gt;marked = false;
+        
+            while (true) {
+                Node* entry, curr;
+                data_t k;
+                &lt;curr, k&gt; = locate(key);
+        
+                if (k == key) {
+                    return false;
+        
+                } else {
+                    atomic {
+                        entry-&gt;next = curr-&gt;next;
+                        curr-&gt;next = entry;
+                    }
+                    return true;
+                }
+            }
+        }
+        
+        bool remove(data_t key) {
+            while (true) {
+                Node* curr;
+                data_t k;
+                &lt;curr, k&gt; = locate(key);
+        
+                next = curr-&gt;next;
+                if (CAS(&lt;curr-&gt;val, curr-&gt;marked&gt;, &lt;k, false&gt;, &lt;k, true&gt;))
+                    return true;
+            }
+        }
+					</code></pre>
+				</div>
+			</div>
 		</div>
 		<br>
 
@@ -920,7 +1066,7 @@
 		<!-- ********************************************************************************** -->
 		<!-- ********************************* IMPLEMENTATION ********************************* -->
 		<!-- ********************************************************************************** -->
-		<!-- <div class="mt-4">
+		<div class="mt-4">
 			<h1>Notes on the Implementation</h1>
 			<p>
 				The following table links the techniques presented in the paper to the implementation.
@@ -935,93 +1081,167 @@
 					</tr>
 				</thead>
 				<tbody>
+					<!-- https://github.com/Wolff09/plankton/blob/PLDI22/ -->
 					<tr>
-						<td scope="row">Programs</td>
-						<td><code class="text-nowrap">src/cola/ast.hpp</code></td>
-						<td class="text-justify">
-							Abstract syntax tree for programs.
-							Supports a more powerful language than the one used in the paper.
+						<td scope="row">Programs, Logics</td>
+						<td>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/include/programs/ast.hpp" class="code-link"><code class="text-nowrap">include/programs/ast.hpp</code></a>
+							<br>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/include/logics/ast.hpp" class="code-link"><code class="text-nowrap">include/logics/ast.hpp</code></a>
+						</td>
+						<td class=""> <!-- text-justify -->
+							Abstract syntax tree for programs and the logics.
+						</td>
+					</tr>
+					<tr>
+						<td scope="row">Flows, Invariants</td>
+						<td>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/include/engine/config.hpp" class="code-link"><code class="text-nowrap">include/engine/config.hpp</code></a>
+						</td>
+						<td class=""> <!-- text-justify -->
+							Configuration object that specifies the flow and the node invariants.
+							Configuration objects are taken (parsed) from the input program.
+							Currently, the flow is restricted to keyset flows.
 						</td>
 					</tr>
 					<tr>
 						<td scope="row">Program Simplification</td>
-						<td><code class="text-nowrap">src/types/preprocess.hpp <br> src/types/preprocess.cpp</code></td>
-						<td class="text-justify">
-							Translates a given program into a simpler one following the command language given in the paper.
+						<td>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/parser/" class="code-link"><code class="text-nowrap">src/parser/*</code></a>
+						</td>
+						<td class=""> <!-- text-justify -->
+							The parser supports a richer input language that is transformed into the one defined in <code class="text-nowrap">include/programs/ast.hpp</code>.
 						</td>
 					</tr>
 					<tr>
-						<td scope="row">SMR automata (aka&nbsp;observers)</td>
-						<td><code class="text-nowrap">src/cola/observer.hpp</code></td>
-						<td class="text-justify">
-							SMR automata/observer implementation.
-							Like in the paper, the implementation assumes that <i>non-specified</i> transitions are intended to be self-loops.
+						<td scope="row">Commands</td>
+						<td>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/solver/post_*.cpp" class="code-link"><code class="text-nowrap">src/engine/solver/post_*.cpp</code></a>
+						</td>
+						<td class=""> <!-- text-justify -->
+							Implementation of Rule <code>(COM-SEM)</code>.
+							There are specialized implementations for assignments to variables (<code class="text-nowrap">post_assign_var.cpp</code>), assignments to memory cells (<code class="text-nowrap">post_assign_write.cpp</code>), assumptions (<code class="text-nowrap">post_assume.cpp</code>), and allocation (<code class="text-nowrap">post_malloc.cpp</code>).
 						</td>
 					</tr>
 					<tr>
-						<td scope="row">Types</td>
-						<td><code class="text-nowrap">src/types/types.hpp <br> src/types/types.cpp</code></td>
-						<td class="text-justify">
-							Type implementation, storing the SMR automata locations that it represents as well as flags whether the type contains &#120120;, &#120131;, or &#120138;.
-							The &#120124; guarantees are implicit.
-							Intuitively, our implementation computes the most precise &#120124; on-the-fly.
+						<td scope="row">Loops</td>
+						<td>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/proof/stmt.cpp" class="code-link"><code class="text-nowrap">src/engine/proof/stmt.cpp</code></a>
+						</td>
+						<td class=""> <!-- text-justify -->
+							Implementation of Rule <code>(LOOP)</code>.
 						</td>
 					</tr>
 					<tr>
-						<td scope="row">Post Image on Observers</td>
-						<td><code class="text-nowrap">src/types/sobserver.hpp <br> src/types/sobserver.cpp</code></td>
-						<td class="text-justify">
-							Our implementation uses a <i>symbolic observer</i>.
-							It implements the cross-product on SMR automata, their completion wrt. to non-specified/implicit transitions, and uses more powerful formulas as transition guards that ordinary SMR automata from <code class="text-nowrap">src/cola/observer.hpp</code>.
-							For computing the post image, we use <code>Z3</code> to check the satisfiability of guards.
+						<td scope="row">Flow Graphs</td>
+						<td>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/include/engine/flowgraph.hpp" class="code-link"><code class="text-nowrap">include/engine/flowgraph.hpp</code></a>
+							<br>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/flowgraph/make.hpp" class="code-link"><code class="text-nowrap">src/engine/flowgraph/make.hpp</code></a>
+						</td>
+						<td class=""> <!-- text-justify -->
+							Definition and generation of flow graphs.
+							Flow graphs are generated wrt. a memory assignment by taking a fixed, finite number of reachable nodes starting from the nodes participating in the assignment.
 						</td>
 					</tr>
 					<tr>
-						<td scope="row">Type Transformer Relation</td>
-						<td><code class="text-nowrap">src/types/types.hpp <br> src/types/types.cpp</code></td>
-						<td class="text-justify">
-							As described in the paper, relies on the post image for observers.
-							Additionally, properly computes how &#120120;, &#120131;, and &#120138; are maintained/lost/added.
+						<td scope="row">Histories</td>
+						<td>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/solver/past.cpp" class="code-link"><code class="text-nowrap">src/engine/solver/past.cpp</code></a>
+						</td>
+						<td class=""> <!-- text-justify -->
+							Implementation of history introduction and reasoning.
+							Note that this implements the <em>how</em>.
+							To see <em>when</em> this is performed, refer to <code class="text-nowrap">src/proof/common.hpp</code>.
 						</td>
 					</tr>
 					<tr>
-						<td scope="row">Type Check</td>
-						<td><code class="text-nowrap">src/types/checker.hpp <br> src/types/checker_check.cpp</code></td>
-						<td class="text-justify">
-							Implements the type rules from the paper.
-							In addition, performs on-the-fly loop-peeling for better convergence.
+						<td scope="row">Futures</td>
+						<td>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/solver/future.cpp" class="code-link"><code class="text-nowrap">src/engine/solver/future.cpp</code></a>
+						</td>
+						<td class=""> <!-- text-justify -->
+							Implementation of future introduction and reasoning.
+							Note that this implements the <em>how</em>.
+							To see <em>when</em> this is performed, refer to <code class="text-nowrap">src/proof/common.hpp</code>.
 						</td>
 					</tr>
 					<tr>
-						<td scope="row">Invariant Check</td>
-						<td><code class="text-nowrap">src/types/cave.hpp <br> src/types/cave.cpp</code></td>
-						<td class="text-justify">
-							Implements the source-to-source translation from the paper.
-							Here, however, we the destination program is one that can be fed to the <code>CAVE</code> tool (differs slightly from <code class="text-nowrap">src/cola/ast.hpp</code>).
+						<td scope="row">Interference</td>
+						<td>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/solver/stability.cpp" class="code-link"><code class="text-nowrap">src/engine/solver/stability.cpp</code></a>
+						</td>
+						<td class=""> <!-- text-justify -->
+							Applies interference (i.e. effects on the shared heap) such that annotations become stable (i.e. interference-free).
+							Note that this implements the <em>how</em>.
+							To see <em>when</em> this is performed, refer to <code class="text-nowrap">src/proof/common.hpp</code>.
 						</td>
 					</tr>
 					<tr>
-						<td scope="row">Linearizability Check</td>
-						<td><code class="text-nowrap">src/types/cave.hpp <br> src/types/cave.cpp</code></td>
-						<td class="text-justify">
-							Uses <code>CAVE</code> to check for linearizability.
-							This step requires to translate a program into one that can be fed to <code>CAVE</code>.
+						<td scope="row">Join</td>
+						<td>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/solver/join.cpp" class="code-link"><code class="text-nowrap">src/engine/solver/join.cpp</code></a>
+						</td>
+						<td class=""> <!-- text-justify -->
+							Implementation of the join operation, which deals with now, past, and future predicates.
+							Resource-like entities (variable bindings, points-to predicates, proof obligation resources) are matched manually; the remaining entities are handled semantically by encoding them into SMT.
 						</td>
 					</tr>
 					<tr>
-						<td scope="row">Program Transformation (Annotations, Mover&nbsp;Types)</td>
-						<td><code class="text-nowrap">src/types/rmraces.hpp <br> src/types/rmraces.cpp</code></td>
-						<td class="text-justify">
-							Based on failed type checks, uses heuristics to add annotations or apply mover types.
-							If necessary, annotations are checked for correctness before being added.
-							(For example, active annotations on shared variables are typically not checked.)
-							Mover types are applied if no helpful annotation can be found.
-							Then, a sequence is checked for right-moverness and if applicable moved into an atomic block.
+						<td scope="row">Entailment</td>
+						<td>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/solver/implication.cpp" class="code-link"><code class="text-nowrap">src/engine/solver/implication.cpp</code></a>
+						</td>
+						<td class=""> <!-- text-justify -->
+							Entailment operation, which deals with now, past, and future predicates.
+							Resource-like entities (variable bindings, points-to predicates, proof obligation resources), futures, pasts are matched syntactically; only the now stack is handled semantically by encoding it into SMT.
+						</td>
+					</tr>
+					<tr>
+						<td scope="row">Encoding</td>
+						<td>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/include/engine/encoding.hpp" class="code-link"><code class="text-nowrap">include/engine/encoding.hpp</code></a>
+							<br>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/encoding/" class="code-link"><code class="text-nowrap">src/engine/encoding/*</code></a>
+						</td>
+						<td class=""> <!-- text-justify -->
+							SMT encoding of now predicates.
+							The encoding does not handle resource-like entities (variable bindings, points-to predicates, proof obligation resources).
+						</td>
+					</tr>
+					<tr>
+						<td scope="row">Fixed Point</td>
+						<td>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/proof/api.cpp" class="code-link"><code class="text-nowrap">src/engine/proof/api.cpp</code></a>
+							<br>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/proof/common.cpp" class="code-link"><code class="text-nowrap">src/engine/proof/common.cpp</code></a>
+						</td>
+						<td class=""> <!-- text-justify -->
+							Implements the fixed point (<code class="text-nowrap">src/engine/proof/api.cpp</code>) saturating the interference by repeatedly generating proofs for the API functions of the input program and extracting new inferferences from the generated proof.
+							The generated proof is guaranteed to be interference-free: interferences are applied to the generated annotation unless a command is a right-mover (<code class="text-nowrap">src/engine/proof/common.cpp</code>).
+							Past and future reasoning is applied whenever interference is applied or as a pre-processing step of the join operation (<code class="text-nowrap">src/engine/proof/common.cpp</code>).
+						</td>
+					</tr>
+					<tr>
+						<td scope="row">Linearizability</td>
+						<td>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/proof/api.cpp" class="code-link"><code class="text-nowrap">src/engine/proof/api.cpp</code></a>
+							<br>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/solver/post_assign_write.cpp" class="code-link"><code class="text-nowrap">src/engine/solver/post_assign_write.cpp</code></a>
+							<br>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/solver/ful.cpp" class="code-link"><code class="text-nowrap">src/engine/solver/ful.cpp</code></a>
+							<br>
+							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/encoding/spec.cpp" class="code-link"><code class="text-nowrap">src/engine/encoding/spec.cpp</code></a>
+						</td>
+						<td class=""> <!-- text-justify -->
+							Linearizability is checked for every proof generated for API function (<code class="text-nowrap">src/engine/proof/api.cpp</code>).
+							The check is performed directly for impure memory assignment (<code class="text-nowrap">src/engine/solver/post_assign_write.cpp</code>) or using past (hindsight) reasoning (<code class="text-nowrap">src/engine/solver/fut.cpp</code>) on top of a function's proof (<code class="text-nowrap">src/engine/proof/api.cpp</code>).
+							Whether or not the specification is met, is checked by encoding the keyset theorem in SMT (<code class="text-nowrap">src/engine/encoding/spec.cpp</code>).
 						</td>
 					</tr>
 				</tbody>
 			</table>
-		</div> -->
+		</div>
 
 
 
