@@ -369,12 +369,12 @@
 				Our test script uses the timeout feature of the <code>subprocess</code> library which is available only in version 3.5 and newer.
 			</p>
 			<p>
-				The <code>benchmark.py</code> script runs each benchmark for 10 times, with a timeout of 6 hours per run.
-				To modify the repetition count or the timeout, modify time first lines of <code>benchmark.py</code> where the variables <code>TIMEOUT</code> (in seconds) and <code>REPETITIONS</code> are defined.
+				The <code>benchmark.py</code> script runs each benchmark for 5 times, with a timeout of 6 hours per run.
+				To modify the repetition count or the timeout, pass the appropriate command line arguments as shown below.
 				You may also abort <code>benchmark.py</code> (<code>ctrl+c</code>) which stops the benchmarking and produces the average of the benchmarks covered so far (the benchmarks are run in a round robin fashion so that preliminary results are more likely to cover the entire benchmark suite).
 			</p>
 			<pre class="bg-light border"><code class="bash">
-        python3 benchmark.py &lt;timeout_in_seconds&gt;
+        python3 benchmark.py [&lt;number_of_repetitions&gt;] [&lt;timeout_in_seconds&gt;]
 			</code></pre>
 			<p>
 				The benchmark script will output a table with the following columns:
@@ -498,6 +498,13 @@
 				<li><i>Bug 8:</i> Insertions logically delete the node preceding the insertion.</li>
 				<li><i>Bug 9:</i> Missing logical deletion.</li>
 			</ul>
+			<p>
+				The stress test suite can be repeated with the <code>stresstest.py</code> script.
+				This script is similar in usage to the <code>stresstest.py</code> script.
+			</p>
+			<pre class="bg-light border"><code class="bash">
+        python3 stresstest.py [&lt;number_of_repetitions&gt;] [&lt;timeout_in_seconds&gt;]
+			</code></pre>
 			<p>
 				Below we list the code of the buggy programs, the time it takes until <kbd>plankton</kbd> fails verification, and the reported failure reason.
 			</p>
