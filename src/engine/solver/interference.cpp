@@ -158,7 +158,7 @@ bool Solver::AddInterference(std::deque<std::unique_ptr<HeapEffect>> effects) {
     // check if new effects exist
     if (effects.empty()) return false;
     
-    INFO(std::endl << "Adding effects to solver: " << std::endl)
+    INFO(std::endl << "Adding effects to solver (" << effects.size() << "): " << std::endl)
     for (const auto& effect : effects) INFO("   " << *effect << std::endl)
     INFO(std::endl)
     

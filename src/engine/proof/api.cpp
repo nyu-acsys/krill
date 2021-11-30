@@ -34,7 +34,7 @@ void ProofGenerator::GenerateProof() {
     if (futureSuggestions.empty()) {
         INFO(infoPrefix << "Using no future suggestions." << std::endl)
     } else {
-        INFO(infoPrefix << "Using the following future suggestions: " << std::endl)
+        INFO(infoPrefix << "Using the following future suggestions (" << futureSuggestions.size() << "): " << std::endl)
         for (const auto& suggestion : futureSuggestions) INFO(infoPrefix << "   " << *suggestion << std::endl)
     }
 
