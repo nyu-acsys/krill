@@ -5,52 +5,53 @@ import signal
 from subprocess import Popen, PIPE, TimeoutExpired
 from timeit import default_timer as timer
 from statistics import mean
+import sys
 
 #
 # CONFIGURATION begin
 #
 
 TIMEOUT = 60 * 60 * 6  # in seconds
-REPETITIONS = 2
+REPETITIONS = 5
 
 EXECUTABLE = "./build/bin/plankton"
 BENCHMARKS = [
     "examples/buggy/01_null_VechevYahavDCas.pl",
-    "examples/buggy/02_nolink_Harris.pl",
-    "examples/buggy/02_nolink_Michael.pl",
-    "examples/buggy/02_nolink_ORVYY.pl",
-    "examples/buggy/02_nolink_VechevYahavCas.pl",
     "examples/buggy/02_nolink_VechevYahavDCas.pl",
-    "examples/buggy/03_cycle_Harris.pl",
-    "examples/buggy/03_cycle_Michael.pl",
-    "examples/buggy/03_cycle_ORVYY.pl",
-    "examples/buggy/03_cycle_VechevYahavCas.pl",
+    "examples/buggy/02_nolink_VechevYahavCas.pl",
+    "examples/buggy/02_nolink_ORVYY.pl",
+    "examples/buggy/02_nolink_Michael.pl",
+    "examples/buggy/02_nolink_Harris.pl",
     "examples/buggy/03_cycle_VechevYahavDCas.pl",
-    "examples/buggy/04_linkmarked_Michael.pl",
-    "examples/buggy/04_linkmarked_ORVYY.pl",
-    "examples/buggy/04_linkmarked_VechevYahavCas.pl",
+    "examples/buggy/03_cycle_VechevYahavCas.pl",
+    "examples/buggy/03_cycle_ORVYY.pl",
+    "examples/buggy/03_cycle_Michael.pl",
+    "examples/buggy/03_cycle_Harris.pl",
     "examples/buggy/04_linkmarked_VechevYahavDCas.pl",
-    "examples/buggy/05_wrongkey_Harris.pl",
-    "examples/buggy/05_wrongkey_Michael.pl",
-    "examples/buggy/05_wrongkey_ORVYY.pl",
+    "examples/buggy/04_linkmarked_VechevYahavCas.pl",
+    "examples/buggy/04_linkmarked_ORVYY.pl",
+    "examples/buggy/04_linkmarked_Michael.pl",
     "examples/buggy/05_wrongkey_VechevYahavCas.pl",
-    "examples/buggy/06_ignoremark_Harris.pl",
-    "examples/buggy/06_ignoremark_Michael.pl",
-    "examples/buggy/06_ignoremark_ORVYY.pl",
+    "examples/buggy/05_wrongkey_ORVYY.pl",
+    "examples/buggy/05_wrongkey_Michael.pl",
+    "examples/buggy/05_wrongkey_Harris.pl",
     "examples/buggy/06_ignoremark_VechevYahavCas.pl",
-    "examples/buggy/07_duplicate_Harris.pl",
-    "examples/buggy/07_duplicate_Michael.pl",
-    "examples/buggy/07_duplicate_ORVYY.pl",
-    "examples/buggy/07_duplicate_VechevYahavCas.pl",
+    "examples/buggy/06_ignoremark_ORVYY.pl",
+    "examples/buggy/06_ignoremark_Michael.pl",
+    "examples/buggy/06_ignoremark_Harris.pl",
     "examples/buggy/07_duplicate_VechevYahavDCas.pl",
-    "examples/buggy/08_mark_Harris.pl",
-    "examples/buggy/08_mark_Michael.pl",
-    "examples/buggy/08_mark_ORVYY.pl",
+    "examples/buggy/07_duplicate_VechevYahavCas.pl",
+    "examples/buggy/07_duplicate_ORVYY.pl",
+    "examples/buggy/07_duplicate_Michael.pl",
+    "examples/buggy/07_duplicate_Harris.pl",
     "examples/buggy/08_mark_VechevYahavCas.pl",
-    "examples/buggy/09_nomark_Harris.pl",
-    "examples/buggy/09_nomark_Michael.pl",
-    "examples/buggy/09_nomark_ORVYY.pl",
+    "examples/buggy/08_mark_ORVYY.pl",
+    "examples/buggy/08_mark_Michael.pl",
+    "examples/buggy/08_mark_Harris.pl",
     "examples/buggy/09_nomark_VechevYahavCas.pl"
+    "examples/buggy/09_nomark_ORVYY.pl",
+    "examples/buggy/09_nomark_Michael.pl",
+    "examples/buggy/09_nomark_Harris.pl",
 ]
 
 #
@@ -129,6 +130,10 @@ def main():
 
 if __name__ == '__main__':
     try:
+        if len(sys.argv) > 1:
+            REPETITIONS = int(sys.argv[1])
+            if len(sys.argv) > 2:
+                TIMEOUT = int(sys.argv[2])
         main()
     except KeyboardInterrupt:
         print("", flush=True)

@@ -5,13 +5,14 @@ import signal
 from subprocess import Popen, PIPE, TimeoutExpired
 from statistics import mean
 import re
+import sys
 
 #
 # CONFIGURATION begin
 #
 
 TIMEOUT = 60 * 60 * 6  # in seconds
-REPETITIONS = 2
+REPETITIONS = 5
 
 EXECUTABLE = "./build/bin/plankton"
 BENCHMARKS = [
@@ -182,6 +183,10 @@ def main():
 
 if __name__ == '__main__':
     try:
+        if len(sys.argv) > 1:
+            REPETITIONS = int(sys.argv[1])
+            if len(sys.argv) > 2:
+                TIMEOUT = int(sys.argv[2])
         main()
     except KeyboardInterrupt:
         print("", flush=True)
