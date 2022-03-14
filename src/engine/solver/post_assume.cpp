@@ -2,7 +2,6 @@
 
 #include "logics/util.hpp"
 #include "engine/util.hpp"
-#include "engine/encoding.hpp"
 #include "util/timer.hpp"
 
 using namespace plankton;

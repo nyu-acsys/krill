@@ -110,6 +110,27 @@ namespace plankton {
         ACCEPT_LOGIC_VISITOR
     };
 
+    struct SymbolicSelfTid final : public  SymbolicExpression {
+        explicit SymbolicSelfTid();
+        [[nodiscard]] Order GetOrder() const override;
+        [[nodiscard]] const Type& GetType() const override;
+        ACCEPT_LOGIC_VISITOR
+    };
+
+    struct SymbolicSomeTid final : public  SymbolicExpression {
+        explicit SymbolicSomeTid();
+        [[nodiscard]] Order GetOrder() const override;
+        [[nodiscard]] const Type& GetType() const override;
+        ACCEPT_LOGIC_VISITOR
+    };
+
+    struct SymbolicUnlocked final : public  SymbolicExpression {
+        explicit SymbolicUnlocked();
+        [[nodiscard]] Order GetOrder() const override;
+        [[nodiscard]] const Type& GetType() const override;
+        ACCEPT_LOGIC_VISITOR
+    };
+
     //
     // Formulas
     //

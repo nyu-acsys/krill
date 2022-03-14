@@ -22,6 +22,7 @@ inline constexpr std::string_view MakeNamePrefix(Sort sort, Order order) {
                 case Sort::VOID: return "@v";
                 case Sort::BOOL: return "@b";
                 case Sort::DATA: return "@d";
+                case Sort::TID: return "@t";
                 case Sort::PTR: return "@a";
             }
             throw;
@@ -30,6 +31,7 @@ inline constexpr std::string_view MakeNamePrefix(Sort sort, Order order) {
                 case Sort::VOID: return "@V";
                 case Sort::BOOL: return "@B";
                 case Sort::DATA: return "@D";
+                case Sort::TID: return "@T";
                 case Sort::PTR: return "@A";
             }
             throw;
@@ -117,6 +119,24 @@ SymbolicMax::SymbolicMax() = default;
 Order SymbolicMax::GetOrder() const { return plankton::Order::FIRST; }
 
 const Type& SymbolicMax::GetType() const { return Type::Data(); }
+
+SymbolicSelfTid::SymbolicSelfTid() = default;
+
+Order SymbolicSelfTid::GetOrder() const { return plankton::Order::FIRST; }
+
+const Type& SymbolicSelfTid::GetType() const { return Type::Thread(); }
+
+SymbolicSomeTid::SymbolicSomeTid() = default;
+
+Order SymbolicSomeTid::GetOrder() const { return plankton::Order::FIRST; }
+
+const Type& SymbolicSomeTid::GetType() const { return Type::Thread(); }
+
+SymbolicUnlocked::SymbolicUnlocked() = default;
+
+Order SymbolicUnlocked::GetOrder() const { return plankton::Order::FIRST; }
+
+const Type& SymbolicUnlocked::GetType() const { return Type::Thread(); }
 
 
 //

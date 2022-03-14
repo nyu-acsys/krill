@@ -30,6 +30,7 @@ structDecl : 'struct' name=Identifier '{' fieldDecl* '}' (';')? ;
 type : BoolType             #typeBool
      | IntType              #typeInt
      | DataType             #typeData
+     | ThreadType           #typeThread
      | name=Identifier '*'  #typePtr
      ;
 
@@ -83,6 +84,8 @@ command : 'skip'                                            #cmdSkip
         | 'return'                                          #cmdReturnVoid
         | 'return' simpleExprList                           #cmdReturnList
         | 'return' logicCondition                           #cmdReturnExpr
+        | '__lock__' '(' lock=deref ')'                     #cmdLock
+        | '__unlock__' '(' lock=deref ')'                   #cmdUnlock
         ;
 
 cas : 'CAS' '(' dst=varList ',' cmp=simpleExprList ',' src=simpleExprList ')'    #casStack
@@ -203,10 +206,11 @@ invariant : implication ( And implication )* ;
 Inline : 'inline' ;
 Extern : 'extern' ;
 
-VoidType : 'void' ;
-DataType : 'data_t' ;
-BoolType : 'bool' ;
-IntType  : 'int' ;
+VoidType   : 'void' ;
+DataType   : 'data_t' ;
+BoolType   : 'bool' ;
+IntType    : 'int' ;
+ThreadType : 'thread_t';
 
 Null   : 'NULL' | 'nullptr' ;
 True   : 'true' ;

@@ -80,6 +80,7 @@ private:
             case Sort::VOID: break;
             case Sort::BOOL: result.push_back(std::make_unique<SymbolicBool>(true)); result.push_back(std::make_unique<SymbolicBool>(false)); break;
             case Sort::DATA: result.push_back(std::make_unique<SymbolicMin>()); result.push_back(std::make_unique<SymbolicMax>()); break;
+            case Sort::TID: throw std::logic_error("not yet implemented"); // TODO: IMPLEMENT
             case Sort::PTR: result.push_back(std::make_unique<SymbolicNull>()); break;
         }
         return result;

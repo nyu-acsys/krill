@@ -41,6 +41,11 @@ const Type& Type::Null() {
     return type;
 }
 
+const Type& Type::Thread() {
+    static const Type type = Type("thread_t", Sort::TID);
+    return type;
+}
+
 std::optional<std::reference_wrapper<const Type>> Type::GetField(const std::string& fieldName) const {
     auto find = fields.find(fieldName);
     if (find == fields.end()) return std::nullopt;
@@ -200,6 +205,16 @@ Malloc::Malloc(std::unique_ptr<VariableExpression> left) : lhs(std::move(left)) 
 Macro::Macro(const Function& function) : function(function) {
 }
 
+AcquireLock::AcquireLock(std::unique_ptr<Dereference> lock_) : lock(std::move(lock_)) {
+    assert(lock);
+    assert(lock->GetSort() == Sort::TID);
+}
+
+ReleaseLock::ReleaseLock(std::unique_ptr<Dereference> lock_) : lock(std::move(lock_)) {
+    assert(lock);
+    assert(lock->GetSort() == Sort::TID);
+}
+
 const Function& Macro::Func() const { return function; }
 
 template<typename L, typename R>
@@ -226,6 +241,7 @@ std::ostream& plankton::operator<<(std::ostream& stream, const Sort& object) {
         case Sort::VOID: stream << "VoidSort"; break;
         case Sort::BOOL: stream << "BoolSort"; break;
         case Sort::DATA: stream << "DataSort"; break;
+        case Sort::TID: stream << "ThreadSort"; break;
         case Sort::PTR: stream << "PointerSort"; break;
     }
     return stream;

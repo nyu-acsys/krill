@@ -32,6 +32,8 @@ struct RightMoveVisitor : public BaseProgramVisitor {
     }
     void Visit(const VariableAssignment& node) override { HandleAssignment(node); }
     void Visit(const MemoryWrite& node) override { HandleAssignment(node); }
+    void Visit(const AcquireLock& /*node*/) override { isRightMover = true; }
+    void Visit(const ReleaseLock& /*node*/) override { isRightMover = false; }
     void Visit(const Function& /*node*/) override { isRightMover = false; }
 };
 

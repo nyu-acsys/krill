@@ -4,6 +4,9 @@
 
 # Build
 build/*
+build-9/*
+build-10/*
+build-11/*
 build-linux/*
 build-linux-notime/*
 cmake-build-debug/*

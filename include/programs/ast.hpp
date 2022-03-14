@@ -31,7 +31,7 @@ namespace plankton {
     //
     
     enum struct Sort {
-        VOID, BOOL, DATA, PTR
+        VOID, BOOL, DATA, PTR, TID
     };
 
     struct Type final {
@@ -58,6 +58,7 @@ namespace plankton {
         static const Type& Bool();
         static const Type& Data();
         static const Type& Null();
+        static const Type& Thread();
     };
 
     struct VariableDeclaration final {
@@ -271,15 +272,29 @@ namespace plankton {
         explicit Malloc(std::unique_ptr<VariableExpression> lhs);
         ACCEPT_PROGRAM_VISITOR
     };
-    
+
     struct Macro final : public Command {
         // lhs must not occur twice
         std::vector<std::unique_ptr<VariableExpression>> lhs;
         std::reference_wrapper<const Function> function;
         std::vector<std::unique_ptr<SimpleExpression>> arguments;
-        
+
         explicit Macro(const Function& function);
         [[nodiscard]] const Function& Func() const;
+        ACCEPT_PROGRAM_VISITOR
+    };
+
+    struct AcquireLock final : public Command {
+        std::unique_ptr<Dereference> lock;
+
+        explicit AcquireLock(std::unique_ptr<Dereference> lock);
+        ACCEPT_PROGRAM_VISITOR
+    };
+
+    struct ReleaseLock final : public Command {
+        std::unique_ptr<Dereference> lock;
+
+        explicit ReleaseLock(std::unique_ptr<Dereference> lock);
         ACCEPT_PROGRAM_VISITOR
     };
     

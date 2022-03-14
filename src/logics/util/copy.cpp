@@ -32,6 +32,9 @@ struct CopyVisitor : public LogicVisitor {
     void Visit(const SymbolicNull& object) override { Handle(object); }
     void Visit(const SymbolicMin& object) override { Handle(object); }
     void Visit(const SymbolicMax& object) override { Handle(object); }
+    void Visit(const SymbolicSelfTid& object) override { Handle(object); }
+    void Visit(const SymbolicSomeTid& object) override { Handle(object); }
+    void Visit(const SymbolicUnlocked& object) override { Handle(object); }
     void Visit(const Guard& object) override { Handle(object); }
     void Visit(const Update& object) override { Handle(object); }
     void Visit(const SeparatingConjunction& object) override { Handle(object); }
@@ -104,6 +107,21 @@ std::unique_ptr<SymbolicMin> plankton::Copy<SymbolicMin>(const SymbolicMin& /*ob
 template<>
 std::unique_ptr<SymbolicMax> plankton::Copy<SymbolicMax>(const SymbolicMax& /*object*/) {
     return std::make_unique<SymbolicMax>();
+}
+
+template<>
+std::unique_ptr<SymbolicSelfTid> plankton::Copy<SymbolicSelfTid>(const SymbolicSelfTid& /*object*/) {
+    return std::make_unique<SymbolicSelfTid>();
+}
+
+template<>
+std::unique_ptr<SymbolicSomeTid> plankton::Copy<SymbolicSomeTid>(const SymbolicSomeTid& /*object*/) {
+    return std::make_unique<SymbolicSomeTid>();
+}
+
+template<>
+std::unique_ptr<SymbolicUnlocked> plankton::Copy<SymbolicUnlocked>(const SymbolicUnlocked& /*object*/) {
+    return std::make_unique<SymbolicUnlocked>();
 }
 
 template<>

@@ -310,6 +310,7 @@ inline std::vector<std::function<std::unique_ptr<Axiom>()>> GetContextGenerators
                     [&symbol]() { return MakeBinary<BinaryOperator::EQ>(symbol, std::make_unique<SymbolicMax>()); },
                     [&symbol]() { return MakeBinary<BinaryOperator::LT>(symbol, std::make_unique<SymbolicMax>()); }
                 };
+                case Sort::TID: throw std::logic_error("not yet implemented"); // TODO: IMPLEMENT
                 case Sort::PTR: return { // NULL or not
                     [&symbol]() { return MakeBinary<BinaryOperator::EQ>(symbol, std::make_unique<SymbolicNull>()); },
                     [&symbol]() { return MakeBinary<BinaryOperator::NEQ>(symbol, std::make_unique<SymbolicNull>()); }
@@ -533,7 +534,7 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
     if (IsTrivial(*pre->now, cmd)) return PostImage(std::move(pre)); // TODO: needed?
 
     // TODO: use futures as a last resort their post image is less precise
-    std::unique_ptr<Annotation> fromFuture;
+    std::unique_ptr<Annotation> fromFuture = nullptr;
     if (useFuture && !pre->future.empty()) {
         fromFuture = TryGetFromFuture(*pre, cmd);
     }
@@ -541,6 +542,7 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
     try {
         PostImageInfo info(std::move(pre), cmd, config);
         // if (info.encoding.ImpliesFalse()) return PostImage();
+        if (info.encoding.ImpliesFalse()) throw std::logic_error("Failed to perform proper memory update: cautiously refusing to post unsatisfiable encoding."); // TODO better error handling
         CheckPublishing(info);
         CheckReachability(info);
         CheckFlowCoverage(info);

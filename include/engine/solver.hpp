@@ -42,6 +42,8 @@ namespace plankton {
 
         [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const Assume& cmd) const;
         [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const Malloc& cmd) const;
+        [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const AcquireLock& cmd) const;
+        [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const ReleaseLock& cmd) const;
         [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const VariableAssignment& cmd) const;
         [[nodiscard]] PostImage Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, bool useFuture = true) const;
 

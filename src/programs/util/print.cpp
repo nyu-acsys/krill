@@ -22,8 +22,10 @@ constexpr std::string_view CMD_BREAK = "break";
 constexpr std::string_view CMD_RETURN = "return";
 constexpr std::string_view CMD_ASSUME = "assume";
 constexpr std::string_view CMD_ASSERT = "assert";
+constexpr std::string_view CMD_LOCK = "__lock__";
+constexpr std::string_view CMD_UNLOCK = "__unlock__";
 constexpr std::string_view CMD_MALLOC = "malloc";
-constexpr std::string_view CMD_SIZEOF = "sizeof";
+constexpr std::string_view CMD_SIZEOF = "__sizeof__";
 constexpr std::string_view STMT_ATOMIC = "atomic";
 constexpr std::string_view STMT_LOOP = "while (true)";
 constexpr std::string_view STMT_CHOICE = "choose";
@@ -126,6 +128,16 @@ struct CommandPrinter : public ExpressionPrinter {
     }
     void Visit(const VariableAssignment& object) override { HandleAssignment(object); }
     void Visit(const MemoryWrite& object) override { HandleAssignment(object); }
+    void Visit(const AcquireLock& object) override {
+        stream << CMD_LOCK << "(";
+        object.lock->Accept(*this);
+        stream << ");" << lineEnd;
+    }
+    void Visit(const ReleaseLock& object) override {
+        stream << CMD_UNLOCK << "(";
+        object.lock->Accept(*this);
+        stream << ");" << lineEnd;
+    }
 };
 
 struct Indent {
@@ -262,6 +274,8 @@ void plankton::Print(const AstNode& object, std::ostream& stream) {
         void Visit(const Macro& object) override { PrintCommand(object); }
         void Visit(const VariableAssignment& object) override { PrintCommand(object); }
         void Visit(const MemoryWrite& object) override { PrintCommand(object); }
+        void Visit(const AcquireLock& object) override { PrintCommand(object); }
+        void Visit(const ReleaseLock& object) override { PrintCommand(object); }
         void Visit(const Scope& object) override { PrintProgram(object); }
         void Visit(const Atomic& object) override { PrintProgram(object); }
         void Visit(const Sequence& object) override { PrintProgram(object); }

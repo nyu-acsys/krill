@@ -45,6 +45,18 @@ void ProofGenerator::Visit(const Assume& cmd) {
     MakeInterferenceStable(cmd);
 }
 
+void ProofGenerator::Visit(const AcquireLock &cmd) {
+    INFO(infoPrefix << "Post for '" << cmd << "'." << INFO_SIZE << std::endl)
+    ApplyTransformer(MakePostTransformer(cmd, solver, pldiPost));
+    MakeInterferenceStable(cmd);
+}
+
+void ProofGenerator::Visit(const ReleaseLock &cmd) {
+    INFO(infoPrefix << "Post for '" << cmd << "'." << INFO_SIZE << std::endl)
+    ApplyTransformer(MakePostTransformer(cmd, solver, pldiPost));
+    MakeInterferenceStable(cmd);
+}
+
 void ProofGenerator::Visit(const Malloc& cmd) {
     INFO(infoPrefix << "Post for '" << cmd << "'." << INFO_SIZE << std::endl)
     ApplyTransformer(MakePostTransformer(cmd, solver, pldiPost));

@@ -23,6 +23,8 @@ namespace plankton {
     struct Macro;
     struct VariableAssignment;
     struct MemoryWrite;
+    struct AcquireLock;
+    struct ReleaseLock;
     struct Scope;
     struct Atomic;
     struct Sequence;
@@ -53,6 +55,8 @@ namespace plankton {
         virtual void Visit(const Macro& object) = 0;
         virtual void Visit(const VariableAssignment& object) = 0;
         virtual void Visit(const MemoryWrite& object) = 0;
+        virtual void Visit(const AcquireLock& object) = 0;
+        virtual void Visit(const ReleaseLock& object) = 0;
         virtual void Visit(const Scope& object) = 0;
         virtual void Visit(const Atomic& object) = 0;
         virtual void Visit(const Sequence& object) = 0;
@@ -83,6 +87,8 @@ namespace plankton {
         void Visit(const Macro& object) override;
         void Visit(const VariableAssignment& object) override;
         void Visit(const MemoryWrite& object) override;
+        void Visit(const AcquireLock& object) override;
+        void Visit(const ReleaseLock& object) override;
         void Visit(const Scope& object) override;
         void Visit(const Atomic& object) override;
         void Visit(const Sequence& object) override;
@@ -113,6 +119,8 @@ namespace plankton {
         void Visit(const Macro& object) override;
         void Visit(const VariableAssignment& object) override;
         void Visit(const MemoryWrite& object) override;
+        void Visit(const AcquireLock& object) override;
+        void Visit(const ReleaseLock& object) override;
         void Visit(const Scope& object) override;
         void Visit(const Atomic& object) override;
         void Visit(const Sequence& object) override;
@@ -143,6 +151,8 @@ namespace plankton {
         void Visit(const Macro& object) override;
         void Visit(const VariableAssignment& object) override;
         void Visit(const MemoryWrite& object) override;
+        void Visit(const AcquireLock& object) override;
+        void Visit(const ReleaseLock& object) override;
         void Visit(const Scope& object) override;
         void Visit(const Atomic& object) override;
         void Visit(const Sequence& object) override;
@@ -169,6 +179,8 @@ namespace plankton {
         virtual void Enter(const Macro& object);
         virtual void Enter(const VariableAssignment& object);
         virtual void Enter(const MemoryWrite& object);
+        virtual void Enter(const AcquireLock& object);
+        virtual void Enter(const ReleaseLock& object);
         virtual void Enter(const Scope& object);
         virtual void Enter(const Atomic& object);
         virtual void Enter(const Sequence& object);
@@ -200,6 +212,8 @@ namespace plankton {
         virtual void Visit(Macro& object) = 0;
         virtual void Visit(VariableAssignment& object) = 0;
         virtual void Visit(MemoryWrite& object) = 0;
+        virtual void Visit(AcquireLock& object) = 0;
+        virtual void Visit(ReleaseLock& object) = 0;
         virtual void Visit(Scope& object) = 0;
         virtual void Visit(Atomic& object) = 0;
         virtual void Visit(Sequence& object) = 0;
@@ -230,6 +244,8 @@ namespace plankton {
         void Visit(Macro& object) override;
         void Visit(VariableAssignment& object) override;
         void Visit(MemoryWrite& object) override;
+        void Visit(AcquireLock& object) override;
+        void Visit(ReleaseLock& object) override;
         void Visit(Scope& object) override;
         void Visit(Atomic& object) override;
         void Visit(Sequence& object) override;
@@ -260,6 +276,8 @@ namespace plankton {
         void Visit(Macro& object) override;
         void Visit(VariableAssignment& object) override;
         void Visit(MemoryWrite& object) override;
+        void Visit(AcquireLock& object) override;
+        void Visit(ReleaseLock& object) override;
         void Visit(Scope& object) override;
         void Visit(Atomic& object) override;
         void Visit(Sequence& object) override;
@@ -290,6 +308,8 @@ namespace plankton {
         void Visit(Macro& object) override;
         void Visit(VariableAssignment& object) override;
         void Visit(MemoryWrite& object) override;
+        void Visit(AcquireLock& object) override;
+        void Visit(ReleaseLock& object) override;
         void Visit(Scope& object) override;
         void Visit(Atomic& object) override;
         void Visit(Sequence& object) override;
@@ -317,6 +337,8 @@ namespace plankton {
         virtual void Enter(Macro& object);
         virtual void Enter(VariableAssignment& object);
         virtual void Enter(MemoryWrite& object);
+        virtual void Enter(AcquireLock& object);
+        virtual void Enter(ReleaseLock& object);
         virtual void Enter(Scope& object);
         virtual void Enter(Atomic& object);
         virtual void Enter(Sequence& object);

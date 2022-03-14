@@ -29,6 +29,7 @@ set(SOURCES
         solver/implication.cpp
         solver/interference.cpp
         solver/join.cpp
+        solver/locks.cpp
         solver/past.cpp
         solver/post_assign_var.cpp
         solver/post_assign_write.cpp

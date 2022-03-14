@@ -179,7 +179,7 @@ void ProofGenerator::HandleInterfaceFunction(const Function& function) {
         if (IsFulfilled(*annotation, *command)) continue;
         annotation = solver.ImprovePast(std::move(annotation));
         annotation = solver.TryAddFulfillment(std::move(annotation));
-        annotation = solver.TryAddFulfillment(std::move(annotation)); // retry in case Z3 is funny
+        // annotation = solver.TryAddFulfillment(std::move(annotation)); // retry in case Z3 is funny
         if (IsFulfilled(*annotation, *command)) continue;
         DEBUG("Linearizability fail for " << *command << "  in  " << *annotation << std::endl)
         throw std::logic_error("Could not establish linearizability for function '" + function.name + "'."); // TODO: better error handling

@@ -6,6 +6,9 @@ using namespace plankton;
 inline bool IsEqual(const SymbolicNull& /*object*/, const SymbolicNull& /*other*/) { return true; }
 inline bool IsEqual(const SymbolicMin& /*object*/, const SymbolicMin& /*other*/) { return true; }
 inline bool IsEqual(const SymbolicMax& /*object*/, const SymbolicMax& /*other*/) { return true; }
+inline bool IsEqual(const SymbolicSelfTid& /*object*/, const SymbolicSelfTid& /*other*/) { return true; }
+inline bool IsEqual(const SymbolicSomeTid& /*object*/, const SymbolicSomeTid& /*other*/) { return true; }
+inline bool IsEqual(const SymbolicUnlocked& /*object*/, const SymbolicUnlocked& /*other*/) { return true; }
 inline bool IsEqual(const SymbolicVariable& object, const SymbolicVariable& other) {
     return object.Decl() == other.Decl();
 }
@@ -131,6 +134,9 @@ struct LogicComparator : public LogicVisitor {
     void Visit(const SymbolicNull& object) override { Compare(object); }
     void Visit(const SymbolicMin& object) override { Compare(object); }
     void Visit(const SymbolicMax& object) override { Compare(object); }
+    void Visit(const SymbolicSelfTid& object) override { Compare(object); }
+    void Visit(const SymbolicSomeTid& object) override { Compare(object); }
+    void Visit(const SymbolicUnlocked& object) override { Compare(object); }
     void Visit(const Guard& object) override { Compare(object); }
     void Visit(const Update& object) override { Compare(object); }
     void Visit(const SeparatingConjunction& object) override { Compare(object); }

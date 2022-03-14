@@ -34,6 +34,7 @@ const Type* AstBuilder::TypeByNameOrNull(const std::string& name) const {
     if (name == "void") throw std::logic_error("Internal error: 'void' not allowed here."); // TODO: better error handling
     if (name == Type::Bool().name) return &Type::Bool();
     if (name == Type::Data().name) return &Type::Data();
+    if (name == Type::Thread().name) return &Type::Thread();
     return GetOrNull(_types, name);
 }
 
@@ -67,6 +68,10 @@ void AstBuilder::AddDecl(std::unique_ptr<VariableDeclaration> variable) {
     assert(variable);
     CheckExistence(*this, variable->name);
     assert(!_variables.empty());
+    if (variable->type.sort == Sort::TID) {
+        // TODO: this is a dirty hack for avoiding TID variables being used
+        throw std::logic_error("Parse error: type '" + variable->type.name + "' not allowed for symbol '" + variable->name + "'."); // TODO: better error handling
+    }
     _variables.back().push_back(std::move(variable));
 }
 

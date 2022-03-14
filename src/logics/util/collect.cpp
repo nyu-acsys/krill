@@ -40,6 +40,9 @@ struct Collector : public LogicListener {
     void Enter(const SymbolicNull& object) override { Handle(object); }
     void Enter(const SymbolicMin& object) override { Handle(object); }
     void Enter(const SymbolicMax& object) override { Handle(object); }
+    void Enter(const SymbolicSelfTid& object) override { Handle(object); }
+    void Enter(const SymbolicSomeTid& object) override { Handle(object); }
+    void Enter(const SymbolicUnlocked& object) override { Handle(object); }
     void Enter(const SeparatingConjunction& object) override { Handle(object); }
     void Enter(const LocalMemoryResource& object) override { Handle(object); }
     void Enter(const SharedMemoryCore& object) override { Handle(object); }
@@ -85,6 +88,9 @@ CONST_INSTANCE(SymbolicBool)
 CONST_INSTANCE(SymbolicNull)
 CONST_INSTANCE(SymbolicMin)
 CONST_INSTANCE(SymbolicMax)
+CONST_INSTANCE(SymbolicSelfTid)
+CONST_INSTANCE(SymbolicSomeTid)
+CONST_INSTANCE(SymbolicUnlocked)
 CONST_INSTANCE(Guard)
 CONST_INSTANCE(Update)
 CONST_INSTANCE(Formula)
@@ -119,6 +125,9 @@ MUTABLE_INSTANCE(SymbolicBool)
 MUTABLE_INSTANCE(SymbolicNull)
 MUTABLE_INSTANCE(SymbolicMin)
 MUTABLE_INSTANCE(SymbolicMax)
+MUTABLE_INSTANCE(SymbolicSelfTid)
+MUTABLE_INSTANCE(SymbolicSomeTid)
+MUTABLE_INSTANCE(SymbolicUnlocked)
 MUTABLE_INSTANCE(Guard)
 MUTABLE_INSTANCE(Update)
 MUTABLE_INSTANCE(Formula)

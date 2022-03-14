@@ -30,6 +30,8 @@ namespace plankton {
         void Visit(const Return& object) override;
         void Visit(const Malloc& object) override;
         void Visit(const Macro& object) override;
+        void Visit(const AcquireLock& object) override;
+        void Visit(const ReleaseLock& object) override;
         void Visit(const VariableAssignment& object) override;
         void Visit(const MemoryWrite& object) override;
         void Visit(const Function& object) override;

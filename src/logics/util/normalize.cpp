@@ -28,6 +28,9 @@ struct IncidenceVisitor : public BaseLogicVisitor, public BaseProgramVisitor {
     void Visit(const SymbolicNull& /*object*/) override { result = 130; }
     void Visit(const SymbolicMin& /*object*/) override { result = 140; }
     void Visit(const SymbolicMax& /*object*/) override { result = 150; }
+    void Visit(const SymbolicSelfTid& /*object*/) override { result = 151; }
+    void Visit(const SymbolicSomeTid& /*object*/) override { result = 152; }
+    void Visit(const SymbolicUnlocked& /*object*/) override { result = 153; }
     void Visit(const Guard& /*object*/) override { result = 160; }
     void Visit(const Update& /*object*/) override { result = 170; }
     void Visit(const EqualsToAxiom& /*object*/) override { result = 210; }
@@ -142,6 +145,18 @@ inline bool LLess(const SymbolicMin& /*object*/, const SymbolicMin& /*other*/) {
 }
 
 inline bool LLess(const SymbolicMax& /*object*/, const SymbolicMax& /*other*/) {
+    return false;
+}
+
+inline bool LLess(const SymbolicSelfTid& /*object*/, const SymbolicSelfTid& /*other*/) {
+    return false;
+}
+
+inline bool LLess(const SymbolicSomeTid& /*object*/, const SymbolicSomeTid& /*other*/) {
+    return false;
+}
+
+inline bool LLess(const SymbolicUnlocked& /*object*/, const SymbolicUnlocked& /*other*/) {
     return false;
 }
 
@@ -260,6 +275,9 @@ struct LLessVisitor : public BaseLogicVisitor, public BaseProgramVisitor {
     void Visit(const SymbolicNull& obj) override { Handle(obj); }
     void Visit(const SymbolicMin& obj) override { Handle(obj); }
     void Visit(const SymbolicMax& obj) override { Handle(obj); }
+    void Visit(const SymbolicSelfTid& obj) override { Handle(obj); }
+    void Visit(const SymbolicSomeTid& obj) override { Handle(obj); }
+    void Visit(const SymbolicUnlocked& obj) override { Handle(obj); }
     void Visit(const Guard& obj) override { Handle(obj); }
     void Visit(const Update& obj) override { Handle(obj); }
     void Visit(const LocalMemoryResource& obj) override { Handle(obj); }

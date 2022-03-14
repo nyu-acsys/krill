@@ -12,6 +12,9 @@ constexpr std::string_view LITERAL_FALSE = "false";
 constexpr std::string_view LITERAL_NULL = "nullptr";
 constexpr std::string_view LITERAL_MIN = "-∞";
 constexpr std::string_view LITERAL_MAX = "∞";
+constexpr std::string_view LITERAL_SELF = "_self";
+constexpr std::string_view LITERAL_SOME = "_some";
+constexpr std::string_view LITERAL_UNLOCKED = "_none";
 constexpr std::string_view SYMBOL_STAR = "   *   ";
 constexpr std::string_view SYMBOL_LOCAL_POINTS_TO = " |-> L";
 constexpr std::string_view SYMBOL_SHARED_POINTS_TO = " |=> G";
@@ -62,6 +65,9 @@ struct LogicPrinter : public LogicVisitor {
     void Visit(const SymbolicNull& /*expression*/) override { stream << LITERAL_NULL; }
     void Visit(const SymbolicMin& /*expression*/) override { stream << LITERAL_MIN; }
     void Visit(const SymbolicMax& /*expression*/) override { stream << LITERAL_MAX; }
+    void Visit(const SymbolicSelfTid& /*expression*/) override { stream << LITERAL_SELF; }
+    void Visit(const SymbolicSomeTid& /*expression*/) override { stream << LITERAL_SOME; }
+    void Visit(const SymbolicUnlocked& /*expression*/) override { stream << LITERAL_UNLOCKED; }
 
     template<typename T>
     inline void PrintSequence(const T& container, std::string_view join, std::string_view empty) {

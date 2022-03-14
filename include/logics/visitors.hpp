@@ -12,6 +12,9 @@ namespace plankton {
     struct SymbolicNull;
     struct SymbolicMin;
     struct SymbolicMax;
+    struct SymbolicSelfTid;
+    struct SymbolicSomeTid;
+    struct SymbolicUnlocked;
     struct Guard;
     struct Update;
     struct SeparatingConjunction;
@@ -40,6 +43,9 @@ namespace plankton {
         virtual void Visit(const SymbolicNull& object) = 0;
         virtual void Visit(const SymbolicMin& object) = 0;
         virtual void Visit(const SymbolicMax& object) = 0;
+        virtual void Visit(const SymbolicSelfTid& object) = 0;
+        virtual void Visit(const SymbolicSomeTid& object) = 0;
+        virtual void Visit(const SymbolicUnlocked& object) = 0;
         virtual void Visit(const Guard& object) = 0;
         virtual void Visit(const Update& object) = 0;
         virtual void Visit(const SeparatingConjunction& object) = 0;
@@ -63,6 +69,9 @@ namespace plankton {
         void Walk(const SymbolicNull& object);
         void Walk(const SymbolicMin& object);
         void Walk(const SymbolicMax& object);
+        void Walk(const SymbolicSelfTid& object);
+        void Walk(const SymbolicSomeTid& object);
+        void Walk(const SymbolicUnlocked& object);
         void Walk(const Guard& object);
         void Walk(const Update& object);
         void Walk(const SeparatingConjunction& object);
@@ -91,6 +100,9 @@ namespace plankton {
         void Visit(const SymbolicNull& object) override;
         void Visit(const SymbolicMin& object) override;
         void Visit(const SymbolicMax& object) override;
+        void Visit(const SymbolicSelfTid& object) override;
+        void Visit(const SymbolicSomeTid& object) override;
+        void Visit(const SymbolicUnlocked& object) override;
         void Visit(const Guard& object) override;
         void Visit(const Update& object) override;
         void Visit(const SeparatingConjunction& object) override;
@@ -119,6 +131,9 @@ namespace plankton {
         void Visit(const SymbolicNull& object) override;
         void Visit(const SymbolicMin& object) override;
         void Visit(const SymbolicMax& object) override;
+        void Visit(const SymbolicSelfTid& object) override;
+        void Visit(const SymbolicSomeTid& object) override;
+        void Visit(const SymbolicUnlocked& object) override;
         void Visit(const Guard& object) override;
         void Visit(const Update& object) override;
         void Visit(const SeparatingConjunction& object) override;
@@ -148,6 +163,9 @@ namespace plankton {
         void Visit(const SymbolicNull& object) override;
         void Visit(const SymbolicMin& object) override;
         void Visit(const SymbolicMax& object) override;
+        void Visit(const SymbolicSelfTid& object) override;
+        void Visit(const SymbolicSomeTid& object) override;
+        void Visit(const SymbolicUnlocked& object) override;
         void Visit(const Guard& object) override;
         void Visit(const Update& object) override;
         void Visit(const SeparatingConjunction& object) override;
@@ -173,6 +191,9 @@ namespace plankton {
         virtual void Enter(const SymbolicNull& object);
         virtual void Enter(const SymbolicMin& object);
         virtual void Enter(const SymbolicMax& object);
+        virtual void Enter(const SymbolicSelfTid& object);
+        virtual void Enter(const SymbolicSomeTid& object);
+        virtual void Enter(const SymbolicUnlocked& object);
         virtual void Enter(const Guard& object);
         virtual void Enter(const Update& object);
         virtual void Enter(const SeparatingConjunction& object);
@@ -202,6 +223,9 @@ namespace plankton {
         virtual void Visit(SymbolicNull& object) = 0;
         virtual void Visit(SymbolicMin& object) = 0;
         virtual void Visit(SymbolicMax& object) = 0;
+        virtual void Visit(SymbolicSelfTid& object) = 0;
+        virtual void Visit(SymbolicSomeTid& object) = 0;
+        virtual void Visit(SymbolicUnlocked& object) = 0;
         virtual void Visit(Guard& object) = 0;
         virtual void Visit(Update& object) = 0;
         virtual void Visit(SeparatingConjunction& object) = 0;
@@ -225,6 +249,9 @@ namespace plankton {
         void Walk(SymbolicNull& object);
         void Walk(SymbolicMin& object);
         void Walk(SymbolicMax& object);
+        void Walk(SymbolicSelfTid& object);
+        void Walk(SymbolicSomeTid& object);
+        void Walk(SymbolicUnlocked& object);
         void Walk(Guard& object);
         void Walk(Update& object);
         void Walk(SeparatingConjunction& object);
@@ -253,6 +280,9 @@ namespace plankton {
         void Visit(SymbolicNull& object) override;
         void Visit(SymbolicMin& object) override;
         void Visit(SymbolicMax& object) override;
+        void Visit(SymbolicSelfTid& object) override;
+        void Visit(SymbolicSomeTid& object) override;
+        void Visit(SymbolicUnlocked& object) override;
         void Visit(Guard& object) override;
         void Visit(Update& object) override;
         void Visit(SeparatingConjunction& object) override;
@@ -281,6 +311,9 @@ namespace plankton {
         void Visit(SymbolicNull& object) override;
         void Visit(SymbolicMin& object) override;
         void Visit(SymbolicMax& object) override;
+        void Visit(SymbolicSelfTid& object) override;
+        void Visit(SymbolicSomeTid& object) override;
+        void Visit(SymbolicUnlocked& object) override;
         void Visit(Guard& object) override;
         void Visit(Update& object) override;
         void Visit(SeparatingConjunction& object) override;
@@ -309,6 +342,9 @@ namespace plankton {
         void Visit(SymbolicNull& object) override;
         void Visit(SymbolicMin& object) override;
         void Visit(SymbolicMax& object) override;
+        void Visit(SymbolicSelfTid& object) override;
+        void Visit(SymbolicSomeTid& object) override;
+        void Visit(SymbolicUnlocked& object) override;
         void Visit(Guard& object) override;
         void Visit(Update& object) override;
         void Visit(SeparatingConjunction& object) override;
@@ -334,6 +370,9 @@ namespace plankton {
         virtual void Enter(SymbolicNull& object);
         virtual void Enter(SymbolicMin& object);
         virtual void Enter(SymbolicMax& object);
+        virtual void Enter(SymbolicSelfTid& object);
+        virtual void Enter(SymbolicSomeTid& object);
+        virtual void Enter(SymbolicUnlocked& object);
         virtual void Enter(Guard& object);
         virtual void Enter(Update& object);
         virtual void Enter(SeparatingConjunction& object);

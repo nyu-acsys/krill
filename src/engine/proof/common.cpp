@@ -167,6 +167,12 @@ void ProofGenerator::ImproveCurrentTime() {
             return solver.ImproveFuture(std::move(annotation), *future);
         });
     }
+    //for (const auto& future : futureSuggestions) { // repeat because Z3 really hates us... why?
+    //    ApplyTransformer([this, &future](auto annotation) {
+    //        auto measure = pldiFutureImprove.Measure();
+    //        return solver.ImproveFuture(std::move(annotation), *future);
+    //    });
+    //}
 }
 
 void ProofGenerator::ReduceCurrentTime() {

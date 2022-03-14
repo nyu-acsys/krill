@@ -39,6 +39,8 @@ struct CopyVisitor : public BaseProgramVisitor {
     void Visit(const Fail& object) override { Handle(object); }
     void Visit(const VariableAssignment& object) override { Handle(object); }
     void Visit(const MemoryWrite& object) override { Handle(object); }
+    void Visit(const AcquireLock& object) override { Handle(object); }
+    void Visit(const ReleaseLock& object) override { Handle(object); }
 };
 
 template<>
@@ -167,4 +169,14 @@ std::unique_ptr<VariableAssignment> plankton::Copy<VariableAssignment>(const Var
 template<>
 std::unique_ptr<MemoryWrite> plankton::Copy<MemoryWrite>(const MemoryWrite& object) {
     return CopyAssignment(object);
+}
+
+template<>
+std::unique_ptr<AcquireLock> plankton::Copy<AcquireLock>(const AcquireLock& object) {
+    return std::make_unique<AcquireLock>(plankton::Copy(*object.lock));
+}
+
+template<>
+std::unique_ptr<ReleaseLock> plankton::Copy<ReleaseLock>(const ReleaseLock& object) {
+    return std::make_unique<ReleaseLock>(plankton::Copy(*object.lock));
 }

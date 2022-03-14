@@ -68,7 +68,9 @@ namespace plankton {
         std::unique_ptr<Statement> MakeReturn(PlanktonParser::CmdReturnListContext& context);
         std::unique_ptr<Statement> MakeReturn(PlanktonParser::CmdReturnExprContext& context);
         std::unique_ptr<Statement> MakeCas(PlanktonParser::CmdCasContext& context);
-        
+        std::unique_ptr<Statement> MakeLock(PlanktonParser::CmdLockContext& context);
+        std::unique_ptr<Statement> MakeUnlock(PlanktonParser::CmdUnlockContext& context);
+
         // parsing configuration
         [[nodiscard]] bool SpuriousCasFail() const;
 

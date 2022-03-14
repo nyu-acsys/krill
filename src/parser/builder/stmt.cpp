@@ -414,6 +414,8 @@ struct StatementBuilder : public PlanktonBaseVisitor {
     antlrcpp::Any visitCmdReturnList(PlanktonParser::CmdReturnListContext* ctx) override { result = builder.MakeReturn(*ctx); return nullptr; }
     antlrcpp::Any visitCmdReturnExpr(PlanktonParser::CmdReturnExprContext* ctx) override { result = builder.MakeReturn(*ctx); return nullptr; }
     antlrcpp::Any visitCmdCas(PlanktonParser::CmdCasContext* ctx) override { result = builder.MakeCas(*ctx); return nullptr; }
+    antlrcpp::Any visitCmdLock(PlanktonParser::CmdLockContext* ctx) override { result = builder.MakeLock(*ctx); return nullptr; }
+    antlrcpp::Any visitCmdUnlock(PlanktonParser::CmdUnlockContext* ctx) override { result = builder.MakeUnlock(*ctx); return nullptr; }
 };
 
 template<typename T>
@@ -585,4 +587,18 @@ std::unique_ptr<Statement> AstBuilder::MakeCas(PlanktonParser::CmdCasContext& ct
     auto makeFalse = [this, &ctx](){ return MakeStatusAssignment(*this, ctx, false); };
     auto choice = DesugarCondition(*this, *ctx.cas(), makeTrue, makeFalse);
     return std::make_unique<Atomic>(std::make_unique<Scope>(std::move(choice)));
+}
+
+std::unique_ptr<Statement> AstBuilder::MakeLock(PlanktonParser::CmdLockContext& ctx) {
+    auto lock = MakeExpression(*ctx.lock);
+    assert(lock);
+    if (lock->GetSort() == Sort::TID) return std::make_unique<AcquireLock>(std::move(lock));
+    throw std::logic_error("Parse error: expression '" + plankton::ToString(*lock) + "' not of THREAD sort.");
+}
+
+std::unique_ptr<Statement> AstBuilder::MakeUnlock(PlanktonParser::CmdUnlockContext& ctx) {
+    auto lock = MakeExpression(*ctx.lock);
+    assert(lock);
+    if (lock->GetSort() == Sort::TID) return std::make_unique<ReleaseLock>(std::move(lock));
+    throw std::logic_error("Parse error: expression '" + plankton::ToString(*lock) + "' not of THREAD sort.");
 }
