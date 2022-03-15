@@ -51,7 +51,6 @@ inline PostImage ChangeLock(std::unique_ptr<Annotation> pre, const Dereference& 
         result.effects.push_back(std::make_unique<HeapEffect>(std::move(preMem), std::move(postMem), std::move(context)));
     }
 
-    throw;
     return result;
 }
 

@@ -55,7 +55,7 @@ inline void AddEffectImplicationCheck(Encoding& encoding, const HeapEffect& prem
 
     // check
     auto isImplied = ((samePre && samePost && conclusionPre) >> premisePre)
-                  && ((samePre && samePost && conclusionPost) >> premisePost); // TODO: correct?
+                         && ((samePre && samePost && conclusionPost) >> premisePost); // TODO: correct?
     encoding.AddCheck(isImplied, [eureka=std::move(eureka)](bool holds) { if (holds) eureka(); });
 }
 

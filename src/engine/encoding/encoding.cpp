@@ -39,7 +39,10 @@ EExpr& EExpr::operator=(const EExpr& other) {
 // Encoding
 //
 
-Encoding::Encoding() : internal(std::make_unique<Z3InternalStorage>()) {}
+Encoding::Encoding() : internal(std::make_unique<Z3InternalStorage>()) {
+    AsSolver(internal).add(AsExpr(TidSelf() > TidUnlocked()));
+    AsSolver(internal).add(AsExpr(TidSome() > TidUnlocked()));
+}
 
 Encoding::Encoding(const Formula& premise) : Encoding() {
     AddPremise(premise);

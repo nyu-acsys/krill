@@ -113,6 +113,9 @@ namespace plankton {
         EExpr Max();
         EExpr Null();
         EExpr Bool(bool val);
+        EExpr TidSelf();
+        EExpr TidSome();
+        EExpr TidUnlocked();
         
         EExpr MakeDistinct(const std::vector<EExpr>& expressions);
         EExpr MakeAnd(const std::vector<EExpr>& expressions);

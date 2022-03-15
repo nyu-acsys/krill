@@ -310,7 +310,12 @@ inline std::vector<std::function<std::unique_ptr<Axiom>()>> GetContextGenerators
                     [&symbol]() { return MakeBinary<BinaryOperator::EQ>(symbol, std::make_unique<SymbolicMax>()); },
                     [&symbol]() { return MakeBinary<BinaryOperator::LT>(symbol, std::make_unique<SymbolicMax>()); }
                 };
-                case Sort::TID: throw std::logic_error("not yet implemented"); // TODO: IMPLEMENT
+                case Sort::TID: return { // NULL or not
+                    [&symbol]() { return MakeBinary<BinaryOperator::EQ>(symbol, std::make_unique<SymbolicSelfTid>()); },
+                    [&symbol]() { return MakeBinary<BinaryOperator::NEQ>(symbol, std::make_unique<SymbolicSelfTid>()); },
+                    [&symbol]() { return MakeBinary<BinaryOperator::EQ>(symbol, std::make_unique<SymbolicSomeTid>()); },
+                    [&symbol]() { return MakeBinary<BinaryOperator::EQ>(symbol, std::make_unique<SymbolicUnlocked>()); }
+                };
                 case Sort::PTR: return { // NULL or not
                     [&symbol]() { return MakeBinary<BinaryOperator::EQ>(symbol, std::make_unique<SymbolicNull>()); },
                     [&symbol]() { return MakeBinary<BinaryOperator::NEQ>(symbol, std::make_unique<SymbolicNull>()); }

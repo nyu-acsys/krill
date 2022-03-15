@@ -10,15 +10,34 @@
 using namespace plankton;
 
 
+std::deque<std::unique_ptr<HeapEffect>> ReplaceInterfererTid(const std::deque<std::unique_ptr<HeapEffect>>& interference) {
+    // TODO: should this be done by the solver before adding effects?
+    std::deque<std::unique_ptr<HeapEffect>> result;
+    for (const auto& original : interference) {
+        auto context = plankton::Copy(*original->context);
+        auto axioms = plankton::CollectMutable<StackAxiom>(*context);
+        for (const auto& axiom: axioms) {
+            if (dynamic_cast<const SymbolicSelfTid*>(axiom->lhs.get())) {
+                axiom->lhs = std::make_unique<SymbolicSomeTid>();
+            }
+            if (dynamic_cast<const SymbolicSelfTid*>(axiom->rhs.get())) {
+                axiom->rhs = std::make_unique<SymbolicSomeTid>();
+            }
+        }
+        result.push_back(std::make_unique<HeapEffect>(plankton::Copy(*original->pre), plankton::Copy(*original->post), std::move(context)));
+    }
+    return result;
+}
+
 struct InterferenceInfo {
     SymbolFactory factory;
     Encoding encoding;
     std::unique_ptr<Annotation> annotation;
-    const std::deque<std::unique_ptr<HeapEffect>>& interference;
+    std::deque<std::unique_ptr<HeapEffect>> interference;
     std::map<const SharedMemoryCore*, std::deque<std::function<void()>>> stabilityUpdates;
 
     explicit InterferenceInfo(std::unique_ptr<Annotation> annotation_, const std::deque<std::unique_ptr<HeapEffect>>& interference)
-            : annotation(std::move(annotation_)), interference(interference) {
+            : annotation(std::move(annotation_)), interference(ReplaceInterfererTid(interference)) {
         assert(annotation);
         Preprocess();
         Compute();
@@ -82,6 +101,7 @@ struct InterferenceInfo {
         }
         
         // DEBUG(" -- post: " << *annotation << std::endl;)
+        // throw;
     }
 
     inline void Postprocess() {

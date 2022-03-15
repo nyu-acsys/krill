@@ -7,17 +7,30 @@
 using namespace plankton;
 
 
+#define CTX AsContext(internal)
+#define SOL AsSolver(internal)
+
 static constexpr int NULL_VALUE = 0;
 static constexpr int MIN_VALUE = -65536;
 static constexpr int MAX_VALUE = 65536;
+static constexpr int UNLOCKED_VALUE = 0;
 
-#define CTX AsContext(internal)
-#define SOL AsSolver(internal)
+inline z3::sort EncodeSort(Sort sort, z3::context& context) {
+    switch (sort) {
+        case Sort::BOOL: return context.bool_sort();
+        default: return context.int_sort();
+    }
+}
+
 
 EExpr Encoding::Min() { return AsEExpr(CTX.int_val(MIN_VALUE)); }
 EExpr Encoding::Max() { return AsEExpr(CTX.int_val(MAX_VALUE)); }
 EExpr Encoding::Null() { return AsEExpr(CTX.int_val(NULL_VALUE)); }
 EExpr Encoding::Bool(bool val) { return AsEExpr(CTX.bool_val(val)); }
+
+EExpr Encoding::TidSelf() { return AsEExpr(CTX.constant("__SELF", EncodeSort(Sort::TID, CTX))); }
+EExpr Encoding::TidSome() { return AsEExpr(CTX.constant("__SOME", EncodeSort(Sort::TID, CTX))); }
+EExpr Encoding::TidUnlocked() { return AsEExpr(CTX.int_val(UNLOCKED_VALUE)); }
 
 EExpr Encoding::Replace(const EExpr& expression, const EExpr& replace, const EExpr& with) {
     z3::expr_vector replaceVec(CTX), withVec(CTX);
@@ -47,13 +60,6 @@ EExpr Encoding::MakeAtMost(const std::vector<EExpr>& vec, unsigned int count) {
     return AsEExpr(z3::atmost(AsVector(vec, CTX), count));
 }
 
-
-inline z3::sort EncodeSort(Sort sort, z3::context& context) {
-    switch (sort) {
-        case Sort::BOOL: return context.bool_sort();
-        default: return context.int_sort();
-    }
-}
 
 EExpr Encoding::MakeQuantifiedVariable(Sort sort) {
     return AsEExpr(CTX.constant("__qv", EncodeSort(sort, CTX)));
@@ -85,9 +91,15 @@ EExpr Encoding::Encode(const SymbolDeclaration& decl) {
                 auto name = "_v" + decl.name;
                 auto expr = CTX.constant(name.c_str(), EncodeSort(decl.type.sort, CTX));
                 // add implicit bounds on first order data values
-                if (decl.type.sort == Sort::DATA) {
-                    SOL.add(AsExpr(Min()) <= expr);
-                    SOL.add(expr <= AsExpr(Max()));
+                switch (decl.type.sort) {
+                    case Sort::DATA:
+                        SOL.add(AsExpr(Min()) <= expr);
+                        SOL.add(expr <= AsExpr(Max()));
+                        break;
+                    case Sort::TID:
+                        SOL.add(AsExpr(TidUnlocked()) <= expr);
+                        break;
+                    default: break;
                 }
                 // add implicit bounds on second order data values
                 return AsEExpr(expr);
@@ -182,6 +194,9 @@ struct FormulaEncoder : public BaseLogicVisitor {
     void Visit(const SymbolicNull& /*object*/) override { result = encoding.Null(); }
     void Visit(const SymbolicMin& /*object*/) override { result = encoding.Min(); }
     void Visit(const SymbolicMax& /*object*/) override { result = encoding.Max(); }
+    void Visit(const SymbolicSelfTid& /*object*/) override { result = encoding.TidSelf(); }
+    void Visit(const SymbolicSomeTid& /*object*/) override { result = encoding.TidSome(); }
+    void Visit(const SymbolicUnlocked& /*object*/) override { result = encoding.TidUnlocked(); }
     void Visit(const SeparatingConjunction& object) override {
         std::vector<EExpr> conjuncts;
         conjuncts.reserve(object.conjuncts.size());
