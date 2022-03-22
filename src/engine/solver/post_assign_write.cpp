@@ -335,8 +335,10 @@ inline void AddEffectContextGenerators(PostImageInfo& info) {
     // collect variables appearing in footprint
     std::set<const SymbolDeclaration*> symbols;
     for (const auto& node : info.footprint.nodes) {
-        auto dummy = node.ToLogic(EMode::PRE); // TODO: avoid construction
-        plankton::InsertInto(plankton::Collect<SymbolDeclaration>(*dummy), symbols);
+        // auto dummy = node.ToLogic(EMode::PRE); // TODO: avoid construction
+        // plankton::InsertInto(plankton::Collect<SymbolDeclaration>(*dummy), symbols);
+        plankton::InsertInto(plankton::Collect<SymbolDeclaration>(*node.ToLogic(EMode::PRE)), symbols);
+        plankton::InsertInto(plankton::Collect<SymbolDeclaration>(*node.ToLogic(EMode::POST)), symbols);
     }
 
     for (const auto* decl : symbols) {
@@ -349,14 +351,19 @@ inline void AddEffectContextGenerators(PostImageInfo& info) {
     }
 }
 
-inline std::unique_ptr<Formula> GetNodeUpdateContext(PostImageInfo& info, const MemoryAxiom& node) {
+inline std::unique_ptr<Formula> GetNodeUpdateContext(PostImageInfo& info, const MemoryAxiom& pre, const MemoryAxiom& post) {
     auto result = std::make_unique<SeparatingConjunction>();
     auto handle = [&result,&info](const SymbolDeclaration& decl) {
         for (const auto& elem : info.effectContext[&decl]) result->Conjoin(plankton::Copy(*elem));
     };
-
-    handle(node.flow->Decl());
-    for (const auto& pair : node.fieldToValue) handle(pair.second->Decl());
+    std::set<const SymbolDeclaration*> symbols;
+    for (const auto* node : {&pre, &post}) {
+        symbols.insert(&node->flow->Decl());
+        for (const auto& pair: node->fieldToValue) symbols.insert(&pair.second->Decl());
+    }
+    for (const auto* symbol : symbols) {
+        handle(*symbol);
+    }
     plankton::Simplify(*result);
     return result;
 }
@@ -376,7 +383,7 @@ inline std::unique_ptr<HeapEffect> ExtractEffect(PostImageInfo& info, const Flow
     if (!node.HasUpdated()) return nullptr;
     auto pre = ToSharedMemoryCore(node, EMode::PRE);
     auto post = ToSharedMemoryCore(node, EMode::POST);
-    auto context = GetNodeUpdateContext(info, *pre);
+    auto context = GetNodeUpdateContext(info, *pre, *post);
     return std::make_unique<HeapEffect>(std::move(pre), std::move(post), std::move(context));
 }
 

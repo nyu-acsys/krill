@@ -1,4 +1,4 @@
-#name "Locked Set without unlocking"
+#name "Locked Set without Unlocking"
 
 
 struct Node {
@@ -113,7 +113,6 @@ bool remove(data_t key) {
         Node* next;
 
         next = curr->next;
-        __lock__(next->lock); // needed for interference precision
         assert(pred->next == curr);
         assert(curr->next == next);
         pred->next = next;

@@ -31,10 +31,9 @@ std::deque<std::unique_ptr<HeapEffect>> ReplaceInterfererTid(const std::deque<st
 
 struct InterferenceInfo {
     SymbolFactory factory;
-    Encoding encoding;
     std::unique_ptr<Annotation> annotation;
     std::deque<std::unique_ptr<HeapEffect>> interference;
-    std::map<const SharedMemoryCore*, std::deque<std::function<void()>>> stabilityUpdates;
+    std::map<SharedMemoryCore*, std::deque<const HeapEffect*>> stabilityUpdates;
 
     explicit InterferenceInfo(std::unique_ptr<Annotation> annotation_, const std::deque<std::unique_ptr<HeapEffect>>& interference)
             : annotation(std::move(annotation_)), interference(ReplaceInterfererTid(interference)) {
@@ -47,6 +46,7 @@ struct InterferenceInfo {
 
     inline void Preprocess() {
         // make symbols distinct
+        // TODO: we rely on effects to have distinct symbols (from one another and the annotation)
         plankton::AvoidEffectSymbols(factory, interference);
         plankton::RenameSymbols(*annotation, factory);
 
@@ -55,52 +55,88 @@ struct InterferenceInfo {
         // DEBUG(" -- pre: " << *annotation << std::endl;)
     }
 
-    inline void Handle(SharedMemoryCore& memory, const HeapEffect& effect) {
+    inline void Handle(SharedMemoryCore& memory, const HeapEffect& effect, Encoding& encoding) {
         // TODO: avoid encoding the same annotation/effect multiple times
         if (memory.node->GetType() != effect.pre->node->GetType()) return;
         if (&effect.pre->node->Decl() != &effect.post->node->Decl()) throw std::logic_error("Unsupported effect"); // TODO: better error handling
     
         auto effectMatch = encoding.EncodeMemoryEquality(memory, *effect.pre) && encoding.Encode(*effect.context);
         auto isInterferenceFree = effectMatch >> encoding.Bool(false);
-        auto applyEffect = [this, &memory, &effect]() {
-            if (UpdatesFlow(effect)) memory.flow->decl = factory.GetFreshSO(memory.flow->GetType());
-            for (auto&[field, value] : memory.fieldToValue) {
-                if (!UpdatesField(effect, field)) continue;
-                value->decl = factory.GetFreshFO(value->GetType());
-            }
-        };
-        encoding.AddCheck(isInterferenceFree, [this, &memory, applyEffect = std::move(applyEffect)](bool isStable) {
+        encoding.AddCheck(isInterferenceFree, [this, &memory, &effect](bool isStable) {
             if (isStable) return;
-            stabilityUpdates[&memory].push_back(std::move(applyEffect));
+            stabilityUpdates[&memory].push_back(&effect);
         });
     }
 
     inline void Compute() {
+        Encoding encoding;
         encoding.AddPremise(*annotation->now);
         encoding.AddPremise(encoding.TidSelf() != encoding.TidSome());
         auto resources = plankton::CollectMutable<SharedMemoryCore>(*annotation->now);
         for (auto* memory : resources) {
             for (const auto& effect : interference) {
-                Handle(*memory, *effect);
+                Handle(*memory, *effect, encoding);
             }
         }
         encoding.Check();
     }
 
+    inline bool IsStackFormula(const Formula& formula) {
+        struct : public DefaultLogicVisitor {
+            bool result = false;
+            void Visit(const StackAxiom& /*object*/) override { result = true; }
+            void Visit(const InflowEmptinessAxiom& /*object*/) override { result = true; }
+            void Visit(const InflowContainsValueAxiom& /*object*/) override { result = true; }
+            void Visit(const InflowContainsRangeAxiom& /*object*/) override { result = true; }
+        } visitor;
+        formula.Accept(visitor);
+        return visitor.result;
+    }
+
     inline void Apply() {
-        // update memory, save old memory state
         std::deque<std::unique_ptr<SharedMemoryCore>> oldMemory;
-        for (const auto& [axiom, updates] : stabilityUpdates) {
-            if (updates.empty()) continue;
+        std::deque<std::deque<std::unique_ptr<Axiom>>> candidateList;
+        Encoding encoding;
+
+        for (const auto& [axiom, effects] : stabilityUpdates) {
+            if (effects.empty()) continue;
+            auto newMem = plankton::MakeSharedMemory(axiom->node->Decl(), axiom->flow->GetType(), factory);
+            auto postContext = encoding.EncodeMemoryEquality(*newMem, *axiom) && encoding.Encode(*annotation->now);
+
+            for (const auto* effect : effects) {
+                // auto update = encoding.Bool(true);
+                auto update = encoding.EncodeMemoryEquality(*newMem, *effect->post) && encoding.Encode(*effect->context);
+                auto addEquality = [&update,&encoding](const auto& var, const auto& other) {
+                    update = update && encoding.Encode(var->decl) == encoding.Encode(other->decl);
+                };
+                if (!UpdatesFlow(*effect)) addEquality(newMem->flow, axiom->flow);
+                for (auto&[field, value] : newMem->fieldToValue) {
+                    if (UpdatesField(*effect, field)) continue;
+                    addEquality(value, axiom->fieldToValue.at(field));
+                }
+                postContext = postContext || update;
+            }
+
+            Annotation dummy;
+            dummy.Conjoin(plankton::Copy(*newMem));
+            dummy.Conjoin(std::make_unique<PastPredicate>(plankton::Copy(*axiom)));
+            candidateList.push_back(plankton::MakeStackCandidates(dummy, ExtensionPolicy::FAST));
+            for (auto& candidate : candidateList.back()) {
+                encoding.AddCheck(postContext >> encoding.Encode(*candidate), [this,&candidate](bool holds) {
+                    if (holds) annotation->Conjoin(std::move(candidate));
+                });
+            }
+
             oldMemory.push_back(plankton::Copy(*axiom));
-            for (const auto& update : updates) update();
+            axiom->flow = std::move(newMem->flow);
+            axiom->fieldToValue = std::move(newMem->fieldToValue);
         }
-        
-        // save old memory state as history
+
+        encoding.Check();
         for (auto& memory : oldMemory) {
             annotation->Conjoin(std::make_unique<PastPredicate>(std::move(memory)));
         }
-        
+
         // DEBUG(" -- post: " << *annotation << std::endl;)
         // throw;
     }
@@ -114,18 +150,6 @@ struct InterferenceInfo {
         return std::move(annotation);
     }
 };
-
-// bool Solver::IsMemoryImmutable(const SharedMemoryCore& memory, const Formula& context) const {
-//     if (interference.empty()) return true;
-//     MEASURE("Solver::IsMemoryImmutable")
-//     auto annotation = std::make_unique<Annotation>();
-//     annotation->Conjoin(plankton::Copy(memory));
-//     annotation->Conjoin(plankton::Copy(context));
-//     plankton::Simplify(*annotation);
-//     InterferenceInfo info(plankton::Copy(*annotation), interference);
-//     auto stable = info.GetResult();
-//     return Implies(*stable, *annotation);
-// }
 
 std::unique_ptr<Annotation> Solver::MakeInterferenceStable(std::unique_ptr<Annotation> annotation) const {
     // TODO: should this take a list of annotations?
