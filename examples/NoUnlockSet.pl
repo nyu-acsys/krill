@@ -1,4 +1,4 @@
-#name "Lock Test"
+#name "Locked Set without unlocking"
 
 
 struct Node {
@@ -57,18 +57,14 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 	Node* pred, curr;
 	data_t k;
 
-    pred = Head;
-    __lock__(pred->lock);
-    curr = pred->next;
+    curr = Head;
     __lock__(curr->lock);
-    k = curr->val;
-    while (k < key) {
-        __unlock__(pred->lock);
+    do {
         pred = curr;
         curr = pred->next;
         __lock__(curr->lock);
         k = curr->val;
-    }
+    } while (k < key);
 
     return <pred, curr, k>;
 }
@@ -79,8 +75,6 @@ bool contains(data_t key) {
 	data_t k;
 
 	<pred, curr, k> = locate(key);
-	__unlock__(pred->lock);
-	__unlock__(curr->lock);
 	return k == key;
 }
 
@@ -95,16 +89,12 @@ bool add(data_t key) {
 	<pred, curr, k> = locate(key);
 
     if (k == key) {
-        __unlock__(pred->lock);
-        __unlock__(curr->lock);
         return false;
 
     } else {
         entry->next = curr;
         assert(pred->next == curr);
         pred->next = entry;
-        __unlock__(pred->lock);
-        __unlock__(curr->lock);
         return true;
     }
 }
@@ -117,21 +107,16 @@ bool remove(data_t key) {
 	<pred, curr, k> = locate(key);
 
     if (k > key) {
-        __unlock__(pred->lock);
-        __unlock__(curr->lock);
         return false;
 
     } else {
         Node* next;
 
         next = curr->next;
-        // __lock__(next->lock); // needed for interference precision
+        __lock__(next->lock); // needed for interference precision
         assert(pred->next == curr);
         assert(curr->next == next);
         pred->next = next;
-        __unlock__(pred->lock);
-        __unlock__(curr->lock);
-        // __unlock__(next->lock);
         return true;
     }
 }

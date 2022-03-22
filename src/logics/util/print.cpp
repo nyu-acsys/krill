@@ -184,9 +184,9 @@ struct LogicPrinter : public LogicVisitor {
         annotation.now->Accept(*this);
         auto printTime = [this](const auto& container) {
             if (!container.empty()) {
-                stream << SYMBOL_STAR;
+                // stream << SYMBOL_STAR;
                 for (const auto& elem : container) {
-                    stream << LB << INDENT;
+                    stream << SYMBOL_STAR << LB << INDENT;
                     elem->Accept(*this);
                 }
             }

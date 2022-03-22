@@ -563,7 +563,7 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
         auto post = ExtractPost(std::move(info));
 
         DEBUG(*post << std::endl << std::endl)
-        if (IsUnsatisfiable(*post)) throw std::logic_error("Failed to perform proper memory update: solver inconsistency detected."); // TODO better error handling
+        if (IsUnsatisfiable(*post)) throw std::logic_error("Failed to perform proper memory update: solver inconsistency suspected."); // TODO better error handling
         return PostImage(std::move(post), std::move(effects));
 
     } catch (std::logic_error& err) {

@@ -77,6 +77,7 @@ struct InterferenceInfo {
 
     inline void Compute() {
         encoding.AddPremise(*annotation->now);
+        encoding.AddPremise(encoding.TidSelf() != encoding.TidSome());
         auto resources = plankton::CollectMutable<SharedMemoryCore>(*annotation->now);
         for (auto* memory : resources) {
             for (const auto& effect : interference) {

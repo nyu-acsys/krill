@@ -1,4 +1,4 @@
-#name "Lock Test"
+#name "Fine Set with Hint"
 
 
 struct Node {
@@ -125,13 +125,13 @@ bool remove(data_t key) {
         Node* next;
 
         next = curr->next;
-        // __lock__(next->lock); // needed for interference precision
+        __lock__(next->lock); // hint needed for interference precision
         assert(pred->next == curr);
         assert(curr->next == next);
         pred->next = next;
         __unlock__(pred->lock);
         __unlock__(curr->lock);
-        // __unlock__(next->lock);
+        __unlock__(next->lock);
         return true;
     }
 }

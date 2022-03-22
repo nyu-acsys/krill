@@ -1,5 +1,9 @@
-#name "Lock Test"
+#name "Coarse Locked Set"
 
+/* NOTE:
+ * Verification will fail for this implementation because the interference
+ * does not pick up the lock on Head when modifying unrelated nodes.
+ */
 
 struct Node {
     thread_t lock;
@@ -57,18 +61,12 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 	Node* pred, curr;
 	data_t k;
 
-    pred = Head;
-    __lock__(pred->lock);
-    curr = pred->next;
-    __lock__(curr->lock);
-    k = curr->val;
-    while (k < key) {
-        __unlock__(pred->lock);
+    curr = Head;
+    do {
         pred = curr;
         curr = pred->next;
-        __lock__(curr->lock);
         k = curr->val;
-    }
+    } while (k < key);
 
     return <pred, curr, k>;
 }
@@ -78,9 +76,9 @@ bool contains(data_t key) {
 	Node* pred, curr;
 	data_t k;
 
+    __lock__(Head->lock);
 	<pred, curr, k> = locate(key);
-	__unlock__(pred->lock);
-	__unlock__(curr->lock);
+	__unlock__(Head->lock);
 	return k == key;
 }
 
@@ -92,19 +90,18 @@ bool add(data_t key) {
 	entry = malloc;
 	entry->val = key;
 
+    __lock__(Head->lock);
 	<pred, curr, k> = locate(key);
 
     if (k == key) {
-        __unlock__(pred->lock);
-        __unlock__(curr->lock);
+	    __unlock__(Head->lock);
         return false;
 
     } else {
         entry->next = curr;
         assert(pred->next == curr);
         pred->next = entry;
-        __unlock__(pred->lock);
-        __unlock__(curr->lock);
+        __unlock__(Head->lock);
         return true;
     }
 }
@@ -114,24 +111,21 @@ bool remove(data_t key) {
     Node* pred, curr;
     data_t k;
 
+    __lock__(Head->lock);
 	<pred, curr, k> = locate(key);
 
     if (k > key) {
-        __unlock__(pred->lock);
-        __unlock__(curr->lock);
+        __unlock__(Head->lock);
         return false;
 
     } else {
         Node* next;
 
         next = curr->next;
-        // __lock__(next->lock); // needed for interference precision
         assert(pred->next == curr);
         assert(curr->next == next);
         pred->next = next;
-        __unlock__(pred->lock);
-        __unlock__(curr->lock);
-        // __unlock__(next->lock);
+	    __unlock__(Head->lock);
         return true;
     }
 }
