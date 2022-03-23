@@ -1,4 +1,4 @@
-#name "Fine Set"
+#name "Optimistic Set"
 
 
 struct Node {
@@ -38,7 +38,7 @@ def @invariant[shared](Node* x) {
  && x->val == MAX ==> x == Tail
 
  && x->_flow != 0 ==> [x->val, MAX] in x->_flow
- && (x->_flow != 0 && x->val != MAX) ==> x->next != NULL
+ && (x->val != MAX) ==> x->next != NULL
  && (x->_flow != 0 && x->next != NULL) ==> x->val != MAX
 }
 
@@ -54,23 +54,35 @@ void __init__() {
 
 
 inline <Node*, Node*, data_t> locate(data_t key) {
-	Node* pred, curr;
+	Node* pred, curr, node;
 	data_t k;
 
-    pred = Head;
-    __lock__(pred->lock);
-    curr = pred->next;
-    __lock__(curr->lock);
-    k = curr->val;
-    while (k < key) {
-        __unlock__(pred->lock);
-        pred = curr;
-        curr = pred->next;
-        __lock__(curr->lock);
-        k = curr->val;
-    }
+    while (true) {
+        curr = Head;
+        do {
+            pred = curr;
+            curr = pred->next;
+            k = curr->val;
+        } while (k < key);
 
-    return <pred, curr, k>;
+        __lock__(pred->lock);
+        __lock__(curr->lock);
+
+        node = Head;
+        do {
+            node = node->next;
+        } while (node->val < pred->val);
+        if (node == pred) return <pred, curr, k>;
+
+        // while (node->val <= pred->val) {
+        //     if (node == pred) {
+        //         if (pred->next == curr) return <pred, curr, k>;
+        //         else break;
+        //     } else {
+        //         node = node->next;
+        //     }
+        // }
+    }
 }
 
 

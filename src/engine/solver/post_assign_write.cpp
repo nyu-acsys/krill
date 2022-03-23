@@ -216,7 +216,7 @@ inline void MinimizeFootprint(PostImageInfo& info) {
     // plankton::RemoveIf(info.footprint.nodes, [](const auto& node){ return !node.needed; }); // does not work
     std::deque<FlowGraphNode> nodes;
     for (auto& node : info.footprint.nodes) {
-        if (!node.needed) continue;
+        if (!node.needed && !node.HasUpdated()) continue;
         nodes.push_back(std::move(node));
     }
     info.footprint.nodes = std::move(nodes);

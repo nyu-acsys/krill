@@ -161,7 +161,7 @@ bool Solver::AddInterference(std::deque<std::unique_ptr<HeapEffect>> effects) {
     INFO(std::endl << "Adding effects to solver (" << effects.size() << "): " << std::endl)
     for (const auto& effect : effects) INFO("   " << *effect << std::endl)
     INFO(std::endl)
-    
+
     // add new effects
     plankton::MoveInto(std::move(effects), interference);
     return true;
