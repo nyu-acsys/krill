@@ -1,4 +1,4 @@
-#name "Optimistic Set with Hint"
+#name "Lazy Set"
 
 
 struct Node {
@@ -41,11 +41,7 @@ def @invariant[shared](Node* x) {
  && x->_flow != 0 ==> [x->val, MAX] in x->_flow
  && (x->val != MAX) ==> x->next != NULL
  && (x->_flow != 0 && x->next != NULL) ==> x->val != MAX
-
- && x->mark == false ==> x->_flow != 0
- && x->mark == true ==> x->_flow == 0
- && x->_flow != 0 ==> x->mark == false
- && x->_flow == 0 ==> x->mark == true
+ && (x->mark == false) ==> x->_flow != 0
 }
 
 
@@ -74,15 +70,8 @@ inline <Node*, Node*, data_t> locate(data_t key) {
         __lock__(pred->lock);
         __lock__(curr->lock);
 
-        node = Head;
-        while (node->val <= pred->val) {
-            if (node == pred) {
-                assert(pred->mark == false);
-                if (pred->next == curr) return <pred, curr, k>;
-                else break;
-            } else {
-                node = node->next;
-            }
+        if (pred->mark == false && curr->mark == false && pred->next == curr) {
+            return <pred, curr, k>;
         }
     }
 }
@@ -116,7 +105,7 @@ bool add(data_t key) {
 
     } else {
         entry->next = curr;
-        // assert(pred->next == curr);
+        assert(pred->next == curr);
         pred->next = entry;
         __unlock__(pred->lock);
         __unlock__(curr->lock);
@@ -140,10 +129,10 @@ bool remove(data_t key) {
         Node* next;
 
         next = curr->next;
-        // assert(pred->next == curr);
-        // assert(curr->next == next);
-        // curr->mark = true;
-        <pred->next, curr->mark> = <next, true>;
+        assert(pred->next == curr);
+        assert(curr->next == next);
+        curr->mark = true;
+        pred->next = next;
         __unlock__(pred->lock);
         __unlock__(curr->lock);
         return true;
