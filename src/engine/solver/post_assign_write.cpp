@@ -64,14 +64,31 @@ inline std::unique_ptr<StackAxiom> MakeBinary(const SymbolDeclaration& lhs, std:
 // Checks
 //
 
+// inline void CheckPublishing(PostImageInfo& info) {
+//     for (auto& node : info.footprint.nodes) {
+//         if (node.preLocal == node.postLocal) continue;
+//         node.needed = true;
+//         for (auto& field : node.pointerFields) {
+//             auto next = info.footprint.GetNodeOrNull(field.postValue);
+//             if (!next) throw std::logic_error("Footprint too small to capture publishing"); // TODO: better error handling
+//             next->needed = true;
+//         }
+//     }
+// }
+
 inline void CheckPublishing(PostImageInfo& info) {
     for (auto& node : info.footprint.nodes) {
         if (node.preLocal == node.postLocal) continue;
         node.needed = true;
         for (auto& field : node.pointerFields) {
-            auto next = info.footprint.GetNodeOrNull(field.postValue);
-            if (!next) throw std::logic_error("Footprint too small to capture publishing"); // TODO: better error handling
-            next->needed = true;
+            if (info.footprint.GetNodeOrNull(field.postValue)) continue;
+            if (auto next = plankton::TryGetResource(field.postValue, *info.pre.now)) {
+                if (dynamic_cast<const SharedMemoryCore*>(next)) continue;
+            }
+            info.encoding.AddCheck(info.encoding.EncodeIsNull(field.postValue), [](bool holds){
+                if (holds) return;
+                throw std::logic_error("Footprint too small to capture publishing"); // TODO: better error handling
+            });
         }
     }
 }
@@ -87,30 +104,44 @@ inline void CheckReachability(PostImageInfo& info) {
     }
     
     // ensure that no nodes outside the footprint are reachable after the update that were unreachable before
-    auto notUpdatedOrShared = [&info](const auto& field) {
-        if (!field.HasUpdated()) return true;
-        if (auto node = info.footprint.GetNodeOrNull(field.postValue)) return !node->preLocal;
-        return false;
-    };
-    for (const auto& node : info.footprint.nodes) {
-        if (!node.HasUpdatedPointers()) continue;
-        if (node.preLocal && plankton::All(node.pointerFields, notUpdatedOrShared)) continue;
-        
-        for (const auto* reach : postReach.GetReachable(node.address)) {
-            if (preReach.IsReachable(node.address, *reach)) continue;
-            if (node.preLocal)
-                if (auto reachNode = info.footprint.GetNodeOrNull(*reach))
-                    if (!reachNode->preLocal) continue;
-            
-            if (plankton::Subset(preReach.GetReachable(*reach), preReach.GetReachable(node.address)))
-                continue;
-
-            info.encoding.AddCheck(info.encoding.EncodeIsNull(*reach), [reach](bool holds){
-                if (holds) return;
-                throw std::logic_error("Update failed: cannot guarantee acyclicity via potentially non-null non-footprint address " + reach->name + "."); // TODO: better error handling
-            });
-        }
-    }
+    // auto notUpdatedOrShared = [&info](const auto& field) {
+    //     if (!field.HasUpdated()) return true;
+    //     if (auto node = info.footprint.GetNodeOrNull(field.postValue)) return !node->preLocal;
+    //     return false;
+    // };
+    // for (const auto& node : info.footprint.nodes) {
+    //     if (!node.HasUpdatedPointers()) continue;
+    //     if (node.preLocal && plankton::All(node.pointerFields, notUpdatedOrShared)) continue;
+    //
+    //     for (const auto* reach : postReach.GetReachable(node.address)) {
+    //         if (preReach.IsReachable(node.address, *reach)) continue;
+    //         if (node.preLocal) {
+    //             if (auto reachNode = info.footprint.GetNodeOrNull(*reach)) {
+    //                 if (!reachNode->preLocal) continue;
+    //             }
+    //         }
+    //
+    //         auto vec = plankton::MakeVector<EExpr>(8);
+    //         auto& nodeReach = preReach.GetReachable(node.address);
+    //         for (const auto* elem : preReach.GetReachable(*reach)) {
+    //             if (plankton::Membership(nodeReach, elem)) continue;
+    //             vec.push_back(info.encoding.EncodeIsNull(*elem));
+    //         }
+    //         auto missingReachIsNull = info.encoding.MakeAnd(vec);
+    //
+    //         info.encoding.AddCheck(missingReachIsNull || info.encoding.EncodeIsNull(*reach), [reach,&node](bool holds){
+    //             if (holds) return;
+    //             throw std::logic_error("Update failed: cannot guarantee acyclicity via potentially non-null non-footprint address " + reach->name + " from address " + node.address.name + "."); // TODO: better error handling
+    //         });
+    //
+    //         // if (plankton::Subset(preReach.GetReachable(*reach), preReach.GetReachable(node.address)))
+    //         //     continue;
+    //         // info.encoding.AddCheck(info.encoding.EncodeIsNull(*reach), [reach,&node](bool holds){
+    //         //     if (holds) return;
+    //         //     throw std::logic_error("Update failed: cannot guarantee acyclicity via potentially non-null non-footprint address " + reach->name + " from address " + node.address.name + "."); // TODO: better error handling
+    //         // });
+    //     }
+    // }
 }
 
 inline void CheckFlowCoverage(PostImageInfo& info) {
@@ -539,7 +570,10 @@ inline bool IsTrivial(const Formula& state, const MemoryWrite& cmd) {
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, bool useFuture) const {
     MEASURE("Solver::Post (MemoryWrite)")
     DEBUG("<<POST MEM>> [useFuture=" << useFuture << "]" << std::endl << *pre << " " << cmd << std::flush)
-    if (IsUnsatisfiable(*pre)) return PostImage();
+    if (IsUnsatisfiable(*pre)) {
+        DEBUG("{ false }" << std::endl << std::endl)
+        return PostImage();
+    }
 
     PrepareAccess(*pre, cmd);
     plankton::InlineAndSimplify(*pre);
@@ -570,6 +604,7 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
         auto post = ExtractPost(std::move(info));
 
         DEBUG(*post << std::endl << std::endl)
+        // plankton::InlineAndSimplify(*post);
         if (IsUnsatisfiable(*post)) throw std::logic_error("Failed to perform proper memory update: solver inconsistency suspected."); // TODO better error handling
         return PostImage(std::move(post), std::move(effects));
 

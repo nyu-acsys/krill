@@ -153,9 +153,19 @@ struct BranchedCondition {
             target.push_back(std::make_unique<Scope>(MakeAssumeBool(true)));
             return;
         }
-        for (auto&& elem : conditions) {
-            if (IsAlwaysFalse(*elem)) continue;
-            target.push_back(std::make_unique<Scope>(std::make_unique<Assume>(std::move(elem))));
+        // for (auto&& elem : conditions) {
+        //     if (IsAlwaysFalse(*elem)) continue;
+        //     target.push_back(std::make_unique<Scope>(std::make_unique<Assume>(std::move(elem))));
+        // }
+        for (auto it = conditions.begin(); it != conditions.end(); ++it) {
+            auto scope = std::make_unique<Scope>(std::make_unique<Assume>(plankton::Copy(**it)));
+            for (auto ot = conditions.begin(); ot < it; ++ot) {
+                scope->body = std::make_unique<Sequence>(
+                        std::make_unique<Assume>(Negate(**ot)),
+                        std::move(scope->body)
+                );
+            }
+            target.push_back(std::move(scope));
         }
     }
 };

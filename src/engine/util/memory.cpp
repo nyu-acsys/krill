@@ -35,5 +35,5 @@ void plankton::MakeMemoryAccessible(Annotation& annotation, std::set<const Symbo
     SymbolFactory factory(annotation);
     Encoding encoding(*annotation.now, config);
     auto extended = ExtendIfNeeded(*annotation.now, std::move(symbols), config.GetFlowValueType(), factory, encoding);
-    // if (extended) plankton::ExtendStack(annotation, config, ExtensionPolicy::FAST); // TODO: do this?
+    if (extended) plankton::ExtendStack(annotation, config, ExtensionPolicy::FAST); // TODO: do this?
 }

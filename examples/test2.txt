@@ -1,0 +1,150 @@
+#name "DISC'18 Tree, no Maintenance"
+
+
+struct Node {
+    thread_t lock;
+	data_t val;
+	Node* left;
+	Node* right;
+    bool del;
+    bool rem;
+}
+
+Node* Root;
+
+
+def @contains(Node* node, data_t key) {
+    !node->del && node->val == key
+}
+
+def @outflow[left](Node* node, data_t key) {
+    key < node->val && node->left != NULL
+}
+
+def @outflow[right](Node* node, data_t key) {
+    node->val < key && node->right != NULL
+}
+
+def @invariant[local](Node* x) {
+    x->_flow == 0
+}
+
+def @invariant[shared](Node* x) {
+    Root != NULL
+ && Root->val == MIN
+ && Root->del == false
+ && Root->rem == false
+ && Root->_flow != 0
+ && [MIN, MAX] in Root->_flow
+ && x->val == MIN ==> x == Root
+
+ && x->_flow != 0 ==> [x->val, x->val] in x->_flow
+ && !x->rem ==> x->_flow != 0
+ && !x->del ==> !x->rem
+ && x->rem ==> x->del
+}
+
+
+void __init__() {
+	Root = malloc;
+    Root->val = MIN;
+    Root->left = NULL;
+    Root->right = NULL;
+    Root->del = false;
+    Root->rem = false;
+}
+
+
+inline <Node*, Node*> locate(data_t key) {
+	Node* pred, curr;
+
+    pred = Root;
+    curr = Root;
+    do {
+        // assume(curr->val < key || curr->val > key); // force case distinction
+        pred = curr;
+        if (pred->val < key) curr = pred->right;
+        else curr = pred->left;
+    } while (curr != NULL && curr->val != key);
+    // assume(curr == NULL || curr->val == key); // repeated loop abort condition for precision
+    return <pred, curr>;
+}
+
+
+bool contains(data_t key) {
+	Node* pred, curr;
+	<pred, curr> = locate(key);
+    if (curr == NULL) return false;
+    if (curr->del) return false;
+    return true;
+}
+
+
+bool add(data_t key) {
+    Node* entry;
+    entry = malloc;
+    entry->val = key;
+    entry->left = NULL;
+    entry->right = NULL;
+    entry->del = false;
+    entry->rem = false;
+
+    while (true) {
+        Node* pred, curr;
+        bool ret;
+        <pred, curr> = locate(key);
+
+        if (curr != NULL) {
+            __lock__(curr->lock);
+            if (!curr->rem) {
+                if (curr->del) {
+                    curr->del = false;
+                    __unlock__(curr->lock);
+                    return true;
+                } else {
+                    curr->del = false;
+                    __unlock__(curr->lock);
+                    return false;
+                }
+            }
+        } else {
+            __lock__(pred->lock);
+            if (!pred->rem) {
+                if (key < pred->val && pred->left == NULL) {
+                    pred->left = entry;
+                    __unlock__(pred->lock);
+                    return true;
+                } else if (pred->right == NULL) {
+                    pred->right = entry;
+                    __unlock__(pred->lock);
+                    return true;
+                } else {
+                    __unlock__(pred->lock);
+                }
+            }
+        }
+    }
+}
+
+
+bool remove(data_t key) {
+    while (true) {
+        Node* pred, curr;
+        bool ret;
+        <pred, curr> = locate(key);
+
+        if (curr == NULL) return false;
+        __lock__(curr->lock);
+        if (!curr->rem) {
+            if (!curr->del) {
+                curr->del = true;
+                __unlock__(curr->lock);
+                return true;
+            } else {
+                curr->del = true;
+                __unlock__(curr->lock);
+                return false;
+            }
+        }
+    }
+}

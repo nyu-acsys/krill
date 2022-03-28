@@ -253,6 +253,7 @@ struct Interpolator {
     }
 
     inline void InterpolatePastToNow(const SharedMemoryCore& past, const std::string& field, const SymbolDeclaration& interpolatedValue) {
+        DEBUG("INTERPOL: [past] " << past << "  [field] " << field << "  [interpolatedValue] " << interpolatedValue << std::endl)
         auto& pastValue = past.fieldToValue.at(field)->Decl();
         if (interpolatedValue == pastValue) return;
 
@@ -264,6 +265,7 @@ struct Interpolator {
         encoding.AddPremise(encoding.EncodeInvariants(*newHistory, config));
 
         auto vector = plankton::MakeVector<EExpr>(interference.size() + 1);
+        DEBUG("       " << interpolatedValue << "==" << pastValue << " && " << past << "==" << *newHistory << std::endl);
         vector.push_back( // 'field' was never changed
                 encoding.Encode(interpolatedValue) == encoding.Encode(pastValue) &&
                 encoding.EncodeMemoryEquality(past, *newHistory)
@@ -271,6 +273,7 @@ struct Interpolator {
         for (const auto& effect : interference) {
             if (!plankton::UpdatesField(*effect, field)) continue;
             auto& effectValue = effect->post->fieldToValue.at(field)->Decl();
+            DEBUG("    \\/ " << interpolatedValue << "==" << effectValue << " && " << *effect->context << " && " << *effect->post << "==" << *newHistory << std::endl);
             vector.push_back( // last update to 'field' is due to 'effect'
                     encoding.Encode(interpolatedValue) == encoding.Encode(effectValue) &&
                     encoding.Encode(*effect->context) &&

@@ -161,7 +161,7 @@ bool add(data_t key) {
 				if (!pred1->marked && !succ1->marked && pred1->next1 == succ1) {
 					if (pred1 != pred2) __lock__(pred2->lock);
 					if (!pred2->marked && !succ2->marked && pred2->next2 == succ2) {
-						entry->topLevel = true;
+						entry->topLevel = false;
 						entry->next1 = succ1;
 						entry->next2 = succ2;
 						pred1->next1 = entry;

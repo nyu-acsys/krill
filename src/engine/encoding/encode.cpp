@@ -264,7 +264,8 @@ EExpr Encoding::EncodeFormulaWithKnowledge(const Formula& formula, const SolverC
            && EncodeInvariants(formula, config)
            && EncodeSimpleFlowRules(formula, config)
            && EncodeOwnership(formula)
-           && EncodeAcyclicity(formula);
+           && EncodeAcyclicity(formula)
+           ;
 }
 
 EExpr Encoding::EncodeInvariants(const Formula& formula, const SolverConfig& config) {
@@ -280,16 +281,21 @@ EExpr Encoding::EncodeInvariants(const Formula& formula, const SolverConfig& con
     return MakeAnd(result);
 }
 
+#include "util/log.hpp"
 EExpr Encoding::EncodeAcyclicity(const Formula& formula) {
     auto reachability = plankton::ComputeReachability(formula);
     std::vector<EExpr> result;
     result.reserve(reachability.container.size());
     for (const auto& [node, reach] : reachability.container) {
-        std::vector<EExpr> distinct;
-        distinct.reserve(reach.size() + 1);
-        distinct.push_back(Encode(*node));
-        for (const auto* other : reach) distinct.push_back(Encode(*other));
-        result.push_back(MakeDistinct(distinct));
+        // std::vector<EExpr> distinct;
+        // distinct.reserve(reach.size() + 1);
+        // distinct.push_back(Encode(*node));
+        // for (const auto* other : reach) distinct.push_back(Encode(*other));
+        // result.push_back(MakeDistinct(distinct));
+        auto distinct = Encode(*node);
+        for (const auto* other : reach) {
+            result.push_back(distinct != Encode(*other));
+        }
     }
     return MakeAnd(result);
 }
