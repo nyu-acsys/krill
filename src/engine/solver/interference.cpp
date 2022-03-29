@@ -126,11 +126,26 @@ inline void RenameEffects(std::deque<std::unique_ptr<HeapEffect>>& effects, cons
     for (auto& effect : effects) RenameEffect(*effect, factory);
 }
 
+void ReplaceInterfererTid(std::deque<std::unique_ptr<HeapEffect>>& interference) {
+    for (const auto& effect : interference) {
+        auto axioms = plankton::CollectMutable<StackAxiom>(*effect->context);
+        for (const auto& axiom: axioms) {
+            if (dynamic_cast<const SymbolicSelfTid*>(axiom->lhs.get())) {
+                axiom->lhs = std::make_unique<SymbolicSomeTid>();
+            }
+            if (dynamic_cast<const SymbolicSelfTid*>(axiom->rhs.get())) {
+                axiom->rhs = std::make_unique<SymbolicSomeTid>();
+            }
+        }
+    }
+}
+
 bool Solver::AddInterference(std::deque<std::unique_ptr<HeapEffect>> effects) {
     DEBUG("Solver::AddInterference (" << effects.size() << ")" << std::endl)
     MEASURE("Solver::AddInterference")
 
     // preprocess
+    ReplaceInterfererTid(effects);
     QuickFilter(effects);
     DEBUG("Number of effects after filter: " << effects.size() << std::endl)
     if (effects.empty()) return false;

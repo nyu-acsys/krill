@@ -33,6 +33,7 @@ MakeCheck(Encoding& encoding, const Formula& formula, const MemoryAxiom& weaker,
     auto renaming = plankton::MakeMemoryRenaming(weaker, stronger);
     auto renamed = plankton::Copy(formula);
     plankton::RenameSymbols(*renamed, renaming);
+    DEBUG("  past subsumption check" << std::endl << "     for " << stronger << std::endl << "      => " << weaker << std::endl << "     chk: " << *renamed << std::endl)
     return encoding.Encode(*renamed);
 }
 
@@ -54,10 +55,15 @@ void FilterPasts(Annotation& annotation, const SolverConfig& config) {
         for (const auto& weaker : annotation.past) {
             auto check = MakeCheck(encoding, *annotation.now, *weaker->formula, *stronger->formula);
             if (!check) continue;
-            encoding.AddCheck(*check, [&subsumes, &weaker, &stronger](bool holds) {
-                // DEBUG("  past subsumption=" << holds << " for " << *stronger << " => " << *weaker << std::endl)
-                if (holds) subsumes[stronger.get()].insert(weaker.get());
-            });
+            // encoding.AddCheck(*check, [&subsumes, &weaker, &stronger](bool holds) {
+            //     DEBUG("  past subsumption=" << holds << std::endl << "     for " << *stronger << std::endl << "      => " << *weaker << std::endl)
+            //     if (holds) subsumes[stronger.get()].insert(weaker.get());
+            // });
+            // TODO: REMOVE DEBUG
+            if (encoding.Implies(*check)) {
+                DEBUG("  past subsumption=true" << std::endl << "     for " << *stronger << std::endl << "      => " << *weaker << std::endl)
+                subsumes[stronger.get()].insert(weaker.get());
+            }
         }
     }
     encoding.Check();
@@ -147,6 +153,9 @@ struct Interpolator {
         Filter();
         InterpolatePastToNow();
         AddTrivialPast();
+        DEBUG(" && after interpolation: " << annotation << std::endl)
+        Filter();
+        DEBUG(" && after last filter: " << annotation << std::endl)
         PostProcess();
     }
 
@@ -225,8 +234,10 @@ struct Interpolator {
                 if (memory->node->Decl() == pastAddress) continue;
                 auto memoryCandidates = plankton::MakeStackCandidates(*past->now, *memory, ExtensionPolicy::FAST);
                 plankton::MoveInto(std::move(memoryCandidates), candidates);
+                plankton::MoveInto(plankton::MakeStackCandidates(*memory, ExtensionPolicy::FAST), candidates);
             }
 
+            if (candidates.empty()) continue;
             encoding.AddPremise(*past->now);
             encoding.AddPremise(encoding.EncodeInvariants(*past->now, config));
             encoding.AddPremise(encoding.EncodeSimpleFlowRules(*past->now, config));
@@ -252,8 +263,7 @@ struct Interpolator {
         return result;
     }
 
-    inline void InterpolatePastToNow(const SharedMemoryCore& past, const std::string& field, const SymbolDeclaration& interpolatedValue) {
-        DEBUG("INTERPOL: [past] " << past << "  [field] " << field << "  [interpolatedValue] " << interpolatedValue << std::endl)
+    inline void InterpolateEffectPastToNow(const SharedMemoryCore& past, const std::string& field, const SymbolDeclaration& interpolatedValue) {
         auto& pastValue = past.fieldToValue.at(field)->Decl();
         if (interpolatedValue == pastValue) return;
 
@@ -265,7 +275,6 @@ struct Interpolator {
         encoding.AddPremise(encoding.EncodeInvariants(*newHistory, config));
 
         auto vector = plankton::MakeVector<EExpr>(interference.size() + 1);
-        DEBUG("       " << interpolatedValue << "==" << pastValue << " && " << past << "==" << *newHistory << std::endl);
         vector.push_back( // 'field' was never changed
                 encoding.Encode(interpolatedValue) == encoding.Encode(pastValue) &&
                 encoding.EncodeMemoryEquality(past, *newHistory)
@@ -273,7 +282,6 @@ struct Interpolator {
         for (const auto& effect : interference) {
             if (!plankton::UpdatesField(*effect, field)) continue;
             auto& effectValue = effect->post->fieldToValue.at(field)->Decl();
-            DEBUG("    \\/ " << interpolatedValue << "==" << effectValue << " && " << *effect->context << " && " << *effect->post << "==" << *newHistory << std::endl);
             vector.push_back( // last update to 'field' is due to 'effect'
                     encoding.Encode(interpolatedValue) == encoding.Encode(effectValue) &&
                     encoding.Encode(*effect->context) &&
@@ -284,6 +292,70 @@ struct Interpolator {
 
         AddDerivedCandidates(encoding, MakeInterpolationCandidates(*newHistory));
         // AddDerivedCandidates(encoding, plankton::MakeStackCandidates(*annotation.now, *newHistory, ExtensionPolicy::FAST));
+        annotation.Conjoin(std::make_unique<PastPredicate>(std::move(newHistory)));
+    }
+
+    inline void InterpolateDeepPastToNow(const SharedMemoryCore& past, const std::string& field, const SymbolDeclaration& interpolatedValue) {
+        struct ContextCollector : public LogicListener {
+            std::set<const SymbolDeclaration*> search;
+            std::unique_ptr<SeparatingConjunction> knowledge;
+            explicit ContextCollector(const SharedMemoryCore& past) : knowledge(std::make_unique<SeparatingConjunction>()) {
+                search.insert(&past.flow->Decl());
+                for (const auto& pair : past.fieldToValue) search.insert(&pair.second->Decl());
+            }
+            inline void Handle(const Axiom& object) {
+                if (plankton::EmptyIntersection(search, plankton::Collect<SymbolDeclaration>(object))) return;
+                knowledge->Conjoin(plankton::Copy(object));
+            }
+            void Enter(const StackAxiom& object) override { Handle(object); }
+            void Enter(const InflowEmptinessAxiom& object) override { Handle(object); }
+            void Enter(const InflowContainsValueAxiom& object) override { Handle(object); }
+            void Enter(const InflowContainsRangeAxiom& object) override { Handle(object); }
+        } collector(past);
+        annotation.now->Accept(collector);
+        auto pastKnowledge = std::move(collector.knowledge);
+        assert(pastKnowledge);
+
+        DEBUG("INTERPOL (deep): [past] " << past << "  [field] " << field << "  [interpolatedValue] " << interpolatedValue << std::endl)
+        if (pastKnowledge->conjuncts.empty()) { DEBUG("  -- nothing to be done" << std::endl) return; }
+        DEBUG("  -- working relative to: " << *pastKnowledge << std::endl)
+        Encoding encoding;
+        encoding.EncodeInvariants(past, config);
+        auto mkKnowledge = [&encoding,&pastKnowledge,&past](const auto& with){
+            auto copy = plankton::Copy(*pastKnowledge);
+            auto renaming = plankton::MakeMemoryRenaming(past, with);
+            plankton::RenameSymbols(*copy, renaming);
+            return encoding.Encode(*copy);
+        };
+
+        // interpolation variant 1
+        auto vector = plankton::MakeVector<EExpr>(interference.size());
+        for (const auto& effect : interference) {
+            auto interpolant = encoding.Encode(*effect->pre->fieldToValue.at(field)) != encoding.Encode(interpolatedValue);
+            auto pre = mkKnowledge(*effect->pre);
+            auto post = mkKnowledge(*effect->post);
+            auto context = encoding.Encode(*effect->pre) && encoding.EncodeInvariants(*effect->pre, config)
+                               && encoding.Encode(*effect->post) && encoding.EncodeInvariants(*effect->post, config);
+            vector.push_back((context && pre && interpolant) >> (post));
+        }
+
+        // interpolation variant 2
+        auto other = plankton::MakeVector<EExpr>(interference.size());
+        for (const auto& effect : interference) {
+            auto preInterpolant = encoding.Encode(*effect->pre->fieldToValue.at(field)) != encoding.Encode(interpolatedValue);
+            auto postInterpolant = encoding.Encode(*effect->post->fieldToValue.at(field)) != encoding.Encode(interpolatedValue);
+            auto post = mkKnowledge(*effect->post);
+            auto context = encoding.Encode(*effect->pre) && encoding.EncodeInvariants(*effect->pre, config)
+                               && encoding.Encode(*effect->post) && encoding.EncodeInvariants(*effect->post, config);
+            other.push_back((context && preInterpolant) >> (postInterpolant || post));
+        }
+
+        // interpolate
+        auto interpolation = encoding.MakeAnd(vector) || encoding.MakeAnd(other);
+        if (!encoding.Implies(interpolation)) { DEBUG("  -- cannot interpolate" << std::endl) return; }
+        auto newHistory = plankton::Copy(past);
+        newHistory->fieldToValue.at(field)->decl = interpolatedValue;
+        DEBUG("  -- interpolating results in: " << *newHistory << std::endl)
         annotation.Conjoin(std::make_unique<PastPredicate>(std::move(newHistory)));
     }
 
@@ -312,10 +384,12 @@ struct Interpolator {
             for (const auto* nowMem : nowMemories) {
                 if (nowMem->node->Decl() != past->formula->node->Decl()) continue;
                 for (const auto& [field, value] : nowMem->fieldToValue) {
-                    if (INTERPOLATE_POINTERS_ONLY && value->GetSort() != Sort::PTR) continue;
+                    // if (INTERPOLATE_POINTERS_ONLY && value->GetSort() != Sort::PTR) continue;
+                    if (value->Decl() == past->formula->fieldToValue.at(field)->Decl()) continue;
                     if (value->GetSort() == Sort::PTR && !plankton::Membership(referenced, &value->Decl())) continue;
                     if (plankton::Membership(interpolated, &value->Decl())) continue;
-                    InterpolatePastToNow(*past->formula, field, value->Decl());
+                    InterpolateEffectPastToNow(*past->formula, field, value->Decl()); // TODO: still needed?
+                    InterpolateDeepPastToNow(*past->formula, field, value->Decl());
                     interpolated.insert(&value->Decl());
                 }
             }

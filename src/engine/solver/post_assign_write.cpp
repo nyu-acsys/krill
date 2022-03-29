@@ -603,8 +603,9 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
         auto effects = ExtractEffects(info);
         auto post = ExtractPost(std::move(info));
 
+        plankton::ExtendStack(*post, config, ExtensionPolicy::FAST);
         DEBUG(*post << std::endl << std::endl)
-        // plankton::InlineAndSimplify(*post);
+        plankton::InlineAndSimplify(*post);
         if (IsUnsatisfiable(*post)) throw std::logic_error("Failed to perform proper memory update: solver inconsistency suspected."); // TODO better error handling
         return PostImage(std::move(post), std::move(effects));
 
