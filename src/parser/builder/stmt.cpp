@@ -515,7 +515,7 @@ std::unique_ptr<Statement> AstBuilder::MakeCall(PlanktonParser::CmdCallContext& 
         throw std::logic_error("Parse error: call to non-macro function '" + function.name + "' not allowed."); // TODO: better error handling
     }
     auto result = std::make_unique<Macro>(function);
-    result->lhs = As<VariableExpression>(*ctx.lhs, *this);
+    if (ctx.lhs) result->lhs = As<VariableExpression>(*ctx.lhs, *this);
     result->arguments = As<SimpleExpression>(*ctx.args, *this);
     return result;
 }

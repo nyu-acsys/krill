@@ -104,44 +104,44 @@ inline void CheckReachability(PostImageInfo& info) {
     }
     
     // ensure that no nodes outside the footprint are reachable after the update that were unreachable before
-    // auto notUpdatedOrShared = [&info](const auto& field) {
-    //     if (!field.HasUpdated()) return true;
-    //     if (auto node = info.footprint.GetNodeOrNull(field.postValue)) return !node->preLocal;
-    //     return false;
-    // };
-    // for (const auto& node : info.footprint.nodes) {
-    //     if (!node.HasUpdatedPointers()) continue;
-    //     if (node.preLocal && plankton::All(node.pointerFields, notUpdatedOrShared)) continue;
-    //
-    //     for (const auto* reach : postReach.GetReachable(node.address)) {
-    //         if (preReach.IsReachable(node.address, *reach)) continue;
-    //         if (node.preLocal) {
-    //             if (auto reachNode = info.footprint.GetNodeOrNull(*reach)) {
-    //                 if (!reachNode->preLocal) continue;
-    //             }
-    //         }
-    //
-    //         auto vec = plankton::MakeVector<EExpr>(8);
-    //         auto& nodeReach = preReach.GetReachable(node.address);
-    //         for (const auto* elem : preReach.GetReachable(*reach)) {
-    //             if (plankton::Membership(nodeReach, elem)) continue;
-    //             vec.push_back(info.encoding.EncodeIsNull(*elem));
-    //         }
-    //         auto missingReachIsNull = info.encoding.MakeAnd(vec);
-    //
-    //         info.encoding.AddCheck(missingReachIsNull || info.encoding.EncodeIsNull(*reach), [reach,&node](bool holds){
-    //             if (holds) return;
-    //             throw std::logic_error("Update failed: cannot guarantee acyclicity via potentially non-null non-footprint address " + reach->name + " from address " + node.address.name + "."); // TODO: better error handling
-    //         });
-    //
-    //         // if (plankton::Subset(preReach.GetReachable(*reach), preReach.GetReachable(node.address)))
-    //         //     continue;
-    //         // info.encoding.AddCheck(info.encoding.EncodeIsNull(*reach), [reach,&node](bool holds){
-    //         //     if (holds) return;
-    //         //     throw std::logic_error("Update failed: cannot guarantee acyclicity via potentially non-null non-footprint address " + reach->name + " from address " + node.address.name + "."); // TODO: better error handling
-    //         // });
-    //     }
-    // }
+     auto notUpdatedOrShared = [&info](const auto& field) {
+         if (!field.HasUpdated()) return true;
+         if (auto node = info.footprint.GetNodeOrNull(field.postValue)) return !node->preLocal;
+         return false;
+     };
+     for (const auto& node : info.footprint.nodes) {
+         if (!node.HasUpdatedPointers()) continue;
+         if (node.preLocal && plankton::All(node.pointerFields, notUpdatedOrShared)) continue;
+
+         for (const auto* reach : postReach.GetReachable(node.address)) {
+             if (preReach.IsReachable(node.address, *reach)) continue;
+             if (node.preLocal) {
+                 if (auto reachNode = info.footprint.GetNodeOrNull(*reach)) {
+                     if (!reachNode->preLocal) continue;
+                 }
+             }
+
+             auto vec = plankton::MakeVector<EExpr>(8);
+             auto& nodeReach = preReach.GetReachable(node.address);
+             for (const auto* elem : preReach.GetReachable(*reach)) {
+                 if (plankton::Membership(nodeReach, elem)) continue;
+                 vec.push_back(info.encoding.EncodeIsNull(*elem));
+             }
+             auto missingReachIsNull = info.encoding.MakeAnd(vec);
+
+             info.encoding.AddCheck(missingReachIsNull || info.encoding.EncodeIsNull(*reach), [reach,&node](bool holds){
+                 if (holds) return;
+                 throw std::logic_error("Update failed: cannot guarantee acyclicity via potentially non-null non-footprint address " + reach->name + " from address " + node.address.name + "."); // TODO: better error handling
+             });
+
+             // if (plankton::Subset(preReach.GetReachable(*reach), preReach.GetReachable(node.address)))
+             //     continue;
+             // info.encoding.AddCheck(info.encoding.EncodeIsNull(*reach), [reach,&node](bool holds){
+             //     if (holds) return;
+             //     throw std::logic_error("Update failed: cannot guarantee acyclicity via potentially non-null non-footprint address " + reach->name + " from address " + node.address.name + "."); // TODO: better error handling
+             // });
+         }
+     }
 }
 
 inline void CheckFlowCoverage(PostImageInfo& info) {

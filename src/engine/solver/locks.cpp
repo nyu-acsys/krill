@@ -17,6 +17,7 @@ inline std::unique_ptr<StackAxiom> MakeLockAssumption(const SymbolDeclaration& l
 
 template<typename PRE, typename POST>
 inline PostImage ChangeLock(std::unique_ptr<Annotation> pre, const Dereference& lockExpr, const Solver& solver) {
+    // TODO: if the invariant can react on locks, then locking/unlocking must check for conserving the invariant!
     // TODO: do we need to do history / future reasoning?
 
     plankton::InlineAndSimplify(*pre);

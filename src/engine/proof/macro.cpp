@@ -20,6 +20,8 @@ AsExpr(const std::vector<std::unique_ptr<VariableDeclaration>>& decls) {
 
 inline std::unique_ptr<Statement> MakeMacroAssignment(const std::vector<std::unique_ptr<VariableExpression>>& lhs,
                                                       const std::vector<std::unique_ptr<SimpleExpression>>& rhs) {
+    assert(lhs.size() == rhs.size());
+    if (lhs.empty()) return nullptr;
     auto result = std::make_unique<VariableAssignment>();
     plankton::MoveInto(::CopyAll(lhs), result->lhs);
     plankton::MoveInto(::CopyAll(rhs), result->rhs);
@@ -47,7 +49,8 @@ void ProofGenerator::HandleMacroProlog(const Macro& macro) {
         return result;
     });
 
-    MakeMacroAssignment(AsExpr(macro.Func().parameters), macro.arguments)->Accept(*this);
+    auto assignment = MakeMacroAssignment(AsExpr(macro.Func().parameters), macro.arguments);
+    if (assignment) assignment->Accept(*this);
 }
 
 
@@ -61,7 +64,12 @@ void ProofGenerator::HandleMacroEpilog(const Macro& macro) {
     for (auto& [annotation, command] : returning) {
         current.clear();
         current.push_back(std::move(annotation));
-        MakeMacroAssignment(macro.lhs, command->expressions)->Accept(*this);
+        if (command) {
+            auto assignment = MakeMacroAssignment(macro.lhs, command->expressions);
+            if (assignment) assignment->Accept(*this);
+        } else if (!plankton::IsVoid(macro.Func())) {
+            throw std::logic_error("Detected non-returning path through non-void macro '" + macro.Func().name + "'."); // TODO: better error handling
+        }
         MoveInto(std::move(current), newCurrent);
     }
     current = std::move(newCurrent);

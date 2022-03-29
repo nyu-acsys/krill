@@ -13,7 +13,7 @@ constexpr const bool INTERPOLATE_POINTERS_ONLY = true;
 
 
 inline Encoding MakeEncoding(const Annotation& annotation, const SolverConfig& config) {
-    Encoding encoding(*annotation.now);
+    Encoding encoding(*annotation.now, config);
     encoding.AddPremise(encoding.EncodeInvariants(*annotation.now, config));
     // encoding.AddPremise(encoding.EncodeSimpleFlowRules(*annotation.now, config));
     for (const auto& elem : annotation.past)
@@ -21,20 +21,90 @@ inline Encoding MakeEncoding(const Annotation& annotation, const SolverConfig& c
     return encoding;
 }
 
+inline std::unique_ptr<SeparatingConjunction> ExtractKnowledge(const std::set<const SymbolDeclaration*>& search, const Formula& from) {
+    struct ContextCollector : public LogicListener {
+        const std::set<const SymbolDeclaration*>& search;
+        std::unique_ptr<SeparatingConjunction> knowledge;
+        explicit ContextCollector(const std::set<const SymbolDeclaration *> &search)
+                : search(search), knowledge(std::make_unique<SeparatingConjunction>()) {}
+        inline void Handle(const Axiom& object) {
+            if (plankton::EmptyIntersection(search, plankton::Collect<SymbolDeclaration>(object))) return;
+            knowledge->Conjoin(plankton::Copy(object));
+        }
+        void Enter(const EqualsToAxiom& object) override { Handle(object); }
+        void Enter(const StackAxiom& object) override { Handle(object); }
+        void Enter(const InflowEmptinessAxiom& object) override { Handle(object); }
+        void Enter(const InflowContainsValueAxiom& object) override { Handle(object); }
+        void Enter(const InflowContainsRangeAxiom& object) override { Handle(object); }
+    } collector(search);
+    from.Accept(collector);
+    return std::move(collector.knowledge);
+}
+
+inline std::unique_ptr<SeparatingConjunction> ExtractKnowledge(const MemoryAxiom& axiom, const Formula& from) {
+    std::set<const SymbolDeclaration*> search;
+    search.insert(&axiom.flow->Decl());
+    for (const auto& pair : axiom.fieldToValue) search.insert(&pair.second->Decl());
+    return ExtractKnowledge(search, from);
+}
+
+inline std::unique_ptr<SeparatingConjunction> ExtractKnowledge(const SymbolDeclaration& symbol, const Formula& from) {
+    std::set<const SymbolDeclaration*> search;
+    search.insert(&symbol);
+    return ExtractKnowledge(search, from);
+}
+
+inline std::unique_ptr<StackAxiom> MakeEq(const SymbolDeclaration& decl, const SymbolDeclaration& other) {
+    return std::make_unique<StackAxiom>(
+            BinaryOperator::EQ, std::make_unique<SymbolicVariable>(decl), std::make_unique<SymbolicVariable>(other)
+    );
+}
+
 
 //
 // Filter
 //
 
-inline std::optional<EExpr>
-MakeCheck(Encoding& encoding, const Formula& formula, const MemoryAxiom& weaker, const MemoryAxiom& stronger) {
-    if (&stronger == &weaker) return std::nullopt;
-    if (weaker.node->Decl() != stronger.node->Decl()) return std::nullopt;
-    auto renaming = plankton::MakeMemoryRenaming(weaker, stronger);
-    auto renamed = plankton::Copy(formula);
-    plankton::RenameSymbols(*renamed, renaming);
-    DEBUG("  past subsumption check" << std::endl << "     for " << stronger << std::endl << "      => " << weaker << std::endl << "     chk: " << *renamed << std::endl)
-    return encoding.Encode(*renamed);
+//inline std::optional<EExpr>
+inline std::unique_ptr<SeparatingConjunction>
+MakeSubsumptionCheck(Encoding& encoding, const Formula& formula, const MemoryAxiom& weaker, const MemoryAxiom& stronger) {
+    //// TODO: why does it not work as intended??
+    //if (&stronger == &weaker) return std::nullopt;
+    //if (weaker.node->Decl() != stronger.node->Decl()) return std::nullopt;
+    //auto renaming = plankton::MakeMemoryRenaming(stronger, weaker);
+    //auto renamed = plankton::Copy(formula);
+    //plankton::RenameSymbols(*renamed, renaming);
+    ////DEBUG("  past subsumption check" << std::endl << "     for " << stronger << std::endl << "      => " << weaker << std::endl << "     chk: " << *renamed << std::endl)
+    //return encoding.Encode(*renamed);
+
+    //if (&stronger == &weaker) return std::nullopt;
+    //if (weaker.node->Decl() != stronger.node->Decl()) return std::nullopt;
+    //auto strongerInfo = ExtractKnowledge(stronger, formula);
+    //auto check = ExtractKnowledge(weaker, formula);
+    ////auto renaming = plankton::MakeMemoryRenaming(stronger, weaker);
+    ////plankton::RenameSymbols(*strongerInfo, renaming);
+    //DEBUG("#### past subsumption check: " << stronger << "  ==>  " << weaker << std::endl << "        " << *strongerInfo << std::endl << "     => " << std::endl << "        " << *check << std::endl)
+    //auto context = encoding.EncodeMemoryEquality(stronger, weaker);
+    //return (encoding.Encode(*strongerInfo) && context) >> encoding.Encode(*check);
+
+    //auto check = ExtractKnowledge(weaker, formula);
+    //auto renaming = plankton::MakeMemoryRenaming(weaker, stronger);
+    //plankton::RenameSymbols(*check, renaming);
+
+    if (&stronger == &weaker) return nullptr;
+    if (weaker.node->Decl() != stronger.node->Decl()) return nullptr;
+    auto check = std::make_unique<SeparatingConjunction>();
+    auto handle = [&check,&formula](const auto& weakerDecl, const auto& strongerDecl) {
+        auto fieldCheck = ExtractKnowledge(weakerDecl, formula);
+        auto renaming = [&](const auto& decl) -> const SymbolDeclaration& { return decl == weakerDecl ? strongerDecl : decl; };
+        plankton::RenameSymbols(*fieldCheck, renaming);
+        check->Conjoin(std::move(fieldCheck));
+    };
+    handle(weaker.flow->Decl(), stronger.flow->Decl());
+    for (const auto& [field, value] : weaker.fieldToValue) {
+        handle(value->Decl(), stronger.fieldToValue.at(field)->Decl());
+    }
+    return check;
 }
 
 void FilterPasts(Annotation& annotation, const SolverConfig& config) {
@@ -49,20 +119,23 @@ void FilterPasts(Annotation& annotation, const SolverConfig& config) {
 
     plankton::InlineAndSimplify(annotation);
     auto encoding = MakeEncoding(annotation, config);
+    //DEBUG("## FILTER " << annotation << std::endl)
 
     std::map<const PastPredicate*, std::set<const PastPredicate*>> subsumes;
+    auto newKnowledge = std::make_unique<SeparatingConjunction>();
     for (const auto& stronger : annotation.past) {
         for (const auto& weaker : annotation.past) {
-            auto check = MakeCheck(encoding, *annotation.now, *weaker->formula, *stronger->formula);
+            auto check = MakeSubsumptionCheck(encoding, *annotation.now, *weaker->formula, *stronger->formula);
             if (!check) continue;
-            // encoding.AddCheck(*check, [&subsumes, &weaker, &stronger](bool holds) {
-            //     DEBUG("  past subsumption=" << holds << std::endl << "     for " << *stronger << std::endl << "      => " << *weaker << std::endl)
-            //     if (holds) subsumes[stronger.get()].insert(weaker.get());
-            // });
-            // TODO: REMOVE DEBUG
+            //encoding.AddCheck(encoding.Encode(*check), [&subsumes, &weaker, &stronger](bool holds) {
+            //    //DEBUG("  past subsumption=" << holds << std::endl << "     for " << *stronger << std::endl << "      => " << *weaker << std::endl)
+            //    if (holds) subsumes[stronger.get()].insert(weaker.get());
+            //    // TODO: add new knowledge
+            //});
             if (encoding.Implies(*check)) {
-                DEBUG("  past subsumption=true" << std::endl << "     for " << *stronger << std::endl << "      => " << *weaker << std::endl)
+                //DEBUG("#### past subsumption holds for: " << std::endl << "          " << *stronger << std::endl << "     ==>  " << *weaker << std::endl << "          Reason: " << std::endl << "          " << *check << std::endl)
                 subsumes[stronger.get()].insert(weaker.get());
+                newKnowledge->Conjoin(std::move(check));
             }
         }
     }
@@ -80,6 +153,11 @@ void FilterPasts(Annotation& annotation, const SolverConfig& config) {
         }
     }
     plankton::RemoveIf(annotation.past, [](const auto& elem){ return !elem; });
+
+    plankton::Simplify(*newKnowledge);
+    newKnowledge->RemoveConjunctsIf([](const auto& elem){ return dynamic_cast<const EqualsToAxiom*>(&elem); });
+    annotation.Conjoin(std::move(newKnowledge));
+    plankton::InlineAndSimplify(annotation);
 }
 
 void Solver::ReducePast(Annotation& annotation) const {
@@ -100,12 +178,6 @@ std::unique_ptr<Annotation> Solver::ReducePast(std::unique_ptr<Annotation> annot
 //
 // Interpolate
 //
-
-inline std::unique_ptr<StackAxiom> MakeEq(const SymbolDeclaration& decl, const SymbolDeclaration& other) {
-    return std::make_unique<StackAxiom>(
-            BinaryOperator::EQ, std::make_unique<SymbolicVariable>(decl), std::make_unique<SymbolicVariable>(other)
-    );
-}
 
 inline std::set<const SymbolDeclaration*> GetActiveReferences(const Annotation& annotation) {
     std::set<const SymbolDeclaration*> result;
@@ -150,6 +222,7 @@ struct Interpolator {
     void Interpolate() {
         Filter();
         ExpandHistoryMemory();
+        DEBUG(" && after expansion: " << annotation << std::endl)
         Filter();
         InterpolatePastToNow();
         AddTrivialPast();
@@ -296,29 +369,10 @@ struct Interpolator {
     }
 
     inline void InterpolateDeepPastToNow(const SharedMemoryCore& past, const std::string& field, const SymbolDeclaration& interpolatedValue) {
-        struct ContextCollector : public LogicListener {
-            std::set<const SymbolDeclaration*> search;
-            std::unique_ptr<SeparatingConjunction> knowledge;
-            explicit ContextCollector(const SharedMemoryCore& past) : knowledge(std::make_unique<SeparatingConjunction>()) {
-                search.insert(&past.flow->Decl());
-                for (const auto& pair : past.fieldToValue) search.insert(&pair.second->Decl());
-            }
-            inline void Handle(const Axiom& object) {
-                if (plankton::EmptyIntersection(search, plankton::Collect<SymbolDeclaration>(object))) return;
-                knowledge->Conjoin(plankton::Copy(object));
-            }
-            void Enter(const StackAxiom& object) override { Handle(object); }
-            void Enter(const InflowEmptinessAxiom& object) override { Handle(object); }
-            void Enter(const InflowContainsValueAxiom& object) override { Handle(object); }
-            void Enter(const InflowContainsRangeAxiom& object) override { Handle(object); }
-        } collector(past);
-        annotation.now->Accept(collector);
-        auto pastKnowledge = std::move(collector.knowledge);
-        assert(pastKnowledge);
-
         DEBUG("INTERPOL (deep): [past] " << past << "  [field] " << field << "  [interpolatedValue] " << interpolatedValue << std::endl)
+        auto pastKnowledge = ExtractKnowledge(past, *annotation.now);
         if (pastKnowledge->conjuncts.empty()) { DEBUG("  -- nothing to be done" << std::endl) return; }
-        DEBUG("  -- working relative to: " << *pastKnowledge << std::endl)
+        //DEBUG("  -- working relative to: " << *pastKnowledge << std::endl)
         Encoding encoding;
         encoding.EncodeInvariants(past, config);
         auto mkKnowledge = [&encoding,&pastKnowledge,&past](const auto& with){
@@ -357,6 +411,15 @@ struct Interpolator {
         newHistory->fieldToValue.at(field)->decl = interpolatedValue;
         DEBUG("  -- interpolating results in: " << *newHistory << std::endl)
         annotation.Conjoin(std::make_unique<PastPredicate>(std::move(newHistory)));
+
+        /*
+         * TODO: tatsächlich ins NOW interpolieren!
+         * dazu brauchen wir:
+         *      - { J /\ !F } com { !F }  // F interpolante aus NOW
+         *      - { J /\ H /\ F } com { H \/ !F }  // H history info
+         *      ~~> dann können wir neue History auch als MemoryCore ins NOW einfügen => inline, um dupletten zu vermeiden
+         */
+
     }
 
     //void InterpolatePastToNow() {

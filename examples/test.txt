@@ -39,8 +39,9 @@ def @invariant[shared](Node* x) {
  && x->val == MIN ==> x == Root
 
  && x->_flow != 0 ==> [x->val, x->val] in x->_flow
- && !x->rem ==> x->_flow != 0 // TODO: (!x->rem && x->lock == UNLOCK) ==> x->_flow != 0
+ // && (!x->rem && x->lock == UNLOCKED) ==> x->_flow != 0
  // && !x->del ==> x->_flow != 0
+ && !x->rem ==> x->_flow != 0
  && !x->del ==> !x->rem
  && x->rem ==> x->del
 }
@@ -74,8 +75,8 @@ inline void lockWithHint(Node* ptr) {
     atomic {
         __lock__(ptr->lock);
         __unlock__(ptr->lock);
-        assume(ptr->rem || !ptr->rem);
-        assume(ptr->del || !ptr->del);
+        choose { assume(ptr->rem == true); }{ assume(ptr->rem == false); }
+        // choose { assume(ptr->del == true); }{ assume(ptr->del == false); }
         __lock__(ptr->lock);
     }
 }
@@ -91,14 +92,6 @@ bool contains(data_t key) {
 
 
 bool add(data_t key) {
-    Node* entry;
-    entry = malloc;
-    entry->val = key;
-    entry->left = NULL;
-    entry->right = NULL;
-    entry->del = false;
-    entry->rem = false;
-
     while (true) {
         Node* pred, curr;
         bool ret;
@@ -120,6 +113,14 @@ bool add(data_t key) {
         } else {
             lockWithHint(pred);
             if (!pred->rem) {
+                Node* entry;
+                entry = malloc;
+                entry->val = key;
+                entry->left = NULL;
+                entry->right = NULL;
+                entry->del = false;
+                entry->rem = false;
+
                 if (key < pred->val && pred->left == NULL) {
                     pred->left = entry;
                     __unlock__(pred->lock);

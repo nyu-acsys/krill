@@ -112,8 +112,11 @@ struct CommandPrinter : public ExpressionPrinter {
         stream << object.lhs->GetType().name << "))" << ";" << lineEnd;
     }
     void Visit(const Macro& object) override {
-        PrintSequence(object.lhs);
-        stream << SYMBOL_ASSIGN << object.Func().name << "(";
+        if (!object.lhs.empty()) {
+            PrintSequence(object.lhs);
+            stream << SYMBOL_ASSIGN;
+        }
+        stream << object.Func().name << "(";
         PrintSequence(object.arguments);
         stream << ");" << lineEnd;
     }

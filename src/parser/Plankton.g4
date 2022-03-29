@@ -114,11 +114,11 @@ derefList : elems+=deref
 
 argList : '(' (elems+=simpleExpression (',' elems+=simpleExpression)*)? ')' ;
 
-value : Null    #valueNull
-      | True    #valueTrue
-      | False   #valueFalse
-      | Maxval  #valueMax
-      | Minval  #valueMin
+value : Null     #valueNull
+      | True     #valueTrue
+      | False    #valueFalse
+      | Maxval   #valueMax
+      | Minval   #valueMin
       ;
 
 deref : name=Identifier '->' field=Identifier;
@@ -183,6 +183,10 @@ axiom : binaryCondition                                                         
       | name=Identifier '->' FlowField Neq '0'                                        #axiomFlowNonEmpty
       | member=Identifier In name=Identifier '->' FlowField                           #axiomFlowValue
       | '[' low=expression ',' high=expression ']' In name=Identifier '->' FlowField  #axiomFlowRange
+      | name=Identifier '->' field=Identifier Eq Unlocked                             #axiomUnlocked
+      | Unlocked Eq name=Identifier '->' field=Identifier                             #axiomUnlocked
+      | name=Identifier '->' field=Identifier Neq Unlocked                            #axiomLocked
+      | Unlocked Neq name=Identifier '->' field=Identifier                            #axiomLocked
       ;
 
 formula : conjuncts+=axiom
@@ -212,11 +216,12 @@ BoolType   : 'bool' ;
 IntType    : 'int' ;
 ThreadType : 'thread_t';
 
-Null   : 'NULL' | 'nullptr' ;
-True   : 'true' ;
-False  : 'false' ;
-Maxval : 'MAX' ;
-Minval : 'MIN' ;
+Null     : 'NULL' | 'nullptr' ;
+True     : 'true' ;
+False    : 'false' ;
+Maxval   : 'MAX' ;
+Minval   : 'MIN' ;
+Unlocked : 'UNLOCKED' ;
 
 Eq  : '==' ;
 Neq : '!=' ;

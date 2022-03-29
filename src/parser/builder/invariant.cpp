@@ -13,20 +13,33 @@ struct AxiomBuilder : public PlanktonBaseVisitor {
     std::unique_ptr<Axiom> result = nullptr;
     
     explicit AxiomBuilder(AstBuilder& builder, const Formula& state) : builder(builder), state(state) {}
-    
+
     template<typename T>
-    inline std::unique_ptr<SymbolicVariable> FlowFromVar(T& context) {
+    inline const MemoryAxiom* MemoryFromVar(T& context) {
         auto& var = builder.VariableByName(context.name->getText());
         if (var.type.sort != Sort::PTR)
             throw std::logic_error("Parse error: accessing flow through non-pointer variable."); // TODO: better error handling
-            
+
         auto resource = plankton::TryGetResource(var, state);
         if (!resource)
             throw std::logic_error("Internal error: cannot find flow."); // TODO: better error handling
-    
+
         auto& node = resource->value->Decl();
-        auto memory = plankton::TryGetResource(node, state);
+        return plankton::TryGetResource(node, state);
+    }
+
+    template<typename T>
+    inline std::unique_ptr<SymbolicVariable> FlowFromVar(T& context) {
+        auto memory = MemoryFromVar(context);
         if (memory) return std::make_unique<SymbolicVariable>(memory->flow->Decl());
+        throw std::logic_error("internal error: cannot find flow."); // TODO: better error handling
+    }
+
+    template<typename T>
+    inline std::unique_ptr<SymbolicVariable> FieldFromVar(T& context) {
+        auto field = context.field->getText();
+        auto memory = MemoryFromVar(context);
+        if (memory) return std::make_unique<SymbolicVariable>(memory->fieldToValue.at(field)->Decl());
         throw std::logic_error("internal error: cannot find flow."); // TODO: better error handling
     }
     
@@ -78,12 +91,24 @@ struct AxiomBuilder : public PlanktonBaseVisitor {
         result = std::make_unique<InflowContainsValueAxiom>(std::move(flow), std::move(value));
         return nullptr;
     }
-    
+
     antlrcpp::Any visitAxiomFlowRange(PlanktonParser::AxiomFlowRangeContext* ctx) override {
         auto flow = FlowFromVar(*ctx);
         auto low = plankton::MakeSymbolic(*builder.MakeExpression(*ctx->low), state);
         auto high = plankton::MakeSymbolic(*builder.MakeExpression(*ctx->high), state);
         result = std::make_unique<InflowContainsRangeAxiom>(std::move(flow), std::move(low), std::move(high));
+        return nullptr;
+    }
+
+    antlrcpp::Any visitAxiomUnlocked(PlanktonParser::AxiomUnlockedContext* ctx) override {
+        auto field = FieldFromVar(*ctx);
+        result = std::make_unique<StackAxiom>(BinaryOperator::EQ, std::move(field), std::make_unique<SymbolicUnlocked>());
+        return nullptr;
+    }
+
+    antlrcpp::Any visitAxiomLocked(PlanktonParser::AxiomLockedContext* ctx) override {
+        auto field = FieldFromVar(*ctx);
+        result = std::make_unique<StackAxiom>(BinaryOperator::NEQ, std::move(field), std::make_unique<SymbolicUnlocked>());
         return nullptr;
     }
 };
@@ -118,6 +143,8 @@ struct VariableFinder : public PlanktonBaseVisitor {
     antlrcpp::Any visitAxiomFlowNonEmpty(PlanktonParser::AxiomFlowNonEmptyContext* ctx) override { return Handle(*ctx); }
     antlrcpp::Any visitAxiomFlowValue(PlanktonParser::AxiomFlowValueContext* ctx) override { return Handle(*ctx); }
     antlrcpp::Any visitAxiomFlowRange(PlanktonParser::AxiomFlowRangeContext* ctx) override { return Handle(*ctx); }
+    antlrcpp::Any visitAxiomUnlocked(PlanktonParser::AxiomUnlockedContext* ctx) override { return Handle(*ctx); }
+    antlrcpp::Any visitAxiomLocked(PlanktonParser::AxiomLockedContext* ctx) override { return Handle(*ctx); }
 };
 
 inline const SymbolDeclaration* GetEvalValue(const Formula& eval) {
