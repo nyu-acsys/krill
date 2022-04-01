@@ -73,7 +73,6 @@ inline <Node*, Node*> locate(data_t key) {
 
 
 inline void lockWithHint(Node* ptr) {
-    // __lock__(ptr->lock);
     atomic {
         __lock__(ptr->lock);
         __unlock__(ptr->lock);
@@ -84,78 +83,32 @@ inline void lockWithHint(Node* ptr) {
 }
 
 
-// void maintenance(data_t key) {
-//     Node* pred, curr;
-//     <pred, curr> = locate(key);
-//
-//     lockWithHint(pred);
-//     curr = pred->right;
-//     if (curr != NULL && !pred->rem) {
-//         lockWithHint(curr);
-//         if (curr->del && !curr->rem) {
-//             if (curr->left == NULL) {
-//                 Node* next;
-//                 next = curr->right;
-//                 assume(pred->left == NULL || pred->left != NULL); // HINT
-//                 assume(next == NULL || next->left == NULL); // HINT
-//                 curr->rem = true;
-//                 pred->right = next;
-//             } else  if (curr->right == NULL) {
-//                 Node* next;
-//                 next = curr->left;
-//                 assume(pred->left == NULL || pred->left != NULL); // HINT
-//                 assume(next == NULL || next->right == NULL); // HINT
-//                 curr->rem = true;
-//                 pred->right = next;
-//             }
-//         }
-//         __unlock__(curr->lock);
-//     }
-//     __unlock__(pred->lock);
-// }
-
-void maintenance1(data_t key) {
-    // remove leaf
+void maintenance(data_t key) {
     Node* pred, curr;
     <pred, curr> = locate(key);
 
     lockWithHint(pred);
-    curr = pred->left;
+    curr = pred->right;
     if (curr != NULL && !pred->rem) {
         lockWithHint(curr);
         if (curr->del && !curr->rem) {
-            if (curr->left == NULL && curr->right == NULL) {
-                <pred->left, curr->rem> = <NULL, true>;
+            if (curr->left == NULL) {
+                Node* next;
+                next = curr->right;
+                assume(next == NULL || next != NULL); // HINT
+                curr->rem = true;
+                pred->right = next;
+            } else  if (curr->right == NULL) {
+                Node* next;
+                next = curr->left;
+                curr->rem = true;
+                pred->right = next;
             }
         }
         __unlock__(curr->lock);
     }
     __unlock__(pred->lock);
 }
-
-
-// void maintenance2(data_t key) {
-//     // rotate right
-//     Node* x, y, z, next;
-//     <x, y> = locate(key);
-//
-//     lockWithHint(x);
-//     y = x->right;
-//     if (y != NULL && !x->rem) {
-//         lockWithHint(y);
-//         z = y->right;
-//         if (z != NULL && !y->rem) {
-//             lockWithHint(z);
-//             if (!z->rem) {
-//                 next = z->left;
-//                 x->right, y->right, z->left = z, next, y;
-//             }
-//             __unlock__(z->lock);
-//         }
-//         __unlock__(y->lock);
-//     }
-//     __unlock__(z->lock);
-// }
 
 
 bool contains(data_t key) {

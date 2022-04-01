@@ -86,15 +86,17 @@ void ProofGenerator::Visit(const Function& func) {
 // Interface function
 //
 
-inline Specification GetKind(const Function& function) { // TODO: move to utils?
+inline std::optional<Specification> GetKind(const Function& function) { // TODO: move to utils?
     if (function.name == "contains") {
         return Specification::CONTAINS;
     } else if (function.name == "insert" || function.name == "add") {
         return Specification::INSERT;
     } else if (function.name == "delete" || function.name == "remove") {
         return Specification::DELETE;
+    } else if (function.name.rfind("maintenance", 0) == 0) {
+        return std::nullopt;
     } else {
-        throw std::logic_error("Specification for function '" + function.name + "' unknown, expected one of: 'contains', 'insert', 'add', 'delete', 'remove'."); // TODO: better error handling
+        throw std::logic_error("Specification for function '" + function.name + "' unknown, expected one of: 'contains', 'insert', 'add', 'delete', 'remove', 'maintenance'."); // TODO: better error handling
     }
 }
 
@@ -109,10 +111,10 @@ inline std::unique_ptr<SymbolicVariable> GetSearchKeyValue(const Annotation& ann
     throw std::logic_error("Could not find search key"); // TODO: better error handling
 }
 
-inline std::unique_ptr<ObligationAxiom> MakeObligation(const Annotation& annotation, const Function& function) {
+inline std::unique_ptr<ObligationAxiom> MakeObligation(std::unique_ptr<SymbolicVariable> key, const Function& function) {
     auto kind = GetKind(function);
-    auto key = GetSearchKeyValue(annotation, function);
-    return std::make_unique<ObligationAxiom>(kind, std::move(key));
+    if (!kind) return nullptr;
+    return std::make_unique<ObligationAxiom>(*kind, std::move(key));
 }
 
 inline std::unique_ptr<Formula> MakeKeyBounds(const SymbolDeclaration& key) {
@@ -125,15 +127,17 @@ inline std::unique_ptr<Formula> MakeKeyBounds(const SymbolDeclaration& key) {
     return result;
 }
 
-inline std::unique_ptr<Annotation> MakeInterfaceAnnotation(const Program& program, const Function& function, const Solver& solver) {
+inline std::pair<std::unique_ptr<Annotation>, bool> MakeInterfaceAnnotation(const Program& program, const Function& function, const Solver& solver) {
     auto result = std::make_unique<Annotation>();
     result = solver.PostEnter(std::move(result), program);
     result = solver.PostEnter(std::move(result), function);
-    auto obligation = MakeObligation(*result, function);
-    result->Conjoin(MakeKeyBounds(obligation->key->Decl()));
-    result->Conjoin(std::move(obligation));
+    auto key = GetSearchKeyValue(*result, function);
+    result->Conjoin(MakeKeyBounds(key->Decl()));
+    auto obligation = MakeObligation(std::move(key), function);
+    bool isMaintenance = obligation.get() == nullptr;
+    if (obligation) result->Conjoin(std::move(obligation)); // maintenance does not have an obligation
     plankton::Simplify(*result);
-    return result;
+    return std::make_pair(std::move(result), isMaintenance);
 }
 
 inline bool IsFulfilled(const Annotation& annotation, const Return& command) {
@@ -168,22 +172,28 @@ void ProofGenerator::HandleInterfaceFunction(const Function& function) {
     current.clear();
 
     // descent into function
-    current.push_back(MakeInterfaceAnnotation(program, function, solver));
+    auto [init, isMaintenance] = MakeInterfaceAnnotation(program, function, solver);
+    current.push_back(std::move(init));
     function.Accept(*this);
     PruneReturning();
 
     // check post annotations
-    INFO(infoPrefix << "Checking linearizability of function '" << function.name << "'..." << std::endl)
-    DEBUG(std::endl << std::endl << "=== CHECKING POST ANNOTATION OF " << function.name << "  " << returning.size() << std::endl)
-    for (auto&[annotation, command] : returning) {
-        assert(command);
-        if (IsFulfilled(*annotation, *command)) continue;
-        annotation = solver.ImprovePast(std::move(annotation));
-        annotation = solver.TryAddFulfillment(std::move(annotation));
-        // annotation = solver.TryAddFulfillment(std::move(annotation)); // retry in case Z3 is funny
-        if (IsFulfilled(*annotation, *command)) continue;
-        DEBUG("Linearizability fail for " << *command << "  in  " << *annotation << std::endl)
-        throw std::logic_error("Could not establish linearizability for function '" + function.name + "'."); // TODO: better error handling
+    if (isMaintenance) {
+        DEBUG(std::endl << std::endl << "=== NO POST CHECK " << function.name << std::endl)
+    } else {
+        INFO(infoPrefix << "Checking linearizability of function '" << function.name << "'..." << std::endl)
+        DEBUG(std::endl << std::endl << "=== CHECKING POST ANNOTATION OF " << function.name << "  " << returning.size() << std::endl)
+        for (auto&[annotation, command]: returning) {
+            assert(command);
+            if (IsFulfilled(*annotation, *command)) continue;
+            annotation = solver.ImprovePast(std::move(annotation));
+            annotation = solver.TryAddFulfillment(std::move(annotation));
+            // annotation = solver.TryAddFulfillment(std::move(annotation)); // retry in case Z3 is funny
+            if (IsFulfilled(*annotation, *command)) continue;
+            DEBUG("Linearizability fail for " << *command << "  in  " << *annotation << std::endl)
+            throw std::logic_error(
+                    "Could not establish linearizability for function '" + function.name + "'."); // TODO: better error handling
+        }
     }
     infoPrefix.Pop();
 }

@@ -281,7 +281,6 @@ EExpr Encoding::EncodeInvariants(const Formula& formula, const SolverConfig& con
     return MakeAnd(result);
 }
 
-#include "util/log.hpp"
 EExpr Encoding::EncodeAcyclicity(const Formula& formula) {
     auto reachability = plankton::ComputeReachability(formula);
     std::vector<EExpr> result;

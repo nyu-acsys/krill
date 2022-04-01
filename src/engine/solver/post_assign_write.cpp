@@ -178,9 +178,23 @@ inline void CheckFlowUniqueness(PostImageInfo& info) {
 inline void CheckInvariant(PostImageInfo& info) {
     for (const auto& node : info.footprint.nodes) {
         auto nodeInvariant = info.encoding.EncodeNodeInvariant(node, EMode::POST);
-        info.encoding.AddCheck(nodeInvariant, [](bool holds){
+
+        // // // DEBUG
+        // if (!node.postLocal) {
+        //     auto theNodeRaw = node.ToLogic(EMode::POST);
+        //     auto theNode = dynamic_cast<const SharedMemoryCore*>(theNodeRaw.get());
+        //     assert(theNode);
+        //     DEBUG("~chk inv for: " << *theNode << std::endl)
+        //     auto inv = info.config.GetSharedNodeInvariant(*theNode);
+        //     for (const auto& elem : inv->conjuncts) {
+        //         auto holds = info.encoding.Implies(*elem);
+        //         DEBUG("   - " << holds << ": " << *elem << std::endl)
+        //     }
+        // }
+
+        info.encoding.AddCheck(nodeInvariant, [&node](bool holds){
             if (holds) return;
-            throw std::logic_error("Unsafe update: invariant is not maintained."); // TODO: better error handling
+            throw std::logic_error("Unsafe update: invariant is not maintained for node '" + node.address.name + "'."); // TODO: better error handling
         });
     }
 }
@@ -587,8 +601,8 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
 
     try {
         PostImageInfo info(std::move(pre), cmd, config);
-        // if (info.encoding.ImpliesFalse()) return PostImage();
-        if (info.encoding.ImpliesFalse()) throw std::logic_error("Failed to perform proper memory update: cautiously refusing to post unsatisfiable encoding."); // TODO better error handling
+        if (info.encoding.ImpliesFalse()) return PostImage();
+        // if (info.encoding.ImpliesFalse()) throw std::logic_error("Failed to perform proper memory update: cautiously refusing to post unsatisfiable encoding."); // TODO better error handling
         CheckPublishing(info);
         CheckReachability(info);
         CheckFlowCoverage(info);
