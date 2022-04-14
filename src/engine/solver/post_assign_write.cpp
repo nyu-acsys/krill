@@ -340,6 +340,16 @@ inline std::unique_ptr<Annotation> ExtractPost(PostImageInfo&& info) {
 // Extract Effects
 //
 
+inline void AddEffectPrecisionCheck(PostImageInfo& info) {
+    for (auto& node : info.footprint.nodes) {
+        auto preFlow = info.encoding.Encode(node.preAllInflow);
+        auto postFlow = info.encoding.Encode(node.postAllInflow);
+        info.encoding.AddCheck(preFlow == postFlow, [&node](bool holds){
+            if (holds) node.postAllInflow = node.preAllInflow;
+        });
+    }
+}
+
 inline std::vector<std::function<std::unique_ptr<Axiom>()>> GetContextGenerators(const SymbolDeclaration& symbol) {
     switch (symbol.order) {
         case Order::FIRST:
@@ -443,6 +453,7 @@ inline std::deque<std::unique_ptr<HeapEffect>> ExtractEffects(PostImageInfo& inf
         assert(effect->post);
         assert(effect->context);
         result.push_back(std::move(effect));
+        //DEBUG("EFF: " << *result.back() << std::endl)
     }
     return result;
 }
@@ -611,6 +622,7 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
         AddSpecificationChecks(info);
         AddAffectedOutsideChecks(info);
         AddEffectContextGenerators(info);
+        AddEffectPrecisionCheck(info);
         info.encoding.Check();
 
         MinimizeFootprint(info);

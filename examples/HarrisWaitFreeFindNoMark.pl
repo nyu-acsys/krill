@@ -1,4 +1,4 @@
-#name "Harris Set"
+#name "Harris Set (wait-free contains)"
 
 
 struct Node {
@@ -61,7 +61,7 @@ void __init__() {
 
 inline <Node*, Node*, data_t> locate(data_t key) {
 	while (true) {
-        Node* left, lnext, right, rnext;
+	    Node* left, lnext, right, rnext;
         bool rmark;
         data_t k;
 
@@ -97,15 +97,25 @@ inline <Node*, Node*, data_t> locate(data_t key) {
 }
 
 bool contains(data_t key) {
-	Node* left, right;
-	data_t k;
+    Node* right, rnext;
+    data_t k;
 
-	<left, right, k> = locate(key);
-	return k == key;
+    right = Head;
+    rnext = Head->next;
+    do {
+        assume(k < key); // repeated loop condition for join precision
+        right = rnext;
+        k = right->val;
+        if (right == Tail) break;
+        rnext = right->next;
+    } while (k < key);
+
+	return k == key && !right->marked;
 }
 
 bool add(data_t key) {
 	Node* entry;
+
 	entry = malloc;
 	entry->val = key;
 	entry->marked = false;

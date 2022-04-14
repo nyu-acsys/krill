@@ -45,7 +45,7 @@ inline CommandLineInput Interact(int argc, char** argv) {
     input.spuriousCasFail = !casSwitch.getValue();
     input.printGist = gistSwitch.getValue();
 
-     input.pathToInput = "/Users/wolff/Desktop/plankton/examples/test.txt";
+     //input.pathToInput = "/Users/wolff/Tools/plankton/examples/test.txt";
     // input.pathToInput = "/Users/wolff/Tools/plankton/examples/VechevYahavDCas.pl";
     // input.pathToInput = "/Users/wolff/Tools/plankton/examples/VechevYahavCas.pl";
     // input.pathToInput = "/Users/wolff/Tools/plankton/examples/ORVYY.pl";

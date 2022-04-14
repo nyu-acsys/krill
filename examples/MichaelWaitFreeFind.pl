@@ -1,4 +1,4 @@
-#name "Vechev&Yahav CAS Set"
+#name "Michael Set (wait-free contains)"
 
 
 struct Node {
@@ -12,7 +12,7 @@ Node* Tail;
 
 
 def @contains(Node* node, data_t key) {
-    node->val == key
+    !node->marked && node->val == key
 }
 
 def @outflow[next](Node* node, data_t key) {
@@ -39,6 +39,7 @@ def @invariant[shared](Node* x) {
  && Tail->_flow != 0
  && x->val == MAX ==> x == Tail
  && x->next == NULL ==> x == Tail
+ && x->next != NULL ==> x->val != MAX
 
  && !x->marked ==> [x->val, MAX] in x->_flow
  && x->_flow == 0 ==> x->marked
@@ -59,25 +60,44 @@ void __init__() {
 
 
 inline <Node*, Node*, data_t> locate(data_t key) {
-	Node* pred, curr;
+	Node* curr, pred, next;
 	data_t k;
 
 	curr = Head;
 	do {
 		pred = curr;
 		curr = pred->next;
-        k = curr->val;
+        if (pred->marked == false && pred->next == curr) {
+			k = curr->val;
+			if (curr->marked == true) {
+			    next = curr->next;
+			    CAS(<pred->marked, pred->next>, <false, curr>, <false, next>);
+			    // retry
+			    curr = Head;
+			    k = MIN;
+			}
+		} else {
+            // retry
+			curr = Head;
+			k = MIN;
+		}
 	} while (k < key);
     return <pred, curr, k>;
 }
 
 
 bool contains(data_t key) {
-	Node* pred, curr;
-	data_t k;
+    Node* pred, curr;
+    data_t k;
 
-	<pred, curr, k> = locate(key);
-    return k == key;
+    curr = Head;
+    do {
+        pred = curr;
+        curr = pred->next;
+        k = curr->val;
+    } while (k < key);
+
+	return k == key && !curr->marked;
 }
 
 bool add(data_t key) {
@@ -87,7 +107,7 @@ bool add(data_t key) {
 	entry->marked = false;
 
 	while (true) {
-        Node* pred, curr;
+        Node* curr, pred;
         data_t k;
 		<pred, curr, k> = locate(key);
 
@@ -105,7 +125,7 @@ bool add(data_t key) {
 
 bool remove(data_t key) {
 	while (true) {
-        Node* pred, curr, next;
+        Node* curr, pred, next;
         data_t k;
 		<pred, curr, k> = locate(key);
 
@@ -113,12 +133,11 @@ bool remove(data_t key) {
 			return false;
 
 		} else {
-            // TODO: support any curr->marked, not just unmarked
             next = curr->next;
 			if (CAS(<curr->marked, curr->next>, <false, next>, <true, next>)) {
-                if (CAS(<pred->marked, pred->next>, <false, curr>, <false, next>)) {
-                    return true;
-                }
+                CAS(<pred->marked, pred->next>, <false, curr>, <false, next>);
+                // <pred, curr, k> = locate(key);
+                return true;
 			}
 		}
 	}

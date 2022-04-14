@@ -88,23 +88,20 @@ bool add(data_t key) {
         while (true) {
             Node* rnext;
             bool rmark;
-            data_t k;
 
             // traverse
             right = Head;
             <rmark, rnext> = <Head->marked, Head->next>;
             do {
-                assume(rmark || k < key); // repeated loop condition for join precision
+                assume(rmark || right->val < key); // repeated loop condition for join precision
                 if (!rmark) {
                     left = right;
                     lnext = rnext;
                 }
                 right = rnext;
-                k = right->val;
-                if (k == key && !rmark) return false;
                 if (right == Tail) break;
                 <rmark, rnext> = <right->marked, right->next>;
-            } while (rmark || k < key);
+            } while (rmark || right->val < key);
 
             if (right == Tail || !right->marked) {
                 break;
@@ -129,23 +126,20 @@ bool remove(data_t key) {
         while (true) {
             Node* rnext;
             bool rmark;
-            data_t k;
 
             // traverse
             right = Head;
             <rmark, rnext> = <Head->marked, Head->next>;
             do {
-                assume(rmark || k < key); // repeated loop condition for join precision
+                assume(rmark || right->val < key); // repeated loop condition for join precision
                 if (!rmark) {
                     left = right;
                     lnext = rnext;
                 }
                 right = rnext;
-                k = right->val;
-                if (k == key && !rmark) return false;
                 if (right == Tail) break;
                 <rmark, rnext> = <right->marked, right->next>;
-            } while (rmark || k < key);
+            } while (rmark || right->val < key);
 
             if (right == Tail || !right->marked) {
                 break;

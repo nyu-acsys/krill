@@ -31,7 +31,6 @@ void ProofGenerator::GenerateProof() {
 
     INFO(infoPrefix << "Proof generation for '" << program.name << "' initiated." << std::endl)
     INFO(infoPrefix << "Starting with empty interference set." << std::endl)
-    futureSuggestions.clear(); // TODO: <<<<<<<<<<<<<<<<<<<===============================||||||||||||||||||||| REMOVE DEBUG
     if (futureSuggestions.empty()) {
         INFO(infoPrefix << "Using no future suggestions." << std::endl)
     } else {
@@ -188,8 +187,9 @@ void ProofGenerator::HandleInterfaceFunction(const Function& function) {
             if (IsFulfilled(*annotation, *command)) continue;
             annotation = solver.ImprovePast(std::move(annotation));
             annotation = solver.TryAddFulfillment(std::move(annotation));
-            // annotation = solver.TryAddFulfillment(std::move(annotation)); // retry in case Z3 is funny
             if (IsFulfilled(*annotation, *command)) continue;
+            annotation = solver.TryAddFulfillment(std::move(annotation)); // retry in case Z3 is funny
+            if (IsFulfilled(*annotation, *command)) continue; // retry in case Z3 is funny
             DEBUG("Linearizability fail for " << *command << "  in  " << *annotation << std::endl)
             throw std::logic_error(
                     "Could not establish linearizability for function '" + function.name + "'."); // TODO: better error handling

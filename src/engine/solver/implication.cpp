@@ -107,6 +107,14 @@ inline void TryAvoidResourceMismatch(Annotation& premise, Annotation& conclusion
     // plankton::MakeMemoryAccessible(conclusion, memories, config);
 }
 
+inline void TryAvoidHistoryMismatch(Annotation& premise, Annotation& conclusion) {
+    std::set<const SymbolDeclaration*> historyNodes;
+    for (const auto& past : conclusion.past) historyNodes.insert(&past->formula->node->Decl());
+    plankton::RemoveIf(premise.past, [&historyNodes](const auto& elem){
+        return !plankton::Membership(historyNodes, &elem->formula->node->Decl());
+    });
+}
+
 bool Solver::Implies(const Annotation& premise, const Annotation& conclusion) const {
     MEASURE("Solver::Implies")
     if (QuickMismatchCheck(premise, conclusion)) return false;
@@ -114,6 +122,7 @@ bool Solver::Implies(const Annotation& premise, const Annotation& conclusion) co
 
     auto normalizedPremise = plankton::Normalize(plankton::Copy(premise));
     auto normalizedConclusion = plankton::Normalize(plankton::Copy(conclusion));
+    TryAvoidHistoryMismatch(*normalizedPremise, *normalizedConclusion);
     if (SyntacticallyIncluded(*normalizedPremise, *normalizedConclusion)) return true;
     // DEBUG("== CHK IMP deep " << *normalizedPremise << " ==> " << *normalizedConclusion << std::endl)
     
@@ -123,6 +132,7 @@ bool Solver::Implies(const Annotation& premise, const Annotation& conclusion) co
 
     if (SyntacticallyIncluded(*normalizedPremise, *normalizedConclusion)) return true;
     // DEBUG("== CHK IMP sem " << *normalizedPremise << " ==> " << *normalizedConclusion << std::endl)
+    // INFO("FINAL CHK: " << *normalizedPremise << " ==> " << *normalizedConclusion << std::endl)
     return ResourcesMatch(*normalizedPremise, *normalizedConclusion) &&
            StackImplies(*normalizedPremise, *normalizedConclusion->now, config);
 }

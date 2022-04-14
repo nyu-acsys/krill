@@ -379,7 +379,7 @@ struct Interpolator {
     }
 
     inline void InterpolateDeepPastToNow(const SharedMemoryCore& past, const std::string& field, const SymbolDeclaration& interpolatedValue, SeparatingConjunction& newNowKnowledge) {
-        DEBUG("INTERPOL (deep): [past] " << past << "  [field] " << field << "  [interpolatedValue] " << interpolatedValue << std::endl)
+        //DEBUG("INTERPOL (deep): [past] " << past << "  [field] " << field << "  [interpolatedValue] " << interpolatedValue << std::endl)
         auto pastKnowledge = std::make_unique<SeparatingConjunction>();
         pastKnowledge->Conjoin(MakeStackDuplicable(ExtractKnowledge(past.flow->Decl(), *annotation.now)));
         for (const auto& pair : past.fieldToValue)
@@ -387,7 +387,7 @@ struct Interpolator {
                 pastKnowledge->Conjoin(MakeStackDuplicable(ExtractKnowledge(pair.second->Decl(), *annotation.now)));
         plankton::Simplify(*pastKnowledge);
         // auto pastKnowledge = MakeStackDuplicable(ExtractKnowledge(past, *annotation.now));
-        if (pastKnowledge->conjuncts.empty()) { DEBUG("  -- nothing to be done" << std::endl) return; }
+        if (pastKnowledge->conjuncts.empty()) return; //{ DEBUG("  -- nothing to be done" << std::endl) return; }
         //DEBUG("  -- working relative to: " << *pastKnowledge << std::endl)
 
         Encoding encoding;
@@ -432,10 +432,10 @@ struct Interpolator {
 
         // interpolate: history between existing history and now
         auto interpolation = encoding.MakeAnd(vector) || encoding.MakeAnd(other);
-        if (!encoding.Implies(interpolation)) { DEBUG("  -- cannot interpolate" << std::endl) return; }
+        if (!encoding.Implies(interpolation)) return; //{ DEBUG("  -- cannot interpolate" << std::endl) return; }
         auto newHistory = plankton::Copy(past);
         newHistory->fieldToValue.at(field)->decl = interpolatedValue;
-        DEBUG("  -- interpolating results in history: " << *newHistory << std::endl)
+        //DEBUG("  -- interpolating results in history: " << *newHistory << std::endl)
         annotation.Conjoin(std::make_unique<PastPredicate>(std::move(newHistory)));
 
         // interpolate: bring history to the now
@@ -454,10 +454,10 @@ struct Interpolator {
         if (encoding.Implies(encoding.MakeAnd(nowVec))) {
             if (auto now = plankton::TryGetResource(past.node->Decl(), *annotation.now)) {
                 auto intoNow = MakeStackDuplicable(mkKnowledgeRaw(*now));
-                DEBUG("  -- interpolating results in now: " << *intoNow << std::endl)
+                //DEBUG("  -- interpolating results in now: " << *intoNow << std::endl)
                 newNowKnowledge.Conjoin(std::move(intoNow));
-            } else DEBUG("  -- cannot find now memory" << std::endl)
-        } else DEBUG("  -- cannot bring to now" << std::endl)
+            } //else DEBUG("  -- cannot find now memory" << std::endl)
+        } //else DEBUG("  -- cannot bring to now" << std::endl)
     }
 
     //void InterpolatePastToNow() {
@@ -477,7 +477,7 @@ struct Interpolator {
 
     void InterpolatePastToNow() {
         MEASURE("Solver::ImprovePast ~> InterpolatePastToNow")
-        DEBUG("INTERPOLATING... " << annotation << std::endl)
+        //DEBUG("INTERPOLATING... " << annotation << std::endl)
         auto referenced = GetActiveReferences(annotation);
         auto nowMemories = plankton::Collect<SharedMemoryCore>(*annotation.now);
         auto newNowKnowledge = std::make_unique<SeparatingConjunction>();
@@ -518,6 +518,6 @@ std::unique_ptr<Annotation> Solver::ImprovePast(std::unique_ptr<Annotation> anno
     if (annotation->past.empty()) return annotation;
     DEBUG("<<IMPROVE PAST>>" << std::endl)
     Interpolator(*annotation, interference, config).Interpolate();
-    DEBUG(*annotation << std::endl << std::endl)
+    //DEBUG(*annotation << std::endl << std::endl)
     return annotation;
 }

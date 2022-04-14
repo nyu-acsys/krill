@@ -114,7 +114,7 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
         // PruneCurrent();
         // ImproveCurrentTime();
         // ReduceCurrentTime();
-        // JoinCurrent();
+        JoinCurrent(); // TODO: remove for FEMRS tree
 
         breaking = std::move(breakingOuter);
         MoveInto(std::move(returningOuter), returning);

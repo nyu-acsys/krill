@@ -16,11 +16,17 @@ REPETITIONS = 5
 
 EXECUTABLE = "./build/bin/plankton"
 BENCHMARKS = [
+    "examples/FineSet.pl",
+    "examples/LazySet.pl",
     "examples/VechevYahavDCas.pl",
     "examples/VechevYahavCas.pl",
     "examples/ORVYY.pl",
     "examples/Michael.pl",
+    "examples/MichaelWaitFreeFind.pl",
     "examples/Harris.pl",
+    "examples/HarrisNoK.pl",
+    "examples/HarrisWaitFreeFindNoMark.pl",
+    # "examples/BinaryTreeNoMaintenance.pl",
 ]
 
 #

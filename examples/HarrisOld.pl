@@ -61,24 +61,24 @@ void __init__() {
 
 inline <Node*, Node*, data_t> locate(data_t key) {
 	while (true) {
-        Node* left, lnext, right, rnext;
-        bool rmark;
-        data_t k;
+		Node* left, lnext, right, rnext;
+		bool rmark;
+		data_t k;
 
-        // traverse
-        right = Head;
-        <rmark, rnext> = <Head->marked, Head->next>;
-        do {
-            assume(rmark || k < key); // repeated loop condition for join precision
-            if (!rmark) {
-                left = right;
-                lnext = rnext;
-            }
-            right = rnext;
-            k = right->val;
-            if (right == Tail) break;
-            <rmark, rnext> = <right->marked, right->next>;
-        } while (rmark || k < key);
+		// traverse
+		right = Head;
+		<rmark, rnext> = <Head->marked, Head->next>;
+		do {
+		    assume(rmark || k < key); // repeated loop condition for join precision
+			if (!rmark) {
+				left = right;
+				lnext = rnext;
+			}
+			right = rnext;
+			k = right->val;
+			if (right == Tail) break;
+			<rmark, rnext> = <right->marked, right->next>;
+		} while (rmark || k < key);
 
 		// left and right are successors
 		if (lnext == right) {
@@ -106,6 +106,7 @@ bool contains(data_t key) {
 
 bool add(data_t key) {
 	Node* entry;
+
 	entry = malloc;
 	entry->val = key;
 	entry->marked = false;

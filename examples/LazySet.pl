@@ -55,17 +55,26 @@ void __init__() {
 }
 
 
-inline <Node*, Node*, data_t> locate(data_t key) {
-	Node* pred, curr, node;
+inline <Node*, Node*, data_t> traverse(data_t key) {
+	Node* pred, curr;
 	data_t k;
 
+    curr = Head;
+    do {
+        pred = curr;
+        curr = pred->next;
+        k = curr->val;
+    } while (k < key);
+
+    return <pred, curr, k>;
+}
+
+
+inline <Node*, Node*, data_t> locate(data_t key) {
     while (true) {
-        curr = Head;
-        do {
-            pred = curr;
-            curr = pred->next;
-            k = curr->val;
-        } while (k < key);
+        Node* pred, curr;
+        data_t k;
+        <pred, curr, k> = traverse(key);
 
         __lock__(pred->lock);
         __lock__(curr->lock);

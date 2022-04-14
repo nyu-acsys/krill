@@ -81,14 +81,15 @@ bool contains(data_t key) {
 }
 
 bool add(data_t key) {
-	Node* entry, pred, curr;
-	data_t k;
+	Node* entry;
 
 	entry = malloc;
 	entry->val = key;
 	entry->marked = false;
 
 	while (true) {
+        Node* pred, curr;
+        data_t k;
 		<pred, curr, k> = locate(key);
 
 		if (k == key) {
@@ -113,10 +114,9 @@ bool add(data_t key) {
 
 
 bool remove(data_t key) {
-	Node* pred, curr, next;
-	data_t k;
-
 	while (true) {
+        Node* pred, curr, next;
+        data_t k;
 		<pred, curr, k> = locate(key);
 
 		if (k > key) {
