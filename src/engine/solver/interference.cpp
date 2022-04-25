@@ -150,29 +150,38 @@ bool Solver::AddInterference(std::deque<std::unique_ptr<HeapEffect>> effects) {
     DEBUG("Number of effects after filter: " << effects.size() << std::endl)
     if (effects.empty()) return false;
     RenameEffects(effects, interference);
-    
-    // generate all pairs of effects and check implication, order matters
-    EffectPairDeque pairs;
-    for (auto& e : interference) for (auto& o : effects) pairs.emplace_back(e.get(), o.get());
-    for (auto& e : effects) for (auto& o : interference) pairs.emplace_back(e.get(), o.get());
-    for (auto& e : effects) for (auto& o : effects) if (e != o) pairs.emplace_back(e.get(), o.get());
-    auto implications = ComputeEffectImplications(pairs);
-    
-    // find unnecessary effects
-    std::set<const HeapEffect*> prune;
-    for (const auto& [premise, conclusion] : implications) {
-        if (prune.count(premise) != 0) continue;
-        prune.insert(conclusion);
-    }
-    
-    // remove unnecessary effects
-    auto removePrunedEffects = [&prune](const auto& elem){ return plankton::Membership(prune, elem.get()); };
-    plankton::RemoveIf(interference, removePrunedEffects);
-    plankton::RemoveIf(effects, removePrunedEffects);
-    
+
+    auto prune = [this, &effects](const auto& pairs){
+        std::set<const HeapEffect*> prune;
+        auto implications = ComputeEffectImplications(pairs);
+
+        for (const auto& [premise, conclusion] : implications) {
+            if (prune.count(premise) != 0) continue;
+            prune.insert(conclusion);
+        }
+
+        auto removePrunedEffects = [&prune](const auto& elem){ return plankton::Membership(prune, elem.get()); };
+        plankton::RemoveIf(interference, removePrunedEffects);
+        plankton::RemoveIf(effects, removePrunedEffects);
+    };
+
+    // prune new effects that are already covered
+    EffectPairDeque pairsNew;
+    for (auto& e : interference) for (auto& o : effects) pairsNew.emplace_back(e.get(), o.get());
+    prune(pairsNew);
+
     // check if new effects exist
     if (effects.empty()) return false;
-    
+    DEBUG("Number of new effects: " << effects.size() << std::endl)
+
+    // minimize effects
+    EffectPairDeque pairsMin;
+    for (auto& e : effects) for (auto& o : interference) pairsMin.emplace_back(e.get(), o.get());
+    for (auto& e : effects) for (auto& o : effects) if (e != o) pairsMin.emplace_back(e.get(), o.get());
+    prune(pairsMin);
+    DEBUG("Number of new effects after minimization: " << effects.size() << std::endl)
+    assert(!effects.empty());
+
     INFO(std::endl << "Adding effects to solver (" << effects.size() << "): " << std::endl)
     for (const auto& effect : effects) INFO("   " << *effect << std::endl)
     INFO(std::endl)
