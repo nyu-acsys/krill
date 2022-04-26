@@ -171,16 +171,17 @@ bool Solver::AddInterference(std::deque<std::unique_ptr<HeapEffect>> effects) {
     prune(pairsNew);
 
     // check if new effects exist
-    if (effects.empty()) return false;
     DEBUG("Number of new effects: " << effects.size() << std::endl)
+    if (effects.empty()) return false;
 
     // minimize effects
     EffectPairDeque pairsMin;
+    for (auto& e : interference) for (auto& o : effects) pairsMin.emplace_back(e.get(), o.get());
     for (auto& e : effects) for (auto& o : interference) pairsMin.emplace_back(e.get(), o.get());
     for (auto& e : effects) for (auto& o : effects) if (e != o) pairsMin.emplace_back(e.get(), o.get());
     prune(pairsMin);
     DEBUG("Number of new effects after minimization: " << effects.size() << std::endl)
-    assert(!effects.empty());
+    if (effects.empty()) return false;
 
     INFO(std::endl << "Adding effects to solver (" << effects.size() << "): " << std::endl)
     for (const auto& effect : effects) INFO("   " << *effect << std::endl)
