@@ -23,7 +23,7 @@ BENCHMARKS = [
     "examples/ORVYY.pl",
     "examples/Michael.pl",
     "examples/MichaelWaitFreeFind.pl",
-    "examples/Harris.pl",
+    # "examples/Harris.pl",
     "examples/HarrisNoK.pl",
     "examples/HarrisWaitFreeFindNoMark.pl",
     # "examples/BinaryTreeNoMaintenance.pl",
