@@ -1,4 +1,4 @@
-#name "Fine Set"
+#name "Installation Check"
 
 /* NOTE
  * this is a mock implementation for testing the plankton installation
@@ -66,7 +66,6 @@ inline <Node*, Node*, data_t> locate(data_t key) {
     __lock__(curr->lock);
     k = curr->val;
     while (k < key) {
-        __unlock__(pred->lock);
         pred = curr;
         curr = pred->next;
         __lock__(curr->lock);
@@ -87,16 +86,11 @@ bool add(data_t key) {
     <pred, curr, k> = locate(key);
 
     if (k == key) {
-        __unlock__(pred->lock);
-        __unlock__(curr->lock);
         return false;
 
     } else {
         entry->next = curr;
-        assert(pred->next == curr);
         pred->next = entry;
-        __unlock__(pred->lock);
-        __unlock__(curr->lock);
         return true;
     }
 }
