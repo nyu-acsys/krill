@@ -43,5 +43,6 @@ include_directories(include)
 add_subdirectory(src)
 
 # installation
-#install(FILES benchmark.py DESTINATION ${INSTALL_FOLDER})
-#install(DIRECTORY examples DESTINATION ${INSTALL_FOLDER})
+install(FILES benchmark.py DESTINATION ${INSTALL_FOLDER})
+install(FILES stresstest.py DESTINATION ${INSTALL_FOLDER})
+install(DIRECTORY examples DESTINATION ${INSTALL_FOLDER})
