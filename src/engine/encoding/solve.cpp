@@ -228,6 +228,12 @@ inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::
 // Adaptive method choosing
 //
 
+struct LateWarning {
+    const std::string warning;
+    explicit LateWarning(std::string warning) : warning(std::move(warning)) {}
+    ~LateWarning() { WARNING(warning) }
+};
+
 inline std::string GetZ3Version() {
     unsigned int versionMajor, versionMinor, versionBuild, versionRevision;
     Z3_get_version(&versionMajor, &versionMinor, &versionBuild, &versionRevision);
@@ -243,9 +249,9 @@ struct MethodChooser {
         try {
             return ComputeImpliedInOneShot(solver, expressions);
         } catch (const PreferredMethodFailed& err) {
-            WARNING("solving failure with Z3's solver::consequences! "
-                            << "This issue is known to happen for versions >4.8.7, your version is " << GetZ3Version()
-                            << ". Using fallback, performance may degrade..." << std::endl)
+            std::stringstream warning;
+            WARNING(warning.str())
+            static LateWarning lateWarning(warning.str());
             fallback = true;
             return ComputeImpliedOneAtATime(solver, expressions);
         }
