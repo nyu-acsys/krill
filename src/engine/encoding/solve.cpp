@@ -250,6 +250,9 @@ struct MethodChooser {
             return ComputeImpliedInOneShot(solver, expressions);
         } catch (const PreferredMethodFailed& err) {
             std::stringstream warning;
+            warning << "solving failure with Z3's solver::consequences! "
+                    << "This issue is known to happen for versions >4.8.7, your version is " << GetZ3Version()
+                    << ". Using fallback, performance may degrade..." << std::endl;
             WARNING(warning.str())
             static LateWarning lateWarning(warning.str());
             fallback = true;
