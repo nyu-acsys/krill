@@ -12,7 +12,7 @@ import sys
 #
 
 TIMEOUT = 60 * 60 * 6  # in seconds
-REPETITIONS = 5
+REPETITIONS = 1
 
 EXECUTABLE = "./plankton"
 BENCHMARKS = [
@@ -27,8 +27,8 @@ BENCHMARKS = [
     "examples/buggy/03_cycle_ORVYY.pl",
     "examples/buggy/03_cycle_Michael.pl",
     "examples/buggy/03_cycle_Harris.pl",
-    "examples/buggy/04_linkmarked_VechevYahavDCas.pl",
-    "examples/buggy/04_linkmarked_VechevYahavCas.pl",
+    #"examples/buggy/04_linkmarked_VechevYahavDCas.pl",# not buggy
+    #"examples/buggy/04_linkmarked_VechevYahavCas.pl",# not buggy
     "examples/buggy/04_linkmarked_ORVYY.pl",
     "examples/buggy/04_linkmarked_Michael.pl",
     "examples/buggy/05_wrongkey_VechevYahavCas.pl",

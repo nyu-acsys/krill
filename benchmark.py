@@ -12,7 +12,7 @@ import sys
 #
 
 TIMEOUT = 60 * 60 * 6  # in seconds
-REPETITIONS = 5
+REPETITIONS = 1
 
 EXECUTABLE = "./plankton"
 BENCHMARKS = [
