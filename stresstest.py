@@ -14,7 +14,7 @@ import sys
 TIMEOUT = 60 * 60 * 6  # in seconds
 REPETITIONS = 5
 
-EXECUTABLE = "./build/bin/plankton"
+EXECUTABLE = "./plankton"
 BENCHMARKS = [
     "examples/buggy/01_null_VechevYahavDCas.pl",
     "examples/buggy/02_nolink_VechevYahavDCas.pl",

@@ -138,6 +138,10 @@
 			</p>
 			
 			<div class="text-right mt-3">
+				<a target="new" href="oopsla-paper465.pdf" class="btn btn-primary text-right">
+					<i class="far fa-file-pdf"></i> 
+					Submitted Paper
+				</a>
 				<!-- <a target="new" href="#" class="btn btn-primary text-right">
 					<i class="far fa-file-pdf"></i> 
 					Paper
@@ -146,18 +150,18 @@
 					<i class="far fa-file-pdf"></i> 
 					Slides
 				</a> -->
-				<a target="new" href="#" class="btn btn-primary text-right">
+				<!--<a target="new" href="#" class="btn btn-primary text-right">
 					<i class="far fa-file-pdf"></i> 
 					Technical Report
-				</a>
+				</a>-->
 				<!-- <a target="new" href="#" class="btn btn-primary text-right">
 					<i class="far fa-file-pdf"></i> 
 					DOI
 				</a> -->
-				<!-- <a target="new" href="https://github.com/Wolff09/plankton" class="btn btn-primary text-right">
+				<a target="new" href="https://github.com/Wolff09/plankton/" class="btn btn-primary text-right">
 					<i class="fas fa-code"></i>
 					Source Code
-				</a> -->
+				</a>
 				<!-- <a target="new"  href="#" class="btn btn-primary text-right">
 					<i class="fas fa-hdd"></i>
 					Virtual Machine
@@ -165,27 +169,18 @@
 			</div>
 		</div>
 
-
-		<div class="alert alert-warning container text-center lead p-4">
-			<em>
-				All information on this page is preliminary since the work is still under submission.
-				<br>
-				In particular, the source code is not yet publicly available.
-			</em>
-		</div><br>
-
 		<!-- ********************************************************************************** -->
 		<!-- *********************************** QUICKSTART *********************************** -->
 		<!-- ********************************************************************************** -->
 
 		<!-- Quick Start -->
-		<!-- <div class="alert alert-info container">
+		<div class="alert alert-info container">
 			<strong><i class="fas fa-shipping-fast"></i> Quick Start <i class="fas fa-shipping-fast"></i></strong>
 			<ol class="mt-2 mb-2">
 				<li class="mt-1">
-					Download the Virtual Machine Snapshot (created with <a target="new" href="https://www.virtualbox.org">Virtual Box</a>, credentials in <code>~/Desktop/pw.txt</code>).
-					The artifact is located at <code>~/pldi22artifact/</code>.
-					The folder <code>~/pldi22artifact/plankton/</code> contains an installation of our tool <kbd>plankton</kbd> and all examples.
+					Download the Virtual Machine Snapshot (<code>x86/amd64</code> installation; created with <a target="new" href="https://www.virtualbox.org">Virtual Box</a>; credentials in <code>~/Desktop/pw.txt</code>).
+					The artifact is located at <code>~/artifact/</code>.
+					The folder <code>~/artifact/plankton/</code> contains an installation of our tool <kbd>plankton</kbd> and all examples.
 					<br>
 					<i class="fas fa-link text-secondary"></i> <a href="#installation" class="text-secondary">See Compilation and Installation</a>
 				</li>
@@ -193,7 +188,7 @@
 					Fire up the Virtual Machine.
 				</li>
 				<li class="mt-1">
-					Open a Shell and simply execute <code>cd ~/pldi22atifact/plankton/ && python3 benchmark.py</code> to run all benchmarks.
+					Open a Shell and simply execute <code>cd ~/artifact/plankton/ && python3 benchmark.py</code> to run all benchmarks.
 					<br>
 					<i class="fas fa-link text-secondary"></i> <a href="#benchmarks" class="text-secondary">See Benchmarking</a>
 				</li>
@@ -201,7 +196,7 @@
 					Presto!
 				</li>
 			</ol>
-		</div> -->
+		</div>
 		<br>
 
 
@@ -246,46 +241,38 @@
 			<h4>Download</h4>
 			<p>
 				The source code can be downloaded from GitHub here:
-				&nbsp;&nbsp;<i class="fas fa-link"></i> <a target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22">
-					GitHub release with tag <code>PLDI22</code>
+				&nbsp;&nbsp;<i class="fas fa-link"></i> <a target="new" href="https://github.com/Wolff09/plankton/releases/tag/OOPSLA22">
+					GitHub release with tag <code>OOPSLA22</code>
 				</a>
 			</p>
 
 			<h4>System Requirements</h4>
 			<p>
-				To compile this project you need <strong>CMake</strong> (>3.21), a <strong>C++17</strong> compatible compiler, <strong>Java JRE</strong> (>1.6), and <strong>Z3</strong> (<a target="new" href="https://github.com/Z3Prover/z3/releases/tag/z3-4.8.13">v4.8.13</a>).
-				Compilation was tested with Apple LLVM v.11.0.3 and GNU g++ v.11.2.0.
+				To compile this project you need <strong>CMake</strong> (>3.21), a <strong>C++17</strong> compatible compiler, <strong>Java JRE</strong> (>1.6), and <strong>Z3</strong> (<a target="new" href="https://github.com/Z3Prover/z3/releases/tag/z3-4.8.7">v4.8.7</a>).
+				Compilation was tested with LLVM v.10.
 				To run the benchmarking script, you need <strong>Pyton 3</strong> (>3.5).
 			</p>
 			<p>
 				We recommend using Linux.
+				At the moment <strong class="text-danger">MacOS is not supported</strong> because Z3 may produce inconsistent solving results.
 			</p>
 
-
-			<p class="alert alert-danger">
-				As of now, <strong>MacOS is not supported</strong> by <kbd>plankton</kbd>!
-			</p>
+			<h4>Z3 Version</h4>
 			<p>
-				MacOS is not supported because of the following known issues:
+				For reproducing the results, it is paramount to use the correct Z3 version: <a target="new" href="https://github.com/Z3Prover/z3/releases/tag/z3-4.8.7">v4.8.7</a>.
+				Versions >4.8.7 fail to run <a href="https://z3prover.github.io/api/html/classz3_1_1solver.html#a4322874cf842109514596806684cd4d7"><code>z3::solver::consequences()</code></a> on any MacOS and some Linux installations.
+				If <a href="https://z3prover.github.io/api/html/classz3_1_1solver.html#a4322874cf842109514596806684cd4d7"><code>z3::solver::consequences()</code></a> fails, <kbd>plankton</kbd> issues a warning and uses a backup procedure relying on <a href="https://z3prover.github.io/api/html/classz3_1_1solver.html#a65d4e25fe55aa280fa800b9611cd8c04"><code>z3::solver::check()</code></a>.
+				The backup procedure tremendously increases the runtime.
 			</p>
-			<ul>
-				<li>
-					All version of Z3 may produce inconsistent solving results on MacOS.
-				</li>
-				<li>
-					Z3 versions >4.8.7 fail to run <a href="https://z3prover.github.io/api/html/classz3_1_1solver.html#a4322874cf842109514596806684cd4d7"><code>z3::solver::consequences()</code></a> on MacOS.
-					The backup procedure using <a href="https://z3prover.github.io/api/html/classz3_1_1solver.html#a65d4e25fe55aa280fa800b9611cd8c04"><code>z3::solver::check()</code></a> may drastically degrade performance.
-				</li>
-			</ul>
 
 			<h4>Compilation</h4>
 			<p>
 				To build the project, do the following:</p>
 			<pre class="bg-light border"><code class="bash">
-        cd path/to/plankton-PLDI22
+        cd path/to/plankton-OOPSLA22
         mkdir build
         cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/installation -DCMAKE_CXX_COMPILER=/path/to/CXX-compiler
+        CXX=/path/to/CXX-compiler cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/installation
         make
         make install
 			</code></pre>
@@ -300,7 +287,9 @@
 			</p>
 
 			<h4>Troubleshooting</h4>
-			There are some known issues you might run into.
+			<p>
+				There are some known issues you might run into.
+			</p>
 			<dl>
 				<dt>Issue: missing external dependencies</dt>
 				<dd>
@@ -308,11 +297,31 @@
 					On Linux (tested with Ubuntu 18.04), make sure you have <code>uuid</code>, <code>uuid-dev</code>, and <code>pkg-config</code> installed.
 				</dd>
 
+				<dt>Issue: timeout while cloning from GitHub</dt>
+				<dd>
+					The build process of <code>AntLR</code> fetches the library <code>utfcpp</code> from GitHub.
+					In some (mainly academic) network setups this may fail and time out.
+					The problem can be solved by forcing <code>git</code> to use <code>https</code> like so:
+			<pre class="bg-light border"><code class="bash">
+        git config --global url."https://".insteadOf git://
+			</code></pre>
+				</dd>
+
 				<dt>Issue: <code>clang</code> and <code>libc++</code> on Linux</dt>
 				<dd>
 					When building with <code>clang</code>, you might run into problems compiling and linking <code>AntLR</code>.
-					To solve this (tested with Ubuntu 18.04), install <code>libc++-dev</code> and <code>libc++abi-dev</code>.
-					Then, use the <code>clang++-libc++</code> compiler wrapper, i.e., pass <code>-DCMAKE_INSTALL_PREFIX=clang++-libc++</code> to <code>cmake</code>; it properly sets up <code>clang++</code> to use <code>libc++</code>.
+					To solve this (tested with Ubuntu 20.04), install <code>libc++-dev</code> and <code>libc++abi-dev</code>.
+					Then, create a compiler wrapper <code>stdclang</code> like so
+			<pre class="bg-light border"><code class="bash">
+        sudo touch /usr/bin/stdclang
+        sudo chmod a+x /usr/bin/stdclang
+			</code></pre>
+					Edit the created file <code>/usr/bin/stdclang</code> to contain this:
+			<pre class="bg-light border"><code class="bash">
+        #!/bin/bash
+        clang++ -stdlib=libc++ $@
+			</code></pre>
+					With this, use <code>stdclang</code> as the <code>CXX</code> compiler in the above build command; it properly sets up <code>clang++</code> to use <code>libc++</code>.
 					<!-- If <code>clang++-libc++</code> is not available on your system, you can create it yourself: <code>??</code>. -->
 				</dd>
 			</dl>
@@ -335,24 +344,40 @@
 			</p>
 			<ul>
 				<li>
-					<i>Vechev&Yahav's 2CAS set</i> <span class="ref-full">VechevY08</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/VechevYahavDCas.pl">Code</a>
+					<i>Fine-grained set</i> <span class="ref-full">HerlihyS08</span>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/FineSet.pl">Code</a>
+				</li>
+				<li>
+					<i>Lazy set</i> <span class="ref-full">HellerHLMSS05</span>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/LazySet.pl">Code</a>
+				</li>
+				<li>
+					<i>FEMRS tree (no maintenance)</i> <span class="ref-full">FeldmanEMRS18</span>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/FemrsTreeNoMaintenance.pl">Code</a>
 				</li>
 				<li>
 					<i>Vechev&Yahav's CAS set</i> <span class="ref-full">VechevY08</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/VechevYahavCas.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/VechevYahavCas.pl">Code</a>
 				</li>
 				<li>
 					<i>ORVYY's set</i> <span class="ref-full">OHearnRVYY10</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/ORVYY.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/ORVYY.pl">Code</a>
 				</li>
 				<li>
 					<i>Michael's set</i> <span class="ref-full">Michael02a</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/Michael.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/Michael.pl">Code</a>
 				</li>
 				<li>
 					<i>Harris' set</i> <span class="ref-full">Harris01</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/Harris.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/Harris.pl">Code</a>
+				</li>
+				<li>
+					<i>Michael's set (with wait-free search)</i> <span class="ref-full">Michael02a</span>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/MichaelWaitFreeSearch.pl">Code</a>
+				</li>
+				<li>
+					<i>Harris' set (with wait-free search)</i> <span class="ref-full">Harris01</span>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/HarrisWaitFreeSearch.pl">Code</a>
 				</li>
 			</ul>
 			
@@ -395,10 +420,16 @@
 			<h4>Expected Benchmarks Results</h4>
 			<p>
 				We repeat our evaluation.
-				We used an Intel i5-8600K@3.6GHz machine with 16GB of RAM running Ubuntu 20.04 and used clang 12 and Z3 4.8.13.
-				The timeout was set to 6h.
+				We used an Apple M1 Pro with 16GB of RAM running Ubuntu 20.10 with clang 12 and Z3 4.8.15.
 				We mark successful tasks with <i class="experiments fas fa-check"></i>, failed tasks with <i class="experiments fas fa-times"></i>, and timed out tasks with <i class="experiments far fa-clock"></i>.
 			</p>
+
+			<div class="alert alert-warning">
+				Runtimes on traditional <code>x86/amd64</code> hardware will be slower than the Apple Silicone runtimes reported here.
+				(We have seen cases where Apple Silicon was 5 times faster.)
+				However, we expect traditional hardware to produce the same tendencies and most importantly the same verification verdict.
+			</div>
+
 			<table class="table experiments border">
 				<thead>
 					<tr>
@@ -416,64 +447,124 @@
 				</thead>
 				<tbody>
 					<tr>
+						<th scope="row">Fine-Grained set</th>
+						<td class="text-right">2</td>
+						<td class="text-right">5</td>
+						<td class="text-right">2</td>
+						<td class="text-right">11%</td>
+						<td class="text-right">15%</td>
+						<td class="text-right">43%</td>
+						<td class="text-right">15%</td>
+						<td class="text-right">8%</td>
+						<td class="text-right font-weight-bold">46s <i class="fas fa-check"></i></td>
+					</tr>
+					<tr>
+						<th scope="row">Lazy set</th>
+						<td class="text-right">2</td>
+						<td class="text-right">6</td>
+						<td class="text-right">2</td>
+						<td class="text-right">10%</td>
+						<td class="text-right">13%</td>
+						<td class="text-right">54%</td>
+						<td class="text-right">11%</td>
+						<td class="text-right">5%</td>
+						<td class="text-right font-weight-bold">77s <i class="fas fa-check"></i></td>
+					</tr>
+					<tr>
+						<th scope="row">FEMRS tree (no maintenance)</th>
+						<td class="text-right">2</td>
+						<td class="text-right">5</td>
+						<td class="text-right">2</td>
+						<td class="text-right">19%</td>
+						<td class="text-right">0%</td>
+						<td class="text-right">49%</td>
+						<td class="text-right">1%</td>
+						<td class="text-right">9%</td>
+						<td class="text-right font-weight-bold">130s <i class="fas fa-check"></i></td>
+					</tr>
+					<tr>
 						<th scope="row">Vechev&Yahav's 2CAS set</th>
 						<td class="text-right">2</td>
 						<td class="text-right">3</td>
 						<td class="text-right">1</td>
-						<td class="text-right">17%</td>
-						<td class="text-right">1%</td>
+						<td class="text-right">14%</td>
+						<td class="text-right">0%</td>
+						<td class="text-right">33%</td>
 						<td class="text-right">31%</td>
-						<td class="text-right">28%</td>
-						<td class="text-right">8%</td>
-						<td class="text-right font-weight-bold">4m 21s <i class="fas fa-check"></i></td>
+						<td class="text-right">9%</td>
+						<td class="text-right font-weight-bold">125s <i class="fas fa-check"></i></td>
 					</tr>
 					<tr>
 						<th scope="row">Vechev&Yahav's CAS set</th>
 						<td class="text-right">2</td>
-						<td class="text-right">3</td>
+						<td class="text-right">4</td>
 						<td class="text-right">1</td>
-						<td class="text-right">10%</td>
-						<td class="text-right">18%</td>
-						<td class="text-right">28%</td>
-						<td class="text-right">28%</td>
+						<td class="text-right">15%</td>
+						<td class="text-right">7%</td>
+						<td class="text-right">39%</td>
+						<td class="text-right">23%</td>
 						<td class="text-right">6%</td>
-						<td class="text-right font-weight-bold">8m 13s <i class="fas fa-check"></i></td>
+						<td class="text-right font-weight-bold">54s <i class="fas fa-check"></i></td>
 					</tr>
 					<tr>
 						<th scope="row">ORVYY's set</th>
 						<td class="text-right">2</td>
 						<td class="text-right">3</td>
 						<td class="text-right">0</td>
-						<td class="text-right">14%</td>
+						<td class="text-right">17%</td>
 						<td class="text-right">0%</td>
-						<td class="text-right">32%</td>
-						<td class="text-right">34%</td>
+						<td class="text-right">40%</td>
+						<td class="text-right">26%</td>
 						<td class="text-right">6%</td>
-						<td class="text-right font-weight-bold">4m 30s <i class="fas fa-check"></i></td>
+						<td class="text-right font-weight-bold">47s <i class="fas fa-check"></i></td>
 					</tr>
 					<tr>
 						<th scope="row">Michael's set</th>
 						<td class="text-right">2</td>
-						<td class="text-right">3</td>
+						<td class="text-right">4</td>
 						<td class="text-right">2</td>
-						<td class="text-right">10%</td>
-						<td class="text-right">48%</td>
-						<td class="text-right">16%</td>
-						<td class="text-right">14%</td>
-						<td class="text-right">5%</td>
-						<td class="text-right font-weight-bold">16m 27s <i class="fas fa-check"></i></td>
+						<td class="text-right">11%</td>
+						<td class="text-right">29%</td>
+						<td class="text-right">30%</td>
+						<td class="text-right">15%</td>
+						<td class="text-right">6%</td>
+						<td class="text-right font-weight-bold">306s <i class="fas fa-check"></i></td>
+					</tr>
+					<tr>
+						<th scope="row">Michael's set (wait-free)</th>
+						<td class="text-right">2</td>
+						<td class="text-right">4</td>
+						<td class="text-right">2</td>
+						<td class="text-right">11%</td>
+						<td class="text-right">28%</td>
+						<td class="text-right">30%</td>
+						<td class="text-right">15%</td>
+						<td class="text-right">6%</td>
+						<td class="text-right font-weight-bold">246s <i class="fas fa-check"></i></td>
 					</tr>
 					<tr>
 						<th scope="row">Harris' set</th>
 						<td class="text-right">2</td>
-						<td class="text-right">3</td>
+						<td class="text-right">4</td>
 						<td class="text-right">2</td>
-						<td class="text-right">4%</td>
-						<td class="text-right">14%</td>
+						<td class="text-right">7%</td>
 						<td class="text-right">8%</td>
-						<td class="text-right">64%</td>
-						<td class="text-right">2%</td>
-						<td class="text-right font-weight-bold">144m 37s <i class="fas fa-check"></i></td>
+						<td class="text-right">19%</td>
+						<td class="text-right">32%</td>
+						<td class="text-right">4%</td>
+						<td class="text-right font-weight-bold">1378s <i class="fas fa-check"></i></td>
+					</tr>
+					<tr>
+						<th scope="row">Harris' set (wait-free)</th>
+						<td class="text-right">2</td>
+						<td class="text-right">4</td>
+						<td class="text-right">2</td>
+						<td class="text-right">8%</td>
+						<td class="text-right">10%</td>
+						<td class="text-right">17%</td>
+						<td class="text-right">34%</td>
+						<td class="text-right">3%</td>
+						<td class="text-right font-weight-bold">1066s <i class="fas fa-check"></i></td>
 					</tr>
 				</tbody>
 			</table>
@@ -506,307 +597,9 @@
         python3 stresstest.py [&lt;number_of_repetitions&gt;] [&lt;timeout_in_seconds&gt;]
 			</code></pre>
 			<p>
-				Below we list the code of the buggy programs, the time it takes until <kbd>plankton</kbd> fails verification, and the reported failure reason.
+				Found bugs are indicated by <i class="experiments fas fa-check"></i>.
+				If verification succeeds for a buggy test case, <i class="experiments fas fa-times"></i> is printed.
 			</p>
-			<nav>
-				<div class="nav nav-tabs" id="nav-tab" role="tablist">
-					<a class="nav-item nav-link active" id="nav-Bug1-tab" data-toggle="tab" href="#nav-Bug1" role="tab" aria-controls="nav-Bug1" aria-selected="true">Bug 1</a>
-					<a class="nav-item nav-link" id="nav-Bug2-tab" data-toggle="tab" href="#nav-Bug2" role="tab" aria-controls="nav-Bug2" aria-selected="true">Bug 2</a>
-					<a class="nav-item nav-link" id="nav-Bug3-tab" data-toggle="tab" href="#nav-Bug3" role="tab" aria-controls="nav-Bug3" aria-selected="true">Bug 3</a>
-					<a class="nav-item nav-link" id="nav-Bug4-tab" data-toggle="tab" href="#nav-Bug4" role="tab" aria-controls="nav-Bug4" aria-selected="true">Bug 4</a>
-					<a class="nav-item nav-link" id="nav-Bug5-tab" data-toggle="tab" href="#nav-Bug5" role="tab" aria-controls="nav-Bug5" aria-selected="true">Bug 5</a>
-					<a class="nav-item nav-link" id="nav-Bug6-tab" data-toggle="tab" href="#nav-Bug6" role="tab" aria-controls="nav-Bug6" aria-selected="true">Bug 6</a>
-					<a class="nav-item nav-link" id="nav-Bug7-tab" data-toggle="tab" href="#nav-Bug7" role="tab" aria-controls="nav-Bug7" aria-selected="true">Bug 7</a>
-					<a class="nav-item nav-link" id="nav-Bug8-tab" data-toggle="tab" href="#nav-Bug8" role="tab" aria-controls="nav-Bug8" aria-selected="true">Bug 8</a>
-					<a class="nav-item nav-link" id="nav-Bug9-tab" data-toggle="tab" href="#nav-Bug9" role="tab" aria-controls="nav-Bug9" aria-selected="true">Bug 9</a>
-				</div>
-			</nav>
-			<div class="tab-content border-left border-right border-bottom p-3" id="nav-tabContent">
-				<div class="tab-pane show active" id="nav-Bug1" role="tabpanel" aria-labelledby="nav-Bug1-tab">
-					<p>
-						Bug 1:
-						Missing <code>NULL</code> check during traversals.
-						(Note that most set implementations do not perform an explicit <code>NULL</code> check but rather rely on mark bits or the invariant.)
-					</p>
-					<ul>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Vechev&Yahav's 2CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/01_null_VechevYahavDCas.pl">Code</a>
-						</li>
-					</ul>
-					<p>
-						Given reason:
-						??
-					</p>
-				</div>
-				<div class="tab-pane show" id="nav-Bug2" role="tabpanel" aria-labelledby="nav-Bug2-tab">
-					<p>
-						Bug 2:
-						New entries are not linked into the structure.
-					</p>
-					<ul>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Vechev&Yahav's 2CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/02_nolink_VechevYahavDCas.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Vechev&Yahav's CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/02_nolink_VechevYahavCas.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							ORVYY's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/02_nolink_ORVYY.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Michael's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/02_nolink_Michael.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Harris' set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/02_nolink_Harris.pl">Code</a>
-						</li>
-					</ul>
-					<p>
-						Given reason:
-						??
-					</p>
-				</div>
-				<div class="tab-pane show" id="nav-Bug3" role="tabpanel" aria-labelledby="nav-Bug3-tab">
-					<p>
-						Bug 3:
-						New entries create a cycle in the structure.
-					</p>
-					<ul>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Vechev&Yahav's 2CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/03_cycle_VechevYahavDCas.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Vechev&Yahav's CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/03_cycle_VechevYahavCas.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							ORVYY's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/03_cycle_ORVYY.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Michael's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/03_cycle_Michael.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Harris' set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/03_cycle_Harris.pl">Code</a>
-						</li>
-					</ul>
-					<p>
-						Given reason:
-						??
-					</p>
-				</div>
-				<div class="tab-pane show" id="nav-Bug4" role="tabpanel" aria-labelledby="nav-Bug4-tab">
-					<p>
-						Bug 4:
-						Missing initialization of mark bit (new entries are potentially marked).
-					</p>
-					<ul>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Vechev&Yahav's CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/04_linkmarked_VechevYahavCas.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							ORVYY's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/04_linkmarked_ORVYY.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Michael's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/04_linkmarked_Michael.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Harris' set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/04_linkmarked_Harris.pl">Code</a>
-						</li>
-					</ul>
-					<p>
-						Given reason:
-						??
-					</p>
-				</div>
-				<div class="tab-pane show" id="nav-Bug5" role="tabpanel" aria-labelledby="nav-Bug5-tab">
-					<p>
-						Bug 5:
-						Traversals return the wrong key.
-					</p>
-					<ul>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Vechev&Yahav's CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/05_wrong_VechevYahavCas.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							ORVYY's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/05_wrong_ORVYY.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Michael's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/05_wrong_Michael.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Harris' set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/05_wrong_Harris.pl">Code</a>
-						</li>
-					</ul>
-					<p>
-						Given reason:
-						??
-					</p>
-				</div>
-				<div class="tab-pane show" id="nav-Bug6" role="tabpanel" aria-labelledby="nav-Bug6-tab">
-					<p>
-						Bug 6:
-						Updates to the structure ignore the mark bit.
-					</p>
-					<ul>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Vechev&Yahav's CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/06_ignoremark_VechevYahavCas.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							ORVYY's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/06_ignoremark_ORVYY.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Michael's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/06_ignoremark_Michael.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Harris' set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/06_ignoremark_Harris.pl">Code</a>
-						</li>
-					</ul>
-					<p>
-						Given reason:
-						??
-					</p>
-				</div>
-				<div class="tab-pane show" id="nav-Bug7" role="tabpanel" aria-labelledby="nav-Bug7-tab">
-					<p>
-						Bug 7:
-						Insertions do not check if the to-be-inserted key is already present (potential duplication of keys).
-					</p>
-					<ul>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Vechev&Yahav's CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/07_duplicate_VechevYahavCas.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							ORVYY's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/07_duplicate_ORVYY.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Michael's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/07_duplicate_Michael.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Harris' set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/07_duplicate_Harris.pl">Code</a>
-						</li>
-					</ul>
-					<p>
-						Given reason:
-						??
-					</p>
-				</div>
-				<div class="tab-pane show" id="nav-Bug8" role="tabpanel" aria-labelledby="nav-Bug8-tab">
-					<p>
-						Bug 8:
-						Insertions logically delete the node preceding the insertion.
-					</p>
-					<ul>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Vechev&Yahav's CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/08_mark_VechevYahavCas.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							ORVYY's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/08_mark_ORVYY.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Michael's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/08_mark_Michael.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Harris' set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/08_mark_Harris.pl">Code</a>
-						</li>
-					</ul>
-					<p>
-						Given reason:
-						??
-					</p>
-				</div>
-				<div class="tab-pane show" id="nav-Bug9" role="tabpanel" aria-labelledby="nav-Bug9-tab">
-					<p>
-						Bug 9:
-						Missing logical deletion.
-					</p>
-					<ul>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Vechev&Yahav's CAS set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/09_nomark_VechevYahavCas.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							ORVYY's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/09_nomark_ORVYY.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Michael's set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/09_nomark_Michael.pl">Code</a>
-						</li>
-						<li>
-							<span class="font-weight-bold">?s</span> for 
-							Harris' set
-							&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/examples/buggy/09_nomark_Harris.pl">Code</a>
-						</li>
-					</ul>
-					<p>
-						Given reason:
-						??
-					</p>
-				</div>
-			</div>
 		</div>
 		<br>
 
@@ -1221,32 +1014,53 @@
 		<div id="references" class="mt-4">
 			<br>
 			<h1>References</h1>
+			<div class="ref-item" data-ref-full="Feldman et al. 2018", data-ref-year="2018">
+				<span class="ref-item-id">FeldmanEMRS18</span>
+				<span class="ref-item-author">Yotam M. Y. Feldman, Constantin Enea, Adam Morrison, Noam Rinetzky, and Sharon Shoham. 2018.</span>
+				<span class="ref-item-paper">Order out of Chaos: Proving Linearizability Using Local Views.</span>
+				<span class="ref-item-where">In DISC (LIPIcs, Vol. 121). Springer.</span>
+				<a target="new" class="ref-item-url text-nowrap" href="https://doi.org/10.4230/LIPIcs.DISC.2018.23">https://doi.org/10.4230/LIPIcs.DISC.2018.23</a>
+			</div>
 			<div class="ref-item" data-ref-full="Harris 2001", data-ref-year="2001">
 				<span class="ref-item-id">Harris01</span>
 				<span class="ref-item-author">Timothy L. Harris. 2001.</span>
 				<span class="ref-item-paper">A Pragmatic Implementation of Non-blocking Linked-Lists.</span>
-				<span class="ref-item-where">In DISC (LNCS), Vol. 2180. Springer, 300-314.</span>
+				<span class="ref-item-where">In DISC (LNCS, Vol. 2180). Springer.</span>
 				<a target="new" class="ref-item-url text-nowrap" href="https://doi.org/10.1007/3-540-45414-4_21">https://doi.org/10.1007/3-540-45414-4_21</a>
+			</div>
+			<div class="ref-item" data-ref-full="Heller et al. 2005", data-ref-year="2005">
+				<span class="ref-item-id">HellerHLMSS05</span>
+				<span class="ref-item-author">Steve Heller, Maurice Herlihy, Victor Luchangco, Mark Moir, William N. Scherer III, and Nir Shavit. 2005.</span>
+				<span class="ref-item-paper">A Lazy Concurrent List-Based Set Algorithm.</span>
+				<span class="ref-item-where">In OPODIS (LNCS, Vol. 3974). Springer.</span>
+				<a target="new" class="ref-item-url text-nowrap" href="https://doi.org/doi.org/10.1007/11795490_3">https://doi.org/10.1007/11795490_3</a>
 			</div>
 			<div class="ref-item" data-ref-full="Michael 2002a", data-ref-year="2002a">
 				<span class="ref-item-id">Michael02a</span>
 				<span class="ref-item-author">Maged M. Michael. 2002.</span>
 				<span class="ref-item-paper">High performance dynamic lock-free hash tables and list-based sets.</span>
-				<span class="ref-item-where">In SPAA. 73–82.</span>
+				<span class="ref-item-where">In SPAA..</span>
 				<a target="new" class="ref-item-url text-nowrap" href="https://doi.org/10.1145/564870.564881">https://doi.org/10.1145/564870.564881</a>
 			</div>
 			<div class="ref-item" data-ref-full="O'Hearn et al. 2010", data-ref-year="2010">
 				<span class="ref-item-id">OHearnRVYY10</span>
 				<span class="ref-item-author">Peter W. O’Hearn, Noam Rinetzky, Martin T. Vechev, Eran Yahav, and Greta Yorsh. 2010.</span>
 				<span class="ref-item-paper">Verifying linearizability with hindsight.</span>
-				<span class="ref-item-where">In PODC. ACM, 85–94.</span>
+				<span class="ref-item-where">In PODC. ACM.</span>
 				<a target="new" class="ref-item-url text-nowrap" href="https://doi.org/10.1145/1835698.1835722">https://doi.org/10.1145/1835698.1835722</a>
+			</div>
+			<div class="ref-item" data-ref-full="Herlihy and Shavit 2008", data-ref-year="2008">
+				<span class="ref-item-id">HerlihyS08</span>
+				<span class="ref-item-author">Maurice Herlihy and Nir Shavit. 2008.</span>
+				<span class="ref-item-paper">The art of multiprocessor programming (Chapter 9.5).</span>
+				<span class="ref-item-where">Morgan Kaufmann.</span>
+				<a target="new" class="ref-item-url text-nowrap" href="https://isbnsearch.org/isbn/9780123705914">https://isbnsearch.org/isbn/9780123705914</a>
 			</div>
 			<div class="ref-item" data-ref-full="Vechev and Yahav 2008", data-ref-year="2008">
 				<span class="ref-item-id">VechevY08</span>
 				<span class="ref-item-author">Martin T. Vechev and Eran Yahav. 2008.</span>
 				<span class="ref-item-paper">Deriving linearizable fine-grained concurrent objects.</span>
-				<span class="ref-item-where">In PLDI. ACM, 125–135.</span>
+				<span class="ref-item-where">In PLDI. ACM.</span>
 				<a target="new" class="ref-item-url text-nowrap" href="https://doi.org/10.1145/1375581.1375598">https://doi.org/10.1145/1375581.1375598</a>
 			</div>
 		</div>
