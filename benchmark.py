@@ -25,6 +25,7 @@ BENCHMARKS = [
     "examples/MichaelWaitFreeSearch.pl",
     "examples/Harris.pl",
     "examples/HarrisWaitFreeSearch.pl",
+    "examples/FemrsTreeNoMaintenance.pl",
 ]
 
 #
