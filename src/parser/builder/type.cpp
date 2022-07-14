@@ -13,5 +13,5 @@ std::string AstBuilder::MakeBaseTypeName(PlanktonParser::TypeContext& context) c
         antlrcpp::Any visitTypeThread(PlanktonParser::TypeThreadContext*) override { return Type::Thread().name; }
         antlrcpp::Any visitTypePtr(PlanktonParser::TypePtrContext* ctx) override { return ctx->name->getText(); }
     } visitor;
-    return context.accept(&visitor);
+    return std::any_cast<std::string>(context.accept(&visitor));
 }

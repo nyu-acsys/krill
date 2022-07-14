@@ -3,9 +3,12 @@ set(TOOL_NAME plankton)
 set(INSTALL_FOLDER plankton)
 
 # built requirements
-cmake_minimum_required(VERSION 3.7 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.19 FATAL_ERROR)
+#cmake_policy(SET CMP0114 NEW)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # set default release type
 if(NOT CMAKE_BUILD_TYPE)
