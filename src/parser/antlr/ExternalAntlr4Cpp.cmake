@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.19)
 
+if(NOT EXISTS "${ANTLR4_ZIP_REPOSITORY}")
+  message(FATAL_ERROR "Unable to find ANTLR zip repository. ANTLR4_ZIP_REPOSITORY: ${ANTLR4_ZIP_REPOSITORY}")
+endif()
+if(NOT DEFINED ANTLR4_ZIP_HASH)
+  message(FATAL_ERROR "Missing MD5 hash for ANTLR zip repository.")
+endif()
+
 include(ExternalProject)
 
 set(ANTLR4_ROOT ${CMAKE_CURRENT_BINARY_DIR}/antlr4_runtime/src/antlr4_runtime)
@@ -87,7 +94,7 @@ if(ANTLR4_ZIP_REPOSITORY)
       SOURCE_DIR ${ANTLR4_ROOT}
       SOURCE_SUBDIR runtime/Cpp
       CMAKE_CACHE_ARGS
-          -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+          -DCMAKE_BUILD_TYPE:STRING=RELEASE
           -DWITH_STATIC_CRT:BOOL=${ANTLR4_WITH_STATIC_CRT}
           # -DCMAKE_CXX_STANDARD:STRING=17 # if desired, compile the runtime with a different C++ standard
           -DCMAKE_CXX_STANDARD:STRING=${CMAKE_CXX_STANDARD} # alternatively, compile the runtime with the same C++ standard as the outer project
