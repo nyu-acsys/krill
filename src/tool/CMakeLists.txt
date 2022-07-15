@@ -3,10 +3,8 @@
 ####### setting up TCLAP #######
 ################################
 
-# TODO: update tclap version
-
-set(TCLAP_REPO_URL ${CMAKE_CURRENT_SOURCE_DIR}/tclap/tclap-1.2.4.tar.gz)
-set(TCLAP_REPO_HASH 733b26a2dae2ae8acc46fc37974d6d76)
+set(TCLAP_REPO_URL ${CMAKE_CURRENT_SOURCE_DIR}/tclap/tclap-1.4.0-rc1.tar.bz2)
+set(TCLAP_REPO_HASH 3e669714a4dba6e5451bb401bb4e3d54)
 
 LIST(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/tclap)
 include(ExternalTclap)
