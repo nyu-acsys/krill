@@ -1,5 +1,4 @@
-cmake_minimum_required(VERSION 3.7)
-cmake_policy(SET CMP0114 NEW) # TODO: NEW or OLD
+cmake_minimum_required(VERSION 3.19)
 
 include(ExternalProject)
 
@@ -39,7 +38,7 @@ else()
     set(ANTLR4_SHARED_LIBRARIES
         ${ANTLR4_OUTPUT_DIR}/libantlr4-runtime.dll.a)
     set(ANTLR4_RUNTIME_LIBRARIES
-        ${ANTLR4_OUTPUT_DIR}/cygantlr4-runtime-4.9.2.dll)
+        ${ANTLR4_OUTPUT_DIR}/cygantlr4-runtime-4.10.1.dll)
   elseif(APPLE)
     set(ANTLR4_RUNTIME_LIBRARIES
         ${ANTLR4_OUTPUT_DIR}/libantlr4-runtime.dylib)
@@ -81,18 +80,17 @@ if(ANTLR4_ZIP_REPOSITORY)
       antlr4_runtime
       PREFIX antlr4_runtime
       URL ${ANTLR4_ZIP_REPOSITORY}
+      URL_HASH MD5=${ANTLR4_ZIP_HASH}
       DOWNLOAD_DIR ${CMAKE_CURRENT_BINARY_DIR}
       BUILD_COMMAND ""
       BUILD_IN_SOURCE 1
       SOURCE_DIR ${ANTLR4_ROOT}
       SOURCE_SUBDIR runtime/Cpp
       CMAKE_CACHE_ARGS
-          -DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER}
-          # -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
-          -DCMAKE_BUILD_TYPE:STRING=${Release}
+          -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
           -DWITH_STATIC_CRT:BOOL=${ANTLR4_WITH_STATIC_CRT}
           # -DCMAKE_CXX_STANDARD:STRING=17 # if desired, compile the runtime with a different C++ standard
-           -DCMAKE_CXX_STANDARD:STRING=${CMAKE_CXX_STANDARD} # compile the runtime with the same C++ standard as the outer project
+          -DCMAKE_CXX_STANDARD:STRING=${CMAKE_CXX_STANDARD} # alternatively, compile the runtime with the same C++ standard as the outer project
       INSTALL_COMMAND ""
       EXCLUDE_FROM_ALL 1)
 else()
@@ -107,17 +105,15 @@ else()
       SOURCE_DIR ${ANTLR4_ROOT}
       SOURCE_SUBDIR runtime/Cpp
       CMAKE_CACHE_ARGS
-          -DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER}
-          # -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
-          -DCMAKE_BUILD_TYPE:STRING=${Release}
+          -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
           -DWITH_STATIC_CRT:BOOL=${ANTLR4_WITH_STATIC_CRT}
           # -DCMAKE_CXX_STANDARD:STRING=17 # if desired, compile the runtime with a different C++ standard
-          -DCMAKE_CXX_STANDARD:STRING=${CMAKE_CXX_STANDARD} # compile the runtime with the same C++ standard as the outer project
+          # -DCMAKE_CXX_STANDARD:STRING=${CMAKE_CXX_STANDARD} # alternatively, compile the runtime with the same C++ standard as the outer project
       INSTALL_COMMAND ""
       EXCLUDE_FROM_ALL 1)
 endif()
 
-# Seperate build step as rarely people want both
+# Separate build step as rarely people want both
 set(ANTLR4_BUILD_DIR ${ANTLR4_ROOT})
 if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.14.0")
   # CMake 3.14 builds in above's SOURCE_SUBDIR when BUILD_IN_SOURCE is true
