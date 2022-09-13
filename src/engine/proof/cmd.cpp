@@ -41,37 +41,37 @@ void ProofGenerator::Visit(const Fail& cmd) {
 
 void ProofGenerator::Visit(const Assume& cmd) {
     INFO(infoPrefix << "Post for '" << cmd << "'." << INFO_SIZE << std::endl)
-    ApplyTransformer(MakePostTransformer(cmd, solver, pldiPost));
+    ApplyTransformer(MakePostTransformer(cmd, solver, timePost));
     MakeInterferenceStable(cmd);
 }
 
 void ProofGenerator::Visit(const AcquireLock &cmd) {
     INFO(infoPrefix << "Post for '" << cmd << "'." << INFO_SIZE << std::endl)
-    ApplyTransformer(MakePostTransformer(cmd, solver, pldiPost));
+    ApplyTransformer(MakePostTransformer(cmd, solver, timePost));
     MakeInterferenceStable(cmd);
 }
 
 void ProofGenerator::Visit(const ReleaseLock &cmd) {
     INFO(infoPrefix << "Post for '" << cmd << "'." << INFO_SIZE << std::endl)
-    ApplyTransformer(MakePostTransformer(cmd, solver, pldiPost));
+    ApplyTransformer(MakePostTransformer(cmd, solver, timePost));
     MakeInterferenceStable(cmd);
 }
 
 void ProofGenerator::Visit(const Malloc& cmd) {
     INFO(infoPrefix << "Post for '" << cmd << "'." << INFO_SIZE << std::endl)
-    ApplyTransformer(MakePostTransformer(cmd, solver, pldiPost));
+    ApplyTransformer(MakePostTransformer(cmd, solver, timePost));
     MakeInterferenceStable(cmd);
 }
 
 void ProofGenerator::Visit(const VariableAssignment& cmd) {
     INFO(infoPrefix << "Post for '" << cmd << "'." << INFO_SIZE << std::endl)
-    ApplyTransformer(MakePostTransformer(cmd, solver, pldiPost));
+    ApplyTransformer(MakePostTransformer(cmd, solver, timePost));
     MakeInterferenceStable(cmd);
 }
 
 void ProofGenerator::Visit(const MemoryWrite& cmd) {
     INFO(infoPrefix << "Post for '" << cmd << "'." << INFO_SIZE << std::endl)
-    ApplyTransformer(MakePostTransformer(cmd, solver, pldiPost));
+    ApplyTransformer(MakePostTransformer(cmd, solver, timePost));
     MakeInterferenceStable(cmd);
 }
 

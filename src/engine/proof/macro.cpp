@@ -8,8 +8,6 @@
 
 using namespace plankton;
 
-constexpr const bool TABULATE_SUBROUTINES = true;
-
 
 inline std::vector<std::unique_ptr<VariableExpression>>
 AsExpr(const std::vector<std::unique_ptr<VariableDeclaration>>& decls) {
@@ -200,7 +198,7 @@ void ProofGenerator::Visit(const Macro& cmd) {
     DEBUG_FOREACH(current, [](const auto& elem){ DEBUG("  -- " << *elem << std::endl) })
 
     // TODO: proper framing?
-    if (TABULATE_SUBROUTINES) HandleMacroLazy(cmd);
+    if (setup.macrosTabulateInvocations) HandleMacroLazy(cmd);
     else HandleMacroEager(cmd);
 
     // restore caller context
