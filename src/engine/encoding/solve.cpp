@@ -31,7 +31,9 @@ inline z3::expr Translate(const z3::expr& expr, const z3::context& srcContext, z
 //
 
 inline bool IsUnsat(z3::solver& solver) {
+    solver.push();
     auto res = solver.check();
+    solver.pop();
     switch (res) {
         case z3::unsat: return true;
         case z3::sat: return false;
@@ -41,9 +43,10 @@ inline bool IsUnsat(z3::solver& solver) {
 }
 
 inline bool IsImplied(z3::solver& solver, const z3::expr& expr) {
-    z3::expr_vector tmp(solver.ctx());
-    tmp.push_back(!expr);
-    auto res = solver.check(tmp);
+    solver.push();
+    solver.add(!expr);
+    auto res = solver.check();
+    solver.pop();
     switch (res) {
         case z3::unsat: return true;
         case z3::sat: return false;
@@ -174,6 +177,7 @@ inline std::vector<bool> ComputeImpliedOneAtATimeParallel(z3::solver& solver, co
 
 inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::deque<EExpr>& expressions) {
     // prepare required vectors
+    solver.push();
     auto& context = solver.ctx();
     z3::expr_vector variables(context);
     z3::expr_vector assumptions(context);
@@ -184,11 +188,12 @@ inline std::vector<bool> ComputeImpliedInOneShot(z3::solver& solver, const std::
         std::string name = "__chk__" + std::to_string(index);
         auto var = context.bool_const(name.c_str());
         variables.push_back(var);
-        assumptions.push_back(var == AsExpr(expressions.at(index)));
+        solver.add(var == AsExpr(expressions.at(index)));
     }
 
     // check
     auto answer = solver.consequences(assumptions, variables, consequences);
+    solver.pop();
 
     // create result
     std::vector<bool> result(expressions.size(), false);
@@ -312,19 +317,25 @@ struct MethodChooser {
 
 inline bool IsUnsat(std::unique_ptr<InternalStorage>& internal) {
     auto& solver = AsSolver(internal);
+    solver.push();
     auto result = IsUnsat(solver);
+    solver.pop();
     return result;
 }
 
 inline bool IsImplied(std::unique_ptr<InternalStorage>& internal, const EExpr& expression) {
     auto& solver = AsSolver(internal);
+    solver.push();
     auto result = IsImplied(solver, AsExpr(expression));
+    solver.pop();
     return result;
 }
 
 inline std::vector<bool> ComputeImplied(std::unique_ptr<InternalStorage>& internal, const std::deque<EExpr>& expressions) {
     auto& solver = AsSolver(internal);
+    solver.push();
     auto result = solvingMethod(solver, expressions);
+    solver.pop();
     return result;
 }
 
