@@ -43,7 +43,6 @@ RUN apt update && apt -y --no-install-recommends install \
         libc++abi1 \
         libc++abi-dev \
     && rm -rf /var/lib/apt/lists/*
-RUN apt -y --no-install-recommends install clang libc++1 libc++-dev libc++abi1 libc++abi-dev
 RUN touch /usr/bin/stdclang
 RUN chmod a+x /usr/bin/stdclang
 RUN echo '#!/bin/bash' >> /usr/bin/stdclang
