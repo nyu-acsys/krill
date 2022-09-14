@@ -60,13 +60,6 @@ inline CommandLineInput Interact(int argc, char** argv) {
     input.setup.loopMaxIterations = loopMaxIterArg.getValue();
     input.setup.proofMaxIterations = proofMaxIterArg.getValue();
 
-     //input.pathToInput = "/Users/wolff/Tools/plankton/examples/test.txt";
-    // input.pathToInput = "/Users/wolff/Tools/plankton/examples/VechevYahavDCas.pl";
-    // input.pathToInput = "/Users/wolff/Tools/plankton/examples/VechevYahavCas.pl";
-    // input.pathToInput = "/Users/wolff/Tools/plankton/examples/ORVYY.pl";
-    // input.pathToInput = "/Users/wolff/Tools/plankton/examples/Michael.pl";
-    // input.pathToInput = "/Users/wolff/Tools/plankton/examples/Harris.pl";
-
     return input;
 }
 
