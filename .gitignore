@@ -4,14 +4,9 @@
 
 # Build
 build/*
-build-9/*
-build-10/*
-build-11/*
-build-linux/*
-build-linux-notime/*
-cmake-build-debug/*
-cmake-build-release/*
-cmake-build-relwithdebinfo/*
+build-*/*
+cmake-build/*
+cmake-build*/*
 
 # Prerequisites
 *.d

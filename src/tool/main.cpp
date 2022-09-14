@@ -2,6 +2,7 @@
 #include "tclap/CmdLine.h"
 #include "cfg2string.hpp"
 #include "engine/linearizability.hpp"
+#include "engine/setup.hpp"
 #include "parser/parse.hpp"
 #include "util/log.hpp"
 
@@ -16,6 +17,7 @@ struct CommandLineInput {
     std::string pathToInput;
     bool spuriousCasFail = false;
     bool printGist = false;
+    EngineSetup setup;
 };
 
 struct IsRegularFileConstraint : public TCLAP::Constraint<std::string> {
@@ -32,25 +34,31 @@ struct IsRegularFileConstraint : public TCLAP::Constraint<std::string> {
 };
 
 inline CommandLineInput Interact(int argc, char** argv) {
+    CommandLineInput input;
+
     TCLAP::CmdLine cmd("PLANKTON verification tool for lock-free data structures", ' ', "1.0");
     auto isFile = std::make_unique<IsRegularFileConstraint>("_to_input");
     
     TCLAP::SwitchArg casSwitch("", "no-spurious", "Deactivates Compare-and-Swap failing spuriously", cmd, false);
     TCLAP::SwitchArg gistSwitch("g", "gist", "Print machine readable gist at the very end", cmd, false);
     TCLAP::UnlabeledValueArg<std::string> programArg("input", "Input file with program code and flow definition", true, "", isFile.get(), cmd);
-    
+
+    TCLAP::SwitchArg loopWidenSwitch("", "loopWiden", "Computes fixed points for loops using a widening, rather than a join", cmd, false);
+    TCLAP::SwitchArg loopNoPostJoinSwitch("", "loopNoPostJoin", "Turns off joining loop post annotations", cmd, false);
+    TCLAP::SwitchArg macroNoTabulationSwitch("", "macroNoTabulate", "Turns off tabulation of macro post annotations", cmd, false);
+    TCLAP::ValueArg<std::size_t> loopMaxIterArg("", "loopMaxIter", "Maximal iterations for finding a loop invariant before aborting", false, 23, "integer", cmd);
+    TCLAP::ValueArg<std::size_t> proofMaxIterArg("", "proofMaxIter", "Maximal iterations for finding an interference set before aborting", false, 7, "integer", cmd);
+
     cmd.parse(argc, argv);
-    CommandLineInput input;
     input.pathToInput = programArg.getValue();
     input.spuriousCasFail = !casSwitch.getValue();
     input.printGist = gistSwitch.getValue();
 
-     //input.pathToInput = "/Users/wolff/Tools/plankton/examples/test.txt";
-    // input.pathToInput = "/Users/wolff/Tools/plankton/examples/VechevYahavDCas.pl";
-    // input.pathToInput = "/Users/wolff/Tools/plankton/examples/VechevYahavCas.pl";
-    // input.pathToInput = "/Users/wolff/Tools/plankton/examples/ORVYY.pl";
-    // input.pathToInput = "/Users/wolff/Tools/plankton/examples/Michael.pl";
-    // input.pathToInput = "/Users/wolff/Tools/plankton/examples/Harris.pl";
+    input.setup.loopJoinUntilFixpoint = !loopWidenSwitch.getValue();
+    input.setup.loopJoinPost = !loopNoPostJoinSwitch.getValue();
+    input.setup.macrosTabulateInvocations = !macroNoTabulationSwitch.getValue();
+    input.setup.loopMaxIterations = loopMaxIterArg.getValue();
+    input.setup.proofMaxIterations = proofMaxIterArg.getValue();
 
     return input;
 }
@@ -76,10 +84,10 @@ struct VerificationResult {
     milliseconds_t timeTaken = milliseconds_t(0);
 };
 
-inline VerificationResult Verify(const ParsingResult& input) {
+inline VerificationResult Verify(const ParsingResult& input, const EngineSetup& setup) {
     VerificationResult result;
     auto begin = std::chrono::steady_clock::now();
-    result.linearizable = plankton::IsLinearizable(*input.program, *input.config);
+    result.linearizable = plankton::IsLinearizable(*input.program, *input.config, setup);
     auto end = std::chrono::steady_clock::now();
     result.timeTaken = std::chrono::duration_cast<milliseconds_t>(end - begin);
     return result;
@@ -122,7 +130,7 @@ int main(int argc, char** argv) {
         auto cmd = Interact(argc, argv);
         auto input = Parse(cmd);
         PrintInput(input);
-        auto result = Verify(input);
+        auto result = Verify(input, cmd.setup);
         PrintResult(cmd, input, result);
         return 0;
 

@@ -48,7 +48,7 @@ BENCHMARKS = [
     "examples/buggy/08_mark_ORVYY.pl",
     "examples/buggy/08_mark_Michael.pl",
     "examples/buggy/08_mark_Harris.pl",
-    "examples/buggy/09_nomark_VechevYahavCas.pl"
+    "examples/buggy/09_nomark_VechevYahavCas.pl",
     "examples/buggy/09_nomark_ORVYY.pl",
     "examples/buggy/09_nomark_Michael.pl",
     "examples/buggy/09_nomark_Harris.pl",
@@ -107,13 +107,16 @@ def finalize():
     print()
     header = "{:<55} | {:>15}"
     print(header.format("Program", "Bug detected"))
-    print("---------------------------------------------------------+-----------------")
+    print("--------------------------------------------------------+------------------")
     for path in BENCHMARKS:
         if 0 in [code for (code, time) in RESULTS.get(path, [])]:
             print(header.format(path, "unsound ✗"))
         else:
             times = [time for (code, time) in RESULTS.get(path, [])]
-            avg = human_readable(average(times)) + " ✓"
+            if not times:
+                avg = "---  "
+            else:
+                avg = human_readable(average(times)) + " ✓"
             print(header.format(path, avg))
 
 

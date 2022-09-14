@@ -6,8 +6,9 @@
 #include <memory>
 #include "programs/ast.hpp"
 #include "logics/ast.hpp"
-#include "config.hpp"
-#include "static.hpp"
+#include "engine/config.hpp"
+#include "engine/static.hpp"
+#include "engine/setup.hpp"
 
 namespace plankton {
 

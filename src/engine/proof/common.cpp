@@ -7,11 +7,11 @@
 using namespace plankton;
 
 
-ProofGenerator::ProofGenerator(const Program& program, const SolverConfig& config)
-        : program(program), solver(program, config), insideAtomic(false),
-          pldiPost("PLDI Post"), pldiJoin("PLDI Join"), pldiInterference("PLDI Interference"),
-          pldiPastImprove("PLDI Past improve"), pldiPastReduce("PLDI Past reduce"),
-          pldiFutureImprove("PLDI Future improve"), pldiFutureReduce("PLDI Future reduce") {
+ProofGenerator::ProofGenerator(const Program& program, const SolverConfig& config, EngineSetup setup)
+        : program(program), solver(program, config), setup(setup), insideAtomic(false),
+          timePost("TIME Post"), timeJoin("TIME Join"), timeInterference("TIME Interference"),
+          timePastImprove("TIME Past improve"), timePastReduce("TIME Past reduce"),
+          timeFutureImprove("TIME Future improve"), timeFutureReduce("TIME Future reduce") {
     futureSuggestions = plankton::SuggestFutures(program);
 }
 
@@ -116,15 +116,15 @@ void ProofGenerator::MakeInterferenceStable(const Statement& after) {
     ApplyTransformer([this](auto annotation){
         // TODO: improve future?
         {
-            auto measure = pldiPastImprove.Measure();
+            auto measure = timePastImprove.Measure();
             annotation = solver.ImprovePast(std::move(annotation));
         }
         {
-            auto measure = pldiInterference.Measure();
+            auto measure = timeInterference.Measure();
             annotation = solver.MakeInterferenceStable(std::move(annotation));
         }
         {
-            auto measure = pldiPastReduce.Measure();
+            auto measure = timePastReduce.Measure();
             annotation = solver.ReducePast(std::move(annotation));
         }
         return annotation;
@@ -141,7 +141,7 @@ void ProofGenerator::JoinCurrent() {
 
     INFO(infoPrefix << "Joining." << INFO_SIZE << std::endl)
     {
-        auto measure = pldiJoin.Measure();
+        auto measure = timeJoin.Measure();
         auto join = solver.Join(std::move(current));
         current.clear();
         current.push_back(std::move(join));
@@ -152,24 +152,24 @@ void ProofGenerator::JoinCurrent() {
 void ProofGenerator::ImproveCurrentTime() {
     INFO(infoPrefix << "Improving time predicates." << INFO_SIZE << std::endl)
     ApplyTransformer([this](auto annotation) {
-        auto measure = pldiPastImprove.Measure();
+        auto measure = timePastImprove.Measure();
         return solver.ImprovePast(std::move(annotation));
     });
     for (const auto& future : futureSuggestions) {
         ApplyTransformer([this, &future](auto annotation) {
-            auto measure = pldiFutureImprove.Measure();
+            auto measure = timeFutureImprove.Measure();
             return solver.ImproveFuture(std::move(annotation), *future);
         });
     }
     for (const auto& future : futureSuggestions) { // repeat because Z3 hates us...
         ApplyTransformer([this, &future](auto annotation) {
-            auto measure = pldiFutureImprove.Measure();
+            auto measure = timeFutureImprove.Measure();
             return solver.ImproveFuture(std::move(annotation), *future);
         });
     }
     //for (const auto& future : futureSuggestions) { // repeat because Z3 really hates us... why?
     //    ApplyTransformer([this, &future](auto annotation) {
-    //        auto measure = pldiFutureImprove.Measure();
+    //        auto measure = timeFutureImprove.Measure();
     //        return solver.ImproveFuture(std::move(annotation), *future);
     //    });
     //}
@@ -179,11 +179,11 @@ void ProofGenerator::ReduceCurrentTime() {
     INFO(infoPrefix << "Minimizing time predicates." << INFO_SIZE << std::endl)
     ApplyTransformer([this](auto annotation){
         {
-            auto measure = pldiPastReduce.Measure();
+            auto measure = timePastReduce.Measure();
             annotation = solver.ReducePast(std::move(annotation));
         }
         {
-            auto measure = pldiFutureReduce.Measure();
+            auto measure = timeFutureReduce.Measure();
             annotation = solver.ReduceFuture(std::move(annotation));
         }
         return annotation;

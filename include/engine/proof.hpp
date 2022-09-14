@@ -8,13 +8,14 @@
 #include "logics/ast.hpp"
 #include "engine/config.hpp"
 #include "engine/solver.hpp"
+#include "engine/setup.hpp"
 #include "util/log.hpp"
 #include "util/timer.hpp"
 
 namespace plankton {
 
     struct ProofGenerator final : public BaseProgramVisitor {
-        explicit ProofGenerator(const Program& program, const SolverConfig& config);
+        explicit ProofGenerator(const Program& program, const SolverConfig& config, EngineSetup setup);
         void GenerateProof();
 
         // TODO: can we make those inaccessible for callers generating a proof?
@@ -43,6 +44,7 @@ namespace plankton {
 
         const Program& program;
         Solver solver;
+        EngineSetup setup;
         std::deque<std::unique_ptr<HeapEffect>> newInterference;
         std::deque<std::unique_ptr<Annotation>> current;
         std::deque<std::unique_ptr<Annotation>> breaking;
@@ -53,7 +55,7 @@ namespace plankton {
 
         #define INFO_SIZE (" (" + std::to_string(current.size()) + ") ")
         StatusStack infoPrefix;
-        Timer pldiPost, pldiJoin, pldiInterference, pldiPastImprove, pldiPastReduce, pldiFutureImprove, pldiFutureReduce;
+        Timer timePost, timeJoin, timeInterference, timePastImprove, timePastReduce, timeFutureImprove, timeFutureReduce;
     
         void HandleInterfaceFunction(const Function& function);
         void HandleMacroLazy(const Macro& macro);

@@ -15,18 +15,18 @@ TIMEOUT = 60 * 60 * 6  # in seconds
 REPETITIONS = 1
 
 EXECUTABLE = "./plankton"
-BENCHMARKS = [
-    "examples/FineSet.pl",
-    "examples/LazySet.pl",
-    "examples/VechevYahavDCas.pl",
-    "examples/VechevYahavCas.pl",
-    "examples/ORVYY.pl",
-    "examples/Michael.pl",
-    "examples/MichaelWaitFreeSearch.pl",
-    "examples/Harris.pl",
-    "examples/HarrisWaitFreeSearch.pl",
-    "examples/FemrsTreeNoMaintenance.pl",
-]
+BENCHMARKS = {  # path: [flags]
+    "examples/FineSet.pl": [],
+    "examples/LazySet.pl": [],
+    "examples/VechevYahavDCas.pl": [],
+    "examples/VechevYahavCas.pl": [],
+    "examples/ORVYY.pl": [],
+    "examples/Michael.pl": [],
+    "examples/MichaelWaitFreeSearch.pl": [],
+    "examples/Harris.pl": [],
+    "examples/HarrisWaitFreeSearch.pl": [],
+    "examples/FemrsTreeNoMaintenance.pl": ["--loopNoPostJoin"],
+}
 
 #
 # CONFIGURATION end
@@ -38,13 +38,13 @@ REGEX_ITER = r"\[iter-(?P<count>[0-9]*)\] Fixed-point reached."
 REGEX_EFF = r"Adding effects to solver \((?P<count>[0-9]*)\):"
 REGEX_CAN1 = r"Using the following future suggestions \((?P<count>[0-9]*)\):"
 REGEX_CAN2 = r"Using no future suggestions."
-REGEX_COM = r"\[(?P<time>[0-9]*)ms\] Total time measured for 'PLDI Post'"
-REGEX_FUT1 = r"\[(?P<time>[0-9]*)ms\] Total time measured for 'PLDI Future reduce'"
-REGEX_FUT2 = r"\[(?P<time>[0-9]*)ms\] Total time measured for 'PLDI Future improve'"
-REGEX_HIST1 = r"\[(?P<time>[0-9]*)ms\] Total time measured for 'PLDI Past reduce'"
-REGEX_HIST2 = r"\[(?P<time>[0-9]*)ms\] Total time measured for 'PLDI Past improve'"
-REGEX_JOIN = r"\[(?P<time>[0-9]*)ms\] Total time measured for 'PLDI Join'"
-REGEX_INTER = r"\[(?P<time>[0-9]*)ms\] Total time measured for 'PLDI Interference'"
+REGEX_COM = r"\[(?P<time>[0-9]*)ms\] Total time measured for 'TIME Post'"
+REGEX_FUT1 = r"\[(?P<time>[0-9]*)ms\] Total time measured for 'TIME Future reduce'"
+REGEX_FUT2 = r"\[(?P<time>[0-9]*)ms\] Total time measured for 'TIME Future improve'"
+REGEX_HIST1 = r"\[(?P<time>[0-9]*)ms\] Total time measured for 'TIME Past reduce'"
+REGEX_HIST2 = r"\[(?P<time>[0-9]*)ms\] Total time measured for 'TIME Past improve'"
+REGEX_JOIN = r"\[(?P<time>[0-9]*)ms\] Total time measured for 'TIME Join'"
+REGEX_INTER = r"\[(?P<time>[0-9]*)ms\] Total time measured for 'TIME Interference'"
 
 RESULTS = {}
 
@@ -75,11 +75,11 @@ class Result:
         self.info = info
         self.msg = msg
 
-    def yes(self, total, iter, eff, can, com, fut, hist, join, inter):
+    def yes(self, total, iters, eff, can, com, fut, hist, join, inter):
         self.success = True
         self.info = human_readable(int(total))
         self.total, self.iter, self.eff, self.can, self.com, self.fut, self.hist, self.join, self.inter \
-            = int(total), int(iter), int(eff), int(can), int(com), int(fut), int(hist), int(join), int(inter)
+            = int(total), int(iters), int(eff), int(can), int(com), int(fut), int(hist), int(join), int(inter)
 
 
 def extract_info(output):
@@ -110,7 +110,7 @@ def extract_info(output):
         return Result("error")
 
     total = m_gist.group("time")
-    iter = int(m_iter.group("count")) + 1
+    iters = int(m_iter.group("count")) + 1
     eff = int(m_eff.group("count"))
     can = int(m_can1.group("count")) if m_can1 else 0
     com = int(m_com.group("time"))
@@ -118,11 +118,11 @@ def extract_info(output):
     hist = int(m_hist1.group("time")) + int(m_hist2.group("time"))
     join = int(m_join.group("time"))
     inter = int(m_inter.group("time"))
-    return Result(total, iter, eff, can, com, fut, hist, join, inter)
+    return Result(total, iters, eff, can, com, fut, hist, join, inter)
 
 
 def run_with_timeout(path):
-    all_args = [EXECUTABLE, "-g", path]
+    all_args = [EXECUTABLE, "-g", path] + BENCHMARKS.get(path, [])
 
     # make sure to properly kill subprocesses after timeout
     # see: https://stackoverflow.com/questions/36952245/subprocess-timeout-failure
@@ -155,7 +155,7 @@ def finalize():
         if len(successes) == 0:
             print(header.format(path, "--", "--", "--", "--", "--", "--", "--", "--", "failed ✗"))
             continue
-        iter = average([x.iter for x in successes], 2)
+        iters = average([x.iter for x in successes], 2)
         eff = average([x.eff for x in successes], 2)
         can = average([x.can for x in successes], 2)
         total = average([x.total for x in successes])
@@ -172,7 +172,7 @@ def finalize():
         inter = str(int(round((inter / (float(total))) * 100.0, 0))) + "%"
         total = human_readable(total) + " ✓"
 
-        print(header.format(path, iter, eff, can, com, fut, hist, join, inter, total))
+        print(header.format(path, iters, eff, can, com, fut, hist, join, inter, total))
 
 
 def main():
