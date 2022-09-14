@@ -150,7 +150,7 @@ def finalize():
     header = "{:<40} | {:>5} | {:>5} | {:>5} | {:>5} | {:>5} | {:>5} | {:>5} | {:>5} | {:>15}"
     print(header.format("Program", "Iter", "Eff", "Cand", "Com", "Fut", "Hist", "Join", "Inter", "Linearizable"))
     print("-----------------------------------------+-------+-------+-------+-------+-------+-------+-------+-------+-----------------")
-    for (path, flags) in BENCHMARKS:
+    for path in BENCHMARKS:
         successes = [x for x in RESULTS.get(path, []) if x.success]
         if len(successes) == 0:
             print(header.format(path, "--", "--", "--", "--", "--", "--", "--", "--", "failed ✗"))
