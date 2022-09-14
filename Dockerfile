@@ -1,5 +1,3 @@
-ARG COMPILER=gcc # allowed values: gcc, clang
-
 #
 # Ubuntu
 #
@@ -15,11 +13,14 @@ RUN apt update && apt -y --no-install-recommends install \
         uuid \
         uuid-dev \
         pkg-config \
-        gcc \
-        g++ \
+        clang \
+        libc++1 \
+        libc++-dev \
+        libc++abi1 \
+        libc++abi-dev \
     && rm -rf /var/lib/apt/lists/*
-ENV CC gcc
-ENV CXX g++
+ENV CC clang
+ENV CXX clang++
 
 #
 # Z3
@@ -32,29 +33,9 @@ RUN make -j$((`nproc`+1))
 RUN make install
 
 #
-# Compiler
-#
-FROM z3 as compiler-gcc
-FROM z3 as compiler-clang
-RUN apt update && apt -y --no-install-recommends install \
-        clang \
-        libc++1 \
-        libc++-dev \
-        libc++abi1 \
-        libc++abi-dev \
-    && rm -rf /var/lib/apt/lists/*
-RUN touch /usr/bin/stdclang
-RUN chmod a+x /usr/bin/stdclang
-RUN echo '#!/bin/bash' >> /usr/bin/stdclang
-RUN echo 'clang++ -stdlib=libc++ $@' >> /usr/bin/stdclang
-ENV CC clang
-ENV CXX stdclang
-FROM compiler-${COMPILER} as compiler
-
-#
 # Plankton
 #
-FROM compiler as debug
+FROM z3 as debug
 COPY . /artifact/plankton-debug/source
 WORKDIR /artifact/plankton-debug/source/build
 RUN cmake .. -DCMAKE_INSTALL_PREFIX=/artifact -DINSTALL_FOLDER=plankton-debug -DCMAKE_BUILD_TYPE=DEBUG
