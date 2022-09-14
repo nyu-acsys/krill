@@ -107,13 +107,16 @@ def finalize():
     print()
     header = "{:<55} | {:>15}"
     print(header.format("Program", "Bug detected"))
-    print("---------------------------------------------------------+-----------------")
+    print("--------------------------------------------------------+------------------")
     for path in BENCHMARKS:
         if 0 in [code for (code, time) in RESULTS.get(path, [])]:
             print(header.format(path, "unsound ✗"))
         else:
             times = [time for (code, time) in RESULTS.get(path, [])]
-            avg = human_readable(average(times)) + " ✓"
+            if not times:
+                avg = "---  "
+            else:
+                avg = human_readable(average(times)) + " ✓"
             print(header.format(path, avg))
 
 
