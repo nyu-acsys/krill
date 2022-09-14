@@ -48,7 +48,7 @@ BENCHMARKS = [
     "examples/buggy/08_mark_ORVYY.pl",
     "examples/buggy/08_mark_Michael.pl",
     "examples/buggy/08_mark_Harris.pl",
-    "examples/buggy/09_nomark_VechevYahavCas.pl"
+    "examples/buggy/09_nomark_VechevYahavCas.pl",
     "examples/buggy/09_nomark_ORVYY.pl",
     "examples/buggy/09_nomark_Michael.pl",
     "examples/buggy/09_nomark_Harris.pl",
