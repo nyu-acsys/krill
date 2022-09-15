@@ -413,6 +413,10 @@
 				Make sure to use <code>python3</code>.
 				Our test script uses the timeout feature of the <code>subprocess</code> library which is available only in version 3.5 and newer.
 			</p>
+			<div class="alert alert-warning">
+				There is a known issue where the the <code>benchmark.py</code> scrip will report failure, however, running <kbd>plankton</kbd> directly in the shell results in successful verification.
+				The issue is due to Z3 spontaneously misbehaving when used with Python's <code>subprocess</code> library.
+			</div>
 			<p>
 				The <code>benchmark.py</code> script runs each benchmark for 5 times, with a timeout of 6 hours per run.
 				To modify the repetition count or the timeout, pass the appropriate command line arguments as shown below.

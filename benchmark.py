@@ -150,10 +150,12 @@ def finalize():
     header = "{:<40} | {:>5} | {:>5} | {:>5} | {:>5} | {:>5} | {:>5} | {:>5} | {:>5} | {:>15}"
     print(header.format("Program", "Iter", "Eff", "Cand", "Com", "Fut", "Hist", "Join", "Inter", "Linearizable"))
     print("-----------------------------------------+-------+-------+-------+-------+-------+-------+-------+-------+-----------------")
+    someFailed = False
     for path in BENCHMARKS:
         successes = [x for x in RESULTS.get(path, []) if x.success]
         if len(successes) == 0:
             print(header.format(path, "--", "--", "--", "--", "--", "--", "--", "--", "failed ✗"))
+            someFailed = True
             continue
         iters = average([x.iter for x in successes], 2)
         eff = average([x.eff for x in successes], 2)
@@ -173,6 +175,11 @@ def finalize():
         total = human_readable(total) + " ✓"
 
         print(header.format(path, iters, eff, can, com, fut, hist, join, inter, total))
+    if someFailed:
+        print()
+        print()
+        print("Note: due to issues with Z3 and Python's subprocess library, benchmarks might fail spuriously. ")
+        print("      Try invoking plankton directly, e.g.: {0} path/to/benchmark".format(EXECUTABLE))
 
 
 def main():
