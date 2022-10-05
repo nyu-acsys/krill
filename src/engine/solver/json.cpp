@@ -34,6 +34,7 @@ struct PointerSelector final : public BaseSelector {
 };
 
 struct Node {
+    bool emptyInflow = false;
     const SymbolDeclaration& address;
     std::reference_wrapper<const SymbolDeclaration> inflow;
     std::reference_wrapper<const SymbolDeclaration> flowPre, flowPost;
@@ -55,6 +56,9 @@ struct FlowConstraint {
         auto find = plankton::FindIf(nodes, [&address](auto& elem){ return elem.address == address; });
         if (find == nodes.end()) return nullptr;
         return &*find;
+    }
+    [[nodiscard]] Node* GetNode(const SymbolDeclaration& address) {
+        return const_cast<Node*>(static_cast<const FlowConstraint&>(*this).GetNode(address));
     }
 };
 
@@ -222,6 +226,15 @@ EExpr MakeGraphTransferFunction(Encoding& encoding, const FlowConstraint& graph,
     return encoding.MakeAnd(result);
 }
 
+EExpr MakeInflowBound(Encoding& encoding, const NodeSet& footprint) {
+    auto result = plankton::MakeVector<EExpr>(footprint.size());
+    for (const auto* node : footprint) {
+        if (!node->emptyInflow) continue;
+        result.push_back(encoding.Encode(InflowEmptinessAxiom(node->inflow, true)));
+    }
+    return encoding.MakeAnd(result);
+}
+
 EExpr MakeOutflowCheck(Encoding& encoding, const PointerSelector& edge) {
     if (HasUpdate(edge)) {
         return encoding.Encode(InflowEmptinessAxiom(edge.outflowPre, true)) &&
@@ -232,21 +245,22 @@ EExpr MakeOutflowCheck(Encoding& encoding, const PointerSelector& edge) {
 }
 
 EdgeSet MakeFootprintExtensionUsingGeneralMethod(Encoding& encoding, const FlowConstraint& graph, const NodeSet& footprint, const EdgeSet& outgoingEdges) {
+    auto bound = MakeInflowBound(encoding, footprint);
     auto transfer = MakeGraphTransferFunction(encoding, graph, footprint);
 
     EdgeSet result;
     for (const auto* edge : outgoingEdges) {
-        auto check = transfer >> MakeOutflowCheck(encoding, *edge);
+        auto check = (bound && transfer) >> MakeOutflowCheck(encoding, *edge);
         if (!encoding.Implies(check)) result.insert(edge);
     }
     return result;
 }
 
 //
-// New Method, All Paths
+// New Method, full sums
 //
 
-std::pair<PathList, PathList> MakeAllSimplePaths(const FlowConstraint& graph, const NodeSet& footprint, const NodeSet& initialNodes) {
+PathList MakeAllSimplePaths(const FlowConstraint& graph, const NodeSet& footprint, const NodeSet& initialNodes, EMode mode) {
     std::deque<std::pair<Path, std::set<const Node*>>> worklist;
     for (const auto* node : initialNodes) {
         for (const auto& edge : node->pointerSelectors) {
@@ -255,28 +269,25 @@ std::pair<PathList, PathList> MakeAllSimplePaths(const FlowConstraint& graph, co
         }
     }
 
-    PathList pre, post;
+    PathList result;
     while (!worklist.empty()) {
         auto [path, visited] = std::move(worklist.front());
         worklist.pop_front();
 
-        for (auto mode : EMODES) {
-            auto current = graph.GetNode(path.back().second->Value(mode));
-            if (current && visited.find(current) != visited.end()) continue; // not a simple path
-            if (!current || footprint.find(current) == footprint.end()) { // next is outside footprint
-                auto& dst = mode == EMode::PRE ? pre : post;
-                dst.push_back(path);
-            } else { // next is inside footprint (and not yet visited)
-                for (const auto& edge : current->pointerSelectors) {
-                    worklist.emplace_back(path, visited);
-                    worklist.back().first.emplace_back(current, &edge);
-                    worklist.back().second.insert(current);
-                }
+        auto current = graph.GetNode(path.back().second->Value(mode));
+        if (current && visited.find(current) != visited.end()) continue; // not a simple path
+        if (!current || footprint.find(current) == footprint.end()) { // next is outside footprint
+            result.push_back(path);
+        } else { // next is inside footprint (and not yet visited)
+            for (const auto& edge : current->pointerSelectors) {
+                worklist.emplace_back(path, visited);
+                worklist.back().first.emplace_back(current, &edge);
+                worklist.back().second.insert(current);
             }
         }
     }
 
-    return { std::move(pre), std::move(post) };
+    return result;
 }
 
 EExpr EncodeSymbolIsSentOut(Encoding& encoding, const FlowConstraint& graph, const Node& node, const PointerSelector& edge, const SymbolDeclaration& symbol, EMode mode) {
@@ -290,17 +301,22 @@ EExpr EncodeSymbolIsSentOut(Encoding& encoding, const FlowConstraint& graph, con
 }
 
 EExpr EncodeSymbolIsSentOut(Encoding& encoding, const FlowConstraint& graph, const Path& path, const SymbolDeclaration& symbol, EMode mode) {
+    if (path.empty() || path.front().first->emptyInflow) return encoding.Bool(false);
     auto result = plankton::MakeVector<EExpr>(path.size());
+    // DEBUG("      -> encoding " << (mode == EMode::PRE ? "pre" : "post") << " path: ")
     for (const auto& [node, edge] : path) {
+        // DEBUG("" << node->address << " --[" << edge->name << "]--> ")
         result.push_back(EncodeSymbolIsSentOut(encoding, graph, *node, *edge, symbol, mode));
     }
+    // DEBUG(std::endl)
     return encoding.MakeAnd(result);
 }
 
-EExpr EncodeSymbolIsSentOut(Encoding& encoding, const FlowConstraint& graph, const PathList& list, const PointerSelector& target, const SymbolDeclaration& symbol, EMode mode) {
+EExpr EncodeSymbolIsSentOut(Encoding& encoding, const FlowConstraint& graph, const PathList& list, const PointerSelector& edge, const SymbolDeclaration& target, const SymbolDeclaration& symbol, EMode mode) {
     auto result = plankton::MakeVector<EExpr>(list.size());
     for (const auto& path : list) {
-        if (path.empty() || path.back().second != &target) continue;
+        if (path.back().second != &edge) continue;
+        if (path.back().second->Value(mode) != target) continue;
         result.push_back(EncodeSymbolIsSentOut(encoding, graph, path, symbol, mode));
     }
     return encoding.MakeOr(result);
@@ -318,26 +334,81 @@ const SymbolDeclaration& MakeDummySymbol(const FlowConstraint& graph) {
     return factory.GetFreshFO(graph.nodes.front().inflow.get().type);
 }
 
-EdgeSet MakeFootprintExtensionUsingNewMethod(Encoding& encoding, const FlowConstraint& graph, const NodeSet& footprint, const EdgeSet& outgoingEdges) {
+EdgeSet MakeFootprintExtensionUsingNewMethodBase(Encoding& encoding, const FlowConstraint& graph, const NodeSet& footprint, const NodeSet& init, const EdgeSet& outgoingEdges) {
     if (footprint.empty() || outgoingEdges.empty()) return {};
     auto& symbol = MakeDummySymbol(graph);
 
     EdgeSet result;
-    auto [prePaths, postPaths] = MakeAllSimplePaths(graph, footprint, footprint);
+    auto prePaths = MakeAllSimplePaths(graph, footprint, init, EMode::PRE);
+    auto postPaths = MakeAllSimplePaths(graph, footprint, init, EMode::POST);
+
+    std::deque<std::pair<const PointerSelector*, const SymbolDeclaration*>> outgoing;
     for (const auto* edge : outgoingEdges) {
-        auto prePathEncoding = EncodeSymbolIsSentOut(encoding, graph, prePaths, *edge, symbol, EMode::PRE);
-        auto postPathEncoding = EncodeSymbolIsSentOut(encoding, graph, prePaths, *edge, symbol, EMode::POST);
-        if (!encoding.Implies(prePathEncoding == postPathEncoding)) result.insert(edge);
+        outgoing.emplace_back(edge, &edge->valuePre.get());
+        if (edge->valuePre.get() == edge->valuePost.get()) continue;
+        outgoing.emplace_back(edge, &edge->valuePost.get());
+    }
+    for (const auto& [edge, target] : outgoing) {
+        for (auto mode : EMODES) {
+            auto prePathEncoding = EncodeSymbolIsSentOut(encoding, graph, prePaths, *edge, *target, symbol, EMode::PRE);
+            auto postPathEncoding = EncodeSymbolIsSentOut(encoding, graph, prePaths, *edge, *target, symbol, EMode::POST);
+            if (!encoding.Implies(prePathEncoding == postPathEncoding)) result.insert(edge);
+        }
     }
     return result;
 }
 
-//
-// New Method, Changed Paths
-//
+EdgeSet MakeFootprintExtensionUsingNewMethod(Encoding& encoding, const FlowConstraint& graph, const NodeSet& footprint, const EdgeSet& outgoingEdges) {
+    return MakeFootprintExtensionUsingNewMethodBase(encoding, graph, footprint, footprint, outgoingEdges);
+}
 
 EdgeSet MakeFootprintExtensionUsingNewOptimizedMethod(Encoding& encoding, const FlowConstraint& graph, const NodeSet& footprint, const EdgeSet& outgoingEdges) {
-    throw;
+    auto init = GetDiff(graph);
+    return MakeFootprintExtensionUsingNewMethodBase(encoding, graph, footprint, init, outgoingEdges);
+}
+
+//
+// New Method, path replacements
+//
+
+EExpr EncodeSymbolIsSentOutForReplacement(Encoding& encoding, const FlowConstraint& graph, const PathList& list, const Node& source,
+                                          const PointerSelector& edge, const SymbolDeclaration& target, const SymbolDeclaration& symbol, EMode mode) {
+    auto result = plankton::MakeVector<EExpr>(list.size());
+    for (const auto& path : list) {
+        if (path.front().first != &source) continue;
+        if (path.back().second != &edge) continue;
+        if (path.back().second->Value(mode) != target) continue;
+        result.push_back(EncodeSymbolIsSentOut(encoding, graph, path, symbol, mode));
+    }
+    return encoding.MakeOr(result);
+}
+
+EdgeSet MakeFootprintExtensionUsingNewReplacementMethod(Encoding& encoding, const FlowConstraint& graph, const NodeSet& footprint, const EdgeSet& outgoingEdges) {
+    throw std::logic_error("buggy");
+    if (footprint.empty() || outgoingEdges.empty()) return {};
+    auto init = GetDiff(graph);
+    auto& symbol = MakeDummySymbol(graph);
+
+    auto prePaths = MakeAllSimplePaths(graph, footprint, init, EMode::PRE);
+    auto postPaths = MakeAllSimplePaths(graph, footprint, init, EMode::POST);
+    auto getPaths = [&](EMode mode) -> PathList& { return mode == EMode::PRE ? std::ref(prePaths) : std::ref(postPaths); };
+
+    EdgeSet result;
+    for (const auto* edge : outgoingEdges) {
+        auto checks = plankton::MakeVector<EExpr>(2);
+        for (auto mode : EMODES) {
+            auto otherMode = mode == EMode::PRE ? EMode::POST : EMode::PRE;
+            for (const auto& path : getPaths(mode)) {
+                if (path.empty()) continue;
+                auto pathEncoded = EncodeSymbolIsSentOut(encoding, graph, path, symbol, EMode::PRE);
+                auto otherPathsEncoded = EncodeSymbolIsSentOutForReplacement(encoding, graph, getPaths(otherMode), *path.front().first, *path.back().second,
+                                                                             path.back().second->Value(EMode::PRE), symbol, EMode::PRE);
+                checks.push_back(pathEncoded >> otherPathsEncoded);
+            }
+        }
+        if (!encoding.Implies(encoding.MakeAnd(checks))) result.insert(edge);
+    }
+    return result;
 }
 
 //
@@ -348,16 +419,17 @@ void EvaluateFootprintComputationMethod(const FlowGraph& graph, const FlowConstr
     auto start = std::chrono::steady_clock::now();
     auto footprint = ComputeFixedPoint(constraint, method);
     auto end = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 
-    DEBUG("EvaluateFootprintComputationMethod[" << name << "][" << graph.nodes.size() << "] time=" << elapsed.count() << "ms, size=" << (footprint.has_value() ? std::to_string(footprint->size()) : "-1") << std::endl)
+    DEBUG("EvaluateFootprintComputationMethod[" << name << "][" << graph.nodes.size() << "] time=" << elapsed.count() << "μs, size=" << (footprint.has_value() ? std::to_string(footprint->size()) : "-1") << std::endl)
     // TODO: output / return information
 }
 
 void EvaluateFootprintComputationMethods(const FlowGraph& graph, const FlowConstraint& constraint) {
     EvaluateFootprintComputationMethod(graph, constraint, "GeneralMethod", MakeFootprintExtensionUsingGeneralMethod);
-    EvaluateFootprintComputationMethod(graph, constraint, "NewMethod", MakeFootprintExtensionUsingNewMethod);
-    // EvaluateFootprintComputationMethod(graph, constraint, "NewOptimizedMethod", MakeFootprintExtensionUsingNewOptimizedMethod);
+    EvaluateFootprintComputationMethod(graph, constraint, "NewMethod    ", MakeFootprintExtensionUsingNewMethod);
+    EvaluateFootprintComputationMethod(graph, constraint, "NewMethodDiff", MakeFootprintExtensionUsingNewOptimizedMethod);
+    EvaluateFootprintComputationMethod(graph, constraint, "NewMethodRepl", MakeFootprintExtensionUsingNewReplacementMethod);
 
     // TODO: output information
 }
@@ -409,8 +481,9 @@ void ToJson(const FlowGraph& graph, const SolverConfig& config, const std::share
             DEBUG("empty flow at " << node.address << std::endl)
             if (auto* mapped = constraint.GetNode(node.address)) {
                 DEBUG("  -> " << node.address << " maps to " << mapped->address << std::endl)
-                constraint.context.Conjoin(std::make_unique<InflowEmptinessAxiom>(mapped->inflow, true));
-                constraint.context.Conjoin(std::make_unique<InflowEmptinessAxiom>(mapped->flowPre, true));
+                mapped->emptyInflow = true;
+                // constraint.context.Conjoin(std::make_unique<InflowEmptinessAxiom>(mapped->inflow, true));
+                // constraint.context.Conjoin(std::make_unique<InflowEmptinessAxiom>(mapped->flowPre, true));
             }
         }
     }
@@ -419,8 +492,9 @@ void ToJson(const FlowGraph& graph, const SolverConfig& config, const std::share
     EvaluateFootprintComputationMethods(graph, constraint);
 
     DEBUG("=====EVAL FOOTPRINT<<<<<" << std::endl)
-    // if (graph.nodes.size() > 2)
-    throw std::logic_error("---breakpoint---");
+    // if (graph.nodes.size() > 2) throw std::logic_error("---breakpoint---");
+    // if (graph.nodes.size() > 1) throw std::logic_error("---breakpoint---");
+    // throw std::logic_error("---breakpoint---");
 }
 
 /*
