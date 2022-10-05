@@ -121,7 +121,12 @@ namespace plankton {
         EExpr MakeAnd(const std::vector<EExpr>& expressions);
         EExpr MakeOr(const std::vector<EExpr>& expressions);
         EExpr MakeAtMost(const std::vector<EExpr>& expressions, unsigned int count);
-        
+
+        // TODO: this should not be exposed
+        EExpr Replace(const EExpr& expression, const EExpr& replace, const EExpr& with);
+        EExpr EncodeForAll(const std::vector<EExpr>& quantified, const EExpr& inner);
+        explicit Encoding(const std::string& smtLib);
+
         private:
             std::unique_ptr<InternalStorage> internal;
             std::deque<EExpr> checks_premise;
@@ -132,7 +137,6 @@ namespace plankton {
             EExpr MakeQuantifiedVariable(Sort sort);
             EExpr EncodeFlowRules(const FlowGraphNode& node);
             EExpr EncodeOutflow(const FlowGraphNode& node, const PointerField& field, EMode mode);
-            EExpr Replace(const EExpr& expression, const EExpr& replace, const EExpr& with);
     };
     
 } // plankton

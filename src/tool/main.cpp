@@ -1,4 +1,5 @@
 #include <chrono>
+#include <utility>
 #include "tclap/CmdLine.h"
 #include "cfg2string.hpp"
 #include "engine/linearizability.hpp"
@@ -17,7 +18,7 @@ struct CommandLineInput {
     std::string pathToInput;
     bool spuriousCasFail = false;
     bool printGist = false;
-    EngineSetup setup;
+    std::shared_ptr<EngineSetup> setup = std::make_shared<EngineSetup>();
 };
 
 struct IsRegularFileConstraint : public TCLAP::Constraint<std::string> {
@@ -54,11 +55,11 @@ inline CommandLineInput Interact(int argc, char** argv) {
     input.spuriousCasFail = !casSwitch.getValue();
     input.printGist = gistSwitch.getValue();
 
-    input.setup.loopJoinUntilFixpoint = !loopWidenSwitch.getValue();
-    input.setup.loopJoinPost = !loopNoPostJoinSwitch.getValue();
-    input.setup.macrosTabulateInvocations = !macroNoTabulationSwitch.getValue();
-    input.setup.loopMaxIterations = loopMaxIterArg.getValue();
-    input.setup.proofMaxIterations = proofMaxIterArg.getValue();
+    input.setup->loopJoinUntilFixpoint = !loopWidenSwitch.getValue();
+    input.setup->loopJoinPost = !loopNoPostJoinSwitch.getValue();
+    input.setup->macrosTabulateInvocations = !macroNoTabulationSwitch.getValue();
+    input.setup->loopMaxIterations = loopMaxIterArg.getValue();
+    input.setup->proofMaxIterations = proofMaxIterArg.getValue();
 
     return input;
 }
@@ -84,10 +85,10 @@ struct VerificationResult {
     milliseconds_t timeTaken = milliseconds_t(0);
 };
 
-inline VerificationResult Verify(const ParsingResult& input, const EngineSetup& setup) {
+inline VerificationResult Verify(const ParsingResult& input, std::shared_ptr<EngineSetup> setup) {
     VerificationResult result;
     auto begin = std::chrono::steady_clock::now();
-    result.linearizable = plankton::IsLinearizable(*input.program, *input.config, setup);
+    result.linearizable = plankton::IsLinearizable(*input.program, *input.config, std::move(setup));
     auto end = std::chrono::steady_clock::now();
     result.timeTaken = std::chrono::duration_cast<milliseconds_t>(end - begin);
     return result;

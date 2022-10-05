@@ -133,6 +133,10 @@ EExpr Encoding::EncodeForAll(Sort sort, const std::function<EExpr(EExpr)>& makeI
     return AsEExpr(z3::forall(AsExpr(qv), AsExpr(inner)));
 }
 
+EExpr Encoding::EncodeForAll(const std::vector<EExpr>& quantified, const EExpr& inner) {
+    return AsEExpr(z3::forall(AsVector(quantified, CTX), AsExpr(inner)));
+}
+
 EExpr Encoding::EncodeFlowContains(const SymbolDeclaration& flow, const EExpr& expr) {
     return Encode(flow)(expr);
 }

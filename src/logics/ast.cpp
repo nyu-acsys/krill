@@ -60,6 +60,10 @@ void SymbolFactory::Avoid(const LogicObject& avoid) {
     plankton::InsertInto(std::move(symbols), inUse);
 }
 
+void SymbolFactory::Avoid(const SymbolDeclaration& avoid) {
+    inUse.insert(&avoid);
+}
+
 const SymbolDeclaration& SymbolFactory::GetFresh(const Type& type, Order order) {
     static std::deque<std::unique_ptr<SymbolDeclaration>> symbols;
 

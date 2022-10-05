@@ -44,6 +44,12 @@ Encoding::Encoding() : internal(std::make_unique<Z3InternalStorage>()) {
     AsSolver(internal).add(AsExpr(TidSome() > TidUnlocked()));
 }
 
+Encoding::Encoding(const std::string& smtLib) : internal(std::make_unique<Z3InternalStorage>()) {
+    AsSolver(internal).from_string(smtLib.c_str());
+    AsSolver(internal).add(AsExpr(TidSelf() > TidUnlocked()));
+    AsSolver(internal).add(AsExpr(TidSome() > TidUnlocked()));
+}
+
 Encoding::Encoding(const Formula& premise) : Encoding() {
     AddPremise(premise);
 }

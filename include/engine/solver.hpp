@@ -33,7 +33,7 @@ namespace plankton {
     };
 
     struct Solver final {
-        explicit Solver(const Program& program, const SolverConfig& config);
+        explicit Solver(const Program& program, const SolverConfig& config, std::shared_ptr<EngineSetup> setup);
 
         [[nodiscard]] std::unique_ptr<Annotation> PostEnter(std::unique_ptr<Annotation> pre, const Program& scope) const;
         [[nodiscard]] std::unique_ptr<Annotation> PostEnter(std::unique_ptr<Annotation> pre, const Function& scope) const;
@@ -64,6 +64,7 @@ namespace plankton {
         [[nodiscard]] std::unique_ptr<Annotation> ReduceFuture(std::unique_ptr<Annotation> annotation) const;
 
         private:
+            std::shared_ptr<EngineSetup> setup;
             const SolverConfig& config;
             DataFlowAnalysis dataFlow;
             std::deque<std::unique_ptr<HeapEffect>> interference;

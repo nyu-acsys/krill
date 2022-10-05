@@ -2,6 +2,7 @@
 #ifndef PLANKTON_ENGINE_SETUP_HPP
 #define PLANKTON_ENGINE_SETUP_HPP
 
+#include <fstream>
 
 namespace plankton {
 
@@ -19,6 +20,9 @@ namespace plankton {
 
         // proof
         std::size_t proofMaxIterations = 7;
+
+        // output files
+        std::ofstream footprints;
 
         explicit EngineSetup() = default;
     };

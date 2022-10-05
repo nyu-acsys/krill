@@ -7,6 +7,8 @@
 #include "util/log.hpp"
 #include "util/timer.hpp"
 
+#include "json.cpp"
+
 using namespace plankton;
 
 
@@ -613,6 +615,8 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
     try {
         PostImageInfo info(std::move(pre), cmd, config);
         if (info.encoding.ImpliesFalse()) return PostImage();
+        ToJson(info.footprint, info.config, setup);
+
         // if (info.encoding.ImpliesFalse()) throw std::logic_error("Failed to perform proper memory update: cautiously refusing to post unsatisfiable encoding."); // TODO better error handling
         CheckPublishing(info);
         CheckReachability(info);
