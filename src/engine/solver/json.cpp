@@ -3,6 +3,7 @@
 
 #include "engine/flowgraph.hpp"
 #include "z3++.h"
+#include "../encoding/internal.hpp"
 
 using namespace plankton;
 
@@ -99,16 +100,19 @@ EdgeSet GetOutgoingEdges(const FlowConstraint& graph, const NodeSet& footprint) 
     return result;
 }
 
-using ExtensionFunction = std::function<EdgeSet(Encoding& encoding, const FlowConstraint&, const NodeSet&, const EdgeSet&)>;
+// params: encoding, flow constraint, initial footprint (odif / changed nodes), current footprint, outgoing edges
+using ExtensionFunction = std::function<EdgeSet(Encoding&, const FlowConstraint&, const NodeSet&, const NodeSet&, const EdgeSet&)>;
 
 std::optional<NodeSet> ComputeFixedPoint(const FlowConstraint& graph, const ExtensionFunction& getFootprintExtension) {
     DEBUG("Starting Fixed Point" << std::endl)
+    DEBUG("  -> context " << graph.context << std::endl)
     Encoding encoding(graph.context);
-    auto footprint = GetDiff(graph);
+    auto diff = GetDiff(graph);
+    auto footprint = diff;
     while (true) {
         DEBUG(" - Fixed Point Iteration " << footprint.size() << std::endl)
         auto edges = GetOutgoingEdges(graph, footprint);
-        auto extension = getFootprintExtension(encoding, graph, footprint, edges);
+        auto extension = getFootprintExtension(encoding, graph, diff, footprint, edges);
         DEBUG("      -> " << extension.size() << "/" << edges.size() << " failed edges" << std::endl)
         if (extension.empty()) break;
         for (const auto* edge : extension) {
@@ -244,7 +248,7 @@ EExpr MakeOutflowCheck(Encoding& encoding, const PointerSelector& edge) {
     }
 }
 
-EdgeSet MakeFootprintExtensionUsingGeneralMethod(Encoding& encoding, const FlowConstraint& graph, const NodeSet& footprint, const EdgeSet& outgoingEdges) {
+EdgeSet MakeFootprintExtensionUsingGeneralMethod(Encoding& encoding, const FlowConstraint& graph, const NodeSet& /*init*/, const NodeSet& footprint, const EdgeSet& outgoingEdges) {
     auto bound = MakeInflowBound(encoding, footprint);
     auto transfer = MakeGraphTransferFunction(encoding, graph, footprint);
 
@@ -334,13 +338,14 @@ const SymbolDeclaration& MakeDummySymbol(const FlowConstraint& graph) {
     return factory.GetFreshFO(graph.nodes.front().inflow.get().type);
 }
 
-EdgeSet MakeFootprintExtensionUsingNewMethodBase(Encoding& encoding, const FlowConstraint& graph, const NodeSet& footprint, const NodeSet& init, const EdgeSet& outgoingEdges) {
+EdgeSet MakeFootprintExtensionUsingNewMethodBase(Encoding& encoding, const FlowConstraint& graph, const NodeSet& init, const NodeSet& footprint, const EdgeSet& outgoingEdges) {
     if (footprint.empty() || outgoingEdges.empty()) return {};
     auto& symbol = MakeDummySymbol(graph);
 
     EdgeSet result;
     auto prePaths = MakeAllSimplePaths(graph, footprint, init, EMode::PRE);
     auto postPaths = MakeAllSimplePaths(graph, footprint, init, EMode::POST);
+    DEBUG(" #init=" << init.size() << " #footprint=" << footprint.size() << " #prePaths=" << prePaths.size() << " #postPaths=" << postPaths.size() << std::endl)
 
     std::deque<std::pair<const PointerSelector*, const SymbolDeclaration*>> outgoing;
     for (const auto* edge : outgoingEdges) {
@@ -349,22 +354,23 @@ EdgeSet MakeFootprintExtensionUsingNewMethodBase(Encoding& encoding, const FlowC
         outgoing.emplace_back(edge, &edge->valuePost.get());
     }
     for (const auto& [edge, target] : outgoing) {
-        for (auto mode : EMODES) {
-            auto prePathEncoding = EncodeSymbolIsSentOut(encoding, graph, prePaths, *edge, *target, symbol, EMode::PRE);
-            auto postPathEncoding = EncodeSymbolIsSentOut(encoding, graph, prePaths, *edge, *target, symbol, EMode::POST);
-            if (!encoding.Implies(prePathEncoding == postPathEncoding)) result.insert(edge);
-        }
+        if (result.find(edge) != result.end()) continue;
+        auto prePathEncoding = EncodeSymbolIsSentOut(encoding, graph, prePaths, *edge, *target, symbol, EMode::PRE);
+        auto postPathEncoding = EncodeSymbolIsSentOut(encoding, graph, postPaths, *edge, *target, symbol, EMode::POST);
+        DEBUG("  -- edge enc: " << std::endl)
+        DEBUG("       - pre : " << AsExpr(prePathEncoding) << std::endl)
+        DEBUG("       - post: " << AsExpr(postPathEncoding) << std::endl)
+        if (!encoding.Implies(prePathEncoding == postPathEncoding)) result.insert(edge);
     }
     return result;
 }
 
-EdgeSet MakeFootprintExtensionUsingNewMethod(Encoding& encoding, const FlowConstraint& graph, const NodeSet& footprint, const EdgeSet& outgoingEdges) {
+EdgeSet MakeFootprintExtensionUsingNewMethod(Encoding& encoding, const FlowConstraint& graph, const NodeSet& init, const NodeSet& footprint, const EdgeSet& outgoingEdges) {
     return MakeFootprintExtensionUsingNewMethodBase(encoding, graph, footprint, footprint, outgoingEdges);
 }
 
-EdgeSet MakeFootprintExtensionUsingNewOptimizedMethod(Encoding& encoding, const FlowConstraint& graph, const NodeSet& footprint, const EdgeSet& outgoingEdges) {
-    auto init = GetDiff(graph);
-    return MakeFootprintExtensionUsingNewMethodBase(encoding, graph, footprint, init, outgoingEdges);
+EdgeSet MakeFootprintExtensionUsingNewOptimizedMethod(Encoding& encoding, const FlowConstraint& graph, const NodeSet& init, const NodeSet& footprint, const EdgeSet& outgoingEdges) {
+    return MakeFootprintExtensionUsingNewMethodBase(encoding, graph, init, footprint, outgoingEdges);
 }
 
 //
@@ -383,31 +389,69 @@ EExpr EncodeSymbolIsSentOutForReplacement(Encoding& encoding, const FlowConstrai
     return encoding.MakeOr(result);
 }
 
-EdgeSet MakeFootprintExtensionUsingNewReplacementMethod(Encoding& encoding, const FlowConstraint& graph, const NodeSet& footprint, const EdgeSet& outgoingEdges) {
-    throw std::logic_error("buggy");
+EdgeSet MakeFootprintExtensionUsingNewReplacementMethod(Encoding& encoding, const FlowConstraint& graph, const NodeSet& init, const NodeSet& footprint, const EdgeSet& outgoingEdges) {
     if (footprint.empty() || outgoingEdges.empty()) return {};
-    auto init = GetDiff(graph);
     auto& symbol = MakeDummySymbol(graph);
 
     auto prePaths = MakeAllSimplePaths(graph, footprint, init, EMode::PRE);
     auto postPaths = MakeAllSimplePaths(graph, footprint, init, EMode::POST);
-    auto getPaths = [&](EMode mode) -> PathList& { return mode == EMode::PRE ? std::ref(prePaths) : std::ref(postPaths); };
+    // auto getPaths = [&](EMode mode) -> PathList& { return mode == EMode::PRE ? std::ref(prePaths) : std::ref(postPaths); };
+    DEBUG(" #init=" << init.size() << " #footprint=" << footprint.size() << " #prePaths=" << prePaths.size() << " #postPaths=" << postPaths.size() << std::endl)
+
+    std::deque<std::pair<const PointerSelector*, const SymbolDeclaration*>> outgoing;
+    for (const auto* edge : outgoingEdges) {
+        outgoing.emplace_back(edge, &edge->valuePre.get());
+        if (edge->valuePre.get() == edge->valuePost.get()) continue;
+        outgoing.emplace_back(edge, &edge->valuePost.get());
+    }
 
     EdgeSet result;
-    for (const auto* edge : outgoingEdges) {
-        auto checks = plankton::MakeVector<EExpr>(2);
-        for (auto mode : EMODES) {
-            auto otherMode = mode == EMode::PRE ? EMode::POST : EMode::PRE;
-            for (const auto& path : getPaths(mode)) {
-                if (path.empty()) continue;
-                auto pathEncoded = EncodeSymbolIsSentOut(encoding, graph, path, symbol, EMode::PRE);
-                auto otherPathsEncoded = EncodeSymbolIsSentOutForReplacement(encoding, graph, getPaths(otherMode), *path.front().first, *path.back().second,
-                                                                             path.back().second->Value(EMode::PRE), symbol, EMode::PRE);
-                checks.push_back(pathEncoded >> otherPathsEncoded);
-            }
+    for (const auto& [edge, target] : outgoing) {
+        if (result.find(edge) != result.end()) continue;
+        auto preListEncoding = EncodeSymbolIsSentOut(encoding, graph, prePaths, *edge, *target, symbol, EMode::PRE);
+        auto postListEncoding = EncodeSymbolIsSentOut(encoding, graph, postPaths, *edge, *target, symbol, EMode::POST);
+        DEBUG("  -- edge enc: " << std::endl)
+        DEBUG("       - preList : " << AsExpr(preListEncoding) << std::endl)
+        DEBUG("       - postList: " << AsExpr(postListEncoding) << std::endl)
+        auto checks = plankton::MakeVector<EExpr>(prePaths.size() + postPaths.size());
+        for (const auto& path : prePaths) {
+            if (path.back().second != edge) continue;
+            if (&path.back().second->Value(EMode::PRE) != target) continue;
+            auto prePathEncoding = EncodeSymbolIsSentOut(encoding, graph, path, symbol, EMode::PRE);
+            DEBUG("       - prePath : " << AsExpr(prePathEncoding) << std::endl)
+            if (!encoding.Implies(prePathEncoding >> postListEncoding)) { result.insert(edge); DEBUG("failed" << std::endl) }
+            // checks.push_back(postListEncoding >> prePathEncoding);
         }
-        if (!encoding.Implies(encoding.MakeAnd(checks))) result.insert(edge);
+        for (const auto& path : postPaths) {
+            if (path.back().second != edge) continue;
+            if (&path.back().second->Value(EMode::POST) != target) continue;
+            auto postPathEncoding = EncodeSymbolIsSentOut(encoding, graph, path, symbol, EMode::POST);
+            DEBUG("       - postPath : " << AsExpr(postPathEncoding) << std::endl)
+            if (!encoding.Implies(postPathEncoding >> preListEncoding)) { result.insert(edge); DEBUG("failed" << std::endl) }
+            // checks.push_back(preListEncoding >> postPathEncoding);
+        }
+        // if (!encoding.Implies(encoding.MakeAnd(checks))) result.insert(edge);
     }
+
+    // EdgeSet result;
+    // for (const auto* edge : outgoingEdges) {
+    //     auto checks = plankton::MakeVector<EExpr>(2);
+    //     for (auto mode : EMODES) {
+    //         auto otherMode = mode == EMode::PRE ? EMode::POST : EMode::PRE;
+    //         for (const auto& path : getPaths(mode)) {
+    //             if (path.empty()) continue;
+    //             if (path.back().second != edge) continue;
+    //             auto pathEncoded = EncodeSymbolIsSentOut(encoding, graph, path, symbol, mode);
+    //             auto otherPathsEncoded = EncodeSymbolIsSentOutForReplacement(encoding, graph, getPaths(otherMode), *path.front().first, *path.back().second,
+    //                                                                          path.back().second->Value(mode), symbol, otherMode);
+    //             checks.push_back(pathEncoded >> otherPathsEncoded);
+    //             DEBUG("  -- failed edge enc: " << std::endl)
+    //             DEBUG("       - path: " << AsExpr(pathEncoded) << std::endl)
+    //             DEBUG("       -  sum: " << AsExpr(otherPathsEncoded) << std::endl)
+    //         }
+    //     }
+    //     if (!encoding.Implies(encoding.MakeAnd(checks))) result.insert(edge);
+    // }
     return result;
 }
 
