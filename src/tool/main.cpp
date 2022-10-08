@@ -39,7 +39,7 @@ inline CommandLineInput Interact(int argc, char** argv) {
 
     TCLAP::CmdLine cmd("PLANKTON verification tool for lock-free data structures", ' ', "1.0");
     auto isFile = std::make_unique<IsRegularFileConstraint>("_to_input");
-    
+
     TCLAP::SwitchArg casSwitch("", "no-spurious", "Deactivates Compare-and-Swap failing spuriously", cmd, false);
     TCLAP::SwitchArg gistSwitch("g", "gist", "Print machine readable gist at the very end", cmd, false);
     TCLAP::UnlabeledValueArg<std::string> programArg("input", "Input file with program code and flow definition", true, "", isFile.get(), cmd);
@@ -49,6 +49,8 @@ inline CommandLineInput Interact(int argc, char** argv) {
     TCLAP::SwitchArg macroNoTabulationSwitch("", "macroNoTabulate", "Turns off tabulation of macro post annotations", cmd, false);
     TCLAP::ValueArg<std::size_t> loopMaxIterArg("", "loopMaxIter", "Maximal iterations for finding a loop invariant before aborting", false, 23, "integer", cmd);
     TCLAP::ValueArg<std::size_t> proofMaxIterArg("", "proofMaxIter", "Maximal iterations for finding an interference set before aborting", false, 7, "integer", cmd);
+
+    TCLAP::ValueArg<std::string> footprintFileArg("f", "footprint", "File to which footprints are exported", false, "", isFile.get(), cmd);
 
     cmd.parse(argc, argv);
     input.pathToInput = programArg.getValue();
@@ -60,6 +62,10 @@ inline CommandLineInput Interact(int argc, char** argv) {
     input.setup->macrosTabulateInvocations = !macroNoTabulationSwitch.getValue();
     input.setup->loopMaxIterations = loopMaxIterArg.getValue();
     input.setup->proofMaxIterations = proofMaxIterArg.getValue();
+
+    if (footprintFileArg.isSet()) {
+        input.setup->footprints.open(footprintFileArg.getValue());
+    }
 
     return input;
 }
