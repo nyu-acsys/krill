@@ -92,10 +92,14 @@ struct VerificationResult {
     milliseconds_t timeTaken = milliseconds_t(0);
 };
 
-inline VerificationResult Verify(const ParsingResult& input, std::shared_ptr<EngineSetup> setup) {
+inline VerificationResult Verify(const ParsingResult& input, const CommandLineInput& cmd) {
+    if (cmd.setup->footprints.is_open()) {
+        cmd.setup->footprints << input.footprintConfig << std::endl;
+    }
+
     VerificationResult result;
     auto begin = std::chrono::steady_clock::now();
-    result.linearizable = plankton::IsLinearizable(*input.program, *input.config, std::move(setup));
+    result.linearizable = plankton::IsLinearizable(*input.program, *input.config, cmd.setup);
     auto end = std::chrono::steady_clock::now();
     result.timeTaken = std::chrono::duration_cast<milliseconds_t>(end - begin);
     return result;
@@ -138,7 +142,7 @@ int main(int argc, char** argv) {
         auto cmd = Interact(argc, argv);
         auto input = Parse(cmd);
         PrintInput(input);
-        auto result = Verify(input, cmd.setup);
+        auto result = Verify(input, cmd);
         PrintResult(cmd, input, result);
         return 0;
 

@@ -41,6 +41,7 @@ ParsingResult AstBuilder::BuildFrom(std::istream& input, bool spuriousCasFail) {
         builder.PrepareMake(*context);
         result.config = builder.MakeConfig(*context);
         result.program = builder.MakeProgram(*context);
+        result.footprintConfig = builder.MakeFootprintConfig(*result.program, *context);
         return result;
 
     } catch (antlr4::ParseCancellationException& e) {

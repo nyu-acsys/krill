@@ -77,6 +77,7 @@ namespace plankton {
         std::unique_ptr<ParsedSolverConfig> MakeConfig(PlanktonParser::FlowgraphsContext& context);
         FlowConstraintsParsingResult MakeFlowgraphs(PlanktonParser::FlowgraphsContext& context);
         std::unique_ptr<FlowConstraint> MakeFlowgraph(PlanktonParser::GraphContext& context, const SolverConfig& config);
+        std::string MakeFootprintConfig(const Program& program, PlanktonParser::ProgramContext& context);
 
         // parsing configuration
         [[nodiscard]] bool SpuriousCasFail() const;

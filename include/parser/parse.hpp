@@ -19,12 +19,14 @@ namespace plankton {
     struct ParsingResult {
         std::unique_ptr<Program> program;
         std::unique_ptr<ParsedSolverConfig> config;
+        std::string footprintConfig;
     };
 
     struct FlowConstraintsParsingResult {
         std::vector<std::unique_ptr<Type>> types;
         std::unique_ptr<SolverConfig> config;
         std::deque<std::unique_ptr<FlowConstraint>> constraints;
+        std::string name;
     };
     
     ParsingResult Parse(const std::string& filename, bool spuriousCasFails = true);

@@ -9,6 +9,12 @@ FlowConstraintsParsingResult AstBuilder::MakeFlowgraphs(PlanktonParser::Flowgrap
     result.config = MakeConfig(context);
     for (auto* elem : context.graphs) result.constraints.push_back(MakeFlowgraph(*elem, *result.config));
     plankton::MoveInto(std::move(_types), result.types);
+    for (auto* ctx : context.option()) {
+        auto ident = ctx->ident->getText();
+        if (ident != "name") continue;
+        result.name = ctx->str->getText();
+        result.name = result.name.substr(1,result.name.length()-2);
+    }
     return result;
 }
 
@@ -104,8 +110,40 @@ std::unique_ptr<FlowConstraint> AstBuilder::MakeFlowgraph(PlanktonParser::GraphC
     // options
     for (auto* optionContext : context.option()) {
         auto ident = optionContext->ident->getText();
-        if (ident == "name") result->name = optionContext->str->getText();
+        if (ident != "name") continue;
+        result->name = optionContext->str->getText();
+        result->name = result->name.substr(1,result->name.length()-2);
     }
 
     return result;
+}
+
+void Traverse(std::ostream& stream, const antlr4::tree::ParseTree& ctx) {
+    for (auto* child : ctx.children) {
+        if (child->children.empty()) stream << child->getText() << " ";
+        Traverse(stream, *child);
+    }
+}
+
+#include <regex>
+std::string PrintContext(const antlr4::tree::ParseTree& context) {
+    std::stringstream stream;
+    Traverse(stream, context);
+    auto res = stream.str();
+    std::regex_replace(res, std::regex(" \\*"), "*");
+    res = std::regex_replace(res, std::regex(" ;"), ";");
+    res = std::regex_replace(res, std::regex(" ,"), ",");
+    res = std::regex_replace(res, std::regex(" \\[ "), "[");
+    res = std::regex_replace(res, std::regex(" \\] "), "]");
+    res = std::regex_replace(res, std::regex("\\( "), "(");
+    res = std::regex_replace(res, std::regex(" \\)"), ")");
+    return res;
+}
+
+std::string AstBuilder::MakeFootprintConfig(const Program& program, PlanktonParser::ProgramContext& context) {
+    std::stringstream result;
+    result << "#name " << program.name << std::endl << std::endl;
+    for (auto* ctx : context.structs) result << PrintContext(*ctx) << std::endl;
+    for (auto* ctx : context.outf) result << PrintContext(*ctx) << std::endl;
+    return result.str();
 }
