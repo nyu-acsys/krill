@@ -1,4 +1,4 @@
-#name "Fine Set"
+#name "Fine"
 
 
 struct Node {

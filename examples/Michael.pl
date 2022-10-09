@@ -1,4 +1,4 @@
-#name "Michael Set"
+#name "Michael"
 
 
 struct Node {

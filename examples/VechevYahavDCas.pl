@@ -1,4 +1,4 @@
-#name "Vechev&Yahav DCAS Set"
+#name "VY-DCAS"
 
 
 struct Node {

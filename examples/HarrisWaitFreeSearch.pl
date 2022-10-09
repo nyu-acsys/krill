@@ -1,4 +1,4 @@
-#name "Harris Set (wait-free contains)"
+#name "HarrisWF"
 
 
 struct Node {

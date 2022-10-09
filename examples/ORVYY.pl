@@ -1,4 +1,4 @@
-#name "ORVYY Set"
+#name "ORVYY"
 
 
 struct Node {

@@ -1,4 +1,4 @@
-#name "Vechev&Yahav CAS Set"
+#name "VV-CAS-test"
 
 
 struct Node {

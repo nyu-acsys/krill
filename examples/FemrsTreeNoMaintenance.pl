@@ -1,4 +1,4 @@
-#name "Contention-friendly Binary Search Tree, no Maintenance"
+#name "FEMRS"
 
 
 struct Node {

@@ -1,4 +1,4 @@
-#name "Lazy Set"
+#name "Lazy"
 
 
 struct Node {
