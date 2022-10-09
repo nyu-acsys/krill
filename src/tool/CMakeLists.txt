@@ -17,3 +17,7 @@ include(ExternalTclap)
 add_executable(${TOOL_NAME} main.cpp)
 target_link_libraries(${TOOL_NAME} Programs Logics Engine Parser Tclap)
 install(TARGETS ${TOOL_NAME} DESTINATION ${INSTALL_FOLDER})
+
+add_executable(krill main2.cpp)
+target_link_libraries(krill Programs Logics Engine Parser Tclap)
+install(TARGETS krill DESTINATION ${INSTALL_FOLDER})

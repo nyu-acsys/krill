@@ -15,6 +15,8 @@ program : option* (
           | ninv+=nodeInvariant
         )* EOF ;
 
+flowgraphs : option* (structs+=structDecl | outf+=outflowPredicate | graphs+=graph)* EOF ;
+
 //
 // Options
 //
@@ -204,6 +206,22 @@ invariant : implication ( And implication )* ;
 
 
 /***********************************************/
+/******************* Graphs ********************/
+/***********************************************/
+
+graph : Graph '{' option* nodes+=graphNode* constraints+=graphConstraint* '}' ;
+
+graphNode : GraphNode '[' name=Identifier ':' type ']' '{' (preUnreach=GraphUnreach ';')? (preNoFlow=GraphEmpty ';')? fields+=graphSelector* '}' ';'? ;
+
+graphSelector : GraphField (':'?) name=Identifier ':' type '=' pre=Identifier '/' post=Identifier ';' ;
+
+graphConstraint : GraphConstraint (':'?) lhs=graphConstraintExpr op=graphConstraintOp rhs=graphConstraintExpr ';' ;
+
+graphConstraintExpr : immi=value | id=Identifier ;
+
+graphConstraintOp : Eq | Neq | Lt | Lte | Gt | Gte ;
+
+/***********************************************/
 /***************** Lexer rules *****************/
 /***********************************************/
 
@@ -241,6 +259,13 @@ Shared : 'shared';
 Local : 'local';
 In : 'in';
 FlowField : '_flow';
+
+Graph : '@graph';
+GraphNode : '@node';
+GraphField : '@field';
+GraphConstraint : '@constraint';
+GraphUnreach : '@pre-unreachable';
+GraphEmpty : '@pre-emptyInflow';
 
 Identifier : Letter ( ('-' | '_')* (Letter | '0'..'9') )* ;
 fragment Letter : [a-zA-Z] ;

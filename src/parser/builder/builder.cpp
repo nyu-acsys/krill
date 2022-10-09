@@ -48,3 +48,28 @@ ParsingResult AstBuilder::BuildFrom(std::istream& input, bool spuriousCasFail) {
         throw std::logic_error("Parse error: " + std::string(e.what()) + "."); // TODO: better error handling
     }
 }
+
+FlowConstraintsParsingResult AstBuilder::BuildGraphsFrom(std::istream& input) {
+    antlr4::ANTLRInputStream antlr(input);
+    PlanktonLexer lexer(&antlr);
+    antlr4::CommonTokenStream tokens(&lexer);
+
+    PlanktonParser parser(&tokens);
+    ParseErrorListener errorListener;
+    parser.removeErrorListeners();
+    parser.addErrorListener(&errorListener);
+
+    try {
+        auto context = parser.flowgraphs();
+        assert(parser.getNumberOfSyntaxErrors() == 0);
+        assert(context);
+        AstBuilder builder(true);
+        FlowConstraintsParsingResult result;
+        builder.PrepareMake(*context);
+        return builder.MakeFlowgraphs(*context);
+
+    } catch (antlr4::ParseCancellationException& e) {
+        // TODO: get better error message from AntLR?
+        throw std::logic_error("Parse error: " + std::string(e.what()) + "."); // TODO: better error handling
+    }
+}

@@ -593,7 +593,7 @@ inline bool IsTrivial(const Formula& state, const MemoryWrite& cmd) {
     return encoding.Implies(encoding.MakeAnd(equalities));
 }
 
-void WriteGraphToFile(const FlowGraph&, const std::shared_ptr<EngineSetup>&);
+void WriteGraphToFile(const FlowGraph&, const std::shared_ptr<EngineSetup>&, const MemoryWrite&, bool);
 
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, bool useFuture) const {
     MEASURE("Solver::Post (MemoryWrite)")
@@ -616,7 +616,7 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
     try {
         PostImageInfo info(std::move(pre), cmd, config);
         if (info.encoding.ImpliesFalse()) return PostImage();
-        WriteGraphToFile(info.footprint, setup);
+        WriteGraphToFile(info.footprint, setup, cmd, !useFuture);
 
         // if (info.encoding.ImpliesFalse()) throw std::logic_error("Failed to perform proper memory update: cautiously refusing to post unsatisfiable encoding."); // TODO better error handling
         CheckPublishing(info);
@@ -689,7 +689,12 @@ std::deque<std::shared_ptr<Axiom>> MakeContext(const FlowGraph& graph) {
 }
 
 #include <regex>
-void WriteGraphToFile(const FlowGraph& graph, const std::shared_ptr<EngineSetup>& setup) {
+
+std::string AsStr(const MemoryWrite& cmd) {
+    return std::regex_replace(plankton::ToString(cmd), std::regex(" "), "");
+}
+
+void WriteGraphToFile(const FlowGraph& graph, const std::shared_ptr<EngineSetup>& setup, const MemoryWrite& cmd, bool forFuture) {
     if (!setup || !setup->footprints.is_open()) return;
     std::set<const SymbolDeclaration*> symbols;
 
@@ -704,20 +709,23 @@ void WriteGraphToFile(const FlowGraph& graph, const std::shared_ptr<EngineSetup>
         std::stringstream stream;
         stream << obj;
         auto tmp = std::regex_replace(stream.str(), std::regex("@"), "");
-        return std::regex_replace(tmp, std::regex("∞"), "INF");
+        tmp = std::regex_replace(tmp, std::regex("-∞"), "MIN");
+        return std::regex_replace(tmp, std::regex("∞"), "MAX");
     };
     auto printField = [&](const auto& field) {
         symbols.insert(&field.preValue.get());
         symbols.insert(&field.postValue.get());
-        out << "        " << rename(field.name) << " : " << field.type.name << " = "
-            << rename(field.preValue.get()) << " / " << rename(field.postValue.get()) << ";" << std::endl;
+        out << "        @field " << rename(field.name) << " : " << field.type.name;
+        if (field.type.sort == Sort::PTR) out << "*";
+        out << " = " << rename(field.preValue.get()) << " / " << rename(field.postValue.get()) << ";" << std::endl;
     };
 
     out << std::endl << std::endl;
-    out << "graph { " << std::endl;
+    out << "@graph { " << std::endl;
+    out << "    #name \"" << (forFuture ? "FUT" : "CMD") << "(" << AsStr(cmd) << ")\"" << std::endl;
     for (const auto& node : graph.nodes) {
         symbols.insert(&node.address);
-        out << "    node[" << rename(node.address) << " : " << node.address.type.name << "] {" << std::endl;
+        out << "    @node[" << rename(node.address) << " : " << node.address.type.name << "*] {" << std::endl;
         if (node.preLocal) out << "        @pre-unreachable;" << std::endl;
         if (hasNoFlow(node)) out << "        @pre-emptyInflow;" << std::endl;
         for (const auto& field : node.dataFields) printField(field);
@@ -727,7 +735,7 @@ void WriteGraphToFile(const FlowGraph& graph, const std::shared_ptr<EngineSetup>
     for (const auto& axiom : MakeContext(graph)) {
         auto axiomSymbols = plankton::Collect<SymbolDeclaration>(*axiom);
         if (!plankton::Subset(axiomSymbols, symbols)) continue;
-        out << "    @constraint: " << rename(*axiom) << ";" << std::endl;
+        out << "    @constraint " << rename(*axiom) << ";" << std::endl;
     }
     out << "}" << std::endl;
 }

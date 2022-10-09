@@ -29,3 +29,12 @@ std::unique_ptr<Program> plankton::ParseProgram(const std::string& filename, boo
     std::ifstream stream(filename);
     return ParseProgram(stream, spuriousCasFails);
 }
+
+FlowConstraintsParsingResult plankton::ParseFlowConstraints(std::istream& input) {
+    return AstBuilder::BuildGraphsFrom(input);
+}
+
+FlowConstraintsParsingResult plankton::ParseFlowConstraints(const std::string& filename) {
+    std::ifstream stream(filename);
+    return ParseFlowConstraints(stream);
+}

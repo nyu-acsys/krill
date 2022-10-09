@@ -148,19 +148,19 @@ FlowStore MakeFlowDef(AstBuilder& builder, FlowConstructionInfo info, PlanktonPa
         result.nodeFlow = &info.memory->flow->Decl();
         for (const auto& [field, value] : info.memory->fieldToValue) result.fields.emplace(field, value->Decl());
     }
-    
+
     builder.PushScope();
     if (info.nodeVar) builder.AddDecl(std::move(info.nodeVar));
     if (info.valueVar) builder.AddDecl(std::move(info.valueVar));
-    
+
     auto evalContext = std::make_unique<SeparatingConjunction>();
     if (info.memory) evalContext->Conjoin(std::move(info.memory));
     if (info.node) evalContext->Conjoin(std::move(info.node));
     if (info.value) evalContext->Conjoin(std::move(info.value));
-    
+
     result.invariant = builder.MakeInvariant(context, *evalContext);
     builder.PopScope();
-    
+
     plankton::Simplify(*result.invariant);
     return result;
 }
@@ -297,7 +297,7 @@ std::unique_ptr<ParsedSolverConfig> AstBuilder::MakeConfig(PlanktonParser::Progr
     if (NoConfig(context)) return nullptr;
     CheckConfig(context, prepared);
     auto result = std::make_unique<ParsedSolverConfigImpl>();
-    
+
     for (auto* containsContext : context.ctns) {
         auto store = MakeContains(*this, *containsContext);
         assert(store.node);
@@ -306,7 +306,7 @@ std::unique_ptr<ParsedSolverConfig> AstBuilder::MakeConfig(PlanktonParser::Progr
         if (insertion.second) continue;
         throw std::logic_error("Parse error: duplicate contains predicate definition for type '" + type.name + "'."); // TODO: better error handling
     }
-    
+
     for (auto* outflowContext : context.outf) {
         auto store = MakeOutflow(*this, *outflowContext);
         assert(store.node);
@@ -316,14 +316,14 @@ std::unique_ptr<ParsedSolverConfig> AstBuilder::MakeConfig(PlanktonParser::Progr
         if (insertion.second) continue;
         throw std::logic_error("Parse error: duplicate outflow definition for field '" + field + "' of type '" + type.name + "'."); // TODO: better error handling
     }
-    
+
     for (auto* invariantContext : context.ninv) {
         assert(invariantContext->isShared != nullptr ^ invariantContext->isLocal != nullptr);
         bool shared = invariantContext->isShared;
-        
+
         auto store = MakeNodeInvariant(*this, *invariantContext);
         if (shared) result->variableInv = ExtractVariableInvariants(std::as_const(store));
-    
+
         assert(store.node);
         auto& type = store.node->type;
         auto& target = shared ? result->sharedInv : result->localInv;
@@ -343,6 +343,22 @@ std::unique_ptr<ParsedSolverConfig> AstBuilder::MakeConfig(PlanktonParser::Progr
         if (result->variableInv.count(var.get()) != 0) continue;
         WARNING("no invariant for '" << var->name << "'." << std::endl)
     }
-    
+
+    return result;
+}
+
+std::unique_ptr<ParsedSolverConfig> AstBuilder::MakeConfig(PlanktonParser::FlowgraphsContext& context) {
+    auto result = std::make_unique<ParsedSolverConfigImpl>();
+
+    for (auto* outflowContext : context.outf) {
+        auto store = MakeOutflow(*this, *outflowContext);
+        assert(store.node);
+        auto& type = store.node->type;
+        auto field = outflowContext->field->getText();
+        auto insertion = result->outflowPred.emplace(std::make_pair(&type, field), std::move(store));
+        if (insertion.second) continue;
+        throw std::logic_error("Parse error: duplicate outflow definition for field '" + field + "' of type '" + type.name + "'."); // TODO: better error handling
+    }
+
     return result;
 }

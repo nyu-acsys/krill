@@ -34,6 +34,7 @@ set(SOURCES
         builder/program.cpp
         builder/stmt.cpp
         builder/type.cpp
+        builder/graphs.cpp
 )
 
 add_library(Parser ${SOURCES} ${ANTLR_PlanktonParser_CXX_OUTPUTS})
