@@ -663,6 +663,9 @@ std::deque<std::shared_ptr<Axiom>> MakeContext(const FlowGraph& graph) {
 
     // get implied stack axioms
     auto candidates = plankton::MakeStackCandidates(*graph.pre->now, ExtensionPolicy::FAST);
+    for (const auto& elem : graph.pre->now->conjuncts) {
+        if (auto axiom = dynamic_cast<const Axiom*>(elem.get())) candidates.push_back(plankton::Copy(*axiom));
+    }
     Encoding encoding(graph);
     for (auto& elem : candidates) {
         if (!dynamic_cast<const StackAxiom*>(elem.get())) continue;
@@ -686,12 +689,40 @@ std::deque<std::shared_ptr<Axiom>> MakeContext(const FlowGraph& graph) {
     }
 
     return result;
+
+    // // get implied stack axioms
+    // Encoding encoding(graph);
+    // auto annotation = std::make_unique<Annotation>(plankton::Copy(*graph.pre->now));
+    // plankton::ExtendStack(*annotation, encoding, ExtensionPolicy::FAST);
+    //
+    // // add separation
+    // for (const auto& node : graph.nodes) {
+    //     for (const auto& other : graph.nodes) {
+    //         if (&node == &other) continue;
+    //         annotation->Conjoin(std::make_unique<StackAxiom>(
+    //                 BinaryOperator::NEQ,
+    //                 std::make_unique<SymbolicVariable>(node.address),
+    //                 std::make_unique<SymbolicVariable>(other.address)
+    //         ));
+    //     }
+    // }
+    //
+    // // extract stack axioms
+    // std::deque<std::shared_ptr<Axiom>> result;
+    // for (auto& elem : annotation->now->conjuncts) {
+    //     if (auto axiomPtr = dynamic_cast<StackAxiom*>(elem.get())) {
+    //         (void) elem.release();
+    //         result.push_back(std::unique_ptr<StackAxiom>(axiomPtr));
+    //     }
+    // }
+    // return result;
 }
 
 #include <regex>
 
 std::string AsStr(const MemoryWrite& cmd) {
-    return std::regex_replace(plankton::ToString(cmd), std::regex(" "), "");
+    // return std::regex_replace(plankton::ToString(cmd), std::regex(" "), "");
+    return std::regex_replace(plankton::ToString(cmd), std::regex("; "), "");
 }
 
 void WriteGraphToFile(const FlowGraph& graph, const std::shared_ptr<EngineSetup>& setup, const MemoryWrite& cmd, bool forFuture) {
@@ -699,9 +730,10 @@ void WriteGraphToFile(const FlowGraph& graph, const std::shared_ptr<EngineSetup>
     std::set<const SymbolDeclaration*> symbols;
 
     Encoding encoding(graph);
-    auto hasNoFlow = [&encoding](const auto& node) {
-        InflowEmptinessAxiom empty(node.preAllInflow, true);
-        return encoding.Implies(empty);
+    auto hasEmptyInflow = [&](const auto& node) {
+        if (!setup->footprintPrecision || node.parent.GetRoot().address == node.address)
+            return encoding.Implies(InflowEmptinessAxiom(node.preAllInflow, true));
+        return encoding.Implies(InflowEmptinessAxiom(node.frameInflow, true));
     };
 
     auto& out = setup->footprints;
@@ -727,7 +759,7 @@ void WriteGraphToFile(const FlowGraph& graph, const std::shared_ptr<EngineSetup>
         symbols.insert(&node.address);
         out << "    @node[" << rename(node.address) << " : " << node.address.type.name << "*] {" << std::endl;
         if (node.preLocal) out << "        @pre-unreachable;" << std::endl;
-        if (hasNoFlow(node)) out << "        @pre-emptyInflow;" << std::endl;
+        if (hasEmptyInflow(node)) out << "        @pre-emptyInflow;" << std::endl;
         for (const auto& field : node.dataFields) printField(field);
         for (const auto& field : node.pointerFields) printField(field);
         out << "    }" << std::endl;

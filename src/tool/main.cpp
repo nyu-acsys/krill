@@ -52,6 +52,7 @@ inline CommandLineInput Interact(int argc, char** argv) {
     TCLAP::ValueArg<std::size_t> proofMaxIterArg("", "proofMaxIter", "Maximal iterations for finding an interference set before aborting", false, 7, "integer", cmd);
 
     TCLAP::ValueArg<std::string> footprintFileArg("f", "footprint", "File to which footprints are exported", false, "", isFile.get(), cmd);
+    TCLAP::SwitchArg footprintPrecisionSwitch("p", "precision", "Increases precision when computing flow constraint bounds", cmd, false);
 
     cmd.parse(argc, argv);
     input.pathToInput = programArg.getValue();
@@ -63,6 +64,7 @@ inline CommandLineInput Interact(int argc, char** argv) {
     input.setup->macrosTabulateInvocations = !macroNoTabulationSwitch.getValue();
     input.setup->loopMaxIterations = loopMaxIterArg.getValue();
     input.setup->proofMaxIterations = proofMaxIterArg.getValue();
+    input.setup->footprintPrecision = footprintPrecisionSwitch.getValue();
 
     if (footprintFileArg.isSet()) {
         input.setup->footprints.open(footprintFileArg.getValue());

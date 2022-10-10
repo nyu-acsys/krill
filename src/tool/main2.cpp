@@ -72,10 +72,11 @@ inline std::string SizeOf(const std::optional<NodeSet>& footprint) {
     return std::to_string(footprint->size());
 }
 
-inline void Evaluate(std::ostream& output, const FlowConstraint& graph, const std::string& testName, const std::string& methodName,
+inline void Evaluate(std::ostream& output, const FlowConstraint& graph, std::string testName, const std::string& methodName,
                      const std::function<Evaluation(const FlowConstraint&)>& method) {
     auto eval = method(graph);
-    output << methodName << "," << SizeOf(eval.footprint) << "," << eval.time.count() << ",\"" << testName << "--" << graph.name << "\"" << std::endl;
+    if (!testName.empty()) testName = testName + "--";
+    output << methodName << "," << SizeOf(eval.footprint) << "," << eval.time.count() << ",\"" << testName << graph.name << "\"" << std::endl;
 }
 
 inline void Evaluate(const FlowConstraintsParsingResult& input, const CommandLineInput& config) {

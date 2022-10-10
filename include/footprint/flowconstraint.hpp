@@ -58,7 +58,8 @@ namespace plankton {
     };
 
     using NodeSet = std::set<const Node *>;
-    using EdgeSet = std::set<const PointerSelector *>;
+    // using EdgeSet = std::set<const PointerSelector *>;
+    using EdgeSet = std::set<std::pair<const PointerSelector *, EMode>>;
     using Path = std::deque<std::pair<const Node *, const PointerSelector *>>;
     using PathList = std::deque<Path>;
 

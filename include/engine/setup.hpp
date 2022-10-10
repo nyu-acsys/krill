@@ -23,6 +23,7 @@ namespace plankton {
 
         // output files
         std::ofstream footprints;
+        bool footprintPrecision = false;
 
         explicit EngineSetup() = default;
     };

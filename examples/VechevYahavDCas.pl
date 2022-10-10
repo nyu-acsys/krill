@@ -15,7 +15,7 @@ def @contains(Node* node, data_t key) {
 }
 
 def @outflow[next](Node* node, data_t key) {
-    node->val < key
+    node->val < key && node -> next != NULL
 }
 
 def @invariant[local](Node* x) {

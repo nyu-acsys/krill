@@ -6,8 +6,6 @@
 #include "util/log.hpp"
 #include "engine/util.hpp"
 #include <cmath>
-// #include <utility>
-// #include "../encoding/internal.hpp"
 
 using namespace plankton;
 
@@ -16,6 +14,7 @@ using namespace plankton;
 //
 
 static const constexpr std::initializer_list<EMode> EMODES = { EMode::PRE, EMode::POST };
+static const constexpr std::initializer_list<EMode> PRE_EMODE = { EMode::PRE };
 
 //
 // Helpers
@@ -40,10 +39,12 @@ EdgeSet GetOutgoingEdges(const FlowConstraint& graph, const NodeSet& footprint) 
     EdgeSet result;
     for (const auto* node : footprint) {
         for (const auto& edge : node->pointerSelectors) {
-            auto successorPre = graph.GetNode(edge.valuePre);
-            auto successorPost = graph.GetNode(edge.valuePost);
-            if (footprint.count(successorPre) > 0 && footprint.count(successorPost) > 0) continue;
-            result.insert(&edge);
+            auto modes = HasUpdate(edge) ? EMODES : PRE_EMODE;
+            for (auto mode : modes) {
+                auto successor = graph.GetNode(edge.Value(mode));
+                if (footprint.count(successor) > 0) continue;
+                result.emplace(&edge, mode);
+            }
         }
     }
     return result;
@@ -53,7 +54,6 @@ EdgeSet GetOutgoingEdges(const FlowConstraint& graph, const NodeSet& footprint) 
 using ExtensionFunction = std::function<EdgeSet(Encoding&, const FlowConstraint&, const NodeSet&, const NodeSet&, const EdgeSet&)>;
 
 std::optional<NodeSet> ComputeFixedPoint(const FlowConstraint& graph, const ExtensionFunction& getFootprintExtension) {
-    // DEBUG("Starting Fixed Point" << std::endl)
     Encoding encoding(*graph.context);
     auto diff = GetDiff(graph);
     auto footprint = diff;
@@ -61,12 +61,10 @@ std::optional<NodeSet> ComputeFixedPoint(const FlowConstraint& graph, const Exte
         auto edges = GetOutgoingEdges(graph, footprint);
         auto extension = getFootprintExtension(encoding, graph, diff, footprint, edges);
         if (extension.empty()) break;
-        for (const auto* edge : extension) {
-            for (auto mode : EMODES) {
-                auto successor = graph.GetNode(edge->Value(mode));
-                if (!successor) return std::nullopt;
-                footprint.insert(successor);
-            }
+        for (const auto& [edge, mode] : extension) {
+            auto successor = graph.GetNode(edge->Value(mode));
+            if (!successor) return std::nullopt;
+            footprint.insert(successor);
         }
     }
     return footprint;
@@ -75,7 +73,6 @@ std::optional<NodeSet> ComputeFixedPoint(const FlowConstraint& graph, const Exte
 //
 // Acyclicity
 //
-
 
 inline ReachSet ComputeReach(ReachSet initial) {
     ReachSet reachability = std::move(initial);
@@ -253,13 +250,17 @@ EExpr MakeInflowBound(Encoding& encoding, const NodeSet& footprint) {
     return encoding.MakeAnd(result);
 }
 
-EExpr MakeOutflowCheck(Encoding& encoding, const PointerSelector& edge) {
-    if (HasUpdate(edge)) {
-        return encoding.Encode(InflowEmptinessAxiom(edge.outflowPre, true)) &&
-               encoding.Encode(InflowEmptinessAxiom(edge.outflowPost, true));
-    } else {
-        return encoding.Encode(edge.outflowPre) == encoding.Encode(edge.outflowPost);
-    }
+EExpr MakeOutflowCheck(Encoding& encoding, const PointerSelector& edge, EMode mode) {
+    // if (HasUpdate(edge)) {
+    //     return encoding.Encode(InflowEmptinessAxiom(edge.outflowPre, true)) &&
+    //            encoding.Encode(InflowEmptinessAxiom(edge.outflowPost, true));
+    // } else {
+    //     return encoding.Encode(edge.outflowPre) == encoding.Encode(edge.outflowPost);
+    // }
+    auto sameOutflow = encoding.Encode(edge.outflowPre) == encoding.Encode(edge.outflowPost);
+    auto changed = encoding.Encode(edge.valuePre) != encoding.Encode(edge.valuePost);
+    auto empty = encoding.Encode(InflowEmptinessAxiom(edge.Outflow(mode), true));
+    return sameOutflow || (changed >> (empty));
 }
 
 EdgeSet ExtendFootprint_GeneralMethod(Encoding& encoding, const FlowConstraint& graph, const NodeSet& /*init*/, const NodeSet& footprint, const EdgeSet& outgoingEdges) {
@@ -267,10 +268,10 @@ EdgeSet ExtendFootprint_GeneralMethod(Encoding& encoding, const FlowConstraint& 
     auto transfer = MakeGraphTransferFunction(encoding, graph, footprint);
 
     EdgeSet result;
-    for (const auto* edge : outgoingEdges) {
-        auto outflow = MakeOutflowCheck(encoding, *edge);
+    for (const auto& [edge, mode] : outgoingEdges) {
+        auto outflow = MakeOutflowCheck(encoding, *edge, mode);
         auto check = (bound && transfer) >> outflow;
-        if (!encoding.Implies(check)) result.insert(edge);
+        if (!encoding.Implies(check)) result.emplace(edge, mode);
     }
     return result;
 }
@@ -329,7 +330,7 @@ EExpr EncodeSymbolIsSentOut(Encoding& encoding, const FlowConstraint& graph, con
 EExpr EncodeSymbolIsSentOut(Encoding& encoding, const FlowConstraint& graph, const Path& path, const SymbolDeclaration& symbol, EMode mode) {
     if (path.empty() || path.front().first->emptyInflow) return encoding.Bool(false);
     auto result = plankton::MakeVector<EExpr>(path.size());
-    // result.push_back(encoding.Encode(path.front().first->inflow)(encoding.Encode(symbol)));
+    result.push_back(encoding.Encode(path.front().first->inflow)(encoding.Encode(symbol)));
     for (const auto& [node, edge] : path) {
         result.push_back(EncodeSymbolIsSentOut(encoding, graph, *node, *edge, symbol, mode));
     }
@@ -366,13 +367,11 @@ EdgeSet MakeFootprintExtensionUsingNewMethodBase(Encoding& encoding, const FlowC
     auto prePaths = MakeAllSimplePaths(graph, footprint, init, EMode::PRE);
     auto postPaths = MakeAllSimplePaths(graph, footprint, init, EMode::POST);
 
-    for (const auto* edge : outgoingEdges) {
-        auto prePathPreTargetEncoding = EncodeSymbolIsSentOut(encoding, graph, prePaths, *edge, edge->valuePre, symbol, EMode::PRE);
-        auto postPathPreTargetEncoding = EncodeSymbolIsSentOut(encoding, graph, postPaths, *edge, edge->valuePre, symbol, EMode::POST);
-        auto prePathPostTargetEncoding = EncodeSymbolIsSentOut(encoding, graph, prePaths, *edge, edge->valuePost, symbol, EMode::PRE);
-        auto postPathPostTargetEncoding = EncodeSymbolIsSentOut(encoding, graph, postPaths, *edge, edge->valuePost, symbol, EMode::POST);
-        auto check = (prePathPreTargetEncoding == postPathPreTargetEncoding) && (prePathPostTargetEncoding == postPathPostTargetEncoding);
-        if (!encoding.Implies(check)) result.insert(edge);
+    for (const auto& [edge, mode] : outgoingEdges) {
+        auto prePathPreTargetEncoding = EncodeSymbolIsSentOut(encoding, graph, prePaths, *edge, edge->Value(mode), symbol, EMode::PRE);
+        auto postPathPreTargetEncoding = EncodeSymbolIsSentOut(encoding, graph, postPaths, *edge, edge->Value(mode), symbol, EMode::POST);
+        auto check = (prePathPreTargetEncoding == postPathPreTargetEncoding);
+        if (!encoding.Implies(check)) result.emplace(edge, mode);
     }
     return result;
 }
@@ -410,20 +409,19 @@ EdgeSet ExtendFootprint_NewMethod_DiffPathsSingleSum(Encoding& encoding, const F
     auto getPaths = [&](EMode mode) -> PathList& { return mode == EMode::PRE ? std::ref(prePaths) : std::ref(postPaths); };
 
     EdgeSet result;
-    for (const auto* edge : outgoingEdges) {
+    for (const auto& [edge, mode]: outgoingEdges) {
         auto checks = plankton::MakeVector<EExpr>(16);
-        for (auto mode : EMODES) {
-            auto otherMode = mode == EMode::PRE ? EMode::POST : EMode::PRE;
-            for (const auto& path : getPaths(mode)) {
-                if (path.empty()) continue;
-                if (path.back().second != edge) continue;
-                auto pathEncoded = EncodeSymbolIsSentOut(encoding, graph, path, symbol, mode);
-                auto otherPathsEncoded = EncodeSymbolIsSentOutForReplacement(encoding, graph, getPaths(otherMode), *path.front().first, *path.back().second,
-                                                                             path.back().second->Value(mode), symbol, otherMode);
-                checks.push_back(pathEncoded >> otherPathsEncoded);
-            }
+        auto otherMode = mode == EMode::PRE ? EMode::POST : EMode::PRE;
+        for (const auto& path: getPaths(mode)) {
+            if (path.empty()) continue;
+            if (path.back().second != edge) continue;
+            auto pathEncoded = EncodeSymbolIsSentOut(encoding, graph, path, symbol, mode);
+            auto otherPathsEncoded = EncodeSymbolIsSentOutForReplacement(
+                    encoding, graph, getPaths(otherMode), *path.front().first,
+                    *path.back().second,path.back().second->Value(mode), symbol, otherMode);
+            checks.push_back(pathEncoded >> otherPathsEncoded);
         }
-        if (!encoding.Implies(encoding.MakeAnd(checks))) result.insert(edge);
+        if (!encoding.Implies(encoding.MakeAnd(checks))) result.emplace(edge, mode);
     }
     return result;
 }
