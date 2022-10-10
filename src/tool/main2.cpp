@@ -72,11 +72,11 @@ inline std::string SizeOf(const std::optional<NodeSet>& footprint) {
     return std::to_string(footprint->size());
 }
 
-inline void Evaluate(std::ostream& output, const FlowConstraint& graph, std::string testName, const std::string& methodName,
+inline void Evaluate(std::ostream& output, const FlowConstraint& graph, std::size_t rep, std::string testName, const std::string& methodName,
                      const std::function<Evaluation(const FlowConstraint&)>& method) {
     auto eval = method(graph);
-    if (!testName.empty()) testName = testName + "--";
-    output << methodName << "," << SizeOf(eval.footprint) << "," << eval.time.count() << ",\"" << testName << graph.name << "\"" << std::endl;
+    if (testName.empty()) testName = "--";
+    output << methodName << "," << SizeOf(eval.footprint) << "," << eval.time.count() << ",\"" << testName << "\"," << rep << ",\"" << graph.name << "\"" << std::endl;
 }
 
 inline void Evaluate(const FlowConstraintsParsingResult& input, const CommandLineInput& config) {
@@ -95,11 +95,11 @@ inline void Evaluate(const FlowConstraintsParsingResult& input, const CommandLin
     auto percentage = [&]() -> std::size_t { return ((counter * 1.0) / (total * 1.0)) * 100.0; };
     for (std::size_t rep = 0; rep < config.repetitions; ++rep) {
         for (const auto& graph: input.constraints) {
-            Evaluate(output, *graph, input.name, "General", Evaluate_GeneralMethod_NoAcyclicityCheck);
-            Evaluate(output, *graph, input.name, "General+Acyclicity", Evaluate_GeneralMethod_WithAcyclicityCheck);
-            Evaluate(output, *graph, input.name, "New", Evaluate_NewMethod_AllPaths);
-            Evaluate(output, *graph, input.name, "New+Dec", Evaluate_NewMethod_DiffPaths);
-            Evaluate(output, *graph, input.name, "New+Dec+Idem", Evaluate_NewMethod_DiffPathsIndividually);
+            Evaluate(output, *graph, rep, input.name, "General", Evaluate_GeneralMethod_NoAcyclicityCheck);
+            Evaluate(output, *graph, rep, input.name, "General+Acyclicity", Evaluate_GeneralMethod_WithAcyclicityCheck);
+            Evaluate(output, *graph, rep, input.name, "New", Evaluate_NewMethod_AllPaths);
+            Evaluate(output, *graph, rep, input.name, "New+Dec", Evaluate_NewMethod_DiffPaths);
+            Evaluate(output, *graph, rep, input.name, "New+Dec+Idem", Evaluate_NewMethod_DiffPathsIndividually);
             if (counter++ % 50 == 0 && toFile) INFO(percentage() << "% " << std::flush)
         }
     }
