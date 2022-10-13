@@ -37,6 +37,7 @@ def read_file(file):
 def main():
     size_map = {}
     total_map = {}
+    full_map = {}
     print("File: '{0}'".format(DATABASE))
     with open(DATABASE) as file:
         for p, method, structure, rep, size, time in read_file(file):
@@ -48,6 +49,10 @@ def main():
             size_map.setdefault(method, {})
             size_map[method].setdefault(size, [])
             size_map[method][size].append(time)
+            # total runtime per method
+            full_map.setdefault(method, {})
+            full_map[method].setdefault(rep, 0)
+            full_map[method][rep] += time
             print ("\rProcessing: {:>3}%".format(p), end="")
     print("\rComplete: 100%      ")
 
@@ -65,6 +70,13 @@ def main():
     for (method, benchmark), reps in total_map.items():
         times = reps.values()
         print("  {:<13} | {:<20} | {:>12} | {:>12}".format(benchmark, method, micros(average(times)), micros(deviation(times))))
+
+    print()
+    print("  Method               |      Average |    Deviation ")
+    print(" ----------------------+--------------+--------------")
+    for method, reps in full_map.items():
+        times = reps.values()
+        print("  {:<20} | {:>12} | {:>12}".format(method, micros(average(times)), micros(deviation(times))))
 
 
 if __name__ == '__main__':
