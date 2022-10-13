@@ -25,27 +25,31 @@ def millis(time):
     return str(int(time/1000000)) + "ms"
 
 
-def convert(line):
-    method, size, time, structure, rep, _ = line.rstrip().split(',', 5)
-    return method, structure, int(rep), int(size), int(time)
+def read_file(file):
+    count = sum([1 for _ in file])
+    file.seek(0)
+    for no, line in enumerate(file):
+        method, size, time, structure, rep, _ = line.rstrip().split(',', 5)
+        p = int(((no+1) / count) * 100)
+        yield p, method, structure, int(rep), int(size), int(time)
+
 
 def main():
     size_map = {}
     total_map = {}
-    print("Processing '{0}'...".format(DATABASE), end='', flush=True)
+    print("File: '{0}'".format(DATABASE))
     with open(DATABASE) as file:
-        lines = [convert(line) for line in file]
-        # total runtime per (data structure, method)
-        for method, structure, rep, _, time in lines:
+        for p, method, structure, rep, size, time in read_file(file):
+            # total runtime per (data structure, method)
             total_map.setdefault((method, structure), {})
             total_map[(method, structure)].setdefault(rep, 0)
             total_map[(method, structure)][rep] += time
-        # runtime per method x size
-        for method, _, _, size, time in lines:
+            # runtime per method x size
             size_map.setdefault(method, {})
             size_map[method].setdefault(size, [])
             size_map[method][size].append(time)
-    print(" done!")
+            print ("\rProcessing: {:>3}%".format(p), end="")
+    print("\rComplete: 100%      ")
 
     print()
     print("  Method               |    #Footprint |     Average |    Deviation ")
