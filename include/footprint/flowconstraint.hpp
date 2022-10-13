@@ -73,6 +73,7 @@ namespace plankton {
 
     Evaluation Evaluate_GeneralMethod_NoAcyclicityCheck(const FlowConstraint& constraint);
     Evaluation Evaluate_GeneralMethod_WithAcyclicityCheck(const FlowConstraint& constraint);
+    Evaluation Evaluate_NewMethod_DistributivityOnlyWithAcyclicityCheck(const FlowConstraint& constraint);
     Evaluation Evaluate_NewMethod_AllPaths(const FlowConstraint& constraint);
     Evaluation Evaluate_NewMethod_DiffPaths(const FlowConstraint& constraint);
     Evaluation Evaluate_NewMethod_DiffPathsIndividually(const FlowConstraint& constraint);

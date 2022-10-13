@@ -95,11 +95,12 @@ inline void Evaluate(const FlowConstraintsParsingResult& input, const CommandLin
     auto percentage = [&]() -> std::size_t { return ((counter * 1.0) / (total * 1.0)) * 100.0; };
     for (std::size_t rep = 0; rep < config.repetitions; ++rep) {
         for (const auto& graph: input.constraints) {
-            Evaluate(output, *graph, rep, input.name, "General", Evaluate_GeneralMethod_NoAcyclicityCheck);
-            Evaluate(output, *graph, rep, input.name, "General+Acyclicity", Evaluate_GeneralMethod_WithAcyclicityCheck);
-            Evaluate(output, *graph, rep, input.name, "New", Evaluate_NewMethod_AllPaths);
-            Evaluate(output, *graph, rep, input.name, "New+Dec", Evaluate_NewMethod_DiffPaths);
-            Evaluate(output, *graph, rep, input.name, "New+Dec+Idem", Evaluate_NewMethod_DiffPathsIndividually);
+            // Evaluate(output, *graph, rep, input.name, "General", Evaluate_GeneralMethod_NoAcyclicityCheck);
+            Evaluate(output, *graph, rep, input.name, "General+Acyc", Evaluate_GeneralMethod_WithAcyclicityCheck);
+            Evaluate(output, *graph, rep, input.name, "Dist+Acyc", Evaluate_NewMethod_DistributivityOnlyWithAcyclicityCheck);
+            // Evaluate(output, *graph, rep, input.name, "New", Evaluate_NewMethod_AllPaths);
+            // Evaluate(output, *graph, rep, input.name, "New+Dec", Evaluate_NewMethod_DiffPaths);
+            Evaluate(output, *graph, rep, input.name, "New", Evaluate_NewMethod_DiffPathsIndividually);
             if (counter++ % 50 == 0 && toFile) INFO(percentage() << "% " << std::flush)
         }
     }

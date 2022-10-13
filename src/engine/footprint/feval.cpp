@@ -376,6 +376,13 @@ EdgeSet MakeFootprintExtensionUsingNewMethodBase(Encoding& encoding, const FlowC
     return result;
 }
 
+EdgeSet ExtendFootprint_NewMethod_AllPathsFullSumWithCycleCheck(Encoding& encoding, const FlowConstraint& graph, const NodeSet& /*init*/, const NodeSet& footprint, const EdgeSet& outgoingEdges) {
+    auto result = MakeFootprintExtensionUsingNewMethodBase(encoding, graph, footprint, footprint, outgoingEdges);
+    if (!result.empty()) return result;
+    if (MaintainsAcyclicity(encoding, graph, footprint)) return result;
+    return outgoingEdges; // force failure by increasing footprint
+}
+
 EdgeSet ExtendFootprint_NewMethod_AllPathsFullSum(Encoding& encoding, const FlowConstraint& graph, const NodeSet& /*init*/, const NodeSet& footprint, const EdgeSet& outgoingEdges) {
     return MakeFootprintExtensionUsingNewMethodBase(encoding, graph, footprint, footprint, outgoingEdges);
 }
@@ -459,6 +466,10 @@ Evaluation plankton::Evaluate_GeneralMethod_NoAcyclicityCheck(const FlowConstrai
 
 Evaluation plankton::Evaluate_GeneralMethod_WithAcyclicityCheck(const FlowConstraint& graph){
     return EvaluateFootprintComputationMethod(graph, ExtendFootprint_GeneralMethodWithCycleCheck);
+}
+
+Evaluation plankton::Evaluate_NewMethod_DistributivityOnlyWithAcyclicityCheck(const FlowConstraint& graph) {
+    return EvaluateFootprintComputationMethod(graph, ExtendFootprint_NewMethod_AllPathsFullSumWithCycleCheck);
 }
 
 Evaluation plankton::Evaluate_NewMethod_AllPaths(const FlowConstraint& graph){
