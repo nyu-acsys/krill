@@ -3,8 +3,8 @@
 REPS=${1:-100}
 FILE=${2:-database.txt}
 
-rm -f database.txt
-touch database.txt
+rm -f $FILE
+touch $FILE
 
 ./krill -o $FILE -r $REPS graphs/Fine.txt
 ./krill -o $FILE -r $REPS graphs/Lazy.txt
