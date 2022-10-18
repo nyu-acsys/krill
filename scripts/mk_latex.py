@@ -1,9 +1,14 @@
 # -*- coding: utf8 -*-
 import math
-
+import os
+import sys
 
 # Configuration
-DATABASE = "build-mac/foo.txt"
+DATABASE = "database.txt"
+
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
 
 
 def average(list):
@@ -29,6 +34,7 @@ def print_latex_prolog():
     print("""
 \\documentclass[border=5pt]{standalone}
 \\usepackage{pgfplots}
+\\pgfplotsset{compat=1.6}
 \\usepackage{tabularx}
 \\usepackage{booktabs}
 \\newcommand{\\timeCell}[2]{$#1\\mkern+2mu\\textrm{ms}$}
@@ -94,7 +100,8 @@ def make_latex_footprint_plots(methods, sizes, size_map):
 def print_latex_footprint_chart(methods, sizes, size_map, label=None, legend=True, resize=False):
     print("\\begin{tikzpicture}")
     print("    \\begin{axis}[xticklabels={", sep='', end='')
-    print(",".join(map(str, sizes)), sep='', end='')
+    psizes = [str(s) if s >= 0 else "\\(\\top\\)" for s in sizes]
+    print(",".join(psizes), sep='', end='')
     print("}", sep='', end='')
     if label:
         print(",xlabel=", label, sep='', end='')
@@ -128,7 +135,7 @@ def main():
     all_structures = set()
     all_methods = set()
     all_sizes = set()
-    # print("File: '{0}'".format(DATABASE))
+    eprint("Creating Latex output for file: '{0}'".format(DATABASE))
     with open(DATABASE) as file:
         for p, method, structure, rep, size, time in read_file(file):
             # some counting
@@ -157,11 +164,11 @@ def main():
             graph_map[structure].setdefault(method, {})
             graph_map[structure][method].setdefault(rep, 0)
             graph_map[structure][method][rep] += 1
-            # print("\rProcessing: {:>3}%".format(p), end="")
-    # print("\rComplete: 100%      ")
+            eprint("\rProcessing: {:>3}%".format(p), end="")
+    eprint("\rComplete: 100%      ")
     all_structures = [x for x in sorted(all_structures)]
-    all_methods = [x for x in all_methods]
-    all_sizes = [x for x in all_sizes]
+    all_methods = [x.strip() for x in sorted(all_methods)]
+    all_sizes = [x for x in sorted(all_sizes)]
     graph_map = {structure: extract_count(sum([list(x.values()) for x in mmap.values()], [])) for structure, mmap in graph_map.items()}
     graph_map = {structure: count for structure, count in graph_map.items() if count}
 
@@ -189,6 +196,10 @@ def main():
 
 if __name__ == '__main__':
     try:
+        if len(sys.argv) > 1:
+            DATABASE = sys.argv[1]
+            if not os.path.exists(DATABASE):
+                raise ValueError("The given path '{0}' does not refer to a regular file.")
         main()
     except KeyboardInterrupt:
         print("", flush=True)

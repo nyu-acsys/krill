@@ -1,0 +1,1917 @@
+#name "VY-CAS"
+
+struct Node { data_t val; bool marked; Node * next; } 
+def @outflow[next](Node * node, data_t key) { node -> val < key } 
+
+
+
+@graph { 
+    #name "CMD(entry->val = key)"
+    @node[a9 : Node*] {
+        @pre-unreachable;
+        @pre-emptyInflow;
+        @field marked : bool = b2 / b2;
+        @field val : data_t = d5 / d4;
+        @field next : Node* = a12 / a12;
+    }
+    @constraint a9 != nullptr;
+    @constraint a9 != a12;
+    @constraint a12 == nullptr;
+    @constraint d4 != MIN;
+    @constraint d4 != MAX;
+    @constraint d4 <= MAX;
+    @constraint d4 < MAX;
+    @constraint d4 >= MIN;
+    @constraint d4 > MIN;
+    @constraint d5 <= MAX;
+    @constraint d5 >= MIN;
+    @constraint MIN < d4;
+    @constraint d4 < MAX;
+    @constraint a9 != nullptr;
+    @constraint a9 != a12;
+    @constraint a12 == nullptr;
+}
+
+
+@graph { 
+    #name "CMD(entry->marked = false)"
+    @node[a9 : Node*] {
+        @pre-unreachable;
+        @pre-emptyInflow;
+        @field marked : bool = b2 / b32;
+        @field val : data_t = d4 / d4;
+        @field next : Node* = a12 / a12;
+    }
+    @constraint a9 != nullptr;
+    @constraint a9 != a12;
+    @constraint a12 == nullptr;
+    @constraint d4 != MIN;
+    @constraint d4 != MAX;
+    @constraint d4 <= MAX;
+    @constraint d4 < MAX;
+    @constraint d4 >= MIN;
+    @constraint d4 > MIN;
+    @constraint d4 != MIN;
+    @constraint d4 != MAX;
+    @constraint d4 <= MAX;
+    @constraint d4 < MAX;
+    @constraint d4 >= MIN;
+    @constraint d4 > MIN;
+    @constraint a9 != nullptr;
+    @constraint a9 != a12;
+    @constraint a12 == nullptr;
+    @constraint b32 == false;
+}
+
+
+@graph { 
+    #name "CMD(entry->next = curr)"
+    @node[a59 : Node*] {
+        @pre-unreachable;
+        @pre-emptyInflow;
+        @field marked : bool = b62 / b62;
+        @field val : data_t = d56 / d56;
+        @field next : Node* = a73 / a63;
+    }
+    @node[a63 : Node*] {
+        @field marked : bool = b58 / b58;
+        @field val : data_t = d60 / d60;
+        @field next : Node* = a107 / a107;
+    }
+    @constraint a107 != a63;
+    @constraint a107 != a59;
+    @constraint a73 == nullptr;
+    @constraint a73 != a63;
+    @constraint a73 != a59;
+    @constraint b62 == false;
+    @constraint b62 != true;
+    @constraint a63 != nullptr;
+    @constraint a63 != a59;
+    @constraint d60 != MIN;
+    @constraint d60 <= MAX;
+    @constraint d60 >= MIN;
+    @constraint d60 > MIN;
+    @constraint d60 != d56;
+    @constraint d60 >= d56;
+    @constraint d60 > d56;
+    @constraint a59 != nullptr;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint d60 >= d60;
+    @constraint d56 >= d56;
+    @constraint b62 == false;
+    @constraint b62 != true;
+    @constraint d60 != MIN;
+    @constraint d60 <= MAX;
+    @constraint d60 >= MIN;
+    @constraint d60 > MIN;
+    @constraint d60 != d56;
+    @constraint d60 >= d56;
+    @constraint d60 > d56;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint a107 != a63;
+    @constraint a107 != a59;
+    @constraint a73 == nullptr;
+    @constraint a73 != a63;
+    @constraint a73 != a59;
+    @constraint a63 != nullptr;
+    @constraint a63 != a59;
+    @constraint a59 != nullptr;
+    @constraint a59 != a63;
+    @constraint a63 != a59;
+}
+
+
+@graph { 
+    #name "CMD(pred->next = entry)"
+    @node[a71 : Node*] {
+        @field marked : bool = b62 / b62;
+        @field val : data_t = d111 / d111;
+        @field next : Node* = a63 / a59;
+    }
+    @node[a63 : Node*] {
+        @field marked : bool = b58 / b58;
+        @field val : data_t = d60 / d60;
+        @field next : Node* = a0 / a0;
+    }
+    @node[a59 : Node*] {
+        @pre-unreachable;
+        @pre-emptyInflow;
+        @field marked : bool = b62 / b62;
+        @field val : data_t = d56 / d56;
+        @field next : Node* = a63 / a63;
+    }
+    @constraint a0 != a63;
+    @constraint a0 != a59;
+    @constraint a0 != a71;
+    @constraint d111 != MAX;
+    @constraint d111 <= MAX;
+    @constraint d111 < MAX;
+    @constraint d111 >= MIN;
+    @constraint d111 != d60;
+    @constraint d111 <= d60;
+    @constraint d111 < d60;
+    @constraint d111 != d56;
+    @constraint d111 <= d56;
+    @constraint d111 < d56;
+    @constraint b62 == false;
+    @constraint b62 != true;
+    @constraint a63 != nullptr;
+    @constraint a63 != a59;
+    @constraint a63 != a71;
+    @constraint d60 != MIN;
+    @constraint d60 <= MAX;
+    @constraint d60 >= MIN;
+    @constraint d60 > MIN;
+    @constraint d60 != d56;
+    @constraint d60 >= d56;
+    @constraint d60 > d56;
+    @constraint a59 != nullptr;
+    @constraint a59 != a71;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint a71 != nullptr;
+    @constraint d60 >= d60;
+    @constraint d56 >= d56;
+    @constraint d111 != MAX;
+    @constraint d111 <= MAX;
+    @constraint d111 < MAX;
+    @constraint d111 >= MIN;
+    @constraint d111 != d60;
+    @constraint d111 <= d60;
+    @constraint d111 < d60;
+    @constraint d111 != d56;
+    @constraint d111 <= d56;
+    @constraint d111 < d56;
+    @constraint b62 == false;
+    @constraint b62 != true;
+    @constraint d60 != MIN;
+    @constraint d60 <= MAX;
+    @constraint d60 >= MIN;
+    @constraint d60 > MIN;
+    @constraint d60 != d56;
+    @constraint d60 >= d56;
+    @constraint d60 > d56;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint a0 != a63;
+    @constraint a0 != a59;
+    @constraint a0 != a71;
+    @constraint a63 != nullptr;
+    @constraint a63 != a59;
+    @constraint a63 != a71;
+    @constraint a59 != nullptr;
+    @constraint a59 != a71;
+    @constraint a71 != nullptr;
+    @constraint a71 != a63;
+    @constraint a71 != a59;
+    @constraint a63 != a71;
+    @constraint a63 != a59;
+    @constraint a59 != a71;
+    @constraint a59 != a63;
+}
+
+
+@graph { 
+    #name "CMD(entry->next = curr)"
+    @node[a67 : Node*] {
+        @pre-unreachable;
+        @pre-emptyInflow;
+        @field marked : bool = b62 / b62;
+        @field val : data_t = d56 / d56;
+        @field next : Node* = a108 / a139;
+    }
+    @node[a108 : Node*] {
+        @field marked : bool = b16 / b16;
+        @field val : data_t = d10 / d10;
+        @field next : Node* = a0 / a0;
+    }
+    @constraint d10 != MIN;
+    @constraint d10 <= MAX;
+    @constraint d10 >= MIN;
+    @constraint d10 > MIN;
+    @constraint a0 != a108;
+    @constraint a0 != a67;
+    @constraint a108 != nullptr;
+    @constraint a108 != a67;
+    @constraint b62 == false;
+    @constraint b62 != true;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint a139 != nullptr;
+    @constraint a139 != a67;
+    @constraint a67 != nullptr;
+    @constraint d56 >= d56;
+    @constraint b62 == false;
+    @constraint b62 != true;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint a0 != a108;
+    @constraint a0 != a67;
+    @constraint a108 != nullptr;
+    @constraint a108 != a67;
+    @constraint a139 != nullptr;
+    @constraint a139 != a67;
+    @constraint a67 != nullptr;
+    @constraint a67 != a108;
+    @constraint a108 != a67;
+}
+
+
+@graph { 
+    #name "CMD(pred->next = entry)"
+    @node[a107 : Node*] {
+        @field marked : bool = b62 / b62;
+        @field val : data_t = d135 / d135;
+        @field next : Node* = a139 / a67;
+    }
+    @node[a139 : Node*] {
+        @field marked : bool = b58 / b58;
+        @field val : data_t = d68 / d68;
+        @field next : Node* = a110 / a110;
+    }
+    @node[a67 : Node*] {
+        @pre-unreachable;
+        @pre-emptyInflow;
+        @field marked : bool = b62 / b62;
+        @field val : data_t = d56 / d56;
+        @field next : Node* = a139 / a139;
+    }
+    @constraint a110 != a107;
+    @constraint a110 != a139;
+    @constraint a110 != a67;
+    @constraint a107 != nullptr;
+    @constraint a107 != a139;
+    @constraint a107 != a67;
+    @constraint b62 == false;
+    @constraint b62 != true;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint d56 != d135;
+    @constraint d56 >= d135;
+    @constraint d56 > d135;
+    @constraint d56 != d68;
+    @constraint d56 <= d68;
+    @constraint d56 < d68;
+    @constraint a139 != nullptr;
+    @constraint a139 != a67;
+    @constraint d135 != MAX;
+    @constraint d135 <= MAX;
+    @constraint d135 < MAX;
+    @constraint d135 >= MIN;
+    @constraint d135 != d68;
+    @constraint d135 <= d68;
+    @constraint d135 < d68;
+    @constraint a67 != nullptr;
+    @constraint d68 != MIN;
+    @constraint d68 <= MAX;
+    @constraint d68 >= MIN;
+    @constraint d68 > MIN;
+    @constraint a139 != a110;
+    @constraint a139 != a107;
+    @constraint d56 >= d56;
+    @constraint d68 != d135;
+    @constraint d68 >= d68;
+    @constraint d68 != d56;
+    @constraint a67 != a107;
+    @constraint a67 != a139;
+    @constraint b62 == false;
+    @constraint b62 != true;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint d56 != d135;
+    @constraint d56 >= d135;
+    @constraint d56 > d135;
+    @constraint d56 != d68;
+    @constraint d56 <= d68;
+    @constraint d56 < d68;
+    @constraint d135 != MAX;
+    @constraint d135 <= MAX;
+    @constraint d135 < MAX;
+    @constraint d135 >= MIN;
+    @constraint d135 != d68;
+    @constraint d135 <= d68;
+    @constraint d135 < d68;
+    @constraint d68 != MIN;
+    @constraint d68 <= MAX;
+    @constraint d68 >= MIN;
+    @constraint d68 > MIN;
+    @constraint a110 != a107;
+    @constraint a110 != a139;
+    @constraint a110 != a67;
+    @constraint a107 != nullptr;
+    @constraint a107 != a139;
+    @constraint a107 != a67;
+    @constraint a139 != nullptr;
+    @constraint a139 != a67;
+    @constraint a67 != nullptr;
+    @constraint a107 != a139;
+    @constraint a107 != a67;
+    @constraint a139 != a107;
+    @constraint a139 != a67;
+    @constraint a67 != a107;
+    @constraint a67 != a139;
+}
+
+
+@graph { 
+    #name "CMD(entry->next = curr)"
+    @node[a63 : Node*] {
+        @pre-unreachable;
+        @pre-emptyInflow;
+        @field marked : bool = b58 / b58;
+        @field val : data_t = d56 / d56;
+        @field next : Node* = a107 / a67;
+    }
+    @node[a107 : Node*] {
+        @field marked : bool = b16 / b16;
+        @field val : data_t = d10 / d10;
+        @field next : Node* = a0 / a0;
+    }
+    @constraint d10 != MIN;
+    @constraint d10 <= MAX;
+    @constraint d10 >= MIN;
+    @constraint d10 > MIN;
+    @constraint a0 != a107;
+    @constraint a0 != a63;
+    @constraint a107 != nullptr;
+    @constraint a107 != a63;
+    @constraint a63 != nullptr;
+    @constraint a63 != a67;
+    @constraint b58 == false;
+    @constraint b58 != true;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint a67 != nullptr;
+    @constraint a67 != a63;
+    @constraint d56 >= d56;
+    @constraint b58 == false;
+    @constraint b58 != true;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint a0 != a107;
+    @constraint a0 != a63;
+    @constraint a107 != nullptr;
+    @constraint a107 != a63;
+    @constraint a63 != nullptr;
+    @constraint a63 != a67;
+    @constraint a67 != nullptr;
+    @constraint a63 != a107;
+    @constraint a107 != a63;
+}
+
+
+@graph { 
+    #name "CMD(pred->next = entry)"
+    @node[a73 : Node*] {
+        @field marked : bool = b58 / b58;
+        @field val : data_t = d111 / d111;
+        @field next : Node* = a67 / a63;
+    }
+    @node[a67 : Node*] {
+        @field marked : bool = b54 / b54;
+        @field val : data_t = d60 / d60;
+        @field next : Node* = a108 / a108;
+    }
+    @node[a63 : Node*] {
+        @pre-unreachable;
+        @pre-emptyInflow;
+        @field marked : bool = b58 / b58;
+        @field val : data_t = d56 / d56;
+        @field next : Node* = a67 / a67;
+    }
+    @constraint a108 != a73;
+    @constraint a108 != a63;
+    @constraint a108 != a67;
+    @constraint a73 != nullptr;
+    @constraint a73 != a63;
+    @constraint a73 != a67;
+    @constraint d111 != MAX;
+    @constraint d111 <= MAX;
+    @constraint d111 < MAX;
+    @constraint d111 >= MIN;
+    @constraint d111 != d60;
+    @constraint d111 <= d60;
+    @constraint d111 < d60;
+    @constraint d111 != d56;
+    @constraint d111 <= d56;
+    @constraint d111 < d56;
+    @constraint a63 != nullptr;
+    @constraint a63 != a67;
+    @constraint d60 != MIN;
+    @constraint d60 <= MAX;
+    @constraint d60 >= MIN;
+    @constraint d60 > MIN;
+    @constraint d60 != d56;
+    @constraint d60 >= d56;
+    @constraint d60 > d56;
+    @constraint b58 == false;
+    @constraint b58 != true;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint a67 != nullptr;
+    @constraint a67 != a63;
+    @constraint d60 >= d60;
+    @constraint d56 >= d56;
+    @constraint a63 != a73;
+    @constraint d111 != MAX;
+    @constraint d111 <= MAX;
+    @constraint d111 < MAX;
+    @constraint d111 >= MIN;
+    @constraint d111 != d60;
+    @constraint d111 <= d60;
+    @constraint d111 < d60;
+    @constraint d111 != d56;
+    @constraint d111 <= d56;
+    @constraint d111 < d56;
+    @constraint d60 != MIN;
+    @constraint d60 <= MAX;
+    @constraint d60 >= MIN;
+    @constraint d60 > MIN;
+    @constraint d60 != d56;
+    @constraint d60 >= d56;
+    @constraint d60 > d56;
+    @constraint b58 == false;
+    @constraint b58 != true;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint a108 != a73;
+    @constraint a108 != a63;
+    @constraint a108 != a67;
+    @constraint a73 != nullptr;
+    @constraint a73 != a63;
+    @constraint a73 != a67;
+    @constraint a63 != nullptr;
+    @constraint a63 != a67;
+    @constraint a67 != nullptr;
+    @constraint a73 != a67;
+    @constraint a73 != a63;
+    @constraint a67 != a73;
+    @constraint a67 != a63;
+    @constraint a63 != a73;
+    @constraint a63 != a67;
+}
+
+
+@graph { 
+    #name "FUT(pred->next = next)"
+    @node[a69 : Node*] {
+        @field marked : bool = b66 / b66;
+        @field val : data_t = d68 / d68;
+        @field next : Node* = a59 / a55;
+    }
+    @node[a59 : Node*] {
+        @field marked : bool = b54 / b54;
+        @field val : data_t = d56 / d56;
+        @field next : Node* = a71 / a71;
+    }
+    @constraint a69 != nullptr;
+    @constraint a69 != a59;
+    @constraint a69 != a71;
+    @constraint b66 == false;
+    @constraint b66 != true;
+    @constraint a59 != nullptr;
+    @constraint a59 != a71;
+    @constraint d56 != MIN;
+    @constraint d56 <= MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint d56 != d68;
+    @constraint d56 >= d68;
+    @constraint d56 > d68;
+    @constraint d68 != MAX;
+    @constraint d68 <= MAX;
+    @constraint d68 < MAX;
+    @constraint d68 >= MIN;
+    @constraint b66 == false;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint d56 != d68;
+    @constraint d56 >= d68;
+    @constraint d68 != MAX;
+    @constraint d68 <= MAX;
+    @constraint d68 < MAX;
+    @constraint d68 >= MIN;
+    @constraint d56 != MIN;
+    @constraint d56 <= MAX;
+    @constraint d56 >= d56;
+    @constraint d56 > d68;
+    @constraint a69 != nullptr;
+    @constraint a69 != a59;
+    @constraint a69 != a71;
+    @constraint a59 != nullptr;
+    @constraint a59 != a71;
+    @constraint a69 != a59;
+    @constraint a59 != a69;
+}
+
+
+@graph { 
+    #name "FUT(pred->next = next)"
+    @node[a69 : Node*] {
+        @field marked : bool = b2 / b2;
+        @field val : data_t = d4 / d4;
+        @field next : Node* = a59 / a55;
+    }
+    @node[a59 : Node*] {
+        @field marked : bool = b54 / b54;
+        @field val : data_t = d56 / d56;
+        @field next : Node* = a71 / a71;
+    }
+    @constraint b2 == false;
+    @constraint b2 != true;
+    @constraint d4 != MAX;
+    @constraint d4 <= MAX;
+    @constraint d4 < MAX;
+    @constraint d4 >= MIN;
+    @constraint d4 != d56;
+    @constraint d4 <= d56;
+    @constraint d4 < d56;
+    @constraint a69 != nullptr;
+    @constraint a69 != a59;
+    @constraint a69 != a71;
+    @constraint a59 != nullptr;
+    @constraint a59 != a71;
+    @constraint d56 != MIN;
+    @constraint d56 <= MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint b2 == false;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint d56 != d4;
+    @constraint d56 >= d4;
+    @constraint d4 != MAX;
+    @constraint d4 <= MAX;
+    @constraint d4 < MAX;
+    @constraint d4 >= MIN;
+    @constraint d56 != MIN;
+    @constraint d56 <= MAX;
+    @constraint d56 >= d56;
+    @constraint d56 > d4;
+    @constraint a69 != nullptr;
+    @constraint a69 != a59;
+    @constraint a69 != a71;
+    @constraint a59 != nullptr;
+    @constraint a59 != a71;
+    @constraint a69 != a59;
+    @constraint a59 != a69;
+}
+
+
+@graph { 
+    #name "CMD(curr->marked = true)"
+    @node[a59 : Node*] {
+        @field marked : bool = b58 / b2;
+        @field val : data_t = d56 / d56;
+        @field next : Node* = a71 / a71;
+    }
+    @node[a71 : Node*] {
+        @field marked : bool = b16 / b16;
+        @field val : data_t = d10 / d10;
+        @field next : Node* = a0 / a0;
+    }
+    @constraint d10 != MIN;
+    @constraint d10 <= MAX;
+    @constraint d10 >= MIN;
+    @constraint d10 > MIN;
+    @constraint d10 != d56;
+    @constraint d10 >= d56;
+    @constraint d10 > d56;
+    @constraint a0 != a59;
+    @constraint a0 != a71;
+    @constraint b58 == false;
+    @constraint b58 != true;
+    @constraint a59 != nullptr;
+    @constraint a59 != a71;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint a71 != nullptr;
+    @constraint d56 >= d56;
+    @constraint b58 == false;
+    @constraint b58 != true;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint a0 != a71;
+    @constraint a59 != nullptr;
+    @constraint a71 != nullptr;
+    @constraint a0 != a59;
+    @constraint a59 != a71;
+    @constraint b2 == true;
+    @constraint a59 != a71;
+    @constraint a71 != a59;
+}
+
+
+@graph { 
+    #name "CMD(pred->next = next)"
+    @node[a69 : Node*] {
+        @field marked : bool = b58 / b58;
+        @field val : data_t = d68 / d68;
+        @field next : Node* = a59 / a71;
+    }
+    @node[a59 : Node*] {
+        @field marked : bool = b2 / b2;
+        @field val : data_t = d56 / d56;
+        @field next : Node* = a71 / a71;
+    }
+    @node[a71 : Node*] {
+        @field marked : bool = b21 / b21;
+        @field val : data_t = d10 / d10;
+        @field next : Node* = a0 / a0;
+    }
+    @constraint d10 != MIN;
+    @constraint d10 <= MAX;
+    @constraint d10 >= MIN;
+    @constraint d10 > MIN;
+    @constraint d10 != d56;
+    @constraint d10 >= d56;
+    @constraint d10 > d56;
+    @constraint d10 != d68;
+    @constraint d10 >= d68;
+    @constraint d10 > d68;
+    @constraint a0 != a69;
+    @constraint a0 != a59;
+    @constraint a0 != a71;
+    @constraint b2 == true;
+    @constraint b2 != false;
+    @constraint b2 != b58;
+    @constraint a69 != nullptr;
+    @constraint a69 != a59;
+    @constraint a69 != a71;
+    @constraint b58 == false;
+    @constraint b58 != true;
+    @constraint a59 != nullptr;
+    @constraint a59 != a71;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint d56 != d68;
+    @constraint d56 >= d68;
+    @constraint d56 > d68;
+    @constraint a71 != nullptr;
+    @constraint d68 != MAX;
+    @constraint d68 <= MAX;
+    @constraint d68 < MAX;
+    @constraint d68 >= MIN;
+    @constraint d56 >= d56;
+    @constraint a59 != a69;
+    @constraint a71 != a69;
+    @constraint d10 != MIN;
+    @constraint d10 <= MAX;
+    @constraint d10 >= MIN;
+    @constraint d10 > MIN;
+    @constraint b2 == true;
+    @constraint b2 != false;
+    @constraint b2 != b58;
+    @constraint b58 == false;
+    @constraint b58 != true;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint d56 != d68;
+    @constraint d56 >= d68;
+    @constraint d56 > d68;
+    @constraint d68 != MAX;
+    @constraint d68 <= MAX;
+    @constraint d68 < MAX;
+    @constraint d68 >= MIN;
+    @constraint a0 != a69;
+    @constraint a0 != a71;
+    @constraint a69 != nullptr;
+    @constraint a69 != a71;
+    @constraint a59 != nullptr;
+    @constraint a71 != nullptr;
+    @constraint a0 != a59;
+    @constraint a69 != a59;
+    @constraint a59 != a71;
+    @constraint a69 != a59;
+    @constraint a69 != a71;
+    @constraint a59 != a69;
+    @constraint a59 != a71;
+    @constraint a71 != a69;
+    @constraint a71 != a59;
+}
+
+
+@graph { 
+    #name "CMD(curr->marked = true)"
+    @node[a59 : Node*] {
+        @field marked : bool = b58 / b2;
+        @field val : data_t = d56 / d56;
+        @field next : Node* = a71 / a71;
+    }
+    @node[a71 : Node*] {
+        @field marked : bool = b16 / b16;
+        @field val : data_t = d10 / d10;
+        @field next : Node* = a0 / a0;
+    }
+    @constraint d10 != MIN;
+    @constraint d10 <= MAX;
+    @constraint d10 >= MIN;
+    @constraint d10 > MIN;
+    @constraint d10 != d56;
+    @constraint d10 >= d56;
+    @constraint d10 > d56;
+    @constraint a0 != a59;
+    @constraint a0 != a71;
+    @constraint b58 == false;
+    @constraint b58 != true;
+    @constraint a59 != nullptr;
+    @constraint a59 != a71;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint a71 != nullptr;
+    @constraint d56 >= d56;
+    @constraint b58 == false;
+    @constraint b58 != true;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint a0 != a71;
+    @constraint a59 != nullptr;
+    @constraint a71 != nullptr;
+    @constraint a0 != a59;
+    @constraint a59 != a71;
+    @constraint b2 == true;
+    @constraint a59 != a71;
+    @constraint a71 != a59;
+}
+
+
+@graph { 
+    #name "CMD(pred->next = next)"
+    @node[a69 : Node*] {
+        @field marked : bool = b58 / b58;
+        @field val : data_t = d68 / d68;
+        @field next : Node* = a59 / a71;
+    }
+    @node[a59 : Node*] {
+        @field marked : bool = b2 / b2;
+        @field val : data_t = d56 / d56;
+        @field next : Node* = a71 / a71;
+    }
+    @node[a71 : Node*] {
+        @field marked : bool = b21 / b21;
+        @field val : data_t = d10 / d10;
+        @field next : Node* = a0 / a0;
+    }
+    @constraint d10 != MIN;
+    @constraint d10 <= MAX;
+    @constraint d10 >= MIN;
+    @constraint d10 > MIN;
+    @constraint d10 != d56;
+    @constraint d10 >= d56;
+    @constraint d10 > d56;
+    @constraint d10 != d68;
+    @constraint d10 >= d68;
+    @constraint d10 > d68;
+    @constraint a0 != a69;
+    @constraint a0 != a59;
+    @constraint a0 != a71;
+    @constraint b2 == true;
+    @constraint b2 != false;
+    @constraint b2 != b58;
+    @constraint a69 != nullptr;
+    @constraint a69 != a59;
+    @constraint a69 != a71;
+    @constraint b58 == false;
+    @constraint b58 != true;
+    @constraint a59 != nullptr;
+    @constraint a59 != a71;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint d56 != d68;
+    @constraint d56 >= d68;
+    @constraint d56 > d68;
+    @constraint a71 != nullptr;
+    @constraint d68 != MAX;
+    @constraint d68 <= MAX;
+    @constraint d68 < MAX;
+    @constraint d68 >= MIN;
+    @constraint d56 >= d56;
+    @constraint a59 != a69;
+    @constraint a71 != a69;
+    @constraint d10 != MIN;
+    @constraint d10 <= MAX;
+    @constraint d10 >= MIN;
+    @constraint d10 > MIN;
+    @constraint b2 == true;
+    @constraint b2 != false;
+    @constraint b2 != b58;
+    @constraint b58 == false;
+    @constraint b58 != true;
+    @constraint d56 != MIN;
+    @constraint d56 != MAX;
+    @constraint d56 <= MAX;
+    @constraint d56 < MAX;
+    @constraint d56 >= MIN;
+    @constraint d56 > MIN;
+    @constraint d56 != d68;
+    @constraint d56 >= d68;
+    @constraint d56 > d68;
+    @constraint d68 != MAX;
+    @constraint d68 <= MAX;
+    @constraint d68 < MAX;
+    @constraint d68 >= MIN;
+    @constraint a0 != a69;
+    @constraint a0 != a71;
+    @constraint a69 != nullptr;
+    @constraint a69 != a71;
+    @constraint a59 != nullptr;
+    @constraint a71 != nullptr;
+    @constraint a0 != a59;
+    @constraint a69 != a59;
+    @constraint a59 != a71;
+    @constraint a69 != a59;
+    @constraint a69 != a71;
+    @constraint a59 != a69;
+    @constraint a59 != a71;
+    @constraint a71 != a69;
+    @constraint a71 != a59;
+}
+
+
+@graph { 
+    #name "CMD(entry->val = key)"
+    @node[a9 : Node*] {
+        @pre-unreachable;
+        @pre-emptyInflow;
+        @field marked : bool = b2 / b2;
+        @field val : data_t = d5 / d4;
+        @field next : Node* = a12 / a12;
+    }
+    @constraint a9 != nullptr;
+    @constraint a9 != a12;
+    @constraint a12 == nullptr;
+    @constraint d4 != MIN;
+    @constraint d4 != MAX;
+    @constraint d4 <= MAX;
+    @constraint d4 < MAX;
+    @constraint d4 >= MIN;
+    @constraint d4 > MIN;
+    @constraint d5 <= MAX;
+    @constraint d5 >= MIN;
+    @constraint MIN < d4;
+    @constraint d4 < MAX;
+    @constraint a9 != nullptr;
+    @constraint a9 != a12;
+    @constraint a12 == nullptr;
+}
+
+
+@graph { 
+    #name "CMD(entry->marked = false)"
+    @node[a9 : Node*] {
+        @pre-unreachable;
+        @pre-emptyInflow;
+        @field marked : bool = b2 / b32;
+        @field val : data_t = d4 / d4;
+        @field next : Node* = a12 / a12;
+    }
+    @constraint a9 != nullptr;
+    @constraint a9 != a12;
+    @constraint a12 == nullptr;
+    @constraint d4 != MIN;
+    @constraint d4 != MAX;
+    @constraint d4 <= MAX;
+    @constraint d4 < MAX;
+    @constraint d4 >= MIN;
+    @constraint d4 > MIN;
+    @constraint d4 != MIN;
+    @constraint d4 != MAX;
+    @constraint d4 <= MAX;
+    @constraint d4 < MAX;
+    @constraint d4 >= MIN;
+    @constraint d4 > MIN;
+    @constraint a9 != nullptr;
+    @constraint a9 != a12;
+    @constraint a12 == nullptr;
+    @constraint b32 == false;
+}
+
+
+@graph { 
+    #name "CMD(entry->next = curr)"
+    @node[a27 : Node*] {
+        @pre-unreachable;
+        @pre-emptyInflow;
+        @field marked : bool = b35 / b35;
+        @field val : data_t = d18 / d18;
+        @field next : Node* = a40 / a26;
+    }
+    @node[a26 : Node*] {
+        @field marked : bool = b39 / b39;
+        @field val : data_t = d23 / d23;
+        @field next : Node* = a42 / a42;
+    }
+    @constraint d23 != MIN;
+    @constraint d23 <= MAX;
+    @constraint d23 >= MIN;
+    @constraint d23 > MIN;
+    @constraint d23 != d18;
+    @constraint d23 >= d18;
+    @constraint d23 > d18;
+    @constraint d18 != MIN;
+    @constraint d18 != MAX;
+    @constraint d18 <= MAX;
+    @constraint d18 < MAX;
+    @constraint d18 >= MIN;
+    @constraint d18 > MIN;
+    @constraint a42 != a27;
+    @constraint a42 != a26;
+    @constraint a27 != nullptr;
+    @constraint a27 != a40;
+    @constraint a27 != a26;
+    @constraint b35 == false;
+    @constraint b35 != true;
+    @constraint a40 == nullptr;
+    @constraint a40 != a26;
+    @constraint a26 != nullptr;
+    @constraint a40 != a27;
+    @constraint d18 >= d18;
+    @constraint a26 != a42;
+    @constraint a26 != a27;
+    @constraint a27 != a42;
+    @constraint d23 >= d23;
+    @constraint d23 != MIN;
+    @constraint d23 <= MAX;
+    @constraint d23 >= MIN;
+    @constraint d23 > MIN;
+    @constraint d18 != MIN;
+    @constraint d18 != MAX;
+    @constraint d18 <= MAX;
+    @constraint d18 < MAX;
+    @constraint d18 >= MIN;
+    @constraint d18 > MIN;
+    @constraint b35 == false;
+    @constraint b35 != true;
+    @constraint d23 != d18;
+    @constraint d23 >= d18;
+    @constraint d23 > d18;
+    @constraint a27 != nullptr;
+    @constraint a40 == nullptr;
+    @constraint a26 != nullptr;
+    @constraint a42 != a26;
+    @constraint a27 != a40;
+    @constraint a42 != a27;
+    @constraint a27 != a26;
+    @constraint a40 != a26;
+    @constraint a27 != a26;
+    @constraint a26 != a27;
+}
+
+
+@graph { 
+    #name "CMD(pred->next = entry)"
+    @node[a0 : Node*] {
+        @field marked : bool = b35 / b35;
+        @field val : data_t = d37 / d37;
+        @field next : Node* = a3 / a6;
+    }
+    @node[a3 : Node*] {
+        @field marked : bool = b21 / b21;
+        @field val : data_t = d23 / d23;
+        @field next : Node* = a29 / a29;
+    }
+    @node[a6 : Node*] {
+        @pre-unreachable;
+        @pre-emptyInflow;
+        @field marked : bool = b35 / b35;
+        @field val : data_t = d4 / d4;
+        @field next : Node* = a3 / a3;
+    }
+    @constraint a6 != nullptr;
+    @constraint a6 != a0;
+    @constraint a6 != a3;
+    @constraint a6 != a29;
+    @constraint d23 != MIN;
+    @constraint d23 <= MAX;
+    @constraint d23 >= MIN;
+    @constraint d23 > MIN;
+    @constraint d23 != d4;
+    @constraint d23 >= d4;
+    @constraint d23 > d4;
+    @constraint d23 != d37;
+    @constraint d23 >= d37;
+    @constraint d23 > d37;
+    @constraint a0 != nullptr;
+    @constraint a0 != a3;
+    @constraint a0 != a29;
+    @constraint a3 != nullptr;
+    @constraint a3 != a29;
+    @constraint d4 != MIN;
+    @constraint d4 != MAX;
+    @constraint d4 <= MAX;
+    @constraint d4 < MAX;
+    @constraint d4 >= MIN;
+    @constraint d4 > MIN;
+    @constraint d4 != d37;
+    @constraint d4 >= d37;
+    @constraint d4 > d37;
+    @constraint d37 != MAX;
+    @constraint d37 <= MAX;
+    @constraint d37 < MAX;
+    @constraint d37 >= MIN;
+    @constraint b35 == false;
+    @constraint b35 != true;
+    @constraint d4 >= d4;
+    @constraint a3 != a6;
+    @constraint a3 != a0;
+    @constraint a0 != a6;
+    @constraint d23 >= d23;
+    @constraint d37 != d4;
+    @constraint d37 != d23;
+    @constraint d37 >= d37;
+    @constraint d23 != MIN;
+    @constraint d23 <= MAX;
+    @constraint d23 >= MIN;
+    @constraint d23 > MIN;
+    @constraint d4 != MIN;
+    @constraint d4 != MAX;
+    @constraint d4 <= MAX;
+    @constraint d4 < MAX;
+    @constraint d4 >= MIN;
+    @constraint d4 > MIN;
+    @constraint d37 != MAX;
+    @constraint d37 <= MAX;
+    @constraint d37 < MAX;
+    @constraint d37 >= MIN;
+    @constraint b35 == false;
+    @constraint b35 != true;
+    @constraint d4 != d37;
+    @constraint d4 >= d37;
+    @constraint d4 > d37;
+    @constraint d23 != d4;
+    @constraint d23 >= d4;
+    @constraint d23 > d4;
+    @constraint d23 != d37;
+    @constraint d23 >= d37;
+    @constraint d23 > d37;
+    @constraint a6 != nullptr;
+    @constraint a6 != a29;
+    @constraint a0 != nullptr;
+    @constraint a3 != nullptr;
+    @constraint a6 != a0;
+    @constraint a0 != a29;
+    @constraint a6 != a3;
+    @constraint a0 != a3;
+    @constraint a3 != a29;
+    @constraint a0 != a3;
+    @constraint a0 != a6;
+    @constraint a3 != a0;
+    @constraint a3 != a6;
+    @constraint a6 != a0;
+    @constraint a6 != a3;
+}
+
+
+@graph { 
+    #name "CMD(entry->next = curr)"
+    @node[a27 : Node*] {
+        @pre-unreachable;
+        @pre-emptyInflow;
+        @field marked : bool = b35 / b35;
+        @field val : data_t = d18 / d18;
+        @field next : Node* = a40 / a26;
+    }
+    @node[a40 : Node*] {
+        @field marked : bool = b16 / b16;
+        @field val : data_t = d10 / d10;
+        @field next : Node* = a0 / a0;
+    }
+    @constraint d10 != MIN;
+    @constraint d10 <= MAX;
+    @constraint d10 >= MIN;
+    @constraint d10 > MIN;
+    @constraint d18 != MIN;
+    @constraint d18 != MAX;
+    @constraint d18 <= MAX;
+    @constraint d18 < MAX;
+    @constraint d18 >= MIN;
+    @constraint d18 > MIN;
+    @constraint a0 != a27;
+    @constraint a0 != a40;
+    @constraint a27 != nullptr;
+    @constraint a27 != a40;
+    @constraint a27 != a26;
+    @constraint b35 == false;
+    @constraint b35 != true;
+    @constraint a40 != nullptr;
+    @constraint a26 != nullptr;
+    @constraint d18 >= d18;
+    @constraint a26 != a27;
+    @constraint d18 != MIN;
+    @constraint d18 != MAX;
+    @constraint d18 <= MAX;
+    @constraint d18 < MAX;
+    @constraint d18 >= MIN;
+    @constraint d18 > MIN;
+    @constraint b35 == false;
+    @constraint b35 != true;
+    @constraint a0 != a27;
+    @constraint a0 != a40;
+    @constraint a27 != nullptr;
+    @constraint a27 != a40;
+    @constraint a40 != nullptr;
+    @constraint a26 != nullptr;
+    @constraint a27 != a26;
+    @constraint a27 != a40;
+    @constraint a40 != a27;
+}
+
+
+@graph { 
+    #name "CMD(pred->next = entry)"
+    @node[a0 : Node*] {
+        @field marked : bool = b39 / b39;
+        @field val : data_t = d30 / d30;
+        @field next : Node* = a3 / a6;
+    }
+    @node[a3 : Node*] {
+        @field marked : bool = b35 / b35;
+        @field val : data_t = d25 / d25;
+        @field next : Node* = a43 / a43;
+    }
+    @node[a6 : Node*] {
+        @pre-unreachable;
+        @pre-emptyInflow;
+        @field marked : bool = b39 / b39;
+        @field val : data_t = d4 / d4;
+        @field next : Node* = a3 / a3;
+    }
+    @constraint a6 != nullptr;
+    @constraint a6 != a0;
+    @constraint a6 != a3;
+    @constraint a6 != a43;
+    @constraint a0 != nullptr;
+    @constraint a0 != a3;
+    @constraint a0 != a43;
+    @constraint a3 != nullptr;
+    @constraint a3 != a43;
+    @constraint d4 != MIN;
+    @constraint d4 != MAX;
+    @constraint d4 <= MAX;
+    @constraint d4 < MAX;
+    @constraint d4 >= MIN;
+    @constraint d4 > MIN;
+    @constraint d4 != d25;
+    @constraint d4 <= d25;
+    @constraint d4 < d25;
+    @constraint d4 != d30;
+    @constraint d4 >= d30;
+    @constraint d4 > d30;
+    @constraint b39 == false;
+    @constraint b39 != true;
+    @constraint d25 != MIN;
+    @constraint d25 <= MAX;
+    @constraint d25 >= MIN;
+    @constraint d25 > MIN;
+    @constraint d25 != d30;
+    @constraint d25 >= d30;
+    @constraint d25 > d30;
+    @constraint d30 != MAX;
+    @constraint d30 <= MAX;
+    @constraint d30 < MAX;
+    @constraint d30 >= MIN;
+    @constraint d4 >= d4;
+    @constraint a0 != a6;
+    @constraint d25 != d4;
+    @constraint d25 >= d25;
+    @constraint a3 != a0;
+    @constraint a3 != a6;
+    @constraint d30 != d4;
+    @constraint d30 != d25;
+    @constraint d30 >= d30;
+    @constraint d4 != MIN;
+    @constraint d4 != MAX;
+    @constraint d4 <= MAX;
+    @constraint d4 < MAX;
+    @constraint d4 >= MIN;
+    @constraint d4 > MIN;
+    @constraint b39 == false;
+    @constraint b39 != true;
+    @constraint d25 != MIN;
+    @constraint d25 <= MAX;
+    @constraint d25 >= MIN;
+    @constraint d25 > MIN;
+    @constraint a43 != a3;
+    @constraint d30 != MAX;
+    @constraint d30 <= MAX;
+    @constraint d30 < MAX;
+    @constraint d30 >= MIN;
+    @constraint d4 != d30;
+    @constraint d4 >= d30;
+    @constraint d4 > d30;
+    @constraint d4 != d25;
+    @constraint d4 <= d25;
+    @constraint d4 < d25;
+    @constraint d25 != d30;
+    @constraint d25 >= d30;
+    @constraint d25 > d30;
+    @constraint a6 != nullptr;
+    @constraint a6 != a43;
+    @constraint a0 != nullptr;
+    @constraint a3 != nullptr;
+    @constraint a6 != a0;
+    @constraint a0 != a43;
+    @constraint a6 != a3;
+    @constraint a0 != a3;
+    @constraint a3 != a43;
+    @constraint a0 != a3;
+    @constraint a0 != a6;
+    @constraint a3 != a0;
+    @constraint a3 != a6;
+    @constraint a6 != a0;
+    @constraint a6 != a3;
+}
+
+
+@graph { 
+    #name "CMD(entry->next = curr)"
+    @node[a27 : Node*] {
+        @pre-unreachable;
+        @pre-emptyInflow;
+        @field marked : bool = b35 / b35;
+        @field val : data_t = d18 / d18;
+        @field next : Node* = a40 / a26;
+    }
+    @node[a40 : Node*] {
+        @field marked : bool = b16 / b16;
+        @field val : data_t = d10 / d10;
+        @field next : Node* = a0 / a0;
+    }
+    @constraint d10 != MIN;
+    @constraint d10 <= MAX;
+    @constraint d10 >= MIN;
+    @constraint d10 > MIN;
+    @constraint d18 != MIN;
+    @constraint d18 != MAX;
+    @constraint d18 <= MAX;
+    @constraint d18 < MAX;
+    @constraint d18 >= MIN;
+    @constraint d18 > MIN;
+    @constraint a0 != a27;
+    @constraint a0 != a40;
+    @constraint a27 != nullptr;
+    @constraint a27 != a40;
+    @constraint a27 != a26;
+    @constraint b35 == false;
+    @constraint b35 != true;
+    @constraint a40 != nullptr;
+    @constraint a26 != nullptr;
+    @constraint d18 >= d18;
+    @constraint d18 != MIN;
+    @constraint d18 != MAX;
+    @constraint d18 <= MAX;
+    @constraint d18 < MAX;
+    @constraint d18 >= MIN;
+    @constraint d18 > MIN;
+    @constraint b35 == false;
+    @constraint b35 != true;
+    @constraint a0 != a27;
+    @constraint a0 != a40;
+    @constraint a27 != nullptr;
+    @constraint a27 != a40;
+    @constraint a40 != nullptr;
+    @constraint a26 != nullptr;
+    @constraint a27 != a26;
+    @constraint a27 != a40;
+    @constraint a40 != a27;
+}
+
+
+@graph { 
+    #name "CMD(pred->next = entry)"
+    @node[a0 : Node*] {
+        @field marked : bool = b35 / b35;
+        @field val : data_t = d25 / d25;
+        @field next : Node* = a3 / a6;
+    }
+    @node[a3 : Node*] {
+        @field marked : bool = b39 / b39;
+        @field val : data_t = d28 / d28;
+        @field next : Node* = a43 / a43;
+    }
+    @node[a6 : Node*] {
+        @pre-unreachable;
+        @pre-emptyInflow;
+        @field marked : bool = b35 / b35;
+        @field val : data_t = d4 / d4;
+        @field next : Node* = a3 / a3;
+    }
+    @constraint a6 != nullptr;
+    @constraint a6 != a0;
+    @constraint a6 != a3;
+    @constraint a6 != a43;
+    @constraint a0 != nullptr;
+    @constraint a0 != a3;
+    @constraint a0 != a43;
+    @constraint a3 != nullptr;
+    @constraint a3 != a43;
+    @constraint d4 != MIN;
+    @constraint d4 != MAX;
+    @constraint d4 <= MAX;
+    @constraint d4 < MAX;
+    @constraint d4 >= MIN;
+    @constraint d4 > MIN;
+    @constraint d4 != d25;
+    @constraint d4 >= d25;
+    @constraint d4 > d25;
+    @constraint d4 != d28;
+    @constraint d4 <= d28;
+    @constraint d4 < d28;
+    @constraint b35 == false;
+    @constraint b35 != true;
+    @constraint d25 != MAX;
+    @constraint d25 <= MAX;
+    @constraint d25 < MAX;
+    @constraint d25 >= MIN;
+    @constraint d25 != d28;
+    @constraint d25 <= d28;
+    @constraint d25 < d28;
+    @constraint d28 != MIN;
+    @constraint d28 <= MAX;
+    @constraint d28 >= MIN;
+    @constraint d28 > MIN;
+    @constraint d4 >= d4;
+    @constraint a3 != a0;
+    @constraint a0 != a6;
+    @constraint d28 != d4;
+    @constraint d28 >= d28;
+    @constraint d25 != d4;
+    @constraint d28 != d25;
+    @constraint d25 >= d25;
+    @constraint a3 != a6;
+    @constraint d4 != MIN;
+    @constraint d4 != MAX;
+    @constraint d4 <= MAX;
+    @constraint d4 < MAX;
+    @constraint d4 >= MIN;
+    @constraint d4 > MIN;
+    @constraint b35 == false;
+    @constraint b35 != true;
+    @constraint d25 != MAX;
+    @constraint d25 <= MAX;
+    @constraint d25 < MAX;
+    @constraint d25 >= MIN;
+    @constraint d28 != MIN;
+    @constraint d28 <= MAX;
+    @constraint d28 >= MIN;
+    @constraint d28 > MIN;
+    @constraint d4 != d25;
+    @constraint d4 >= d25;
+    @constraint d4 > d25;
+    @constraint d4 != d28;
+    @constraint d4 <= d28;
+    @constraint d4 < d28;
+    @constraint d25 != d28;
+    @constraint d25 <= d28;
+    @constraint d25 < d28;
+    @constraint a6 != nullptr;
+    @constraint a6 != a43;
+    @constraint a0 != nullptr;
+    @constraint a3 != nullptr;
+    @constraint a6 != a0;
+    @constraint a0 != a43;
+    @constraint a6 != a3;
+    @constraint a0 != a3;
+    @constraint a3 != a43;
+    @constraint a0 != a3;
+    @constraint a0 != a6;
+    @constraint a3 != a0;
+    @constraint a3 != a6;
+    @constraint a6 != a0;
+    @constraint a6 != a3;
+}
+
+
+@graph { 
+    #name "FUT(pred->next = next)"
+    @node[a22 : Node*] {
+        @field marked : bool = b16 / b16;
+        @field val : data_t = d28 / d28;
+        @field next : Node* = a12 / a27;
+    }
+    @node[a12 : Node*] {
+        @field marked : bool = b8 / b8;
+        @field val : data_t = d18 / d18;
+        @field next : Node* = a9 / a9;
+    }
+    @constraint a9 != a22;
+    @constraint a9 != a12;
+    @constraint a22 != nullptr;
+    @constraint a22 != a12;
+    @constraint a12 != nullptr;
+    @constraint b16 == false;
+    @constraint b16 != true;
+    @constraint d18 != MIN;
+    @constraint d18 <= MAX;
+    @constraint d18 >= MIN;
+    @constraint d18 > MIN;
+    @constraint d18 != d28;
+    @constraint d18 >= d28;
+    @constraint d18 > d28;
+    @constraint d28 != MAX;
+    @constraint d28 <= MAX;
+    @constraint d28 < MAX;
+    @constraint d28 >= MIN;
+    @constraint b16 == false;
+    @constraint d18 <= MAX;
+    @constraint d18 > MIN;
+    @constraint a12 != a22;
+    @constraint d28 != MAX;
+    @constraint d28 <= MAX;
+    @constraint d28 >= MIN;
+    @constraint d28 >= d28;
+    @constraint d28 != d18;
+    @constraint d18 != d28;
+    @constraint d18 >= d28;
+    @constraint d18 >= MIN;
+    @constraint d18 != MIN;
+    @constraint d18 >= d18;
+    @constraint d18 > d28;
+    @constraint d28 < MAX;
+    @constraint a9 != a22;
+    @constraint a9 != a12;
+    @constraint a22 != nullptr;
+    @constraint a22 != a12;
+    @constraint a12 != nullptr;
+    @constraint a22 != a12;
+    @constraint a12 != a22;
+}
+
+
+@graph { 
+    #name "FUT(pred->next = next)"
+    @node[a22 : Node*] {
+        @field marked : bool = b2 / b2;
+        @field val : data_t = d28 / d28;
+        @field next : Node* = a6 / a27;
+    }
+    @node[a6 : Node*] {
+        @field marked : bool = b8 / b8;
+        @field val : data_t = d18 / d18;
+        @field next : Node* = a9 / a9;
+    }
+    @constraint a9 != a6;
+    @constraint a9 != a22;
+    @constraint a6 != nullptr;
+    @constraint a6 != a22;
+    @constraint a22 != nullptr;
+    @constraint d18 != MIN;
+    @constraint d18 <= MAX;
+    @constraint d18 >= MIN;
+    @constraint d18 > MIN;
+    @constraint d18 != d28;
+    @constraint d18 >= d28;
+    @constraint d18 > d28;
+    @constraint b2 == false;
+    @constraint b2 != true;
+    @constraint d28 != MAX;
+    @constraint d28 <= MAX;
+    @constraint d28 < MAX;
+    @constraint d28 >= MIN;
+    @constraint b2 == false;
+    @constraint d18 <= MAX;
+    @constraint a22 != a6;
+    @constraint d18 > MIN;
+    @constraint d28 != MAX;
+    @constraint d28 <= MAX;
+    @constraint d28 >= MIN;
+    @constraint d28 >= d28;
+    @constraint d28 != d18;
+    @constraint d18 != d28;
+    @constraint d18 >= d28;
+    @constraint d18 >= MIN;
+    @constraint d18 != MIN;
+    @constraint d18 >= d18;
+    @constraint d18 > d28;
+    @constraint d28 < MAX;
+    @constraint a9 != a6;
+    @constraint a9 != a22;
+    @constraint a6 != nullptr;
+    @constraint a6 != a22;
+    @constraint a22 != nullptr;
+    @constraint a22 != a6;
+    @constraint a6 != a22;
+}
+
+
+@graph { 
+    #name "CMD(curr->marked = true)"
+    @node[a3 : Node*] {
+        @field marked : bool = b2 / b8;
+        @field val : data_t = d5 / d5;
+        @field next : Node* = a6 / a6;
+    }
+    @node[a6 : Node*] {
+        @field marked : bool = b32 / b32;
+        @field val : data_t = d25 / d25;
+        @field next : Node* = a13 / a13;
+    }
+    @constraint a6 != nullptr;
+    @constraint a6 != a13;
+    @constraint a6 != a3;
+    @constraint a13 != a3;
+    @constraint b2 == false;
+    @constraint b2 != true;
+    @constraint a3 != nullptr;
+    @constraint d5 != MIN;
+    @constraint d5 != MAX;
+    @constraint d5 <= MAX;
+    @constraint d5 < MAX;
+    @constraint d5 >= MIN;
+    @constraint d5 > MIN;
+    @constraint d5 != d25;
+    @constraint d5 <= d25;
+    @constraint d5 < d25;
+    @constraint d25 != MIN;
+    @constraint d25 <= MAX;
+    @constraint d25 >= MIN;
+    @constraint d25 > MIN;
+    @constraint d5 >= d5;
+    @constraint b2 == false;
+    @constraint b2 != true;
+    @constraint d5 != MIN;
+    @constraint d5 != MAX;
+    @constraint d5 <= MAX;
+    @constraint d5 < MAX;
+    @constraint d5 >= MIN;
+    @constraint d5 > MIN;
+    @constraint a6 != nullptr;
+    @constraint a3 != nullptr;
+    @constraint a6 != a13;
+    @constraint a6 != a3;
+    @constraint a13 != a3;
+    @constraint b8 == true;
+    @constraint a3 != a6;
+    @constraint a6 != a3;
+}
+
+
+@graph { 
+    #name "CMD(pred->next = next)"
+    @node[a0 : Node*] {
+        @field marked : bool = b32 / b32;
+        @field val : data_t = d25 / d25;
+        @field next : Node* = a3 / a6;
+    }
+    @node[a3 : Node*] {
+        @field marked : bool = b54 / b54;
+        @field val : data_t = d18 / d18;
+        @field next : Node* = a6 / a6;
+    }
+    @node[a6 : Node*] {
+        @field marked : bool = b35 / b35;
+        @field val : data_t = d28 / d28;
+        @field next : Node* = a43 / a43;
+    }
+    @constraint a6 != nullptr;
+    @constraint a6 != a0;
+    @constraint a6 != a3;
+    @constraint a6 != a43;
+    @constraint d18 != MIN;
+    @constraint d18 != MAX;
+    @constraint d18 <= MAX;
+    @constraint d18 < MAX;
+    @constraint d18 >= MIN;
+    @constraint d18 > MIN;
+    @constraint d18 != d25;
+    @constraint d18 >= d25;
+    @constraint d18 > d25;
+    @constraint d18 != d28;
+    @constraint d18 <= d28;
+    @constraint d18 < d28;
+    @constraint a0 != nullptr;
+    @constraint a0 != a3;
+    @constraint a0 != a43;
+    @constraint a3 != nullptr;
+    @constraint a3 != a43;
+    @constraint b54 == true;
+    @constraint b54 != false;
+    @constraint b54 != b32;
+    @constraint d25 != MAX;
+    @constraint d25 <= MAX;
+    @constraint d25 < MAX;
+    @constraint d25 >= MIN;
+    @constraint d25 != d28;
+    @constraint d25 <= d28;
+    @constraint d25 < d28;
+    @constraint b32 == false;
+    @constraint b32 != true;
+    @constraint d28 != MIN;
+    @constraint d28 <= MAX;
+    @constraint d28 >= MIN;
+    @constraint d28 > MIN;
+    @constraint d28 >= d28;
+    @constraint d18 >= d18;
+    @constraint d25 != d18;
+    @constraint d25 >= d25;
+    @constraint a3 != a0;
+    @constraint b32 != b54;
+    @constraint d18 != MIN;
+    @constraint d18 != MAX;
+    @constraint d18 <= MAX;
+    @constraint d18 < MAX;
+    @constraint d18 >= MIN;
+    @constraint d18 > MIN;
+    @constraint b54 == true;
+    @constraint b54 != false;
+    @constraint d25 != MAX;
+    @constraint d25 <= MAX;
+    @constraint d25 < MAX;
+    @constraint d25 >= MIN;
+    @constraint b32 == false;
+    @constraint b32 != true;
+    @constraint d28 != MIN;
+    @constraint d28 <= MAX;
+    @constraint d28 >= MIN;
+    @constraint d28 > MIN;
+    @constraint d18 != d25;
+    @constraint d18 >= d25;
+    @constraint d18 > d25;
+    @constraint b54 != b32;
+    @constraint a6 != nullptr;
+    @constraint a0 != nullptr;
+    @constraint a3 != nullptr;
+    @constraint a0 != a43;
+    @constraint a6 != a0;
+    @constraint a6 != a43;
+    @constraint a6 != a3;
+    @constraint a0 != a3;
+    @constraint a3 != a43;
+    @constraint a0 != a3;
+    @constraint a0 != a6;
+    @constraint a3 != a0;
+    @constraint a3 != a6;
+    @constraint a6 != a0;
+    @constraint a6 != a3;
+}
+
+
+@graph { 
+    #name "CMD(curr->marked = true)"
+    @node[a3 : Node*] {
+        @field marked : bool = b32 / b2;
+        @field val : data_t = d5 / d5;
+        @field next : Node* = a6 / a6;
+    }
+    @node[a6 : Node*] {
+        @field marked : bool = b16 / b16;
+        @field val : data_t = d24 / d24;
+        @field next : Node* = a13 / a13;
+    }
+    @constraint a6 != nullptr;
+    @constraint a6 != a13;
+    @constraint a6 != a3;
+    @constraint a13 != a3;
+    @constraint a3 != nullptr;
+    @constraint d5 != MIN;
+    @constraint d5 != MAX;
+    @constraint d5 <= MAX;
+    @constraint d5 < MAX;
+    @constraint d5 >= MIN;
+    @constraint d5 > MIN;
+    @constraint d5 != d24;
+    @constraint d5 <= d24;
+    @constraint d5 < d24;
+    @constraint d24 != MIN;
+    @constraint d24 <= MAX;
+    @constraint d24 >= MIN;
+    @constraint d24 > MIN;
+    @constraint b32 == false;
+    @constraint b32 != true;
+    @constraint d5 >= d5;
+    @constraint d5 != MIN;
+    @constraint d5 != MAX;
+    @constraint d5 <= MAX;
+    @constraint d5 < MAX;
+    @constraint d5 >= MIN;
+    @constraint d5 > MIN;
+    @constraint b32 == false;
+    @constraint b32 != true;
+    @constraint a6 != nullptr;
+    @constraint a3 != nullptr;
+    @constraint a6 != a13;
+    @constraint a6 != a3;
+    @constraint a13 != a3;
+    @constraint b2 == true;
+    @constraint a3 != a6;
+    @constraint a6 != a3;
+}
+
+
+@graph { 
+    #name "CMD(pred->next = next)"
+    @node[a0 : Node*] {
+        @field marked : bool = b39 / b39;
+        @field val : data_t = d41 / d41;
+        @field next : Node* = a3 / a6;
+    }
+    @node[a3 : Node*] {
+        @field marked : bool = b54 / b54;
+        @field val : data_t = d18 / d18;
+        @field next : Node* = a6 / a6;
+    }
+    @node[a6 : Node*] {
+        @field marked : bool = b16 / b16;
+        @field val : data_t = d30 / d30;
+        @field next : Node* = a36 / a36;
+    }
+    @constraint a6 != nullptr;
+    @constraint a6 != a0;
+    @constraint a6 != a3;
+    @constraint a6 != a36;
+    @constraint d18 != MIN;
+    @constraint d18 != MAX;
+    @constraint d18 <= MAX;
+    @constraint d18 < MAX;
+    @constraint d18 >= MIN;
+    @constraint d18 > MIN;
+    @constraint d18 != d41;
+    @constraint d18 >= d41;
+    @constraint d18 > d41;
+    @constraint d18 != d30;
+    @constraint d18 <= d30;
+    @constraint d18 < d30;
+    @constraint a0 != nullptr;
+    @constraint a0 != a3;
+    @constraint a0 != a36;
+    @constraint a3 != nullptr;
+    @constraint a3 != a36;
+    @constraint d41 != MAX;
+    @constraint d41 <= MAX;
+    @constraint d41 < MAX;
+    @constraint d41 >= MIN;
+    @constraint d41 != d30;
+    @constraint d41 <= d30;
+    @constraint d41 < d30;
+    @constraint b54 == true;
+    @constraint b54 != false;
+    @constraint b54 != b39;
+    @constraint b39 == false;
+    @constraint b39 != true;
+    @constraint d30 != MIN;
+    @constraint d30 <= MAX;
+    @constraint d30 >= MIN;
+    @constraint d30 > MIN;
+    @constraint d30 >= d30;
+    @constraint d18 >= d18;
+    @constraint d41 != d18;
+    @constraint d41 >= d41;
+    @constraint a3 != a0;
+    @constraint b39 != b54;
+    @constraint d18 != MIN;
+    @constraint d18 != MAX;
+    @constraint d18 <= MAX;
+    @constraint d18 < MAX;
+    @constraint d18 >= MIN;
+    @constraint d18 > MIN;
+    @constraint d41 != MAX;
+    @constraint d41 <= MAX;
+    @constraint d41 < MAX;
+    @constraint d41 >= MIN;
+    @constraint b54 == true;
+    @constraint b54 != false;
+    @constraint b39 == false;
+    @constraint b39 != true;
+    @constraint a36 != a3;
+    @constraint d30 != MIN;
+    @constraint d30 <= MAX;
+    @constraint d30 >= MIN;
+    @constraint d30 > MIN;
+    @constraint d18 != d41;
+    @constraint d18 >= d41;
+    @constraint d18 > d41;
+    @constraint b54 != b39;
+    @constraint a6 != nullptr;
+    @constraint a0 != nullptr;
+    @constraint a3 != nullptr;
+    @constraint a0 != a36;
+    @constraint a6 != a0;
+    @constraint a6 != a36;
+    @constraint a6 != a3;
+    @constraint a0 != a3;
+    @constraint a3 != a36;
+    @constraint a0 != a3;
+    @constraint a0 != a6;
+    @constraint a3 != a0;
+    @constraint a3 != a6;
+    @constraint a6 != a0;
+    @constraint a6 != a3;
+}

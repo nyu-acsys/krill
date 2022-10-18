@@ -87,6 +87,7 @@ inline void Evaluate(const FlowConstraintsParsingResult& input, const CommandLin
     auto& output = toFile ? fileOutput : std::cout;
 
     if (toFile) {
+        INFO("## " << input.name << std::endl)
         INFO("Read " << input.constraints.size() << " flow constraints." << std::endl)
         INFO("Performing " << config.repetitions << " repetitions." << std::endl)
         INFO("Running evaluation... " << std::flush)
@@ -96,16 +97,18 @@ inline void Evaluate(const FlowConstraintsParsingResult& input, const CommandLin
     auto percentage = [&]() -> std::size_t { return ((counter * 1.0) / (total * 1.0)) * 100.0; };
     for (std::size_t rep = 0; rep < config.repetitions; ++rep) {
         for (const auto& graph: input.constraints) {
-            // Evaluate(output, *graph, rep, input.name, "General", Evaluate_GeneralMethod_NoAcyclicityCheck);
-            // Evaluate(output, *graph, rep, input.name, "New", Evaluate_NewMethod_AllPaths);
-            // Evaluate(output, *graph, rep, input.name, "New+Dec", Evaluate_NewMethod_DiffPaths);
-            Evaluate(output, *graph, rep, input.name, "Naive", Evaluate_GeneralMethod_WithAcyclicityCheck);
-            Evaluate(output, *graph, rep, input.name, "Dist", Evaluate_NewMethod_DistributivityOnlyWithAcyclicityCheck);
-            Evaluate(output, *graph, rep, input.name, "New", Evaluate_NewMethod_DiffPathsIndividually);
-            if (counter++ % 50 == 0 && toFile) INFO(percentage() << "% " << std::flush)
+            // Evaluate(output, *graph, rep, input.name, "Naive", Evaluate_GeneralMethod_NoAcyclicityCheck);
+            // Evaluate(output, *graph, rep, input.name, "Dist", Evaluate_NewMethod_AllPaths);
+            // Evaluate(output, *graph, rep, input.name, "Dist", Evaluate_NewMethod_DiffPaths);
+            Evaluate(output, *graph, rep, input.name, "   Naive", Evaluate_GeneralMethod_WithAcyclicityCheck);
+            Evaluate(output, *graph, rep, input.name, "  Dist", Evaluate_NewMethod_DistributivityOnlyWithAcyclicityCheck);
+            Evaluate(output, *graph, rep, input.name, " New", Evaluate_NewMethod_DiffPathsIndividually);
+            // if (counter++ % 50 == 0 && toFile) INFO(percentage() << "% " << std::flush)
+            counter++;
+            if (toFile) INFO("\rRunning evaluation... " << percentage() << "% " << std::flush)
         }
     }
-    if (toFile) INFO("100% done!" << std::endl)
+    if (toFile) INFO("\rRunning evaluation... 100% done! " << std::endl << std::endl)
 }
 
 
