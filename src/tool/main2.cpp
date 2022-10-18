@@ -72,11 +72,12 @@ inline std::string SizeOf(const std::optional<NodeSet>& footprint) {
     return std::to_string(footprint->size());
 }
 
-inline void Evaluate(std::ostream& output, const FlowConstraint& graph, std::size_t rep, std::string testName, const std::string& methodName,
+inline int Evaluate(std::ostream& output, const FlowConstraint& graph, std::size_t rep, std::string testName, const std::string& methodName,
                      const std::function<Evaluation(const FlowConstraint&)>& method) {
     auto eval = method(graph);
     if (testName.empty()) testName = "--";
     output << methodName << "," << SizeOf(eval.footprint) << "," << eval.time.count() << ",\"" << testName << "\"," << rep << ",\"" << graph.name << "\"" << std::endl;
+    return eval.footprint.has_value() ? eval.footprint->size() : -1;
 }
 
 inline void Evaluate(const FlowConstraintsParsingResult& input, const CommandLineInput& config) {
@@ -93,15 +94,21 @@ inline void Evaluate(const FlowConstraintsParsingResult& input, const CommandLin
     std::size_t counter = 0;
     std::size_t total = input.constraints.size() * config.repetitions;
     auto percentage = [&]() -> std::size_t { return ((counter * 1.0) / (total * 1.0)) * 100.0; };
+    INFO(std::endl)
     for (std::size_t rep = 0; rep < config.repetitions; ++rep) {
         for (const auto& graph: input.constraints) {
+            INFO(std::endl << "~~[" << rep << "][" << graph->name << "]" << std::endl)
             // Evaluate(output, *graph, rep, input.name, "General", Evaluate_GeneralMethod_NoAcyclicityCheck);
-            Evaluate(output, *graph, rep, input.name, "General+Acyc", Evaluate_GeneralMethod_WithAcyclicityCheck);
-            Evaluate(output, *graph, rep, input.name, "Dist+Acyc", Evaluate_NewMethod_DistributivityOnlyWithAcyclicityCheck);
             // Evaluate(output, *graph, rep, input.name, "New", Evaluate_NewMethod_AllPaths);
             // Evaluate(output, *graph, rep, input.name, "New+Dec", Evaluate_NewMethod_DiffPaths);
-            Evaluate(output, *graph, rep, input.name, "New", Evaluate_NewMethod_DiffPathsIndividually);
-            if (counter++ % 50 == 0 && toFile) INFO(percentage() << "% " << std::flush)
+            auto e1 = Evaluate(output, *graph, rep, input.name, "General+Acyc", Evaluate_GeneralMethod_WithAcyclicityCheck);
+            auto e2 = Evaluate(output, *graph, rep, input.name, "Dist+Acyc", Evaluate_NewMethod_DistributivityOnlyWithAcyclicityCheck);
+            auto e3 = Evaluate(output, *graph, rep, input.name, "New", Evaluate_NewMethod_DiffPathsIndividually);
+            if (e1 != e2 || e2 != e3) {
+                INFO(std::endl << std::endl << "** MISMATCH: " << graph->name << "  " << e1 << " vs " << e2 << " vs " << e3 << std::endl)
+                throw std::logic_error("FOOTPRINT MISMATCH");
+            }
+            // if (counter++ % 50 == 0 && toFile) INFO(percentage() << "% " << std::flush)
         }
     }
     if (toFile) INFO("100% done!" << std::endl)
