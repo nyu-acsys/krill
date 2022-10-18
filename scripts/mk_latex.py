@@ -169,7 +169,7 @@ def main():
             eprint("\rProcessing: {:>3}%".format(p), end="")
     eprint("\rComplete: 100%      ")
     all_structures = [x for x in sorted(all_structures)]
-    all_methods = [x.strip() for x in sorted(all_methods)]
+    all_methods = [x for x in sorted(all_methods)]
     all_sizes = [x for x in sorted(all_sizes)]
     graph_map = {structure: extract_count(sum([list(x.values()) for x in mmap.values()], [])) for structure, mmap in graph_map.items()}
     graph_map = {structure: count for structure, count in graph_map.items() if count}
