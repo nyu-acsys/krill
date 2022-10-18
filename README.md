@@ -1,5 +1,5 @@
-# plankton
+# krill
 
-Experimental verifier for lock-free data structures using flows in a program logic.
+Flow footprint computation for flow graph updates that stem from lock-free data structures.
 
-See [project page](https://wolff09.github.io/plankton/).
+See [project page](https://nyu-acsys.github.io/krill/).
