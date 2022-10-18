@@ -13,7 +13,8 @@ namespace plankton {
     
     struct AstBuilder {
         static ParsingResult BuildFrom(std::istream& input, bool spuriousCasFails); // may return NULL config
-        
+        static FlowConstraintsParsingResult BuildGraphsFrom(std::istream& input);
+
         // declarations (lookup / creation)
         [[nodiscard]] const Type& TypeByName(const std::string& name) const;
         [[nodiscard]] const Type* TypeByNameOrNull(const std::string& name) const;
@@ -70,6 +71,13 @@ namespace plankton {
         std::unique_ptr<Statement> MakeCas(PlanktonParser::CmdCasContext& context);
         std::unique_ptr<Statement> MakeLock(PlanktonParser::CmdLockContext& context);
         std::unique_ptr<Statement> MakeUnlock(PlanktonParser::CmdUnlockContext& context);
+
+        // graphs
+        void PrepareMake(PlanktonParser::FlowgraphsContext& context);
+        std::unique_ptr<ParsedSolverConfig> MakeConfig(PlanktonParser::FlowgraphsContext& context);
+        FlowConstraintsParsingResult MakeFlowgraphs(PlanktonParser::FlowgraphsContext& context);
+        std::unique_ptr<FlowConstraint> MakeFlowgraph(PlanktonParser::GraphContext& context, const SolverConfig& config);
+        std::string MakeFootprintConfig(const Program& program, PlanktonParser::ProgramContext& context);
 
         // parsing configuration
         [[nodiscard]] bool SpuriousCasFail() const;

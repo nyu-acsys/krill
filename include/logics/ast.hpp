@@ -50,8 +50,9 @@ namespace plankton {
         explicit SymbolFactory(const LogicObject& avoid);
         SymbolFactory(SymbolFactory&& other) = default;
         SymbolFactory(const SymbolFactory& other) = delete;
-        
+
         void Avoid(const LogicObject& avoid);
+        void Avoid(const SymbolDeclaration& avoid);
         const SymbolDeclaration& GetFresh(const Type& type, Order order);
         inline const SymbolDeclaration& GetFreshFO(const Type& type) { return GetFresh(type, Order::FIRST); }
         inline const SymbolDeclaration& GetFreshSO(const Type& type) { return GetFresh(type, Order::SECOND); }

@@ -47,7 +47,7 @@ void ProofGenerator::Visit(const Choice& stmt) {
 void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
     if (current.empty()) return;
 
-    if (setup.loopJoinUntilFixpoint) {
+    if (setup->loopJoinUntilFixpoint) {
         //
         // Join-based loop invariant search
         //
@@ -79,7 +79,7 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
             std::size_t counter = 0;
             auto join = joinCurrent();
             while (true) {
-                if (counter++ > setup.loopMaxIterations) throw std::logic_error("Aborting: loop does not seem to stabilize."); // TODO: remove / better error handling
+                if (counter++ > setup->loopMaxIterations) throw std::logic_error("Aborting: loop does not seem to stabilize."); // TODO: remove / better error handling
                 infoPrefix.Pop();
                 infoPrefix.Push("loop-", counter);
                 INFO(infoPrefix << "Starting iteration " << counter << " of loop invariant search..." << std::endl)
@@ -111,7 +111,7 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
         // PruneCurrent();
         // ImproveCurrentTime();
         // ReduceCurrentTime();
-        if (setup.loopJoinPost) JoinCurrent();
+        if (setup->loopJoinPost) JoinCurrent();
 
         breaking = std::move(breakingOuter);
         MoveInto(std::move(returningOuter), returning);
@@ -129,7 +129,7 @@ void ProofGenerator::Visit(const UnconditionalLoop& stmt) {
         infoPrefix.Push(""); // dummy, gets popped immediately
         decltype(current) posted;
         do {
-            if (counter++ > setup.loopMaxIterations) throw std::logic_error("Aborting: widening does not seem to produce loop invariant."); // TODO: remove / better error handling
+            if (counter++ > setup->loopMaxIterations) throw std::logic_error("Aborting: widening does not seem to produce loop invariant."); // TODO: remove / better error handling
             infoPrefix.Pop();
             infoPrefix.Push("loop-", counter);
             INFO(infoPrefix << "Starting iteration " << counter << " of loop invariant search..." << std::endl)

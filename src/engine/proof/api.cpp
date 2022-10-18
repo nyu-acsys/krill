@@ -37,7 +37,7 @@ void ProofGenerator::GenerateProof() {
     }
 
     // check API functions
-    for (std::size_t counter = 0; counter < setup.proofMaxIterations; ++counter) {
+    for (std::size_t counter = 0; counter < setup->proofMaxIterations; ++counter) {
         infoPrefix.Push("iter-", counter);
         INFO(infoPrefix << "Starting iteration " << counter << " of fixed-point iteration..." << std::endl)
 

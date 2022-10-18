@@ -58,6 +58,9 @@ set(SOURCES
 
         linearizability.cpp
         static.cpp
+
+        footprint/constraint.cpp
+        footprint/feval.cpp
 )
 
 find_package (Threads)

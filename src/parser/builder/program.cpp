@@ -8,9 +8,7 @@
 using namespace plankton;
 
 
-inline void HandleTypes(PlanktonParser::ProgramContext& context, AstBuilder& builder) {
-    auto typeContexts = context.structs;
-
+inline void HandleTypes(const std::vector<PlanktonParser::StructDeclContext*>& typeContexts, AstBuilder& builder) {
     // initialize types without fields
     std::vector<Type*> types;
     for (auto* typeContext : typeContexts) {
@@ -98,8 +96,14 @@ std::string MakeName(PlanktonParser::ProgramContext& context, AstBuilder& /*buil
 
 void AstBuilder::PrepareMake(PlanktonParser::ProgramContext& context) {
     PushScope();
-    HandleTypes(context, *this);
+    HandleTypes(context.structs, *this);
     HandleSharedVariables(context, *this);
+    prepared = true;
+}
+
+void AstBuilder::PrepareMake(PlanktonParser::FlowgraphsContext& context) {
+    PushScope();
+    HandleTypes(context.structs, *this);
     prepared = true;
 }
 
@@ -125,11 +129,11 @@ std::unique_ptr<Program> AstBuilder::MakeProgram(PlanktonParser::ProgramContext&
 
     HandleFunctions<PlanktonParser::FunctionMacroContext>(context, *this);
     HandleFunctions<PlanktonParser::FunctionInterfaceContext>(context, *this);
-    
+
     auto init = MakeInitFunction(context, *this);
     auto name = MakeName(context, *this);
     auto program = std::make_unique<Program>(name, std::move(init));
-    
+
     program->variables = PopScope();
     plankton::MoveInto(std::move(_types), program->types);
     for (auto&& function : std::move(_functions)) {
@@ -139,7 +143,7 @@ std::unique_ptr<Program> AstBuilder::MakeProgram(PlanktonParser::ProgramContext&
             case Function::INIT: throw std::logic_error("Internal error: unexpected function type."); // TODO: better error handling
         }
     }
-    
+
     PostProcess(*program);
     return program;
 }

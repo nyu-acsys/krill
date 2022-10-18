@@ -1,3 +1,5 @@
+#include <utility>
+
 #include "engine/solver.hpp"
 
 #include "programs/util.hpp"
@@ -89,7 +91,7 @@ struct AssumptionChecker : DefaultProgramVisitor {
     }
 };
 
-Solver::Solver(const Program& program, const SolverConfig& config) : config(config), dataFlow(program) {
+Solver::Solver(const Program& program, const SolverConfig& config, std::shared_ptr<EngineSetup> setup) : setup(std::move(setup)), config(config), dataFlow(program) {
     // sanity check
     AssumptionChecker checker;
     program.Accept(checker);

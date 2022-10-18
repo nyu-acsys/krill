@@ -1,10 +1,12 @@
 #include <chrono>
+#include <utility>
 #include "tclap/CmdLine.h"
 #include "cfg2string.hpp"
 #include "engine/linearizability.hpp"
 #include "engine/setup.hpp"
 #include "parser/parse.hpp"
 #include "util/log.hpp"
+
 
 using namespace plankton;
 
@@ -17,7 +19,7 @@ struct CommandLineInput {
     std::string pathToInput;
     bool spuriousCasFail = false;
     bool printGist = false;
-    EngineSetup setup;
+    std::shared_ptr<EngineSetup> setup = std::make_shared<EngineSetup>();
 };
 
 struct IsRegularFileConstraint : public TCLAP::Constraint<std::string> {
@@ -38,7 +40,7 @@ inline CommandLineInput Interact(int argc, char** argv) {
 
     TCLAP::CmdLine cmd("PLANKTON verification tool for lock-free data structures", ' ', "1.0");
     auto isFile = std::make_unique<IsRegularFileConstraint>("_to_input");
-    
+
     TCLAP::SwitchArg casSwitch("", "no-spurious", "Deactivates Compare-and-Swap failing spuriously", cmd, false);
     TCLAP::SwitchArg gistSwitch("g", "gist", "Print machine readable gist at the very end", cmd, false);
     TCLAP::UnlabeledValueArg<std::string> programArg("input", "Input file with program code and flow definition", true, "", isFile.get(), cmd);
@@ -49,16 +51,24 @@ inline CommandLineInput Interact(int argc, char** argv) {
     TCLAP::ValueArg<std::size_t> loopMaxIterArg("", "loopMaxIter", "Maximal iterations for finding a loop invariant before aborting", false, 23, "integer", cmd);
     TCLAP::ValueArg<std::size_t> proofMaxIterArg("", "proofMaxIter", "Maximal iterations for finding an interference set before aborting", false, 7, "integer", cmd);
 
+    TCLAP::ValueArg<std::string> footprintFileArg("f", "footprint", "File to which footprints are exported", false, "", isFile.get(), cmd);
+    TCLAP::SwitchArg footprintPrecisionSwitch("p", "precision", "Increases precision when computing flow constraint bounds", cmd, false);
+
     cmd.parse(argc, argv);
     input.pathToInput = programArg.getValue();
     input.spuriousCasFail = !casSwitch.getValue();
     input.printGist = gistSwitch.getValue();
 
-    input.setup.loopJoinUntilFixpoint = !loopWidenSwitch.getValue();
-    input.setup.loopJoinPost = !loopNoPostJoinSwitch.getValue();
-    input.setup.macrosTabulateInvocations = !macroNoTabulationSwitch.getValue();
-    input.setup.loopMaxIterations = loopMaxIterArg.getValue();
-    input.setup.proofMaxIterations = proofMaxIterArg.getValue();
+    input.setup->loopJoinUntilFixpoint = !loopWidenSwitch.getValue();
+    input.setup->loopJoinPost = !loopNoPostJoinSwitch.getValue();
+    input.setup->macrosTabulateInvocations = !macroNoTabulationSwitch.getValue();
+    input.setup->loopMaxIterations = loopMaxIterArg.getValue();
+    input.setup->proofMaxIterations = proofMaxIterArg.getValue();
+    input.setup->footprintPrecision = footprintPrecisionSwitch.getValue();
+
+    if (footprintFileArg.isSet()) {
+        input.setup->footprints.open(footprintFileArg.getValue());
+    }
 
     return input;
 }
@@ -84,10 +94,14 @@ struct VerificationResult {
     milliseconds_t timeTaken = milliseconds_t(0);
 };
 
-inline VerificationResult Verify(const ParsingResult& input, const EngineSetup& setup) {
+inline VerificationResult Verify(const ParsingResult& input, const CommandLineInput& cmd) {
+    if (cmd.setup->footprints.is_open()) {
+        cmd.setup->footprints << input.footprintConfig << std::endl;
+    }
+
     VerificationResult result;
     auto begin = std::chrono::steady_clock::now();
-    result.linearizable = plankton::IsLinearizable(*input.program, *input.config, setup);
+    result.linearizable = plankton::IsLinearizable(*input.program, *input.config, cmd.setup);
     auto end = std::chrono::steady_clock::now();
     result.timeTaken = std::chrono::duration_cast<milliseconds_t>(end - begin);
     return result;
@@ -130,7 +144,7 @@ int main(int argc, char** argv) {
         auto cmd = Interact(argc, argv);
         auto input = Parse(cmd);
         PrintInput(input);
-        auto result = Verify(input, cmd.setup);
+        auto result = Verify(input, cmd);
         PrintResult(cmd, input, result);
         return 0;
 

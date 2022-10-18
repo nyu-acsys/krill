@@ -198,7 +198,7 @@ void ProofGenerator::Visit(const Macro& cmd) {
     DEBUG_FOREACH(current, [](const auto& elem){ DEBUG("  -- " << *elem << std::endl) })
 
     // TODO: proper framing?
-    if (setup.macrosTabulateInvocations) HandleMacroLazy(cmd);
+    if (setup->macrosTabulateInvocations) HandleMacroLazy(cmd);
     else HandleMacroEager(cmd);
 
     // restore caller context

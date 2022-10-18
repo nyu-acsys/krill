@@ -7,6 +7,7 @@
 #include "util/log.hpp"
 #include "util/timer.hpp"
 
+
 using namespace plankton;
 
 
@@ -592,6 +593,8 @@ inline bool IsTrivial(const Formula& state, const MemoryWrite& cmd) {
     return encoding.Implies(encoding.MakeAnd(equalities));
 }
 
+void WriteGraphToFile(const FlowGraph&, const std::shared_ptr<EngineSetup>&, const MemoryWrite&, bool);
+
 PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, bool useFuture) const {
     MEASURE("Solver::Post (MemoryWrite)")
     DEBUG("<<POST MEM>> [useFuture=" << useFuture << "]" << std::endl << *pre << " " << cmd << std::flush)
@@ -613,6 +616,8 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
     try {
         PostImageInfo info(std::move(pre), cmd, config);
         if (info.encoding.ImpliesFalse()) return PostImage();
+        WriteGraphToFile(info.footprint, setup, cmd, !useFuture);
+
         // if (info.encoding.ImpliesFalse()) throw std::logic_error("Failed to perform proper memory update: cautiously refusing to post unsatisfiable encoding."); // TODO better error handling
         CheckPublishing(info);
         CheckReachability(info);
@@ -640,4 +645,129 @@ PostImage Solver::Post(std::unique_ptr<Annotation> pre, const MemoryWrite& cmd, 
         DEBUG("/* from future */ " << *fromFuture << std::endl << std::endl)
         return PostImage(std::move(fromFuture));
     }
+}
+
+//
+// Footprint to file
+//
+
+std::deque<std::shared_ptr<Axiom>> MakeContext(const FlowGraph& graph) {
+    std::deque<std::shared_ptr<Axiom>> result;
+
+    // get relevant symbols
+    std::set<const SymbolDeclaration*> symbols;
+    for (const auto& node : graph.nodes) {
+        plankton::InsertInto(plankton::CollectUsefulSymbols(*node.ToLogic(EMode::PRE)), symbols);
+        plankton::InsertInto(plankton::CollectUsefulSymbols(*node.ToLogic(EMode::POST)), symbols);
+    }
+
+    // get implied stack axioms
+    auto candidates = plankton::MakeStackCandidates(*graph.pre->now, ExtensionPolicy::FAST);
+    for (const auto& elem : graph.pre->now->conjuncts) {
+        if (auto axiom = dynamic_cast<const Axiom*>(elem.get())) candidates.push_back(plankton::Copy(*axiom));
+    }
+    Encoding encoding(graph);
+    for (auto& elem : candidates) {
+        if (!dynamic_cast<const StackAxiom*>(elem.get())) continue;
+        if (plankton::EmptyIntersection(symbols, plankton::Collect<SymbolDeclaration>(*elem))) continue;
+        encoding.AddCheck(encoding.Encode(*elem), [&](bool holds){
+            if (holds) result.push_back(std::move(elem));
+        });
+    }
+    encoding.Check();
+
+    // add separation
+    for (const auto& node : graph.nodes) {
+        for (const auto& other : graph.nodes) {
+            if (&node == &other) continue;
+            result.push_back(std::make_unique<StackAxiom>(
+                    BinaryOperator::NEQ,
+                    std::make_unique<SymbolicVariable>(node.address),
+                    std::make_unique<SymbolicVariable>(other.address)
+            ));
+        }
+    }
+
+    return result;
+
+    // // get implied stack axioms
+    // Encoding encoding(graph);
+    // auto annotation = std::make_unique<Annotation>(plankton::Copy(*graph.pre->now));
+    // plankton::ExtendStack(*annotation, encoding, ExtensionPolicy::FAST);
+    //
+    // // add separation
+    // for (const auto& node : graph.nodes) {
+    //     for (const auto& other : graph.nodes) {
+    //         if (&node == &other) continue;
+    //         annotation->Conjoin(std::make_unique<StackAxiom>(
+    //                 BinaryOperator::NEQ,
+    //                 std::make_unique<SymbolicVariable>(node.address),
+    //                 std::make_unique<SymbolicVariable>(other.address)
+    //         ));
+    //     }
+    // }
+    //
+    // // extract stack axioms
+    // std::deque<std::shared_ptr<Axiom>> result;
+    // for (auto& elem : annotation->now->conjuncts) {
+    //     if (auto axiomPtr = dynamic_cast<StackAxiom*>(elem.get())) {
+    //         (void) elem.release();
+    //         result.push_back(std::unique_ptr<StackAxiom>(axiomPtr));
+    //     }
+    // }
+    // return result;
+}
+
+#include <regex>
+
+std::string AsStr(const MemoryWrite& cmd) {
+    // return std::regex_replace(plankton::ToString(cmd), std::regex(" "), "");
+    return std::regex_replace(plankton::ToString(cmd), std::regex("; "), "");
+}
+
+void WriteGraphToFile(const FlowGraph& graph, const std::shared_ptr<EngineSetup>& setup, const MemoryWrite& cmd, bool forFuture) {
+    if (!setup || !setup->footprints.is_open()) return;
+    std::set<const SymbolDeclaration*> symbols;
+
+    Encoding encoding(graph);
+    auto hasEmptyInflow = [&](const auto& node) {
+        if (!setup->footprintPrecision || node.parent.GetRoot().address == node.address)
+            return encoding.Implies(InflowEmptinessAxiom(node.preAllInflow, true));
+        return encoding.Implies(InflowEmptinessAxiom(node.frameInflow, true));
+    };
+
+    auto& out = setup->footprints;
+    auto rename = [](const auto& obj) -> std::string {
+        std::stringstream stream;
+        stream << obj;
+        auto tmp = std::regex_replace(stream.str(), std::regex("@"), "");
+        tmp = std::regex_replace(tmp, std::regex("-∞"), "MIN");
+        return std::regex_replace(tmp, std::regex("∞"), "MAX");
+    };
+    auto printField = [&](const auto& field) {
+        symbols.insert(&field.preValue.get());
+        symbols.insert(&field.postValue.get());
+        out << "        @field " << rename(field.name) << " : " << field.type.name;
+        if (field.type.sort == Sort::PTR) out << "*";
+        out << " = " << rename(field.preValue.get()) << " / " << rename(field.postValue.get()) << ";" << std::endl;
+    };
+
+    out << std::endl << std::endl;
+    out << "@graph { " << std::endl;
+    out << "    #name \"" << (forFuture ? "FUT" : "CMD") << "(" << AsStr(cmd) << ")\"" << std::endl;
+    for (const auto& node : graph.nodes) {
+        symbols.insert(&node.address);
+        out << "    @node[" << rename(node.address) << " : " << node.address.type.name << "*] {" << std::endl;
+        if (node.preLocal) out << "        @pre-unreachable;" << std::endl;
+        if (hasEmptyInflow(node)) out << "        @pre-emptyInflow;" << std::endl;
+        for (const auto& field : node.dataFields) printField(field);
+        for (const auto& field : node.pointerFields) printField(field);
+        out << "    }" << std::endl;
+    }
+    for (const auto& axiom : MakeContext(graph)) {
+        auto axiomSymbols = plankton::Collect<SymbolDeclaration>(*axiom);
+        if (!plankton::Subset(axiomSymbols, symbols)) continue;
+        out << "    @constraint " << rename(*axiom) << ";" << std::endl;
+    }
+    out << "}" << std::endl;
 }

@@ -1,4 +1,4 @@
-project(plankton CXX)
+project(krill CXX)
 set(TOOL_NAME plankton)
 
 # built requirements
@@ -40,6 +40,10 @@ include_directories(include)
 add_subdirectory(src)
 
 # installation
-install(FILES benchmark.py DESTINATION ${INSTALL_FOLDER})
-install(FILES stresstest.py DESTINATION ${INSTALL_FOLDER})
-install(DIRECTORY examples DESTINATION ${INSTALL_FOLDER})
+install(PROGRAMS scripts/mk_latex.py DESTINATION ${INSTALL_FOLDER})
+install(PROGRAMS scripts/mk_graphs.sh DESTINATION ${INSTALL_FOLDER})
+install(PROGRAMS scripts/mk_footprints.sh DESTINATION ${INSTALL_FOLDER})
+install(PROGRAMS scripts/mk_pdf.sh DESTINATION ${INSTALL_FOLDER})
+install(PROGRAMS scripts/eval.sh DESTINATION ${INSTALL_FOLDER})
+install(DIRECTORY examples/programs DESTINATION ${INSTALL_FOLDER})
+install(DIRECTORY examples/graphs DESTINATION ${INSTALL_FOLDER})

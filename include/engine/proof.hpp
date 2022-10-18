@@ -15,7 +15,7 @@
 namespace plankton {
 
     struct ProofGenerator final : public BaseProgramVisitor {
-        explicit ProofGenerator(const Program& program, const SolverConfig& config, EngineSetup setup);
+        explicit ProofGenerator(const Program& program, const SolverConfig& config, std::shared_ptr<EngineSetup> setup);
         void GenerateProof();
 
         // TODO: can we make those inaccessible for callers generating a proof?
@@ -44,7 +44,7 @@ namespace plankton {
 
         const Program& program;
         Solver solver;
-        EngineSetup setup;
+        std::shared_ptr<EngineSetup> setup;
         std::deque<std::unique_ptr<HeapEffect>> newInterference;
         std::deque<std::unique_ptr<Annotation>> current;
         std::deque<std::unique_ptr<Annotation>> breaking;

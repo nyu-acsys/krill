@@ -7,8 +7,8 @@
 using namespace plankton;
 
 
-ProofGenerator::ProofGenerator(const Program& program, const SolverConfig& config, EngineSetup setup)
-        : program(program), solver(program, config), setup(setup), insideAtomic(false),
+ProofGenerator::ProofGenerator(const Program& program, const SolverConfig& config, std::shared_ptr<EngineSetup> setup)
+        : program(program), solver(program, config, setup), setup(std::move(setup)), insideAtomic(false),
           timePost("TIME Post"), timeJoin("TIME Join"), timeInterference("TIME Interference"),
           timePastImprove("TIME Past improve"), timePastReduce("TIME Past reduce"),
           timeFutureImprove("TIME Future improve"), timeFutureReduce("TIME Future reduce") {

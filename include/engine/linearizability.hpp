@@ -8,10 +8,11 @@
 
 namespace plankton {
 
-    bool IsLinearizable(const Program& program, const SolverConfig& config, EngineSetup setup);
+    bool IsLinearizable(const Program& program, const SolverConfig& config, std::shared_ptr<EngineSetup> setup);
 
     inline bool IsLinearizable(const Program& program, const SolverConfig& config) {
-        return IsLinearizable(program, config, EngineSetup());
+        auto setup = std::make_shared<EngineSetup>();
+        return IsLinearizable(program, config, setup);
     }
 
 } // namespace engine
