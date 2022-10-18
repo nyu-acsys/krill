@@ -30,7 +30,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # installation folder
 if (NOT INSTALL_FOLDER)
-	set(INSTALL_FOLDER plankton)
+	set(INSTALL_FOLDER krill)
 endif()
 
 # includes
