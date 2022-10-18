@@ -53,7 +53,7 @@ mkdir -p $BASE/krill_source
 unzip krill.zip -d $BASE/krill_source/
 mkdir -p $BASE/krill_source/build
 cp $BASE/krill_source/build
-CC=clang CXX=clang++ cmake .. -DCMAKE_INSTALL_PREFIX=$BASE -DCMAKE_BUILD_TYPE=RELEASE
+CC=clang CXX=clang++ cmake .. -DCMAKE_INSTALL_PREFIX=/ -DINSTALL_FOLDER=$BASE -DCMAKE_BUILD_TYPE=RELEASE
 CC=clang CXX=clang++ make -j$((`nproc`+1))
 make install
 

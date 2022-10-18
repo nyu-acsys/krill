@@ -37,7 +37,7 @@ def print_latex_prolog():
 \\pgfplotsset{compat=1.6}
 \\usepackage{tabularx}
 \\usepackage{booktabs}
-\\newcommand{\\timeCell}[2]{$#1\\mkern+2mu\\textrm{ms}$}
+\\newcommand{\\timeCell}[2]{~$#1\\mkern+2mu\\textrm{ms}$}
 \\newcommand{\\timeCellNone}{---}
 \\newcommand{\\mksec}[1]{\\section*{#1}}
 \\begin{document}
@@ -112,7 +112,8 @@ def print_latex_footprint_chart(methods, sizes, size_map, label=None, legend=Tru
     for plot in make_latex_footprint_plots(methods, sizes, size_map):
         print(plot)
     if legend:
-        print("        \\legend{", ",".join(methods), "}", sep='')
+        pmethods = [x.strip() for x in methods]
+        print("        \\legend{", ",".join(pmethods), "}", sep='')
     print("    \\end{axis}")
     print("\\end{tikzpicture}")
 
@@ -123,6 +124,7 @@ def read_file(file):
     for no, line in enumerate(file):
         method, size, time, structure, rep, _ = line.rstrip().split(',', 5)
         p = int(((no+1) / count) * 100)
+        structure = structure.strip().strip('"')
         yield p, method, structure, int(rep), int(size), int(time)
 
 
