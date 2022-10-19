@@ -2,16 +2,12 @@
 
 BASE=/paper149/
 
-#
-# Root
-#
-echo "tacas23" | sudo -S -u tacas23 -s
 
 #
 # Dependencies
 #
 echo "Installing dependencies..."
-sudo apt update && apt -y --no-install-recommends install \
+echo "tacas23" | sudo -S apt update && apt -y --no-install-recommends install \
         make \
         cmake \
         git \
@@ -29,8 +25,10 @@ sudo apt update && apt -y --no-install-recommends install \
         zsh \
         texlive-latex-base \
         texlive-latex-extra \
-        libpgf6 \
-mkdir -p $BASE
+        libpgf6
+echo "tacas23" | sudo -S mkdir -p $BASE
+echo "tacas23" | sudo -S chown tacas23:tacas23 $BASE
+echo "tacas23" | sudo -S chmod a+rw $BASE
 cd $BASE
 
 #
@@ -43,7 +41,7 @@ mkdir -p $BASE/z3_source/build
 cd $BASE/z3_source/build
 CC=clang CXX=clang++ cmake .. -DCMAKE_INSTALL_PREFIX=/usr/
 CC=clang CXX=clang++ make -j$((`nproc`+1))
-make install
+echo "tacas23" | sudo -S make install
 
 #
 # Plankton & Krill
