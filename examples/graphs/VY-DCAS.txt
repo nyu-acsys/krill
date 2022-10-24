@@ -1,4 +1,4 @@
-#name "VY-DCAS"
+#name "VY DCAS set"
 
 struct Node { data_t val; Node * next; } 
 def @outflow[next](Node * node, data_t key) { node -> val < key && node -> next != NULL } 

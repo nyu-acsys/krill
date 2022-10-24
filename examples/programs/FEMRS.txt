@@ -1,4 +1,4 @@
-#name "FEMRS"
+#name "FEMRS tree"
 
 
 struct Node {

@@ -1,4 +1,4 @@
-#name "MichaelWF"
+#name "Michael set (wait-free search)"
 
 
 struct Node {

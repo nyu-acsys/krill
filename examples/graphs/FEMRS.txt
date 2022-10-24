@@ -1,4 +1,4 @@
-#name "FEMRS"
+#name "FEMRS tree"
 
 struct Node { data_t val; Node * left; Node * right; bool del; bool rem; } 
 def @outflow[left](Node * node, data_t key) { key < node -> val && node -> left != NULL } 

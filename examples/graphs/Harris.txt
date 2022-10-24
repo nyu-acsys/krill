@@ -1,4 +1,4 @@
-#name "Harris"
+#name "Harris set"
 
 struct Node { data_t val; bool marked; Node * next; } 
 def @outflow[next](Node * node, data_t key) { node -> val < key } 
