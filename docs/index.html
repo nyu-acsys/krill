@@ -101,7 +101,7 @@
 		<div class="jumbotron">
 			<!-- <img src="artifacts_evaluated_reusable.png" class="ml-4 mr-3" style="max-height: 9rem; float: right;"> -->
 			<h1 style="font-size: 2.75rem;">
-				A Concurrent Program Logic with a Future and History
+				Make flows small again: revisiting the flow framework
 			</h1>
 			<h3>
 				<small>
@@ -122,21 +122,20 @@
 			<h4>
 				<small>
 					<!-- Presented at <a target="new" href="#">...</a>. -->
-					Accepted for <a target="new" href="#">OOPSLA'22</a>.
+					<!-- Accepted for <a target="new" href="#">...</a>. -->
+					Under submission.
 				</small>
 			</h4>
 			<p class="lead text-justify mb-2">
 				<strong>Abstract.</strong>
-				Verifying fine-grained optimistic concurrent programs remains an open problem.
-				Modern program logics provide abstraction mechanisms and compositional reasoning principles to deal with the inherent complexity.
-				However, their use is mostly confined to pencil-and-paper or mechanized proofs.
-				We devise a new separation logic geared towards the lacking automation.
-				While local reasoning is known to be crucial for automation, we are the first to show how to retain this locality for (i) reasoning about inductive properties without the need for ghost code, and (ii) reasoning about computation histories in hindsight.
-				We implemented our new logic in a tool and used it to automatically verify challenging concurrent search structures that require inductive properties and hindsight reasoning, such as the Harris set.
+					We present a new flow framework for separation logic reasoning about programs that manipulate general graphs.
+					The framework overcomes problems in earlier developments: it is based on standard fixed point theory, guarantees least flows, rules out vanishing flows, and has an easy to understand notion of footprint as needed for soundness of the frame rule.
+					In addition, we present algorithms for automating the frame rule, which we evaluate on graph updates extracted from linearizability proofs for concurrent data structures.
+					The evaluation demonstrates that our algorithms help to automate key aspects of these proofs that have previously relied on user guidance or heuristics.
 			</p>
 			
 			<div class="text-right mt-3">
-				<a target="new" href="oopsla22-article174.pdf" class="btn btn-primary text-right">
+				<a target="new" href="TACAS_2023_paper_149.pdf" class="btn btn-primary text-right">
 					<i class="far fa-file-pdf"></i> 
 					Paper
 				</a>
@@ -144,19 +143,19 @@
 					<i class="far fa-file-pdf"></i> 
 					Slides
 				</a> -->
-				<a target="new" href="https://arxiv.org/abs/2207.02355" class="btn btn-primary text-right">
+				<!-- <a target="new" href="#" class="btn btn-primary text-right">
 					<i class="far fa-file-pdf"></i> 
 					Tech Report
-				</a>
-				<a target="new" href="https://doi.org/10.1145/3563337" class="btn btn-primary text-right">
+				</a> -->
+				<!-- <a target="new" href="#" class="btn btn-primary text-right">
 					<i class="far fa-file-pdf"></i> 
 					DOI
-				</a>
-				<a target="new" href="https://github.com/Wolff09/plankton/releases/tag/OOPSLA22" class="btn btn-primary text-right">
+				</a> -->
+				<a target="new" href="https://github.com/nyu-acsys/krill/releases/tag/TACAS23" class="btn btn-primary text-right">
 					<i class="fas fa-code"></i>
 					Source Code
 				</a>
-				<!-- <a target="new"  href="https://drive.google.com/file/d/1o8FmWLWJX9KPcec-WCBtcZDQlLlJg-6e/view?usp=sharing" class="btn btn-primary text-right">
+				<!-- <a target="new" href="#" class="btn btn-primary text-right">
 					<i class="fas fa-hdd"></i>
 					Artifact
 				</a> -->
@@ -177,15 +176,15 @@
 				<li class="mt-1">
 					Get the thing running in a Docker container: <br>
 					<pre class="mb-0"><code style="color: #e83e8c;"><!--
--->git clone --branch OOPSLA22 https://github.com/Wolff09/plankton.git plankton \
-  && cd plankton \
-  && docker build . -t plankton \
-  && docker run -it plankton<!--
+-->git clone --branch TACAS23 https://github.com/nyu-acsys/krill.git krill \
+  && cd krill \
+  && docker build . -t krill \
+  && docker run -it krill<!--
 					--></code></pre>
 					<i class="fas fa-link text-secondary"></i> <a href="#installation" class="text-secondary">See Compilation and Installation</a>
 				</li>
 				<li class="mt-1">
-					Run the benchmarks in the Docker container: <code>python3 benchmark.py</code>
+					Run the benchmark suite in the Docker container: <code>./eval</code>
 					<br>
 					<i class="fas fa-link text-secondary"></i> <a href="#benchmarks" class="text-secondary">See Benchmarking</a>
 				</li>
@@ -205,15 +204,12 @@
 		<div class="mt-4">
 			<h1>Tool Overview</h1>
 			<p>
-				<kbd>plankton</kbd> is an experimental verifier for lock-free data structures.
-				It verifies linearizability of input programs by constructing a Hoare-style proof in a novel program logics.
-				Crucially, this program logic supports (i) reasoning about inductive properties and (ii) hindsight reasoning.
-				Both techniques are performed in lock step with the program, avoiding the need for ghost code.
-				To localize the proofs, the program logic incorporates (iii) flow reasoning.
+				The purpose of <kbd>krill</kbd> is to compute the footprint for the difference of two graphs.
+				It takes as input semi-symbolic flow graphs, meaning that the nodes in the graph are fixed but the contents of those nodes and their edges are described by logic constraints.
 			</p>
 			<p>
-				<kbd>plankton</kbd> takes as input the program under scrutiny and a candidate node invariant.
-				It then fully automatically generates a proof within our novel program logic, establishing that the given program is linearizable and does adhere to the given invariant.
+				<kbd>krill</kbd> comes with a benchmark suite that was extracted from the <kbd>plankton</kbd> tool, an experimental verifyer for lock-free set data structures.
+				More specifically, we used <kbd>plankton</kbd>'s benchmarks and recorded all the flow graphs for which it computes footprint during proof construction.
 			</p>
 			<!-- <p>
 				We submitted our tool to the <a target="new" href="#">... artifact evaluation</a> where it received the <i>Artifact Evaluated &mdash; Reusable</i> badge.
@@ -221,7 +217,6 @@
 			<p>
 				A discussion on how to reproduce our experiments follows.
 				Therefore, we walk through the installation, compilation, and benchmarking.
-				In the end, we briefly link the concepts and techniques from the paper to our implementation.
 			</p>
 		</div>
 		<br>
@@ -238,42 +233,42 @@
 			<h4>Download</h4>
 			<p>
 				The source code can be downloaded from GitHub:
-				&nbsp;&nbsp;<i class="fas fa-link"></i> <a target="new" href="https://github.com/Wolff09/plankton/releases/tag/OOPSLA22">
-					GitHub release with tag <code>OOPSLA22</code>
+				&nbsp;&nbsp;<i class="fas fa-link"></i> <a target="new" href="https://github.com/nyu-acsys/krill/releases/tag/TACAS23">
+					GitHub release with tag <code>TACAS23</code>
 				</a>
 			</p>
 			<p>
 				Alternatively, you may wish to clone/download a potentially different version from GitHub:
-				&nbsp;&nbsp;<i class="fas fa-link"></i> <a target="new" href="https://github.com/Wolff09/plankton/">
+				&nbsp;&nbsp;<i class="fas fa-link"></i> <a target="new" href="https://github.com/nyu-acsys/krill/">
 					GitHub repository
 				</a>
 			</p>
 
 			<h4>System Requirements</h4>
 			<p>
-				To compile this project you need <strong>CMake</strong> (>3.21), a <strong>GCC</strong> and <strong>G++</strong> (>10.0), <strong>Java JRE</strong> (>1.6), and <strong>Z3</strong> (<a target="new" href="https://github.com/Z3Prover/z3/releases/tag/z3-4.8.7">v4.8.7</a>).
+				To compile this project you need <strong>CMake</strong> (>3.21), <strong>GCC</strong> and <strong>G++</strong> (>10.0) or <strong>CLAN</strong> (>12.0), <strong>Java JRE</strong> (>1.6), and <strong>Z3</strong> (<a target="new" href="https://github.com/Z3Prover/z3/releases/tag/z3-4.8.7">v4.8.7</a>).
 				Compilation with <strong>CLAN</strong> (>12.0) is also possible.
-				To run the benchmarking script, you need <strong>Pyton 3</strong> (>3.5).
+				To run the benchmark suite, you also need <strong>Pyton 3</strong> (>3.5), <strong>latex</strong>, and <strong>pgfplots</strong>.
 			</p>
 
 			<h4>Z3 Version</h4>
 			<p>
-				For reproducing the results, it is paramount to use the correct Z3 version: <a target="new" href="https://github.com/Z3Prover/z3/releases/tag/z3-4.8.7">v4.8.7</a>.
+				For reproducing the results, we recommend using Z3 version <a target="new" href="https://github.com/Z3Prover/z3/releases/tag/z3-4.8.7">4.8.7</a>.
 				Versions >4.8.7 generally fail to run <a href="https://z3prover.github.io/api/html/classz3_1_1solver.html#a4322874cf842109514596806684cd4d7"><code>z3::solver::consequences()</code></a>.
-				If <a href="https://z3prover.github.io/api/html/classz3_1_1solver.html#a4322874cf842109514596806684cd4d7"><code>z3::solver::consequences()</code></a> fails, <kbd>plankton</kbd> issues a warning and uses a backup procedure relying on <a href="https://z3prover.github.io/api/html/classz3_1_1solver.html#a65d4e25fe55aa280fa800b9611cd8c04"><code>z3::solver::check()</code></a>.
+				We do not expect this to influence the evaluation with <kbd>krill</kbd>, but it does affect <kbd>plankton</kbd> and the flow graph extraction.
+				More specifically, if <a href="https://z3prover.github.io/api/html/classz3_1_1solver.html#a4322874cf842109514596806684cd4d7"><code>z3::solver::consequences()</code></a> fails, <kbd>plankton</kbd> issues a warning and uses a backup procedure relying on <a href="https://z3prover.github.io/api/html/classz3_1_1solver.html#a65d4e25fe55aa280fa800b9611cd8c04"><code>z3::solver::check()</code></a>.
 				The backup procedure tremendously decreases performance, hence increases the runtime.
 			</p>
 
 			<p>
-				If you compile Z3 yourself, make sure to use GCC/G++ and not CLANG.
-				We recommend to compile with GCC/G++ version 7.
+				If you compile Z3 yourself, we highly recommend to use the same compiler (GCC/G++ vs CLANG) as for compiling this project.
 			</p>
 
 			<h4>Compilation</h4>
 			<p>
 				To build the project, do the following:</p>
 			<pre class="bg-light border"><code class="bash">
-        cd path/to/plankton
+        cd path/to/krill
         mkdir build
         cd build
         CXX=/path/to/CXX-compiler cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/installation
@@ -281,8 +276,9 @@
         make install
 			</code></pre>
 			<p>
-				This creates a folder <code>/path/to/installation/plankton</code> at the specified location.
+				This creates a folder <code>/path/to/installation/krill</code> at the specified location.
 				This folder contains all binaries, scripts, and examples needed to reproduce the evaluation from the paper.
+				Note that this includes binaries for both <kbd>krill</kbd> and <kbd>plankton</kbd>.
 			</p>
 			<p>
 				We recommend to use the <code>-DCMAKE_INSTALL_PREFIX</code> to specify a location where to install the tool.
@@ -290,7 +286,7 @@
 				You can customize the folder that is appended to <code>/path/to/installation</code> by setting <code>-DINSTALL_FOLDER</code> appropriately in the cmake invocation.
 			</p>
 			<p>
-				You can omit the <code>-DCMAKE_CXX_COMPILER</code> option to use your system's default compiler.
+				You can omit setting the <code>CXX</code> environment variable to use your system's default compiler.
 			</p>
 
 			<h4>Troubleshooting</h4>
@@ -338,13 +334,10 @@
 				To use it, you can something like this:
 			</p>
 				<pre class="bg-light border"><code class="bash">
-        cd path/to/plankton
-        docker build . -t plankton
-        docker run -it plankton
+        cd path/to/krill
+        docker build . -t krill
+        docker run -it krill
 			</code></pre>
-			<p>
-				The Docker container contains two versions of <kbd>plankton</kbd>, a <code>release</code> version at <code>/artifact/plankton/</code> and a <code>debug</code> version with additional output during proof generation at <code>/artifact/plankton-debug/</code>.
-			</p>
 		</div>
 		<br>
 		
@@ -355,49 +348,64 @@
 		<div class="mt-4">
 			<h1 id="benchmarks">Benchmarking</h1>
 			<p>
-				We describe how to repeat the benchmarks from the paper for verifying lock-free set data structures.
+				We describe how to repeat the benchmarks from the paper for computing footprints for the difference of two flow graphs.
+				The flow graphs were extracted from <kbd>plankton</kbd>'s proof generation for lock-free set data structures.
 			</p>
 
-			<h4 id="benchmarks-programs">Benchmark Programs</h4>
+			<h4 id="benchmarks-programs">Benchmark Flow Graphs</h4>
 			<p>
-				We evaluated our tool on the following implementation:
+				We extracted flow graphs capturing the updates as encountered while verifying the following implementations:
 			</p>
 			<ul>
 				<li>
 					<i>Fine-grained set</i> <span class="ref-full">HerlihyS08</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/FineSet.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/Fine.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/graphs/Fine.pl">Flow Graph</a>
 				</li>
 				<li>
 					<i>Lazy set</i> <span class="ref-full">HellerHLMSS05</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/LazySet.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/Lazy.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/graphs/Lazy.pl">Flow Graph</a>
 				</li>
 				<li>
 					<i>FEMRS tree (no maintenance)</i> <span class="ref-full">FeldmanEMRS18</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/FemrsTreeNoMaintenance.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/FEMRS.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/graphs/FEMRS.pl">Flow Graph</a>
+				</li>
+				<li>
+					<i>Vechev&Yahav's DCAS set</i> <span class="ref-full">VechevY08</span>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/VY-DCAS.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/graphs/VY-DCAS.pl">Flow Graph</a>
 				</li>
 				<li>
 					<i>Vechev&Yahav's CAS set</i> <span class="ref-full">VechevY08</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/VechevYahavCas.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/VY-CAS.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/graphs/VY-CAS.pl">Flow Graph</a>
 				</li>
 				<li>
 					<i>ORVYY's set</i> <span class="ref-full">OHearnRVYY10</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/ORVYY.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/ORVYY.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/graphs/ORVYY.pl">Flow Graph</a>
 				</li>
 				<li>
 					<i>Michael's set</i> <span class="ref-full">Michael02a</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/Michael.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/Michael.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/graphs/Michael.pl">Flow Graph</a>
 				</li>
 				<li>
 					<i>Harris' set</i> <span class="ref-full">Harris01</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/Harris.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/Harris.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/graphs/Harris.pl">Flow Graph</a>
 				</li>
 				<li>
 					<i>Michael's set (with wait-free search)</i> <span class="ref-full">Michael02a</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/MichaelWaitFreeSearch.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/MichaelWF.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/graphs/MichaelWF.pl">Flow Graph</a>
 				</li>
 				<li>
 					<i>Harris' set (with wait-free search)</i> <span class="ref-full">Harris01</span>
-					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/blob/OOPSLA22/examples/HarrisWaitFreeSearch.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/HarrisWF.pl">Code</a>
+					&nbsp;<i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/blob/TACAS23/examples/graphs/HarrisWF.pl">Flow Graph</a>
 				</li>
 			</ul>
 			
@@ -407,38 +415,15 @@
 			</p>
 			<pre class="bg-light border"><code class="bash">
         cd path/to/installation
-        python3 benchmark.py
+        ./eval.sh
 			</code></pre>
 			<p>
-				Make sure to use <code>python3</code>.
-				Our test script uses the timeout feature of the <code>subprocess</code> library which is available only in version 3.5 and newer.
+				The <code>eval.sh</code> script runs each benchmark for 100 times.
+				To modify the repetition count, just pass the desired count as an argument to the script, e.g., <code>./eval 77</code>.
+				You can customize the file the evaluation is written to doing this: <code>./eval.sh 77 path/to/file</code>.
 			</p>
-			<div class="alert alert-warning">
-				There is a known issue where the the <code>benchmark.py</code> scrip will report failure, however, running <kbd>plankton</kbd> directly in the shell results in successful verification.
-				The issue is due to Z3 spontaneously misbehaving when used with Python's <code>subprocess</code> library.
-			</div>
 			<p>
-				The <code>benchmark.py</code> script runs each benchmark for 5 times, with a timeout of 6 hours per run.
-				To modify the repetition count or the timeout, pass the appropriate command line arguments as shown below.
-				You may also abort <code>benchmark.py</code> (<code>ctrl+c</code>) which stops the benchmarking and produces the average of the benchmarks covered so far (the benchmarks are run in a round robin fashion so that preliminary results are more likely to cover the entire benchmark suite).
-			</p>
-			<pre class="bg-light border"><code class="bash">
-        python3 benchmark.py [&lt;number_of_repetitions&gt;] [&lt;timeout_in_seconds&gt;]
-			</code></pre>
-			<p>
-				The benchmark script will output a table with the following columns:
-				<ul>
-					<li><i>Program: </i>the name of the example program,</li>
-					<li><i>Iter:</i> number of iterations until interferences (effects) are saturated,</li>
-					<li><i>Eff:</i> number of interference effects,</li>
-					<li><i>Cand:</i> number of future candidates,</li>
-					<li><i>Com:</i> percentage of overall runtime spent for handling atomic commands,</li>
-					<li><i>Fut:</i> percentage of overall runtime spent for future reasoning,</li>
-					<li><i>Hist:</i> percentage of overall runtime spent for history reasoning,</li>
-					<li><i>Join:</i> percentage of overall runtime spent for the join operation,</li>
-					<li><i>Inter:</i> percentage of overall runtime spent for applying interferences, and</li>
-					<li><i>Linearizability:</i> linearizability verdict and time in seconds to generate it (i.e. a proof thereof).</li>
-				</ul>
+				The <code>eval.sh</code> script produces a PDF <code>eval.pdf</code> containing the result of the evaluation, i.e., reproducing tables/charts like the ones from the paper.
 			</p>
 			
 			<h4>Expected Benchmarks Results</h4>
@@ -446,148 +431,106 @@
 				We repeat our evaluation.
 				We used an Apple M1 Pro with 16GB of RAM.
 				We mark successful tasks with <i class="experiments fas fa-check"></i>, failed tasks with <i class="experiments fas fa-times"></i>, and timed out tasks with <i class="experiments far fa-clock"></i>.
+				The #FG refers to the number of flow graphs that a footprint is computed for.
+				The speedup refers to the speedup of the new method compared to the naive method.
 			</p>
 
 			<div class="alert alert-warning">
-				Runtimes on traditional <code>x86/amd64</code> hardware will be slower than the Apple Silicone runtimes reported here.
-				However, we expect traditional hardware to produce the same tendencies and most importantly the same verification verdict.
+				Runtimes on traditional <code>x86/amd64</code> hardware are likely to be slower than the Apple Silicone runtimes reported here.
+				However, we expect traditional hardware to produce the same tendencies.
 			</div>
 
 			<table class="table experiments border">
 				<thead>
 					<tr>
 						<th scope="col">Program (on <code>Apple M1</code>)</th>
-						<th class="text-right" scope="col">Iter</th>
-						<th class="text-right" scope="col">Eff</th>
-						<th class="text-right" scope="col">Cand</th>
-						<th class="text-right" scope="col">Com</th>
-						<th class="text-right" scope="col">Fut</th>
-						<th class="text-right" scope="col">Hist</th>
-						<th class="text-right" scope="col">Join</th>
-						<th class="text-right" scope="col">Inter</th>
-						<th class="text-right" scope="col">Linearizability</th>
+						<th class="text-right" scope="col">#FG</th>
+						<th class="text-right" scope="col">Naive</th>
+						<th class="text-right" scope="col">Diff</th>
+						<th class="text-right" scope="col">New</th>
+						<th class="text-right" scope="col">Speedup</th>
 					</tr>
 				</thead>
 				<tbody>
 					<tr>
 						<th scope="row">Fine-Grained set</th>
-						<td class="text-right">2</td>
-						<td class="text-right">5</td>
-						<td class="text-right">2</td>
-						<td class="text-right">11%</td>
-						<td class="text-right">15%</td>
-						<td class="text-right">43%</td>
-						<td class="text-right">15%</td>
-						<td class="text-right">8%</td>
-						<td class="text-right font-weight-bold">46s <i class="fas fa-check"></i></td>
+						<td class="text-right">12</td>
+						<td class="text-right">75ms</td>
+						<td class="text-right">48ms</td>
+						<td class="text-right">46ms</td>
+						<td class="text-right">39%</td>
 					</tr>
 					<tr>
 						<th scope="row">Lazy set</th>
-						<td class="text-right">2</td>
-						<td class="text-right">6</td>
-						<td class="text-right">2</td>
-						<td class="text-right">10%</td>
-						<td class="text-right">13%</td>
-						<td class="text-right">54%</td>
-						<td class="text-right">11%</td>
-						<td class="text-right">5%</td>
-						<td class="text-right font-weight-bold">77s <i class="fas fa-check"></i></td>
+						<td class="text-right">14</td>
+						<td class="text-right">73ms</td>
+						<td class="text-right">52ms</td>
+						<td class="text-right">51ms</td>
+						<td class="text-right">30%</td>
 					</tr>
 					<tr>
 						<th scope="row">FEMRS tree (no maintenance)</th>
-						<td class="text-right">2</td>
-						<td class="text-right">5</td>
-						<td class="text-right">2</td>
-						<td class="text-right">19%</td>
-						<td class="text-right">0%</td>
-						<td class="text-right">49%</td>
-						<td class="text-right">1%</td>
-						<td class="text-right">9%</td>
-						<td class="text-right font-weight-bold">130s <i class="fas fa-check"></i></td>
+						<td class="text-right">120</td>
+						<td class="text-right">519ms</td>
+						<td class="text-right">409ms</td>
+						<td class="text-right">407ms</td>
+						<td class="text-right">22%</td>
 					</tr>
 					<tr>
 						<th scope="row">Vechev&Yahav's 2CAS set</th>
-						<td class="text-right">2</td>
-						<td class="text-right">3</td>
-						<td class="text-right">1</td>
-						<td class="text-right">14%</td>
-						<td class="text-right">0%</td>
+						<td class="text-right">19</td>
+						<td class="text-right">109ms</td>
+						<td class="text-right">74ms</td>
+						<td class="text-right">73ms</td>
 						<td class="text-right">33%</td>
-						<td class="text-right">31%</td>
-						<td class="text-right">9%</td>
-						<td class="text-right font-weight-bold">125s <i class="fas fa-check"></i></td>
 					</tr>
 					<tr>
 						<th scope="row">Vechev&Yahav's CAS set</th>
-						<td class="text-right">2</td>
-						<td class="text-right">4</td>
-						<td class="text-right">1</td>
-						<td class="text-right">15%</td>
-						<td class="text-right">7%</td>
-						<td class="text-right">39%</td>
-						<td class="text-right">23%</td>
-						<td class="text-right">6%</td>
-						<td class="text-right font-weight-bold">54s <i class="fas fa-check"></i></td>
+						<td class="text-right">28</td>
+						<td class="text-right">139ms</td>
+						<td class="text-right">104ms</td>
+						<td class="text-right">102ms</td>
+						<td class="text-right">27%</td>
 					</tr>
 					<tr>
 						<th scope="row">ORVYY's set</th>
-						<td class="text-right">2</td>
-						<td class="text-right">3</td>
-						<td class="text-right">0</td>
-						<td class="text-right">17%</td>
-						<td class="text-right">0%</td>
-						<td class="text-right">40%</td>
-						<td class="text-right">26%</td>
-						<td class="text-right">6%</td>
-						<td class="text-right font-weight-bold">47s <i class="fas fa-check"></i></td>
+						<td class="text-right">20</td>
+						<td class="text-right">106ms</td>
+						<td class="text-right">76ms</td>
+						<td class="text-right">74ms</td>
+						<td class="text-right">30%</td>
 					</tr>
 					<tr>
 						<th scope="row">Michael's set</th>
-						<td class="text-right">2</td>
-						<td class="text-right">4</td>
-						<td class="text-right">2</td>
-						<td class="text-right">11%</td>
-						<td class="text-right">29%</td>
-						<td class="text-right">30%</td>
-						<td class="text-right">15%</td>
-						<td class="text-right">6%</td>
-						<td class="text-right font-weight-bold">306s <i class="fas fa-check"></i></td>
+						<td class="text-right">225</td>
+						<td class="text-right">1216ms</td>
+						<td class="text-right">887ms</td>
+						<td class="text-right">874ms</td>
+						<td class="text-right">28%</td>
 					</tr>
 					<tr>
 						<th scope="row">Michael's set (wait-free)</th>
-						<td class="text-right">2</td>
-						<td class="text-right">4</td>
-						<td class="text-right">2</td>
-						<td class="text-right">11%</td>
-						<td class="text-right">28%</td>
-						<td class="text-right">30%</td>
-						<td class="text-right">15%</td>
-						<td class="text-right">6%</td>
-						<td class="text-right font-weight-bold">246s <i class="fas fa-check"></i></td>
+						<td class="text-right">186</td>
+						<td class="text-right">996ms</td>
+						<td class="text-right">731ms</td>
+						<td class="text-right">721ms</td>
+						<td class="text-right">27%</td>
 					</tr>
 					<tr>
 						<th scope="row">Harris' set</th>
-						<td class="text-right">2</td>
-						<td class="text-right">4</td>
-						<td class="text-right">2</td>
-						<td class="text-right">7%</td>
-						<td class="text-right">8%</td>
-						<td class="text-right">19%</td>
-						<td class="text-right">32%</td>
-						<td class="text-right">4%</td>
-						<td class="text-right font-weight-bold">1378s <i class="fas fa-check"></i></td>
+						<td class="text-right">352</td>
+						<td class="text-right">2242ms</td>
+						<td class="text-right">1490ms</td>
+						<td class="text-right">1443ms</td>
+						<td class="text-right">36%</td>
 					</tr>
 					<tr>
 						<th scope="row">Harris' set (wait-free)</th>
-						<td class="text-right">2</td>
-						<td class="text-right">4</td>
-						<td class="text-right">2</td>
-						<td class="text-right">8%</td>
-						<td class="text-right">10%</td>
-						<td class="text-right">17%</td>
-						<td class="text-right">34%</td>
-						<td class="text-right">3%</td>
-						<td class="text-right font-weight-bold">1066s <i class="fas fa-check"></i></td>
+						<td class="text-right">296</td>
+						<td class="text-right">1859ms</td>
+						<td class="text-right">1242ms</td>
+						<td class="text-right">1205ms</td>
+						<td class="text-right">35%</td>
 					</tr>
 				</tbody>
 			</table>
@@ -736,36 +679,17 @@
 				</tbody>
 			</table> -->
 
-			<h4 id="stresstest">Stress Tests</h4>
+			<h4 id="stresstest">Generating Flow Graphs</h4>
 			<p>
-				We also stress tested <kbd>plankton</kbd> by running versions of our benchmark programs with purposely inserted bugs.
-				As expected, verification fails in all those cases.
-				Below is a list of inserted bugs.
-				If applicable, we inserted the bug into all the benchmark programs.
-				Note that <kbd>plankton</kbd> does not implement error explanation techniques.
-				Hence, the reason for verification failure reported by <kbd>plankton</kbd> may not reflect nor hint on the actual bug.
-			</p>
-			<ul>
-				<li><i>Bug 1:</i> Missing <code>NULL</code> check during traversals.</li>
-				<li><i>Bug 2:</i> New entries are not linked into the structure.</li>
-				<li><i>Bug 3:</i> New entries create a cycle in the structure.</li>
-				<li><i>Bug 4:</i> Missing initialization of mark bit (new entries are potentially marked).</li>
-				<li><i>Bug 5:</i> Traversals return the wrong key.</li>
-				<li><i>Bug 6:</i> Updates to the structure ignore the mark bit.</li>
-				<li><i>Bug 7:</i> Insertions do not check if the to-be-inserted key is already present (potential duplication of keys).</li>
-				<li><i>Bug 8:</i> Insertions logically delete the node preceding the insertion.</li>
-				<li><i>Bug 9:</i> Missing logical deletion.</li>
-			</ul>
-			<p>
-				The stress test suite can be repeated with the <code>stresstest.py</code> script.
-				This script is similar in usage to the <code>stresstest.py</code> script.
-			</p>
+				The installation comes with the flow graphs that we extracted.
+				If you want to re-extract them, you can do:
 			<pre class="bg-light border"><code class="bash">
-        python3 stresstest.py [&lt;number_of_repetitions&gt;] [&lt;timeout_in_seconds&gt;]
+        ./mk_graphs.sh
 			</code></pre>
 			<p>
-				Found bugs are indicated by <i class="experiments fas fa-check"></i>.
-				If verification succeeds for a buggy test case, <i class="experiments fas fa-times"></i> is printed.
+				This will run <kbd>plankton</kbd> on all the set data structures mentioned above and export the encountered flow graphs.
+				Note that this will overwrite the existing files containing the flow graphs we extracted!
+				Also note that this task is quite time consuming.
 			</p>
 		</div>
 		<br>
@@ -773,21 +697,21 @@
 
 
 		<!-- ********************************************************************************** -->
-		<!-- ************************************ PLANKTON ************************************ -->
+		<!-- ************************************* KRILL ************************************** -->
 		<!-- ********************************************************************************** -->
 
 		<div class="mt-4">
-			<h1>The <kbd>plankton</kbd> Tool</h1>
+			<h1>The <kbd>krill</kbd> Tool</h1>
 			<p>
-				Instead of using the benchmark script, you can directly interact with <kbd>plankton</kbd>.
+				Instead of using the benchmark script, you can directly interact with <kbd>krill</kbd>.
 			</p>
 
 			<h4>Basic Usage</h4>
 			<p>
-				You invoke <kbd>plankton</kbd> like so:
+				You invoke <kbd>krill</kbd> like so:
 			</p>
 			<pre class="bg-light border"><code class="">
-        ./plankton  [-g] [--no-spurious]  &lt;path_to_program&gt;
+        ./krill &lt;path/to/flow_graph&gt;
 			</code></pre>
 			<p>
 				The flags and their arguments are listed in the following table (excerpt).
@@ -812,18 +736,104 @@
 						</td>
 					</tr>
 					<tr>
-						<td class="text-nowrap"><code> --gist <br> -g </code></td>
+						<td class="text-nowrap"><code> --output <br> -o </code></td>
 						<td class="text-center">yes</td>
-						<td class="text-center"><code>false</code></td>
-						<td>Outputs a machine readable (read: easy to parse) string at the end of execution, informing about the overall runtime and linearizability verdict.</td>
+						<td class="text-center"><code>--</code></td>
+						<td>Output file for the evaluation. If none is specified, the output is written to standard out.</td>
 					</tr>
 					<tr>
-						<td class="text-nowrap"><code> --no-spurious</code></td>
+						<td class="text-nowrap"><code> --repetitions <br> -r </code></td>
 						<td class="text-center">yes</td>
 						<td class="text-center"><code>false</code></td>
-						<td>Instructs the internal rewrite engine to prevent desugared <code>CAS</code> commands  to fail spuriously.
-							Note that the C++ standard explicitly allows <code>CAS</code> to fail spuriously.
+						<td>Number of times each benchmark is repeated.</td>
+					</tr>
+				</tbody>
+			</table>
+			<p>
+				Besides the above, <code>--version</code> prints the tool's version, <code>-h</code> and <code>--help</code> print the full usage description.
+			</p>
+
+			<h4>Input Flow Graphs</h4>
+			<p>
+				The input format for flow graphs is shown on an example below.
+				Input files may have arbitrarily many graphs.
+				Flow graphs may have arbitrarily many nodes and constraints.
+				Nodes may have arbitrarily many fields.
+				For an exact specification of the input files, refer to the <a target="new" href="https://www.antlr.org/">ANTLR</a> parser definition <span class="text-nowrap"><i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/nyu-acsys/krill/releases/tag/TACAS23/src/parser/Plankton.g4">here</a></span>.
+			</p>
+			<pre class="bg-light border"><code class="c">
+        #name "Foobarium"
+
+        struct Node { data_t val; Node * next; } 
+        def @outflow[next](Node * node, data_t key) { node -> val < key } 
+        
+        @graph { 
+            #name "example graph"
+            @node[a1 : Node*] {
+                @pre-unreachable; // optional
+                @pre-emptyInflow; // optional
+                @field val : data_t = d1 / d2;
+                @field next : Node* = a2 / a2;
+            }
+            @constraint d1 >= MIN;
+            @constraint d1 <= MAX;
+            @constraint d2 >= MIN;
+            @constraint d2 <= MAX;
+            @constraint a1 != nullptr;
+            @constraint a2 == nullptr;
+        }
+			</code></pre>
+		</div>
+		<br>
+
+
+
+		<!-- ********************************************************************************** -->
+		<!-- ************************************ PLANKTON ************************************ -->
+		<!-- ********************************************************************************** -->
+
+		<div class="mt-4">
+			<h1>The <kbd>plankton</kbd> Tool</h1>
+			<p>
+				Instead of using the <code>mk_graphs.sh</code> script, you can directly interact with <kbd>plankton</kbd>, which is built/compiled as part of the <kbd>krill</kbd> project.
+			</p>
+			<p>
+				For more details, see the <a target="new" href="https://wolff09.github.io/plankton/">project page</a> for <kbd>plankton</kbd>.
+			</p>
+
+			<h4>Basic Usage</h4>
+			<p>
+				You invoke <kbd>plankton</kbd> like so:
+			</p>
+			<pre class="bg-light border"><code class="">
+        ./plankton  [-f &lt;path/to/graph&gt;] [-p]  &lt;path/to/program&gt;
+			</code></pre>
+			<p>
+				The flags and their arguments are listed in the following table (excerpt).
+			</p>
+			<table class="table border">
+				<thead>
+					<tr>
+						<th scope="col">Flag / Argument</th>
+						<th class="text-center" scope="col">Optional</th>
+						<th class="text-center" scope="col">Default</th>
+						<th scope="col">Description</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td class="text-nowrap"><code> &lt;path/to/program&gt; </code></td>
+						<td class="text-center">no</td>
+						<td class="text-center">&mdash;</td>
+						<td>
+							Input program file to analyze.
 						</td>
+					</tr>
+					<tr>
+						<td class="text-nowrap"><code> --footprint <br> -f </code></td>
+						<td class="text-center">yes</td>
+						<td class="text-center"><code>--</code></td>
+						<td>File to which the encountered flow graphs are exported to.</td>
 					</tr>
 					<tr>
 						<td class="text-nowrap"><code> --loopNoPostJoin</code></td>
@@ -840,348 +850,10 @@
 			<p>
 				Note that <code>--loopNoPostJoin</code> flag is required in order for the FEMRS tree to be verified successfully.
 				The remaining benchmarks do not require the increased precision.
-				The <code>benchmark.py</code> script passes this flag automatically.
+				The <code>mk_graphs.sh</code> script passes this flag automatically.
 			</p>
-
-			<h4>Input Programs</h4>
-			<p>
-				<kbd>plankton</kbd> supports a simple C-style input language.
-				Below you find an example program that showcases the required components and the most common constructs.
-				(Note that the below example may not be linearizable.)
-				For a list of all supported constructs, refer to the <a target="new" href="https://www.antlr.org/">ANTLR</a> parser definition <span class="text-nowrap"><i class="fas fa-link text-secondary">&nbsp;</i><a class="text-secondary" target="new" href="https://github.com/Wolff09/plankton/releases/tag/PLDI22/src/parser/Plankton.g4">here</a></span>.
-			</p>
-			<nav>
-				<div class="nav nav-tabs" id="nav-tab" role="tablist">
-					<a class="nav-item nav-link active" id="nav-Example1-tab" data-toggle="tab" href="#nav-Example1" role="tab" aria-controls="nav-Example1" aria-selected="true">Initialization</a>
-					<a class="nav-item nav-link" id="nav-Example2-tab" data-toggle="tab" href="#nav-Example2" role="tab" aria-controls="nav-Example2" aria-selected="true">Flow&amp;Node invariants</a>
-					<a class="nav-item nav-link" id="nav-Example3-tab" data-toggle="tab" href="#nav-Example3" role="tab" aria-controls="nav-Example3" aria-selected="true">Helpers</a>
-					<a class="nav-item nav-link" id="nav-Example4-tab" data-toggle="tab" href="#nav-Example4" role="tab" aria-controls="nav-Example4" aria-selected="true">API functions</a>
-				</div>
-			</nav>
-			<div class="tab-content border-left border-right border-bottom p-3" id="nav-tabContent">
-				<div class="tab-pane show active" id="nav-Example1" role="tabpanel" aria-labelledby="nav-Example1-tab">
-					<p>
-						The first part of a program declares some structures and shared variables, like <code>Node</code> resp. <code>Head</code> in the example below.
-						Additionally, there is a dedicated initializer <code>__init__</code> that is executed atomically once before execution begins.
-						The <code>#name</code> option is optional.
-					</p>
-					<pre class="bg-light border"><code class="c">
-        #name "Program Name"
-        
-        
-        struct Node {
-            data_t val; // 'int' and 'data_t' are synonyms
-            bool marked;
-            Node* next;
-        }
-        
-        Node* Head;
-        
-        
-        void __init__() {
-            Head = malloc;
-            Head-&gt;next = NULL;
-            Head-&gt;marked = false;
-            Head-&gt;val = MIN; // there is also 'MAX'
-        }
-					</code></pre>
-				</div>
-				<div class="tab-pane show" id="nav-Example2" role="tabpanel" aria-labelledby="nav-Example2-tab">
-					<p>
-						First, <code>@contains</code> defines a predicate characterizing the logical contents of a node.
-						This predicate takes a pointer to the node and a value, and returns <code>true</code> iff the given value is considered logically contained in the given node.
-						Second, <code>@outflow</code> defines a predicate characterizing the outflow of a node per pointer field, here <code>next</code>.
-						Third, <code>@invariant</code> defines the node invariants of the program.
-						There is a dedicated invariant for nodes in the <code>local</code> and the <code>shared</code> heap.
-					</p>
-					<pre class="bg-light border"><code class="c">
-        def @contains(Node* node, data_t key) {
-            !node-&gt;marked && node-&gt;val == key
-        }
-        
-        def @outflow[next](Node* node, data_t key) {
-            !node-&gt;marked ==&gt; node-&gt;val &lt; key
-        }
-        
-        def @invariant[local](Node* x) {
-            x-&gt;_flow == 0
-        }
-        
-        def @invariant[shared](Node* x) {
-            Head != NULL
-         && Head-&gt;val == MIN
-         && !Head-&gt;marked
-         && Head-&gt;_flow != 0
-         && [MIN, MAX] in Head-&gt;_flow
-         && x-&gt;val == MIN ==&gt; x == Head
-        
-         && !x-&gt;marked ==&gt; [x-&gt;val, MAX] in x-&gt;_flow
-         && x-&gt;_flow != 0 ==&gt; [x-&gt;val, MAX] in x-&gt;_flow
-        }
-					</code></pre>
-				</div>
-				<div class="tab-pane show" id="nav-Example3" role="tabpanel" aria-labelledby="nav-Example3-tab">
-					<p>
-						Helper functions allow code reuse across multiple API functions.
-						Helpers are defined with the keyword <code>inline</code>.
-						They may have an arbitrary return type, including <code>void</code>, <code>int</code>, <code>int</code>, <code>Node*</code> (or pointers to any other declared struct), and comma separated lists of types.
-					</p>
-					<p>
-						For verification, one can think of helpers being inlined.
-					</p>
-					<pre class="bg-light border"><code class="c">
-        inline &lt;Node*, data_t&gt; locate(data_t key) {
-            Node* curr;
-            data_t k;
-            bool mark;
-        
-            curr = Head;
-            do {
-                curr = curr-&gt;next;
-                k = curr-&gt;val;
-                mark = curr-&gt;marked;
-            } while (k &lt; key || mark);
-            return &lt;curr, k&gt;;
-        }
-					</code></pre>
-				</div>
-				<div class="tab-pane show" id="nav-Example4" role="tabpanel" aria-labelledby="nav-Example4-tab">
-					<p>
-						API functions are targeted by the verification process.
-						They must have return type <code>bool</code> and take a single <code>data_t</code> or <code>int</code> as argument.
-						The allowed names are <code>contains</code>, <code>add</code>, <code>insert</code>, <code>remove</code>, and <code>delete</code>.
-						<kbd>plankton</kbd> derives the specification of API functions from their name.
-					</p>
-					<pre class="bg-light border"><code class="c">
-        bool contains(data_t key) {
-            Node* curr;
-            data_t k;
-        
-            &lt;curr, k&gt; = locate(key);
-            return k == key;
-        }
-        
-        bool add(data_t key) {
-            entry = malloc;
-            entry-&gt;val = key;
-            entry-&gt;marked = false;
-        
-            while (true) {
-                Node* entry, curr;
-                data_t k;
-                &lt;curr, k&gt; = locate(key);
-        
-                if (k == key) {
-                    return false;
-        
-                } else {
-                    atomic {
-                        entry-&gt;next = curr-&gt;next;
-                        curr-&gt;next = entry;
-                    }
-                    return true;
-                }
-            }
-        }
-        
-        bool remove(data_t key) {
-            while (true) {
-                Node* curr;
-                data_t k;
-                &lt;curr, k&gt; = locate(key);
-        
-                next = curr-&gt;next;
-                if (CAS(&lt;curr-&gt;val, curr-&gt;marked&gt;, &lt;k, false&gt;, &lt;k, true&gt;))
-                    return true;
-            }
-        }
-					</code></pre>
-				</div>
-			</div>
 		</div>
 		<br>
-
-
-
-		<!-- ********************************************************************************** -->
-		<!-- ********************************* IMPLEMENTATION ********************************* -->
-		<!-- ********************************************************************************** -->
-		<div class="mt-4">
-			<h1>Notes on the Implementation</h1>
-			<p>
-				The following table links the techniques presented in the paper to the implementation.
-			</p>
-
-			<table class="table">
-				<thead>
-					<tr>
-						<th scope="col">Paper</th>
-						<th scope="col">Implementation</th>
-						<th scope="col">Description</th>
-					</tr>
-				</thead>
-				<tbody>
-					<!-- https://github.com/Wolff09/plankton/blob/PLDI22/ -->
-					<tr>
-						<td scope="row">Programs, Logics</td>
-						<td>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/include/programs/ast.hpp" class="code-link"><code class="text-nowrap">include/programs/ast.hpp</code></a>
-							<br>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/include/logics/ast.hpp" class="code-link"><code class="text-nowrap">include/logics/ast.hpp</code></a>
-						</td>
-						<td class=""> <!-- text-justify -->
-							Abstract syntax tree for programs and the logics.
-						</td>
-					</tr>
-					<tr>
-						<td scope="row">Flows, Invariants</td>
-						<td>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/include/engine/config.hpp" class="code-link"><code class="text-nowrap">include/engine/config.hpp</code></a>
-						</td>
-						<td class=""> <!-- text-justify -->
-							Configuration object that specifies the flow and the node invariants.
-							Configuration objects are taken (parsed) from the input program.
-							Currently, the flow is restricted to keyset flows.
-						</td>
-					</tr>
-					<tr>
-						<td scope="row">Program Simplification</td>
-						<td>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/parser/" class="code-link"><code class="text-nowrap">src/parser/*</code></a>
-						</td>
-						<td class=""> <!-- text-justify -->
-							The parser supports a richer input language that is transformed into the one defined in <code class="text-nowrap">include/programs/ast.hpp</code>.
-						</td>
-					</tr>
-					<tr>
-						<td scope="row">Commands</td>
-						<td>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/solver/post_*.cpp" class="code-link"><code class="text-nowrap">src/engine/solver/post_*.cpp</code></a>
-						</td>
-						<td class=""> <!-- text-justify -->
-							Implementation of Rule <code>(COM-SEM)</code>.
-							There are specialized implementations for assignments to variables (<code class="text-nowrap">post_assign_var.cpp</code>), assignments to memory cells (<code class="text-nowrap">post_assign_write.cpp</code>), assumptions (<code class="text-nowrap">post_assume.cpp</code>), and allocation (<code class="text-nowrap">post_malloc.cpp</code>).
-						</td>
-					</tr>
-					<tr>
-						<td scope="row">Loops</td>
-						<td>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/proof/stmt.cpp" class="code-link"><code class="text-nowrap">src/engine/proof/stmt.cpp</code></a>
-						</td>
-						<td class=""> <!-- text-justify -->
-							Implementation of Rule <code>(LOOP)</code>.
-						</td>
-					</tr>
-					<tr>
-						<td scope="row">Flow Graphs</td>
-						<td>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/include/engine/flowgraph.hpp" class="code-link"><code class="text-nowrap">include/engine/flowgraph.hpp</code></a>
-							<br>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/flowgraph/make.hpp" class="code-link"><code class="text-nowrap">src/engine/flowgraph/make.hpp</code></a>
-						</td>
-						<td class=""> <!-- text-justify -->
-							Definition and generation of flow graphs.
-							Flow graphs are generated wrt. a memory assignment by taking a fixed, finite number of reachable nodes starting from the nodes participating in the assignment.
-						</td>
-					</tr>
-					<tr>
-						<td scope="row">Histories</td>
-						<td>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/solver/past.cpp" class="code-link"><code class="text-nowrap">src/engine/solver/past.cpp</code></a>
-						</td>
-						<td class=""> <!-- text-justify -->
-							Implementation of history introduction and reasoning.
-							Note that this implements the <em>how</em>.
-							To see <em>when</em> this is performed, refer to <code class="text-nowrap">src/proof/common.hpp</code>.
-						</td>
-					</tr>
-					<tr>
-						<td scope="row">Futures</td>
-						<td>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/solver/future.cpp" class="code-link"><code class="text-nowrap">src/engine/solver/future.cpp</code></a>
-						</td>
-						<td class=""> <!-- text-justify -->
-							Implementation of future introduction and reasoning.
-							Note that this implements the <em>how</em>.
-							To see <em>when</em> this is performed, refer to <code class="text-nowrap">src/proof/common.hpp</code>.
-						</td>
-					</tr>
-					<tr>
-						<td scope="row">Interference</td>
-						<td>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/solver/stability.cpp" class="code-link"><code class="text-nowrap">src/engine/solver/stability.cpp</code></a>
-						</td>
-						<td class=""> <!-- text-justify -->
-							Applies interference (i.e. effects on the shared heap) such that annotations become stable (i.e. interference-free).
-							Note that this implements the <em>how</em>.
-							To see <em>when</em> this is performed, refer to <code class="text-nowrap">src/proof/common.hpp</code>.
-						</td>
-					</tr>
-					<tr>
-						<td scope="row">Join</td>
-						<td>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/solver/join.cpp" class="code-link"><code class="text-nowrap">src/engine/solver/join.cpp</code></a>
-						</td>
-						<td class=""> <!-- text-justify -->
-							Implementation of the join operation, which deals with now, past, and future predicates.
-							Resource-like entities (variable bindings, points-to predicates, proof obligation resources) are matched manually; the remaining entities are handled semantically by encoding them into SMT.
-						</td>
-					</tr>
-					<tr>
-						<td scope="row">Entailment</td>
-						<td>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/solver/implication.cpp" class="code-link"><code class="text-nowrap">src/engine/solver/implication.cpp</code></a>
-						</td>
-						<td class=""> <!-- text-justify -->
-							Entailment operation, which deals with now, past, and future predicates.
-							Resource-like entities (variable bindings, points-to predicates, proof obligation resources), futures, pasts are matched syntactically; only the now stack is handled semantically by encoding it into SMT.
-						</td>
-					</tr>
-					<tr>
-						<td scope="row">Encoding</td>
-						<td>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/include/engine/encoding.hpp" class="code-link"><code class="text-nowrap">include/engine/encoding.hpp</code></a>
-							<br>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/encoding/" class="code-link"><code class="text-nowrap">src/engine/encoding/*</code></a>
-						</td>
-						<td class=""> <!-- text-justify -->
-							SMT encoding of now predicates.
-							The encoding does not handle resource-like entities (variable bindings, points-to predicates, proof obligation resources).
-						</td>
-					</tr>
-					<tr>
-						<td scope="row">Fixed Point</td>
-						<td>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/proof/api.cpp" class="code-link"><code class="text-nowrap">src/engine/proof/api.cpp</code></a>
-							<br>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/proof/common.cpp" class="code-link"><code class="text-nowrap">src/engine/proof/common.cpp</code></a>
-						</td>
-						<td class=""> <!-- text-justify -->
-							Implements the fixed point (<code class="text-nowrap">src/engine/proof/api.cpp</code>) saturating the interference by repeatedly generating proofs for the API functions of the input program and extracting new inferferences from the generated proof.
-							The generated proof is guaranteed to be interference-free: interferences are applied to the generated annotation unless a command is a right-mover (<code class="text-nowrap">src/engine/proof/common.cpp</code>).
-							Past and future reasoning is applied whenever interference is applied or as a pre-processing step of the join operation (<code class="text-nowrap">src/engine/proof/common.cpp</code>).
-						</td>
-					</tr>
-					<tr>
-						<td scope="row">Linearizability</td>
-						<td>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/proof/api.cpp" class="code-link"><code class="text-nowrap">src/engine/proof/api.cpp</code></a>
-							<br>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/solver/post_assign_write.cpp" class="code-link"><code class="text-nowrap">src/engine/solver/post_assign_write.cpp</code></a>
-							<br>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/solver/ful.cpp" class="code-link"><code class="text-nowrap">src/engine/solver/ful.cpp</code></a>
-							<br>
-							<a target="new" href="https://github.com/Wolff09/plankton/blob/PLDI22/src/engine/encoding/spec.cpp" class="code-link"><code class="text-nowrap">src/engine/encoding/spec.cpp</code></a>
-						</td>
-						<td class=""> <!-- text-justify -->
-							Linearizability is checked for every proof generated for API function (<code class="text-nowrap">src/engine/proof/api.cpp</code>).
-							The check is performed directly for impure memory assignment (<code class="text-nowrap">src/engine/solver/post_assign_write.cpp</code>) or using past (hindsight) reasoning (<code class="text-nowrap">src/engine/solver/fut.cpp</code>) on top of a function's proof (<code class="text-nowrap">src/engine/proof/api.cpp</code>).
-							Whether or not the specification is met, is checked by encoding the keyset theorem in SMT (<code class="text-nowrap">src/engine/encoding/spec.cpp</code>).
-						</td>
-					</tr>
-				</tbody>
-			</table>
-		</div>
 
 
 
